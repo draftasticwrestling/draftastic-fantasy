@@ -203,10 +203,10 @@ function normalizeContract(raw: string | undefined): (typeof CONTRACT_TIERS)[num
 }
 
 /** Group roster entries by contract tier for display. */
-export function groupRosterByContract(
-  roster: RosterEntry[]
-): { tier: (typeof CONTRACT_TIERS)[number]; entries: RosterEntry[] }[] {
-  const groups: Record<string, RosterEntry[]> = {
+export function groupRosterByContract<T extends RosterEntry>(
+  roster: T[]
+): { tier: (typeof CONTRACT_TIERS)[number]; entries: T[] }[] {
+  const groups: Record<string, T[]> = {
     "Three Year Contracts": [],
     "Two Year Contracts": [],
     "One Year Contracts": [],
