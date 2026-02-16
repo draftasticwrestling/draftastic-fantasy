@@ -1,0 +1,8 @@
+# Netlify config for Next.js (Draftastic Fantasy)
+# https://docs.netlify.com/integrations/frameworks/next-js/
+
+[build]
+  command = "npm run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
