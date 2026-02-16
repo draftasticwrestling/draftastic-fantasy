@@ -103,19 +103,7 @@ type RawMatchKOTR = {
   Stipulation?: string;
 };
 
-/** Return type of scoreEvent() from lib/scoring/scoreEvent.js */
-type ScoredEvent = {
-  eventId?: string;
-  eventName?: string;
-  eventType?: string;
-  date?: string;
-  matches: Array<{
-    order?: number;
-    isPromo?: boolean;
-    wrestlerPoints?: Array<{ wrestler: string; total?: number; [key: string]: unknown }>;
-    [key: string]: unknown;
-  }>;
-};
+import type { ScoredEvent } from "@/lib/scoring/types";
 
 /** Same combined string as calculator: matchType, stipulation/Stipulation, title, round/stage. */
 function getKOTRCombined(rawMatch: RawMatchKOTR | null): string {
@@ -235,12 +223,12 @@ export default async function EventResultsPage({
   const slugToDisplayName = new Map<string, string>();
   const rawMatches = (event.matches || []) as RawMatchKOTR[];
   for (const match of scored.matches) {
-    if ((match as { isPromo?: boolean }).isPromo) continue;
+    if ((match as { isPromo?: boolean }).isPromo || !match.wrestlerPoints) continue;
     for (const wp of match.wrestlerPoints) {
       const slug = normalizeWrestlerName(wp.wrestler) || wp.wrestler;
       const canon = toCanonicalSlug(slug);
       if (!slugToDisplayName.has(canon)) slugToDisplayName.set(canon, wp.wrestler);
-      totalsByWrestler.set(canon, (totalsByWrestler.get(canon) ?? 0) + wp.total);
+      totalsByWrestler.set(canon, (totalsByWrestler.get(canon) ?? 0) + (wp.total ?? 0));
     }
   }
 
@@ -294,7 +282,7 @@ export default async function EventResultsPage({
       const isSingleQueenMatch = isQueen && singleQueenFinalMatch === scoredMatch;
       const isSingleKingFinal = !isQueen && singleKingFinalMatch === scoredMatch;
       if (!isExplicitFinal && !isSingleQueenMatch && !isSingleKingFinal) continue;
-      for (const wp of scoredMatch.wrestlerPoints) {
+      for (const wp of scoredMatch.wrestlerPoints ?? []) {
         const slug = normalizeWrestlerName(wp.wrestler);
         if (!slug) continue;
         const canon = toCanonicalSlug(slug);
@@ -319,13 +307,13 @@ export default async function EventResultsPage({
           winnerPts = isWinner ? 20 : 0;
         }
         if (isQueen) {
-          const toAdd = isSingleQueenMatch ? (finalPts + winnerPts) : pts;
+          const toAdd = isSingleQueenMatch ? (finalPts + winnerPts) : (pts ?? 0);
           queenPoints[canon] = (queenPoints[canon] ?? 0) + toAdd;
           if (!queenBreakdown[canon]) queenBreakdown[canon] = emptyBreakdown();
           queenBreakdown[canon].final += finalPts;
           queenBreakdown[canon].winner += winnerPts;
         } else {
-          const toAdd = isSingleKingFinal ? (finalPts + winnerPts) : pts;
+          const toAdd = isSingleKingFinal ? (finalPts + winnerPts) : (pts ?? 0);
           kingPoints[canon] = (kingPoints[canon] ?? 0) + toAdd;
           if (!kingBreakdown[canon]) kingBreakdown[canon] = emptyBreakdown();
           kingBreakdown[canon].final += finalPts;
@@ -409,7 +397,7 @@ export default async function EventResultsPage({
         kotrForceFetchLog.push({ id: fid, found: true, matchCount, eventType: "date not before NOC", error: `event date >= NOC` });
         continue;
       }
-      const forceScored = scoreEvent(forceEv);
+      const forceScored = scoreEvent(forceEv) as ScoredEvent;
       const forceRS =
         forceScored.eventType === EVENT_TYPES.RAW ||
         forceScored.eventType === EVENT_TYPES.SMACKDOWN;
@@ -481,7 +469,7 @@ export default async function EventResultsPage({
       if (!ev?.id || seenEventIds.has(String(ev.id))) continue;
       if (processedForceIds.has(String(ev.id).toLowerCase())) continue;
       seenEventIds.add(String(ev.id));
-      const priorScored = scoreEvent(ev);
+      const priorScored = scoreEvent(ev) as ScoredEvent;
       const isRS =
         priorScored.eventType === EVENT_TYPES.RAW ||
         priorScored.eventType === EVENT_TYPES.SMACKDOWN;
@@ -639,7 +627,7 @@ export default async function EventResultsPage({
           {scored.eventName}
         </h1>
         <p style={{ margin: 0, color: "#666", fontSize: 15 }}>
-          {formatDate(scored.date)}
+          {formatDate(scored.date ?? null)}
           {scored.eventType && scored.eventType !== "unknown" && (
             <> · {formatEventType(scored.eventType)}</>
           )}
@@ -907,7 +895,7 @@ export default async function EventResultsPage({
                 )}
                 {match.title && match.title !== "None" && match.title !== "" && !(match as { isPromo?: boolean }).isPromo && (
                   <span style={{ marginLeft: 8, color: "#555" }}>
-                    — {match.title}
+                    — {String(match.title)}
                   </span>
                 )}
               </div>
@@ -964,7 +952,7 @@ export default async function EventResultsPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {match.wrestlerPoints.map((wp) => {
+                    {(match.wrestlerPoints ?? []).map((wp) => {
                       const kotrTowardNOC = (wp as { kotrTowardNOC?: number }).kotrTowardNOC ?? 0;
                       return (
                         <tr key={wp.wrestler} style={{ borderBottom: "1px solid #eee" }}>

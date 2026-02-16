@@ -1,9 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  scoreEvent,
-} from "@/lib/scoring/scoreEvent.js";
+import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
+import type { ScoredEvent } from "@/lib/scoring/types";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   computeEndOfMonthBeltPoints,
@@ -170,7 +169,7 @@ export default async function WrestlerProfilePage({
   let nocEventId: string | null = null;
   let nocDateMs = 0;
   for (const ev of events ?? []) {
-    const s = scoreEvent(ev);
+    const s = scoreEvent(ev) as ScoredEvent;
     const isNOC =
       s.eventType === EVENT_TYPES.NIGHT_OF_CHAMPIONS ||
       s.eventType === EVENT_TYPES.KING_QUEEN_OF_THE_RING;
@@ -184,7 +183,7 @@ export default async function WrestlerProfilePage({
     for (const ev of events ?? []) {
       const d = ev.date ? new Date(ev.date).getTime() : 0;
       if (d >= nocDateMs) continue;
-      const forceScored = scoreEvent(ev);
+      const forceScored = scoreEvent(ev) as ScoredEvent;
       const isRS =
         forceScored.eventType === EVENT_TYPES.RAW ||
         forceScored.eventType === EVENT_TYPES.SMACKDOWN;
@@ -252,7 +251,7 @@ export default async function WrestlerProfilePage({
   }
 
   for (const event of events ?? []) {
-    const scored = scoreEvent(event);
+    const scored = scoreEvent(event) as ScoredEvent;
     const eventId = event.id;
     const eventName = scored.eventName ?? event.name ?? "";
     const date = (event.date || "").slice(0, 10);
