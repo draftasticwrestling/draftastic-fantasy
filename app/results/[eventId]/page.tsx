@@ -103,6 +103,20 @@ type RawMatchKOTR = {
   Stipulation?: string;
 };
 
+/** Return type of scoreEvent() from lib/scoring/scoreEvent.js */
+type ScoredEvent = {
+  eventId?: string;
+  eventName?: string;
+  eventType?: string;
+  date?: string;
+  matches: Array<{
+    order?: number;
+    isPromo?: boolean;
+    wrestlerPoints?: Array<{ wrestler: string; total?: number; [key: string]: unknown }>;
+    [key: string]: unknown;
+  }>;
+};
+
 /** Same combined string as calculator: matchType, stipulation/Stipulation, title, round/stage. */
 function getKOTRCombined(rawMatch: RawMatchKOTR | null): string {
   if (!rawMatch) return "";
@@ -215,7 +229,7 @@ export default async function EventResultsPage({
     return slugToCanonical.get(slug) ?? slug;
   }
 
-  const scored = scoreEvent(event);
+  const scored = scoreEvent(event) as ScoredEvent;
 
   const totalsByWrestler = new Map<string, number>();
   const slugToDisplayName = new Map<string, string>();
