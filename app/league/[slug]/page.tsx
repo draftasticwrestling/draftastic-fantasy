@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getMemberBySlug, getAllSlugs, EXAMPLE_LEAGUE } from "@/lib/league";
 import { getRosterForMember } from "@/lib/rosters";
+import { getDraftPicksForOwner, getPickLabel, DEFAULT_SEASON } from "@/lib/draftPicks";
 import RosterDisplay from "./RosterDisplay";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
@@ -66,6 +67,7 @@ export default async function TeamPage({
     { data: wrestlers },
     { data: events },
     { data: rawReigns },
+    draftPicks,
   ] = await Promise.all([
     getRosterForMember(slug),
     supabase.from("wrestlers").select("id, name, brand, image_url, dob"),
@@ -79,6 +81,7 @@ export default async function TeamPage({
       .from("championship_history")
       .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
+    getDraftPicksForOwner(EXAMPLE_LEAGUE.slug, DEFAULT_SEASON, slug),
   ]);
 
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
@@ -101,7 +104,15 @@ export default async function TeamPage({
     }
   }
 
-  const rosterForDisplay: { name: string; contract?: string; slug: string; totalPoints: number }[] = [];
+  const rosterForDisplay: {
+    name: string;
+    contract?: string;
+    slug: string;
+    rsPoints: number;
+    plePoints: number;
+    beltPoints: number;
+    totalPoints: number;
+  }[] = [];
   let ownerTotal = 0;
   for (const e of roster) {
     const byId = wrestlers?.find((w) => (w.id as string).toLowerCase() === e.name.toLowerCase());
@@ -119,6 +130,9 @@ export default async function TeamPage({
       name: byId ? (byId.name as string) : e.name,
       contract: e.contract,
       slug: wrestlerSlug,
+      rsPoints: points.rsPoints,
+      plePoints: points.plePoints,
+      beltPoints,
       totalPoints,
     });
   }
@@ -126,7 +140,7 @@ export default async function TeamPage({
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 960, marginLeft: 0, marginRight: "auto", fontSize: 18, lineHeight: 1.6 }}>
       <p style={{ marginBottom: 20 }}>
-        <Link href="/league" style={{ color: "#1a73e8", textDecoration: "none" }}>
+        <Link href="/league/teams" style={{ color: "#1a73e8", textDecoration: "none" }}>
           ← {EXAMPLE_LEAGUE.name}
         </Link>
       </p>
@@ -165,12 +179,53 @@ export default async function TeamPage({
               No wrestlers on this roster yet.
             </p>
             <p style={{ margin: 0, fontSize: 15, color: "#555" }}>
-              Go to the <Link href="/league" style={{ color: "#1a73e8" }}>league page</Link> and assign wrestlers to this owner with contract lengths.
+              Go to the <Link href="/league/draft" style={{ color: "#1a73e8" }}>Draft</Link> page to assign wrestlers to this owner with contract lengths.
             </p>
           </div>
         ) : (
           <RosterDisplay roster={rosterForDisplay} wrestlerMap={wrestlerMap} ownerTotal={ownerTotal} />
         )}
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h2
+          style={{
+            fontSize: "1.1rem",
+            fontWeight: 700,
+            marginBottom: 16,
+            color: "#333",
+          }}
+        >
+          Season {DEFAULT_SEASON} draft picks
+        </h2>
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e0e0e0",
+            borderRadius: 8,
+            padding: 24,
+            color: "#444",
+            fontSize: 15,
+            lineHeight: 1.6,
+          }}
+        >
+          {draftPicks.length === 0 ? (
+            <p style={{ margin: 0 }}>
+              No draft picks on record for this owner. Run the script in <code style={{ fontSize: 14 }}>supabase/draft_picks.sql</code> in your Supabase SQL editor to create the table and seed Season 3 picks.
+            </p>
+          ) : (
+            <>
+              <p style={{ margin: "0 0 12px 0" }}>
+                Picks you currently hold (tradeable):
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {draftPicks.map((p) => (
+                  <li key={p.id}>{getPickLabel(p)}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       </section>
 
       <section>

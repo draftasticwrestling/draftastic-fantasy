@@ -8,6 +8,7 @@ import {
   inferReignsFromEvents,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 
 const LEAGUE_START_DATE = "2025-05-02";
 
@@ -55,7 +56,8 @@ export default async function WrestlersPage() {
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
 
-  const rows = (wrestlers ?? []).map((w) => {
+  const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
+  const rows = wrestlersFiltered.map((w) => {
     const points = pointsBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
@@ -76,6 +78,7 @@ export default async function WrestlersPage() {
       plePoints: points.plePoints,
       beltPoints,
       totalPoints,
+      personaDisplay: getPersonasForDisplay(w.id) ?? null,
     };
   });
 

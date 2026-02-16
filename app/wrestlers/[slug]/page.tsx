@@ -11,6 +11,7 @@ import {
   getTitleReignsForWrestler,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 
 const LEAGUE_START_DATE = "2025-05-02";
@@ -197,7 +198,8 @@ export default async function WrestlerProfilePage({
           if (toward <= 0) continue;
           const participantSlug = wp.wrestler ? normalizeWrestlerName(wp.wrestler) : "";
           if (!participantSlug) continue;
-          const canon = toCanonicalSlug(participantSlug);
+          const eventDate = (ev as { date?: string }).date ? String((ev as { date?: string }).date).slice(0, 10) : "";
+          const canon = resolvePersonaToCanonical(participantSlug, eventDate) ?? toCanonicalSlug(participantSlug);
           if (bracket === "queen") {
             const bd = queenFromPriorBreakdown[canon] ?? emptyBreakdown();
             queenFromPriorBreakdown[canon] = bd;
@@ -233,14 +235,17 @@ export default async function WrestlerProfilePage({
     titleOutcome: string | null;
     total: number;
     breakdown: string[];
+    personaName: string | null;
   };
   const eventToRow = new Map<
     string,
-    { eventName: string; date: string; total: number; result: string | null; title: string | null; titleOutcome: string | null }
+    { eventName: string; date: string; total: number; result: string | null; title: string | null; titleOutcome: string | null; personaName: string | null }
   >();
 
-  function participantMatchesWrestler(participantSlug: string): boolean {
+  function participantMatchesWrestler(participantSlug: string, eventDate: string): boolean {
     if (!participantSlug) return false;
+    const resolved = resolvePersonaToCanonical(participantSlug, eventDate);
+    if (resolved && (resolved === slug || resolved === nameKey)) return true;
     if (participantSlug === slug || participantSlug === nameKey) return true;
     const slugNorm = slug.replace(/-/g, "");
     const partNorm = participantSlug.replace(/-/g, "");
@@ -265,11 +270,17 @@ export default async function WrestlerProfilePage({
     let firstResult: string | null = null;
     let firstTitle: string | null = null;
     let firstTitleOutcome: string | null = null;
+    let firstPersonaName: string | null = null;
     for (const m of scored.matches ?? []) {
       if (m.isPromo || !m.wrestlerPoints) continue;
-      for (const wp of m.wrestlerPoints) {
+        for (const wp of m.wrestlerPoints) {
         const participantSlug = wp.wrestler ? normalizeWrestlerName(wp.wrestler) : "";
-        if (!participantMatchesWrestler(participantSlug)) continue;
+        if (!participantMatchesWrestler(participantSlug, date)) continue;
+        const resolved = resolvePersonaToCanonical(participantSlug, date);
+        const earnedAsPersona = resolved && (resolved === slug || resolved === nameKey) && participantSlug !== slug && participantSlug !== nameKey;
+        if (earnedAsPersona && wp.wrestler && !firstPersonaName) {
+          firstPersonaName = String(wp.wrestler).trim();
+        }
         const matchPt = (wp as { matchPoints?: number }).matchPoints ?? 0;
         const mainPt = (wp as { mainEventPoints?: number }).mainEventPoints ?? 0;
         const titlePt = (wp as { titlePoints?: number }).titlePoints ?? 0;
@@ -301,6 +312,7 @@ export default async function WrestlerProfilePage({
         result: firstResult,
         title: firstTitle,
         titleOutcome: firstTitleOutcome,
+        personaName: firstPersonaName,
       });
     }
   }
@@ -314,6 +326,7 @@ export default async function WrestlerProfilePage({
     titleOutcome: row.titleOutcome,
     total: row.total,
     breakdown: [],
+    personaName: row.personaName,
   }));
   matchesWithPoints.sort((a, b) => b.date.localeCompare(a.date));
 
@@ -452,6 +465,11 @@ export default async function WrestlerProfilePage({
                       <Link href={`/results/${row.eventId}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
                         {row.eventName}
                       </Link>
+                      {row.personaName && (
+                        <span style={{ display: "block", fontSize: 12, color: "#666", fontStyle: "italic" }}>
+                          as {row.personaName}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: "8px 12px", color: "#333" }}>
                       {row.result ?? "—"}

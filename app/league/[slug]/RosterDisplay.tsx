@@ -6,8 +6,14 @@ import { groupRosterByContract } from "@/lib/rosters";
 
 type WrestlerInfo = { brand: string | null; image_url: string | null; dob: string | null };
 
-/** Roster entry with slug and totalPoints for team page display. */
-export type RosterDisplayEntry = RosterEntry & { slug?: string; totalPoints?: number };
+/** Roster entry with slug and points for team page display. */
+export type RosterDisplayEntry = RosterEntry & {
+  slug?: string;
+  rsPoints?: number;
+  plePoints?: number;
+  beltPoints?: number;
+  totalPoints?: number;
+};
 
 const BRAND_STYLES: Record<string, { stripBg: string; label: string }> = {
   Raw: { stripBg: "#8B1538", label: "RAW" },
@@ -100,7 +106,10 @@ export default function RosterDisplay({ roster, wrestlerMap, ownerTotal }: Props
               <div style={{ width: 44 + 72, flexShrink: 0 }} />
               <div style={{ flex: 1, paddingLeft: 16 }}>Name</div>
               <div style={{ width: 56, flexShrink: 0, textAlign: "right", paddingRight: 8 }}>Age</div>
-              <div style={{ width: 72, flexShrink: 0, textAlign: "right" }}>Pts</div>
+              <div style={{ width: 72, flexShrink: 0, textAlign: "right", paddingRight: 8 }}>R/S Pts</div>
+              <div style={{ width: 72, flexShrink: 0, textAlign: "right", paddingRight: 8 }}>PLE Pts</div>
+              <div style={{ width: 72, flexShrink: 0, textAlign: "right", paddingRight: 8 }}>Belt Pts</div>
+              <div style={{ width: 80, flexShrink: 0, textAlign: "right" }}>Total Pts</div>
             </div>
             {entries.map((entry, i) => {
               const info = wrestlerMap[nameKey(entry.name)];
@@ -217,6 +226,45 @@ export default function RosterDisplay({ roster, wrestlerMap, ownerTotal }: Props
                   <div
                     style={{
                       width: 72,
+                      flexShrink: 0,
+                      padding: "12px 8px",
+                      textAlign: "right",
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: "#333",
+                    }}
+                  >
+                    {typeof entry.rsPoints === "number" ? entry.rsPoints : "—"}
+                  </div>
+                  <div
+                    style={{
+                      width: 72,
+                      flexShrink: 0,
+                      padding: "12px 8px",
+                      textAlign: "right",
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: "#333",
+                    }}
+                  >
+                    {typeof entry.plePoints === "number" ? entry.plePoints : "—"}
+                  </div>
+                  <div
+                    style={{
+                      width: 72,
+                      flexShrink: 0,
+                      padding: "12px 8px",
+                      textAlign: "right",
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: "#333",
+                    }}
+                  >
+                    {typeof entry.beltPoints === "number" ? entry.beltPoints : "—"}
+                  </div>
+                  <div
+                    style={{
+                      width: 80,
                       flexShrink: 0,
                       padding: "12px 16px 12px 8px",
                       textAlign: "right",

@@ -14,6 +14,8 @@ export type WrestlerRow = {
   plePoints?: number;
   beltPoints?: number;
   totalPoints?: number;
+  /** Alter-ego persona text, e.g. "Also: El Grande Americano (from Jun 2025)" */
+  personaDisplay?: string | null;
 };
 
 const ROSTER_ORDER = [
@@ -316,6 +318,11 @@ export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }
                     >
                       {w.name || w.id}
                     </Link>
+                    {w.personaDisplay && (
+                      <div style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.8)", fontStyle: "italic", marginTop: 2 }}>
+                        {w.personaDisplay}
+                      </div>
+                    )}
                   </td>
                   <td
                     style={{
