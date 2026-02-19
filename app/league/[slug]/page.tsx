@@ -4,7 +4,9 @@ import { supabase } from "@/lib/supabase";
 import { getMemberBySlug, getAllSlugs, EXAMPLE_LEAGUE } from "@/lib/league";
 import { getRosterForMember } from "@/lib/rosters";
 import { getDraftPicksForOwner, getPickLabel, DEFAULT_SEASON } from "@/lib/draftPicks";
+import { getHoldingsForOwner } from "@/lib/discoveryHoldings";
 import RosterDisplay from "./RosterDisplay";
+import DiscoverySection from "./DiscoverySection";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   computeEndOfMonthBeltPoints,
@@ -68,6 +70,7 @@ export default async function TeamPage({
     { data: events },
     { data: rawReigns },
     draftPicks,
+    discoveryHoldings,
   ] = await Promise.all([
     getRosterForMember(slug),
     supabase.from("wrestlers").select("id, name, brand, image_url, dob"),
@@ -82,6 +85,7 @@ export default async function TeamPage({
       .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
     getDraftPicksForOwner(EXAMPLE_LEAGUE.slug, DEFAULT_SEASON, slug),
+    getHoldingsForOwner(EXAMPLE_LEAGUE.slug, slug),
   ]);
 
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
@@ -183,9 +187,21 @@ export default async function TeamPage({
             </p>
           </div>
         ) : (
-          <RosterDisplay roster={rosterForDisplay} wrestlerMap={wrestlerMap} ownerTotal={ownerTotal} />
+          <RosterDisplay
+            roster={rosterForDisplay}
+            wrestlerMap={wrestlerMap}
+            ownerTotal={ownerTotal}
+            discoveryHoldings={discoveryHoldings}
+          />
         )}
       </section>
+
+      <DiscoverySection
+        ownerSlug={slug}
+        ownerName={member.name}
+        holdings={discoveryHoldings}
+        unusedDiscoveryPicks={draftPicks.filter((p) => p.pick_type === "discovery" && !p.used_at)}
+      />
 
       <section style={{ marginBottom: 32 }}>
         <h2
@@ -220,7 +236,12 @@ export default async function TeamPage({
               </p>
               <ul style={{ margin: 0, paddingLeft: 20 }}>
                 {draftPicks.map((p) => (
-                  <li key={p.id}>{getPickLabel(p)}</li>
+                  <li key={p.id}>
+                    {getPickLabel(p)}
+                    {p.pick_type === "discovery" && p.used_at && (
+                      <span style={{ color: "#666", fontSize: 14 }}> (used)</span>
+                    )}
+                  </li>
                 ))}
               </ul>
             </>

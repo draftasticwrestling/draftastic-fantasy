@@ -3,8 +3,24 @@
 import Link from "next/link";
 import type { RosterEntry } from "@/lib/rosters";
 import { groupRosterByContract } from "@/lib/rosters";
+import type { DiscoveryHoldingWithStatus } from "@/lib/discoveryHoldings";
 
 type WrestlerInfo = { brand: string | null; image_url: string | null; dob: string | null };
+
+function discoveryStatusLabel(h: DiscoveryHoldingWithStatus): string {
+  switch (h.status) {
+    case "rights_held":
+      return "Rights held (no WWE MR debut yet)";
+    case "clock_started":
+      return h.monthsLeft != null ? `${h.monthsLeft} months left to activate` : "Clock started";
+    case "expired":
+      return "Expired (12 months passed)";
+    case "activated":
+      return "Activated (on roster)";
+    default:
+      return "";
+  }
+}
 
 /** Roster entry with slug and points for team page display. */
 export type RosterDisplayEntry = RosterEntry & {
@@ -53,9 +69,10 @@ type Props = {
   roster: RosterDisplayEntry[];
   wrestlerMap: Record<string, WrestlerInfo>;
   ownerTotal?: number;
+  discoveryHoldings?: DiscoveryHoldingWithStatus[];
 };
 
-export default function RosterDisplay({ roster, wrestlerMap, ownerTotal }: Props) {
+export default function RosterDisplay({ roster, wrestlerMap, ownerTotal, discoveryHoldings = [] }: Props) {
   const groups = groupRosterByContract(roster);
 
   return (
@@ -281,6 +298,58 @@ export default function RosterDisplay({ roster, wrestlerMap, ownerTotal }: Props
           </div>
         </div>
       ))}
+
+      {/* Discovery rights — below contract tiers (e.g. below 1 year contracts) */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e0e0e0",
+          borderRadius: 8,
+          overflow: "hidden",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+        }}
+      >
+        <div
+          style={{
+            padding: "12px 20px",
+            borderBottom: "1px solid #e8e8e8",
+            background: "#fafafa",
+            fontSize: "1rem",
+            fontWeight: 700,
+            color: "#111",
+            textAlign: "center",
+          }}
+        >
+          Discovery rights
+        </div>
+        <div style={{ padding: 0 }}>
+          {discoveryHoldings.length === 0 ? (
+            <div style={{ padding: "16px 20px", color: "#666", fontSize: 15 }}>
+              No discovery holdings yet.
+            </div>
+          ) : (
+            discoveryHoldings.map((h, i) => (
+              <div
+                key={h.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  minHeight: 56,
+                  padding: "10px 20px",
+                  borderBottom: i < discoveryHoldings.length - 1 ? "1px solid #eee" : "none",
+                  background: "#fff",
+                }}
+              >
+                <div style={{ flex: 1, fontWeight: 600, fontSize: 16, color: "#111" }}>
+                  {h.wrestler_name}
+                  {h.company && <span style={{ fontWeight: 400, color: "#666" }}> ({h.company})</span>}
+                </div>
+                <div style={{ fontSize: 14, color: "#555" }}>{discoveryStatusLabel(h)}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

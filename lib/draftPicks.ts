@@ -10,6 +10,7 @@ export type DraftPickRow = {
   original_owner_slug: string;
   current_owner_slug: string;
   contract_years?: number;
+  used_at?: string | null;
   created_at?: string;
 };
 
@@ -41,7 +42,7 @@ export function getPickLabel(pick: {
 export async function getDraftPicksByOwner(leagueSlug: string, season: number): Promise<Record<string, DraftPickRow[]>> {
   const { data, error } = await supabase
     .from("draft_picks")
-    .select("id, league_slug, season, pick_type, round_number, discovery_number, original_owner_slug, current_owner_slug, contract_years, created_at")
+    .select("id, league_slug, season, pick_type, round_number, discovery_number, original_owner_slug, current_owner_slug, contract_years, used_at, created_at")
     .eq("league_slug", leagueSlug)
     .eq("season", season)
     .order("pick_type")

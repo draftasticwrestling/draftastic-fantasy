@@ -17,6 +17,9 @@ export default async function HomePage() {
           <Link href="/league">League</Link> — example league and team pages.
         </p>
         <p style={{ fontSize: "1.1em" }}>
+          <Link href="/mvl">MVL Example: The Road to SummerSlam</Link> — minimum viable league (May 1–Aug 2, 2026) and roadmap.
+        </p>
+        <p style={{ fontSize: "1.1em" }}>
           <Link href="/wrestlers">Wrestlers</Link> — draft-eligible wrestlers and roster rules (min 4M / 4F).
         </p>
         <p style={{ fontSize: "1.1em" }}>

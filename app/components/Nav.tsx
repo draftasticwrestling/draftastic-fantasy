@@ -1,11 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 const TOP_LINKS = [
   { href: "/", label: "Home" },
   { href: "/league/teams", label: "League" },
+  { href: "/mvl", label: "MVL Example" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/wrestlers", label: "Wrestlers" },
   { href: "/score", label: "Score event" },
@@ -29,12 +33,33 @@ function getSecondaryLabel(pathname: string): string {
   if (pathname.startsWith("/wrestlers")) return "Wrestlers";
   if (pathname.startsWith("/score")) return "Score event";
   if (pathname.startsWith("/results")) return "Event results";
+  if (pathname.startsWith("/mvl")) return "MVL Example";
+  if (pathname.startsWith("/auth")) return "Account";
   return "Overview";
 }
 
 export default function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
   const secondaryLabel = getSecondaryLabel(pathname);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.refresh();
+  };
 
   return (
     <>
@@ -46,6 +71,7 @@ export default function Nav() {
           padding: "10px 24px",
           display: "flex",
           alignItems: "center",
+          justifyContent: "space-between",
           gap: 16,
         }}
       >
@@ -60,6 +86,49 @@ export default function Nav() {
         >
           Draftastic Fantasy
         </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "0.9rem" }}>
+          {user ? (
+            <>
+              <span style={{ color: "rgba(255,255,255,0.85)" }} title={user.email ?? undefined}>
+                {user.email ?? "Signed in"}
+              </span>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                style={{
+                  padding: "6px 12px",
+                  background: "transparent",
+                  color: "#fff",
+                  border: "1px solid rgba(255,255,255,0.5)",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: "0.9rem",
+                }}
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/auth/sign-in" style={{ color: "#fff", textDecoration: "none", padding: "6px 0" }}>
+                Sign in
+              </Link>
+              <Link
+                href="/auth/sign-up"
+                style={{
+                  color: "#1a2332",
+                  background: "#fff",
+                  textDecoration: "none",
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  fontWeight: 500,
+                }}
+              >
+                Sign up
+              </Link>
+            </>
+          )}
+        </div>
       </header>
 
       {/* Primary nav - light grey */}
@@ -76,6 +145,7 @@ export default function Nav() {
             margin: 0,
             padding: 0,
             display: "flex",
+            flexWrap: "wrap",
             gap: 24,
             alignItems: "center",
             minHeight: 40,

@@ -22,7 +22,7 @@ export default async function LeagueDraftPage() {
       <section style={{ marginTop: 32 }}>
         <h2 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Season {DEFAULT_SEASON} draft picks</h2>
         <p style={{ color: "#555", marginBottom: 16, fontSize: 15 }}>
-          R1-2: 3 yr, R3-4: 2 yr, R5-6: 1 yr. Discovery 1: 3 yr, 2: 2 yr, 3: 1 yr.
+          R1-2: 3 yr, R3-4: 2 yr, R5-6: 1 yr. Discovery 1: 3 yr, 2: 2 yr, 3: 1 yr. Use discovery picks to hold rights to wrestlers from any company; manage discovery rights on each team page (12-month clock after WWE main roster debut).
         </p>
         <ul style={{ listStyle: "none", padding: 0 }}>
           {LEAGUE_MEMBERS.map((member) => {
