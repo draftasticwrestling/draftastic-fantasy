@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import type { Profile } from "@/lib/profiles";
 
 const TOP_LINKS = [
   { href: "/", label: "Home" },
@@ -35,6 +36,7 @@ function getSecondaryLabel(pathname: string): string {
   if (pathname.startsWith("/results")) return "Event results";
   if (pathname.startsWith("/mvl")) return "MVL Example";
   if (pathname.startsWith("/auth")) return "Account";
+  if (pathname.startsWith("/account")) return "Account";
   return "Overview";
 }
 
@@ -43,6 +45,7 @@ export default function Nav() {
   const router = useRouter();
   const secondaryLabel = getSecondaryLabel(pathname);
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -54,6 +57,20 @@ export default function Nav() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setProfile(null);
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url, created_at, updated_at")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => setProfile(data as Profile | null));
+  }, [user?.id]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -89,9 +106,17 @@ export default function Nav() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "0.9rem" }}>
           {user ? (
             <>
-              <span style={{ color: "rgba(255,255,255,0.85)" }} title={user.email ?? undefined}>
-                {user.email ?? "Signed in"}
-              </span>
+              <Link
+                href="/account"
+                style={{
+                  color: "rgba(255,255,255,0.85)",
+                  textDecoration: "none",
+                  padding: "6px 0",
+                }}
+                title={user.email ?? undefined}
+              >
+                {profile?.display_name?.trim() || user.email || "Signed in"}
+              </Link>
               <button
                 type="button"
                 onClick={handleSignOut}

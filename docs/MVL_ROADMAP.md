@@ -13,7 +13,7 @@
 - [x] Sign in / sign out (Nav shows user + Sign out when logged in)
 - [x] Session handling (Supabase Auth + @supabase/ssr cookie-based)
 - [x] Forgot password (reset link via email)
-- [ ] Profile (display name, optional avatar) — optional next step
+- [x] Profile (display name; avatar_url column present for later)
 
 ### 2. Create a league & invite friends
 - [ ] Create a league (name, settings, commissioner)
