@@ -68,3 +68,10 @@ export async function updateDraftDateAction(
   revalidatePath(`/leagues/${leagueSlug}`);
   return {};
 }
+
+/** FormData-only wrapper so the league page form action has no closure (better RSC serialization). */
+export async function updateDraftDateFromFormAction(formData: FormData): Promise<void> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return;
+  await updateDraftDateAction(leagueSlug, formData);
+}

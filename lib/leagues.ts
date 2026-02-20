@@ -119,19 +119,41 @@ export async function createLeague(params: {
 
 /**
  * Get a league by slug. Returns null if not found or user is not a member.
+ * If draft columns are missing (migration not run), returns league with default draft fields.
  */
 export async function getLeagueBySlug(slug: string): Promise<(League & { role: "commissioner" | "owner" }) | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: league, error } = await supabase
+  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, created_at";
+  let result = await supabase
     .from("leagues")
-    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, created_at")
+    .select(fullSelect)
     .eq("slug", slug)
     .maybeSingle();
 
-  if (error || !league) return null;
+  let league = result.data;
+  if (result.error && (result.error.code === "42703" || result.error.message?.includes("column"))) {
+    const minimalResult = await supabase
+      .from("leagues")
+      .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, created_at")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (minimalResult.data) {
+      league = {
+        ...minimalResult.data,
+        draft_style: "snake",
+        draft_status: "not_started",
+        draft_current_pick: null,
+      } as typeof league;
+    } else {
+      league = minimalResult.data;
+    }
+  }
+
+  if (result.error && !league) return null;
+  if (!league) return null;
 
   const { data: member } = await supabase
     .from("league_members")

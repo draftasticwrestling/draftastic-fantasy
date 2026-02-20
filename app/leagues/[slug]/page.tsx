@@ -6,39 +6,70 @@ import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { InviteButton } from "../InviteButton";
 import { RostersSection } from "./RostersSection";
-import { updateDraftDateAction } from "./actions";
+import { updateDraftDateFromFormAction } from "./actions";
 
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props) {
-  const { slug } = await params;
-  const league = await getLeagueBySlug(slug);
-  if (!league) return { title: "Private League — Draftastic Fantasy" };
-  return {
-    title: `${league.name} — Draftastic Fantasy`,
-    description: `Private League (MVL): ${league.name} — season-only rosters`,
-  };
+  try {
+    const { slug } = await params;
+    const league = await getLeagueBySlug(slug);
+    if (!league) return { title: "Private League — Draftastic Fantasy" };
+    return {
+      title: `${league.name} — Draftastic Fantasy`,
+      description: `Private League (MVL): ${league.name} — season-only rosters`,
+    };
+  } catch {
+    return { title: "Private League — Draftastic Fantasy" };
+  }
 }
 
 export default async function LeagueDetailPage({ params }: Props) {
   const { slug } = await params;
-  const league = await getLeagueBySlug(slug);
-  if (!league) notFound();
+  let league: Awaited<ReturnType<typeof getLeagueBySlug>>;
+  let members: Awaited<ReturnType<typeof getLeagueMembers>> = [];
+  let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
+  let wrestlersResult: { id: string; name: string | null; gender: string | null }[] = [];
 
-  const [members, rosters, wrestlersResult] = await Promise.all([
-    getLeagueMembers(league.id),
-    getRostersForLeague(league.id),
-    (async () => {
-      const supabase = await createClient();
-      const { data } = await supabase
-        .from("wrestlers")
-        .select("id, name, gender")
-        .order("name", { ascending: true });
-      return (data ?? []) as { id: string; name: string | null; gender: string | null }[];
-    })(),
-  ]);
+  const fallback = (
+    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 640, margin: "0 auto" }}>
+      <p style={{ marginBottom: 24 }}>
+        <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>← My leagues</Link>
+      </p>
+      <h1 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Something went wrong</h1>
+      <p style={{ color: "#666", marginBottom: 16 }}>
+        We couldn’t load this league. You may need to sign in, or the league may not exist.
+      </p>
+      <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>Back to My leagues</Link>
+    </main>
+  );
 
-  return (
+  try {
+    league = await getLeagueBySlug(slug);
+    if (!league) notFound();
+
+    const [membersData, rostersData, wrestlersData] = await Promise.all([
+      getLeagueMembers(league.id),
+      getRostersForLeague(league.id),
+      (async () => {
+        const supabase = await createClient();
+        const { data } = await supabase
+          .from("wrestlers")
+          .select("id, name, gender")
+          .order("name", { ascending: true });
+        return (data ?? []) as { id: string; name: string | null; gender: string | null }[];
+      })(),
+    ]);
+    members = membersData;
+    rosters = rostersData;
+    wrestlersResult = wrestlersData;
+
+    const rosterRules = getRosterRulesForLeague(members.length);
+    const draftStatus = league.draft_status ?? "not_started";
+    const draftStyle = league.draft_style ?? "snake";
+    const draftDate = league.draft_date ?? "";
+
+    return (
     <main
       style={{
         fontFamily: "system-ui, sans-serif",
@@ -89,14 +120,14 @@ export default async function LeagueDetailPage({ params }: Props) {
       >
         <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Draft</h2>
         <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-          Draft status: <strong>{league.draft_status === "in_progress" ? "In progress" : league.draft_status === "completed" ? "Completed" : "Not started"}</strong>
-          {league.draft_style && league.draft_status === "not_started" && (
-            <> · Type: {league.draft_style === "linear" ? "Linear" : "Snake"}</>
+          Draft status: <strong>{draftStatus === "in_progress" ? "In progress" : draftStatus === "completed" ? "Completed" : "Not started"}</strong>
+          {draftStyle && draftStatus === "not_started" && (
+            <> · Type: {draftStyle === "linear" ? "Linear" : "Snake"}</>
           )}
         </p>
         <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-          {league.draft_date ? (
-            <>Draft date: <strong>{league.draft_date}</strong> (points from first event after this date)</>
+          {draftDate ? (
+            <>Draft date: <strong>{draftDate}</strong> (points from first event after this date)</>
           ) : (
             "Draft date not set."
           )}
@@ -104,11 +135,10 @@ export default async function LeagueDetailPage({ params }: Props) {
         {league.role === "commissioner" && (
           <>
             <form
-              action={async (formData: FormData) => {
-                await updateDraftDateAction(slug, formData);
-              }}
+              action={updateDraftDateFromFormAction}
               style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 16 }}
             >
+              <input type="hidden" name="league_slug" value={slug} />
               <div>
                 <label htmlFor="draft-date" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
                   Draft date
@@ -117,7 +147,7 @@ export default async function LeagueDetailPage({ params }: Props) {
                   id="draft-date"
                   type="date"
                   name="draft_date"
-                  defaultValue={league.draft_date ?? ""}
+                  defaultValue={draftDate}
                   style={{
                     padding: "8px 12px",
                     fontSize: 14,
@@ -198,9 +228,12 @@ export default async function LeagueDetailPage({ params }: Props) {
         rosters={rosters}
         wrestlers={wrestlersResult}
         isCommissioner={league.role === "commissioner"}
-        rosterRules={getRosterRulesForLeague(members.length)}
+        rosterRules={rosterRules}
         teamCount={members.length}
       />
     </main>
-  );
+    );
+  } catch {
+    return fallback;
+  }
 }

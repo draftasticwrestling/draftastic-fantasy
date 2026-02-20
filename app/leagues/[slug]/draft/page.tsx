@@ -23,39 +23,72 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function LeagueDraftPage({ params }: Props) {
   const { slug } = await params;
-  const league = await getLeagueBySlug(slug);
-  if (!league) notFound();
+  let league: Awaited<ReturnType<typeof getLeagueBySlug>>;
+  let members: Awaited<ReturnType<typeof getLeagueMembers>> = [];
+  let order: Awaited<ReturnType<typeof getDraftOrder>> = [];
+  let state: Awaited<ReturnType<typeof getLeagueDraftState>> = null;
+  let currentPick: Awaited<ReturnType<typeof getCurrentPick>> = null;
+  let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
+  let wrestlersRows: { id: string; name: string | null }[] = [];
+  let memberByUserId: Record<string, { display_name?: string | null }> = {};
+  let availableWrestlers: { id: string; name: string | null }[] = [];
+  let isCommissioner = false;
+  let isCurrentPicker = false;
 
-  const [members, order, state, currentPick, rosters, wrestlersRows] = await Promise.all([
-    getLeagueMembers(league.id),
-    getDraftOrder(league.id),
-    getLeagueDraftState(league.id),
-    getCurrentPick(league.id),
-    getRostersForLeague(league.id),
-    (async () => {
-      const supabase = await createClient();
-      const { data } = await supabase
-        .from("wrestlers")
-        .select("id, name")
-        .order("name", { ascending: true });
-      return (data ?? []) as { id: string; name: string | null }[];
-    })(),
-  ]);
+  try {
+    league = await getLeagueBySlug(slug);
+    if (!league) notFound();
 
-  const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
-  const draftedIds = new Set<string>();
-  for (const entries of Object.values(rosters)) {
-    for (const e of entries) draftedIds.add(e.wrestler_id);
+    const [membersData, orderData, stateData, currentPickData, rostersData, wrestlersData] = await Promise.all([
+      getLeagueMembers(league.id),
+      getDraftOrder(league.id),
+      getLeagueDraftState(league.id),
+      getCurrentPick(league.id),
+      getRostersForLeague(league.id),
+      (async () => {
+        const supabase = await createClient();
+        const { data } = await supabase
+          .from("wrestlers")
+          .select("id, name")
+          .order("name", { ascending: true });
+        return (data ?? []) as { id: string; name: string | null }[];
+      })(),
+    ]);
+    members = membersData;
+    order = orderData;
+    state = stateData;
+    currentPick = currentPickData;
+    rosters = rostersData;
+    wrestlersRows = wrestlersData;
+
+    memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
+    const draftedIds = new Set<string>();
+    for (const entries of Object.values(rosters)) {
+      for (const e of entries) draftedIds.add(e.wrestler_id);
+    }
+    availableWrestlers = wrestlersRows.filter((w) => !draftedIds.has(w.id));
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    isCommissioner = league.role === "commissioner";
+    isCurrentPicker =
+      !!currentPick &&
+      !!user &&
+      (currentPick.user_id === user.id || isCommissioner);
+  } catch {
+    return (
+      <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 720, margin: "0 auto" }}>
+        <p style={{ marginBottom: 24 }}>
+          <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>← My leagues</Link>
+        </p>
+        <h1 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Something went wrong</h1>
+        <p style={{ color: "#666", marginBottom: 16 }}>
+          We couldn’t load the draft. You may need to sign in, or the league may not exist.
+        </p>
+        <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>Back to My leagues</Link>
+      </main>
+    );
   }
-  const availableWrestlers = wrestlersRows.filter((w) => !draftedIds.has(w.id));
-
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const isCommissioner = league.role === "commissioner";
-  const isCurrentPicker =
-    currentPick &&
-    user &&
-    (currentPick.user_id === user.id || isCommissioner);
 
   return (
     <main

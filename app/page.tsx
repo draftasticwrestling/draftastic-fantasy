@@ -1,13 +1,22 @@
-import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function HomePage() {
-  const { data: events, error } = await supabase
-    .from("events")
-    .select("id, name, date, location")
-    .eq("status", "completed")
-    .order("date", { ascending: false })
-    .limit(10);
+  let events: { id: string; name: string | null; date: string | null; location: string | null }[] | null = null;
+  let error: { message: string } | null = null;
+  try {
+    const supabase = await createClient();
+    const result = await supabase
+      .from("events")
+      .select("id, name, date, location")
+      .eq("status", "completed")
+      .order("date", { ascending: false })
+      .limit(10);
+    events = result.data ?? null;
+    error = result.error ? { message: result.error.message } : null;
+  } catch (e) {
+    error = e instanceof Error ? { message: e.message } : { message: "Failed to load events" };
+  }
 
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", fontSize: "18px", lineHeight: 1.5 }}>
