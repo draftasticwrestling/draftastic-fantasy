@@ -1,59 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormState } from "react-dom";
+import { createLeagueAction, type CreateLeagueState } from "./new/actions";
 
 export function CreateLeagueForm() {
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!name.trim()) {
-      setError("Enter a league name.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch("/api/leagues", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          start_date: startDate.trim() || null,
-          end_date: endDate.trim() || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Failed to create league.");
-        return;
-      }
-      router.push(`/leagues/${data.league.slug}`);
-      router.refresh();
-    } catch {
-      setError("Request failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [state, formAction] = useFormState(createLeagueAction, null);
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div>
         <label htmlFor="league-name" style={{ display: "block", marginBottom: 4, fontWeight: 500 }}>
           League name *
         </label>
         <input
           id="league-name"
+          name="name"
           type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          required
           placeholder="e.g. The Road to SummerSlam"
           maxLength={120}
           style={{
@@ -73,9 +36,8 @@ export function CreateLeagueForm() {
           </label>
           <input
             id="league-start"
+            name="start_date"
             type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
             style={{
               width: "100%",
               padding: "10px 12px",
@@ -92,9 +54,8 @@ export function CreateLeagueForm() {
           </label>
           <input
             id="league-end"
+            name="end_date"
             type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
             style={{
               width: "100%",
               padding: "10px 12px",
@@ -106,12 +67,11 @@ export function CreateLeagueForm() {
           />
         </div>
       </div>
-      {error && (
-        <p style={{ margin: 0, color: "#b91c1c", fontSize: 14 }}>{error}</p>
+      {state?.error && (
+        <p style={{ margin: 0, color: "#b91c1c", fontSize: 14 }}>{state.error}</p>
       )}
       <button
         type="submit"
-        disabled={loading}
         style={{
           padding: "12px 16px",
           fontSize: 16,
@@ -120,10 +80,10 @@ export function CreateLeagueForm() {
           borderRadius: 8,
           background: "#1a73e8",
           color: "#fff",
-          cursor: loading ? "not-allowed" : "pointer",
+          cursor: "pointer",
         }}
       >
-        {loading ? "Creating…" : "Create league"}
+        Create league
       </button>
     </form>
   );

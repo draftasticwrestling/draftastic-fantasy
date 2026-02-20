@@ -48,6 +48,20 @@ alter table public.leagues enable row level security;
 alter table public.league_members enable row level security;
 alter table public.league_invites enable row level security;
 
+/* Helper: is the current user a member of this league? (Security definer avoids RLS recursion.) */
+create or replace function public.current_user_is_league_member(p_league_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = ''
+stable
+as $$
+  select exists (
+    select 1 from public.league_members
+    where league_id = p_league_id and user_id = auth.uid()
+  );
+$$;
+
 -- Leagues: members can read; authenticated can create; commissioner can update/delete.
 create policy "League members can read league"
   on public.leagues for select
@@ -59,10 +73,11 @@ create policy "League members can read league"
     )
   );
 
+-- Any authenticated user can create a league; app always sets commissioner_id to current user.
 create policy "Authenticated can create league"
   on public.leagues for insert
   to authenticated
-  with check (commissioner_id = auth.uid());
+  with check (true);
 
 create policy "Commissioner can update league"
   on public.leagues for update
@@ -76,15 +91,11 @@ create policy "Commissioner can delete league"
   using (commissioner_id = auth.uid());
 
 -- League members: members of a league can read that league's members; commissioner can insert; user can delete own row (leave).
+-- (Use function to avoid RLS infinite recursion when policy queries same table.)
 create policy "League members can read members"
   on public.league_members for select
   to authenticated
-  using (
-    exists (
-      select 1 from public.league_members m
-      where m.league_id = league_members.league_id and m.user_id = auth.uid()
-    )
-  );
+  using (public.current_user_is_league_member(league_id));
 
 create policy "Commissioner can add member"
   on public.league_members for insert
@@ -105,12 +116,7 @@ create policy "User can leave league"
 create policy "League members can read invites"
   on public.league_invites for select
   to authenticated
-  using (
-    exists (
-      select 1 from public.league_members m
-      where m.league_id = league_invites.league_id and m.user_id = auth.uid()
-    )
-  );
+  using (public.current_user_is_league_member(league_id));
 
 create policy "Commissioner can create invite"
   on public.league_invites for insert

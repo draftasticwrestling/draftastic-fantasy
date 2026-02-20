@@ -14,6 +14,9 @@ export default async function HomePage() {
       <div style={{ padding: 24 }}>
         <p style={{ fontSize: "1.1em" }}>Pro wrestling fantasy leagues — data from Pro Wrestling Boxscore.</p>
         <p style={{ fontSize: "1.1em" }}>
+          <Link href="/leagues"><strong>Leagues</strong></Link> — create a league, invite friends, and manage your leagues. (Sign in to create or join.)
+        </p>
+        <p style={{ fontSize: "1.1em" }}>
           <Link href="/league">League</Link> — example league and team pages.
         </p>
         <p style={{ fontSize: "1.1em" }}>

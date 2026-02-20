@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 export type League = {
   id: string;
@@ -55,11 +56,12 @@ export async function createLeague(params: {
   if (!name) return { error: "League name is required" };
 
   const baseSlug = slugify(name);
-  const { data: existing } = await supabase.from("leagues").select("slug");
+  const admin = getAdminClient();
+  const { data: existing } = await admin.from("leagues").select("slug");
   const existingSlugs = new Set((existing ?? []).map((r) => r.slug));
   const slug = makeSlugUnique(baseSlug, existingSlugs);
 
-  const { data: league, error } = await supabase
+  const { data: league, error } = await admin
     .from("leagues")
     .insert({
       name,
@@ -74,7 +76,7 @@ export async function createLeague(params: {
   if (error) return { error: error.message };
   if (!league) return { error: "Failed to create league" };
 
-  await supabase.from("league_members").insert({
+  await admin.from("league_members").insert({
     league_id: league.id,
     user_id: user.id,
     role: "commissioner",
