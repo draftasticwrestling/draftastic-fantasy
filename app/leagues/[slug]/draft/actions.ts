@@ -50,3 +50,17 @@ export async function makeDraftPickAction(
   revalidatePath(`/leagues/${leagueSlug}/draft`);
   return {};
 }
+
+/** FormData-only wrapper so draft page form has no closure (better RSC serialization). */
+export async function generateDraftOrderFromFormAction(formData: FormData): Promise<void> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return;
+  await generateDraftOrderAction(leagueSlug, formData);
+}
+
+/** FormData-only wrapper so draft page form has no closure (better RSC serialization). */
+export async function makeDraftPickFromFormAction(formData: FormData): Promise<void> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return;
+  await makeDraftPickAction(leagueSlug, formData);
+}
