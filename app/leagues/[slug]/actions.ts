@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addWrestlerToRoster, removeWrestlerFromRoster } from "@/lib/leagues";
+import { createClient } from "@/lib/supabase/server";
+import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster } from "@/lib/leagues";
 
 export type AddRosterState = { error?: string };
 
@@ -39,6 +40,31 @@ export async function removeRosterEntryAction(formData: FormData): Promise<{ err
   const result = await removeWrestlerFromRoster(leagueId, userId, wrestlerId);
   if (result.error) return { error: result.error };
 
+  revalidatePath(`/leagues/${leagueSlug}`);
+  return {};
+}
+
+export async function updateDraftDateAction(
+  leagueSlug: string,
+  formData: FormData
+): Promise<{ error?: string }> {
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || league.commissioner_id !== user.id) {
+    return { error: "Only the commissioner can set the draft date." };
+  }
+
+  const draft_date = (formData.get("draft_date") as string)?.trim() || null;
+
+  const { error } = await supabase
+    .from("leagues")
+    .update({ draft_date: draft_date || null })
+    .eq("id", league.id);
+
+  if (error) return { error: error.message };
   revalidatePath(`/leagues/${leagueSlug}`);
   return {};
 }

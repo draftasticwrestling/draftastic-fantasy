@@ -73,7 +73,7 @@ export function RostersSection({
         {rulesText}
       </p>
       <p style={{ fontSize: 14, color: "#666", marginBottom: 16 }}>
-        Season-only rosters (no long-term contracts). Commissioner can add or remove wrestlers for each member after an offline draft.
+        Season-only rosters (no long-term contracts). Commissioner can run a live draft (set type, generate order) or add or remove wrestlers manually.
       </p>
 
       {isCommissioner && (
