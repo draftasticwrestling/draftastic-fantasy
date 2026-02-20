@@ -1,6 +1,21 @@
-# Public Leagues: Head to Head & Championship Belt Scoring
+# Private Leagues: Head to Head & Championship Belt Scoring
 
-Public Leagues (MVL) use **wrestler scoring** from events (same as How it works / Boxscore) **plus** the following Head to Head and Championship Belt point system.
+Private Leagues (MVL) use **wrestler scoring** from events (same as How it works / Boxscore) **plus** the following Head to Head and Championship Belt point system.
+
+---
+
+## Season options
+
+There are three standard season options. Commissioners can choose one when creating a league (or set custom start/end dates).
+
+| Season | Window |
+|--------|--------|
+| **Road to SummerSlam** | First Raw in May through SummerSlam Night 2 |
+| **Road to Survivor Series** | First Raw in August through Survivor Series (late November) |
+| **Road to WrestleMania** | First Raw in December through WrestleMania Night 2 |
+| **Chamber to Mania** | Elimination Chamber through WrestleMania Night 2 (beta test) |
+
+Defined in `lib/leagueSeasons.ts` (`SEASON_OPTIONS`).
 
 ---
 
@@ -29,10 +44,10 @@ Public Leagues (MVL) use **wrestler scoring** from events (same as How it works 
 
 - **Weekly matches:** Each manager competes in one matchup per week (either H2H vs one opponent or Triple Threat vs two opponents).
 - **Weekly match scoring:**
-  - **Win** the weekly match (highest score in that matchup) → **10 points**
-  - **Tie** in the weekly match → **5 points**
+  - **Head to Head (2 teams):** Win → **10 points**, Tie → **5 points**.
+  - **Triple Threat (3 teams):** Win → **15 points**, Tie → **7.5 points**.
   - (Loss → 0 points from the matchup; wrestler points still count toward total.)
-  - In a **Triple Threat**, one manager wins (10 pts), two lose (0 pts), or ties are possible between two or three.
+  - Draftastic Championship Belt points (initial win, defense, monthly holder) are unchanged.
 
 ---
 
@@ -70,12 +85,14 @@ Public Leagues (MVL) use **wrestler scoring** from events (same as How it works 
 
 ## Point constants (for implementation)
 
-| Rule                         | Points |
-|-----------------------------|--------|
-| Weekly match win            | 10     |
-| Weekly match tie            | 5      |
-| Initial belt win (June 1)   | 5      |
-| Successful belt defense     | 4      |
-| Monthly title holder bonus  | 10     |
+| Rule                         | Points  |
+|-----------------------------|---------|
+| H2H match win               | 10      |
+| H2H match tie               | 5       |
+| Triple Threat win           | 15      |
+| Triple Threat tie           | 7.5     |
+| Initial belt win (June 1)   | 5       |
+| Successful belt defense     | 4       |
+| Monthly title holder bonus  | 10      |
 
 These are defined in `lib/publicLeagueScoring.ts` for use when building weekly matchups and belt logic.

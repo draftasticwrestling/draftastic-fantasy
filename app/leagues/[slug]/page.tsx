@@ -11,10 +11,10 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
-  if (!league) return { title: "Public League — Draftastic Fantasy" };
+  if (!league) return { title: "Private League — Draftastic Fantasy" };
   return {
     title: `${league.name} — Draftastic Fantasy`,
-    description: `Public League (MVL): ${league.name} — season-only rosters`,
+    description: `Private League (MVL): ${league.name} — season-only rosters`,
   };
 }
 

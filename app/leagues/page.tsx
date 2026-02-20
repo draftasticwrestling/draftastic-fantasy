@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getLeaguesForUser } from "@/lib/leagues";
 
 export const metadata = {
-  title: "Public Leagues — Draftastic Fantasy",
-  description: "MVL Public Leagues — create or join leagues, draft for the season only",
+  title: "Private Leagues — Draftastic Fantasy",
+  description: "MVL Private Leagues — create or join leagues, draft for the season only",
 };
 
 export default async function LeaguesPage() {
@@ -33,7 +33,7 @@ export default async function LeaguesPage() {
           ← Home
         </Link>
       </p>
-      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Public Leagues</h1>
+      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Private Leagues</h1>
       <p style={{ color: "#555", marginBottom: 24 }}>
         MVL leagues: create a league, invite friends, and draft for the defined season only (no long-term contracts).
       </p>
@@ -51,7 +51,7 @@ export default async function LeaguesPage() {
             fontWeight: 600,
           }}
         >
-          Create a Public League
+          Create a Private League
         </Link>
       </p>
 

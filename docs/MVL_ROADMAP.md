@@ -1,7 +1,7 @@
 # MVL Roadmap: The Road to SummerSlam
 
-**League:** The Road to SummerSlam (MVL Example)  
-**Window:** May 1, 2026 — August 2, 2026 (Night 2 of SummerSlam)  
+**Standard seasons:** Road to SummerSlam (first Raw in May → SummerSlam Night 2), Road to Survivor Series (first Raw in August → Survivor Series), Road to WrestleMania (first Raw in December → WrestleMania Night 2), Chamber to Mania (Elimination Chamber → WrestleMania Night 2, beta test). See `lib/leagueSeasons.ts` and `docs/PUBLIC_LEAGUES_SCORING.md`.
+
 **Scoring:** Same wrestler/event point system as main app (see How it works), **plus** Head to Head and Draftastic Championship Belt rules — see `docs/PUBLIC_LEAGUES_SCORING.md`.
 
 ---

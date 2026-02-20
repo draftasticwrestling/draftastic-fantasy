@@ -9,7 +9,7 @@ import type { Profile } from "@/lib/profiles";
 
 const TOP_LINKS = [
   { href: "/", label: "Home" },
-  { href: "/leagues", label: "Public Leagues" },
+  { href: "/leagues", label: "Private Leagues" },
   { href: "/league/teams", label: "Legacy League" },
   { href: "/mvl", label: "MVL Example" },
   { href: "/how-it-works", label: "How it works" },
@@ -26,7 +26,7 @@ const LEAGUE_SUB_LINKS = [
 
 function getSecondaryLabel(pathname: string): string {
   if (pathname === "/") return "Overview";
-  if (pathname === "/leagues" || pathname.startsWith("/leagues/")) return "Public Leagues";
+  if (pathname === "/leagues" || pathname.startsWith("/leagues/")) return "Private Leagues";
   if (pathname === "/league" || pathname === "/league/teams") return "Legacy League · Teams";
   if (pathname === "/league/draft") return "Legacy League · Draft";
   if (pathname === "/league/trades") return "Legacy League · Trades";

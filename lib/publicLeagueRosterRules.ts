@@ -1,5 +1,5 @@
 /**
- * Public Leagues (MVL): roster change rules — line-up lock, roster lock, FA moves per week.
+ * Private Leagues (MVL): roster change rules — line-up lock, roster lock, FA moves per week.
  * See docs/PUBLIC_LEAGUES_SCORING.md (Roster change rules).
  */
 

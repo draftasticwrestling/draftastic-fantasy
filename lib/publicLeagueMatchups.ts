@@ -1,5 +1,5 @@
 /**
- * Public Leagues (MVL): weekly matchup structure — Head to Head vs Triple Threat.
+ * Private Leagues (MVL): weekly matchup structure — Head to Head vs Triple Threat.
  * Use H2H when team count is even; when odd, use one Triple Threat so no one has a bye.
  * See docs/PUBLIC_LEAGUES_SCORING.md.
  */

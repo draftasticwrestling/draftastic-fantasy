@@ -14,13 +14,13 @@ export default async function HomePage() {
       <div style={{ padding: 24 }}>
         <p style={{ fontSize: "1.1em" }}>Pro wrestling fantasy leagues — data from Pro Wrestling Boxscore.</p>
         <p style={{ fontSize: "1.1em" }}>
-          <Link href="/leagues"><strong>Public Leagues</strong></Link> — MVL system: create a league, invite friends, draft for the season only (no long-term contracts). Sign in to create or join.
+          <Link href="/leagues"><strong>Private Leagues</strong></Link> — MVL system: create a league, invite friends, draft for the season only (no long-term contracts). Sign in to create or join.
         </p>
         <p style={{ fontSize: "1.1em" }}>
           <Link href="/league">Legacy League</Link> — original league format with multi-year contracts, discovery picks, and team pages. Example league and scoring.
         </p>
         <p style={{ fontSize: "1.1em" }}>
-          <Link href="/mvl">MVL Example: The Road to SummerSlam</Link> — roadmap and rules for Public Leagues (May 1–Aug 2, 2026).
+          <Link href="/mvl">MVL Example: The Road to SummerSlam</Link> — roadmap and rules for Private Leagues (May 1–Aug 2, 2026).
         </p>
         <p style={{ fontSize: "1.1em" }}>
           <Link href="/wrestlers">Wrestlers</Link> — draft-eligible wrestlers and roster rules (min 4M / 4F).

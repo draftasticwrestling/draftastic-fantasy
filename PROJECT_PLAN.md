@@ -88,7 +88,7 @@ A fantasy sports platform for pro wrestling (WWE-first), modeled after [Yahoo Fa
 - [ ] Multiple promotions (NXT, TNA, AEW, etc.) and filters (WWE-only for v1).
 - [ ] Waiver wire / free agents (if you add that rule).
 - [ ] Payout tracking (optional; sensitive — keep minimal or manual).
-- [ ] Public leagues and discovery.
+- [ ] Private leagues and discovery.
 
 ---
 
