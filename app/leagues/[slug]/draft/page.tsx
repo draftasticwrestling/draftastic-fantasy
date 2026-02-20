@@ -85,7 +85,9 @@ export default async function LeagueDraftPage({ params }: Props) {
           </p>
           {isCommissioner && (
             <form
-              action={generateDraftOrderAction.bind(null, slug)}
+              action={async (formData: FormData) => {
+                await generateDraftOrderAction(slug, formData);
+              }}
               style={{
                 display: "flex",
                 flexWrap: "wrap",
@@ -186,7 +188,9 @@ export default async function LeagueDraftPage({ params }: Props) {
             >
               <h3 style={{ fontSize: "1rem", marginBottom: 12 }}>Your pick</h3>
               <form
-                action={makeDraftPickAction.bind(null, slug)}
+                action={async (formData: FormData) => {
+                  await makeDraftPickAction(slug, formData);
+                }}
                 style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}
               >
                 <div style={{ flex: "1 1 200px" }}>

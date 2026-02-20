@@ -104,7 +104,9 @@ export default async function LeagueDetailPage({ params }: Props) {
         {league.role === "commissioner" && (
           <>
             <form
-              action={updateDraftDateAction.bind(null, slug)}
+              action={async (formData: FormData) => {
+                await updateDraftDateAction(slug, formData);
+              }}
               style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 16 }}
             >
               <div>
