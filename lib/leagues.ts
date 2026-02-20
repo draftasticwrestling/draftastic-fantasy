@@ -12,6 +12,9 @@ export type League = {
   end_date: string | null;
   season_slug?: string | null;
   draft_date?: string | null;
+  draft_style?: "snake" | "linear";
+  draft_status?: "not_started" | "in_progress" | "completed";
+  draft_current_pick?: number | null;
   created_at: string;
 };
 
@@ -124,7 +127,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
 
   const { data: league, error } = await supabase
     .from("leagues")
-    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, created_at")
+    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, created_at")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -159,7 +162,7 @@ export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
   const leagueIds = members.map((m) => m.league_id);
   const { data: leagues, error: leagueError } = await supabase
     .from("leagues")
-    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, created_at")
+    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, created_at")
     .in("id", leagueIds);
 
   if (leagueError || !leagues?.length) return [];

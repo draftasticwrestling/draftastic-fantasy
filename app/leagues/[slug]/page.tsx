@@ -67,8 +67,12 @@ export default async function LeagueDetailPage({ params }: Props) {
           {league.draft_date && ` · Draft: ${league.draft_date} (points from first event after draft)`}
         </p>
       )}
-      <p style={{ marginBottom: 24, fontSize: 14, color: "#666" }}>
+      <p style={{ marginBottom: 16, fontSize: 14, color: "#666" }}>
         {league.role === "commissioner" ? "You are the commissioner." : "Member."}
+        {" · "}
+        <Link href={`/leagues/${slug}/draft`} style={{ color: "#1a73e8" }}>
+          Draft
+        </Link>
       </p>
 
       {league.role === "commissioner" && (
