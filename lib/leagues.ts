@@ -57,6 +57,12 @@ export async function createLeague(params: {
 
   const baseSlug = slugify(name);
   const admin = getAdminClient();
+  if (!admin) {
+    return {
+      error:
+        "Server configuration: SUPABASE_SERVICE_ROLE_KEY is not set. Add it in Netlify → Site settings → Environment variables (from Supabase Dashboard → Settings → API → service_role).",
+    };
+  }
   const { data: existing } = await admin.from("leagues").select("slug");
   const existingSlugs = new Set((existing ?? []).map((r) => r.slug));
   const slug = makeSlugUnique(baseSlug, existingSlugs);

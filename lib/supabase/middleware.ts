@@ -8,9 +8,11 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       cookies: {
         getAll() {
@@ -27,9 +29,14 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Refresh session; required so server and browser stay in sync.
-  // getClaims() validates the JWT and refreshes; using getUser() can cause random logouts.
-  await supabase.auth.getClaims();
+  // Refresh session when Supabase is configured; otherwise pass through.
+  if (url && key) {
+    try {
+      await supabase.auth.getClaims();
+    } catch {
+      // e.g. invalid JWT or missing env; continue without session refresh
+    }
+  }
 
   return response;
 }
