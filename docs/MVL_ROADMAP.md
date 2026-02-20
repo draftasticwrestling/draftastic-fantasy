@@ -16,10 +16,11 @@
 - [x] Profile (display name; avatar_url column present for later)
 
 ### 2. Create a league & invite friends
-- [ ] Create a league (name, settings, commissioner)
-- [ ] Invite flow (link or email invite)
-- [ ] Join league (accept invite, request to join)
-- [ ] League membership list and roles (commissioner, owner)
+- [x] Create a league (name, optional start/end dates, commissioner)
+- [x] Invite flow (generate invite link with token, 7-day expiry)
+- [x] Join league (visit /leagues/join?token=…, sign in if needed, join)
+- [x] League membership list and roles (commissioner, owner)
+- [ ] Optional: invite by email (send email with link)
 
 ### 3. Drafting system
 - [ ] **a) Live draft** — Draft room on the website, real-time picks, turn order, timer (optional)
