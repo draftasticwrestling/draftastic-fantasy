@@ -64,3 +64,13 @@ export async function makeDraftPickFromFormAction(formData: FormData): Promise<v
   if (!leagueSlug) return;
   await makeDraftPickAction(leagueSlug, formData);
 }
+
+/** For useFormState: returns error so the make-pick form can display it. */
+export async function makeDraftPickWithStateAction(
+  _prev: { error?: string },
+  formData: FormData
+): Promise<{ error?: string }> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return { error: "Missing league." };
+  return makeDraftPickAction(leagueSlug, formData);
+}

@@ -7,7 +7,8 @@ import {
   getLeagueDraftState,
   getCurrentPick,
 } from "@/lib/leagueDraft";
-import { generateDraftOrderFromFormAction, makeDraftPickFromFormAction } from "./actions";
+import { generateDraftOrderFromFormAction } from "./actions";
+import { MakePickForm } from "./MakePickForm";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -205,61 +206,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           )}
 
           {isCurrentPicker && availableWrestlers.length > 0 && (
-            <div
-              style={{
-                padding: 16,
-                background: "#f8f9fa",
-                borderRadius: 8,
-                border: "1px solid #eee",
-              }}
-            >
-              <h3 style={{ fontSize: "1rem", marginBottom: 12 }}>Your pick</h3>
-              <form
-                action={makeDraftPickFromFormAction}
-                style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}
-              >
-                <input type="hidden" name="league_slug" value={slug} />
-                <div style={{ flex: "1 1 200px" }}>
-                  <label htmlFor="draft-wrestler" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
-                    Select wrestler
-                  </label>
-                  <select
-                    id="draft-wrestler"
-                    name="wrestler_id"
-                    required
-                    style={{
-                      width: "100%",
-                      padding: "10px 12px",
-                      fontSize: 16,
-                      border: "1px solid #ccc",
-                      borderRadius: 6,
-                    }}
-                  >
-                    <option value="">Choose…</option>
-                    {availableWrestlers.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name ?? w.id}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="submit"
-                  style={{
-                    padding: "10px 20px",
-                    background: "#333",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 8,
-                    fontSize: 16,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Submit pick
-                </button>
-              </form>
-            </div>
+            <MakePickForm leagueSlug={slug} availableWrestlers={availableWrestlers} />
           )}
 
           {isCurrentPicker && availableWrestlers.length === 0 && (

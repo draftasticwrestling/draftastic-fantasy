@@ -320,14 +320,16 @@ function normalizeWrestlerGender(g: string | null | undefined): "F" | "M" | null
 }
 
 /**
- * Add a wrestler to a member's roster. Commissioner only (RLS enforced).
+ * Add a wrestler to a member's roster.
  * Validates roster size and gender minimums (when league has 3–12 teams).
+ * By default uses RLS (commissioner only). Pass useServiceRole: true for draft picks so the current picker can add to their own roster.
  */
 export async function addWrestlerToRoster(
   leagueId: string,
   userId: string,
   wrestlerId: string,
-  contract?: string | null
+  contract?: string | null,
+  useServiceRole?: boolean
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -383,7 +385,12 @@ export async function addWrestlerToRoster(
     }
   }
 
-  const { error } = await supabase.from("league_rosters").insert({
+  const admin = getAdminClient();
+  if (useServiceRole && !admin) {
+    return { error: "Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set. Draft picks need this. Add it in .env and Netlify environment variables." };
+  }
+  const insertClient = useServiceRole && admin ? admin : supabase;
+  const { error } = await insertClient.from("league_rosters").insert({
     league_id: leagueId,
     user_id: userId,
     wrestler_id: wid,

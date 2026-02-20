@@ -182,7 +182,7 @@ export async function makeDraftPick(
     return { error: "It's not your turn to pick." };
   }
 
-  const addResult = await addWrestlerToRoster(leagueId, current.user_id, wrestlerId);
+  const addResult = await addWrestlerToRoster(leagueId, current.user_id, wrestlerId, null, true);
   if (addResult.error) return addResult;
 
   const state = await getLeagueDraftState(leagueId);
