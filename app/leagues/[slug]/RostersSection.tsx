@@ -154,7 +154,12 @@ export function RostersSection({
                     >
                       <span>{wrestlerName(wrestlers, e.wrestler_id)}</span>
                       {isCommissioner && (
-                        <form action={removeRosterEntryAction} style={{ margin: 0 }}>
+                        <form
+                        action={async (formData) => {
+                          await removeRosterEntryAction(formData);
+                        }}
+                        style={{ margin: 0 }}
+                      >
                           <input type="hidden" name="leagueSlug" value={leagueSlug} />
                           <input type="hidden" name="leagueId" value={leagueId} />
                           <input type="hidden" name="userId" value={member.user_id} />
