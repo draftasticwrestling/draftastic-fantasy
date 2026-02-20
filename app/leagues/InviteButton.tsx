@@ -38,6 +38,12 @@ export function InviteButton({ leagueId, leagueName }: Props) {
     }
   };
 
+  const subject = `You're invited to join ${leagueName} on Draftastic Fantasy`;
+  const body = `You're invited to join my fantasy league "${leagueName}" on Draftastic Fantasy.\n\nClick the link below to join. The link expires in 7 days.\n\n${url ?? ""}`;
+  const mailto = url
+    ? `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    : null;
+
   return (
     <div
       style={{
@@ -84,21 +90,40 @@ export function InviteButton({ leagueId, leagueName }: Props) {
               boxSizing: "border-box",
             }}
           />
-          <button
-            type="button"
-            onClick={handleCopy}
-            style={{
-              padding: "8px 16px",
-              background: copied ? "#166534" : "#333",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              fontSize: 14,
-              cursor: "pointer",
-            }}
-          >
-            {copied ? "Copied!" : "Copy link"}
-          </button>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              type="button"
+              onClick={handleCopy}
+              style={{
+                padding: "8px 16px",
+                background: copied ? "#166534" : "#333",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                fontSize: 14,
+                cursor: "pointer",
+              }}
+            >
+              {copied ? "Copied!" : "Copy link"}
+            </button>
+            {mailto && (
+              <a
+                href={mailto}
+                style={{
+                  padding: "8px 16px",
+                  background: "#1a73e8",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  textDecoration: "none",
+                  display: "inline-block",
+                }}
+              >
+                Email invite
+              </a>
+            )}
+          </div>
         </div>
       )}
     </div>
