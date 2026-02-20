@@ -36,7 +36,7 @@ export default async function NewLeaguePage() {
         You’ll be the commissioner. Add a name and optional dates (e.g. season window).
       </p>
       <p style={{ color: "#666", fontSize: 14, marginBottom: 24 }}>
-        Standard seasons: <strong>Road to SummerSlam</strong> (first Raw in May → SummerSlam Night 2), <strong>Road to Survivor Series</strong> (first Raw in August → Survivor Series), <strong>Road to WrestleMania</strong> (first Raw in December → WrestleMania Night 2), <strong>Chamber to Mania</strong> (Elimination Chamber → WrestleMania Night 2, beta test). Leagues have 3–12 teams; roster size depends on how many join (see league page after creation).
+        Choose a season below. If the league starts after the season has begun, set a draft date and points will count from the first event after the draft.
       </p>
       <CreateLeagueForm />
     </main>

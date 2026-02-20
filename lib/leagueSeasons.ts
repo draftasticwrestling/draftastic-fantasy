@@ -63,3 +63,30 @@ export function getSeasonBySlug(slug: string): SeasonOption | undefined {
 export function getSeasonById(id: string): SeasonOption | undefined {
   return SEASON_OPTIONS.find((s) => s.id === id);
 }
+
+/** Last day of month for default end dates. */
+function lastDayOfMonth(year: number, month: number): number {
+  if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  if ([4, 6, 9, 11].includes(month)) return 30;
+  return 31;
+}
+
+/**
+ * Get default start_date and end_date (YYYY-MM-DD) for a season and year.
+ * Used when creating a league from a standard season.
+ */
+export function getDefaultStartEndForSeason(
+  seasonSlug: string,
+  year: number
+): { start_date: string; end_date: string } | null {
+  const season = getSeasonBySlug(seasonSlug);
+  if (!season) return null;
+
+  const startYear = year;
+  const endYear = season.crossesCalendarYear ? year + 1 : year;
+  const start_date = `${startYear}-${String(season.startMonth).padStart(2, "0")}-01`;
+  const lastDay = lastDayOfMonth(endYear, season.endMonth);
+  const end_date = `${endYear}-${String(season.endMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  return { start_date, end_date };
+}

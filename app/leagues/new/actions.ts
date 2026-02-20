@@ -11,11 +11,15 @@ export async function createLeagueAction(
   formData: FormData
 ): Promise<CreateLeagueState> {
   const name = (formData.get("name") as string)?.trim() ?? "";
-  const start_date = (formData.get("start_date") as string)?.trim() || null;
-  const end_date = (formData.get("end_date") as string)?.trim() || null;
+  const season_slug = (formData.get("season_slug") as string)?.trim() ?? "";
+  const season_year = Number(formData.get("season_year"));
+  const draft_date = (formData.get("draft_date") as string)?.trim() || null;
 
   if (!name) {
     return { error: "Enter a league name." };
+  }
+  if (!season_slug) {
+    return { error: "Select a season." };
   }
 
   const supabase = await createClient();
@@ -26,7 +30,12 @@ export async function createLeagueAction(
     };
   }
 
-  const { league, error } = await createLeague({ name, start_date, end_date });
+  const { league, error } = await createLeague({
+    name,
+    season_slug,
+    season_year,
+    draft_date,
+  });
   if (error) return { error };
   if (!league) return { error: "Failed to create league." };
 

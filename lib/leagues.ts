@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getDefaultStartEndForSeason } from "@/lib/leagueSeasons";
 
 export type League = {
   id: string;
@@ -9,6 +10,8 @@ export type League = {
   commissioner_id: string;
   start_date: string | null;
   end_date: string | null;
+  season_slug?: string | null;
+  draft_date?: string | null;
   created_at: string;
 };
 
@@ -43,9 +46,13 @@ function makeSlugUnique(base: string, existingSlugs: Set<string>): string {
 
 /**
  * Create a new league. Caller must be authenticated; they become commissioner.
+ * When season_slug and season_year are provided, start_date and end_date are derived from the season.
  */
 export async function createLeague(params: {
   name: string;
+  season_slug: string;
+  season_year: number;
+  draft_date?: string | null;
   start_date?: string | null;
   end_date?: string | null;
 }): Promise<{ league?: League; error?: string }> {
@@ -55,6 +62,17 @@ export async function createLeague(params: {
 
   const name = params.name?.trim();
   if (!name) return { error: "League name is required" };
+
+  const seasonSlug = params.season_slug?.trim();
+  if (!seasonSlug) return { error: "Select a season." };
+
+  const year = Math.floor(Number(params.season_year));
+  if (!Number.isFinite(year) || year < 2020 || year > 2030) {
+    return { error: "Select a valid season year." };
+  }
+
+  const window = getDefaultStartEndForSeason(seasonSlug, year);
+  if (!window) return { error: "Invalid season." };
 
   const baseSlug = slugify(name);
   const admin = getAdminClient();
@@ -68,16 +86,20 @@ export async function createLeague(params: {
   const existingSlugs = new Set((existing ?? []).map((r) => r.slug));
   const slug = makeSlugUnique(baseSlug, existingSlugs);
 
+  const draft_date = params.draft_date?.trim() || null;
+
   const { data: league, error } = await admin
     .from("leagues")
     .insert({
       name,
       slug,
       commissioner_id: user.id,
-      start_date: params.start_date || null,
-      end_date: params.end_date || null,
+      start_date: window.start_date,
+      end_date: window.end_date,
+      season_slug: seasonSlug,
+      draft_date,
     })
-    .select("id, name, slug, commissioner_id, start_date, end_date, created_at")
+    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, created_at")
     .single();
 
   if (error) return { error: error.message };
@@ -102,7 +124,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
 
   const { data: league, error } = await supabase
     .from("leagues")
-    .select("id, name, slug, commissioner_id, start_date, end_date, created_at")
+    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, created_at")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -137,7 +159,7 @@ export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
   const leagueIds = members.map((m) => m.league_id);
   const { data: leagues, error: leagueError } = await supabase
     .from("leagues")
-    .select("id, name, slug, commissioner_id, start_date, end_date, created_at")
+    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, created_at")
     .in("id", leagueIds);
 
   if (leagueError || !leagues?.length) return [];

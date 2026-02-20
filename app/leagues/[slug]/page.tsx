@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { InviteButton } from "../InviteButton";
 import { RostersSection } from "./RostersSection";
 
@@ -54,10 +55,16 @@ export default async function LeagueDetailPage({ params }: Props) {
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>{league.name}</h1>
       {(league.start_date || league.end_date) && (
-        <p style={{ color: "#555", marginBottom: 24 }}>
+        <p style={{ color: "#555", marginBottom: 8 }}>
           {league.start_date && league.end_date
             ? `${league.start_date} – ${league.end_date}`
             : league.start_date || league.end_date}
+        </p>
+      )}
+      {league.season_slug && (
+        <p style={{ color: "#555", marginBottom: 8, fontSize: 14 }}>
+          Season: {getSeasonBySlug(league.season_slug)?.name ?? league.season_slug}
+          {league.draft_date && ` · Draft: ${league.draft_date} (points from first event after draft)`}
         </p>
       )}
       <p style={{ marginBottom: 24, fontSize: 14, color: "#666" }}>
