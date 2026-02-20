@@ -4,6 +4,10 @@ export type Profile = {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  timezone: string | null;
+  notify_trade_proposals: boolean;
+  notify_draft_reminder: boolean;
+  notify_weekly_results: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -15,7 +19,7 @@ export async function getProfile(userId: string): Promise<Profile | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_url, created_at, updated_at")
+    .select("id, display_name, avatar_url, timezone, notify_trade_proposals, notify_draft_reminder, notify_weekly_results, created_at, updated_at")
     .eq("id", userId)
     .maybeSingle();
   if (error || !data) return null;
@@ -27,7 +31,14 @@ export async function getProfile(userId: string): Promise<Profile | null> {
  */
 export async function updateProfile(
   userId: string,
-  updates: { display_name?: string | null; avatar_url?: string | null }
+  updates: {
+    display_name?: string | null;
+    avatar_url?: string | null;
+    timezone?: string | null;
+    notify_trade_proposals?: boolean;
+    notify_draft_reminder?: boolean;
+    notify_weekly_results?: boolean;
+  }
 ): Promise<{ error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

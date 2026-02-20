@@ -15,13 +15,27 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const display_name =
       typeof body.display_name === "string" ? body.display_name.trim() || null : null;
+    const timezone =
+      typeof body.timezone === "string" ? body.timezone.trim() || null : null;
+    const notify_trade_proposals =
+      typeof body.notify_trade_proposals === "boolean" ? body.notify_trade_proposals : undefined;
+    const notify_draft_reminder =
+      typeof body.notify_draft_reminder === "boolean" ? body.notify_draft_reminder : undefined;
+    const notify_weekly_results =
+      typeof body.notify_weekly_results === "boolean" ? body.notify_weekly_results : undefined;
+
+    const updates: Record<string, unknown> = {
+      display_name,
+      updated_at: new Date().toISOString(),
+    };
+    if (timezone !== undefined) updates.timezone = timezone;
+    if (notify_trade_proposals !== undefined) updates.notify_trade_proposals = notify_trade_proposals;
+    if (notify_draft_reminder !== undefined) updates.notify_draft_reminder = notify_draft_reminder;
+    if (notify_weekly_results !== undefined) updates.notify_weekly_results = notify_weekly_results;
 
     const { error } = await supabase
       .from("profiles")
-      .update({
-        display_name,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updates)
       .eq("id", user.id);
 
     if (error) {

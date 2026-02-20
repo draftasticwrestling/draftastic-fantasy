@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getProfile, updateProfile } from "@/lib/profiles";
+import { getProfile } from "@/lib/profiles";
 import { AccountForm } from "./AccountForm";
 
 export const metadata = {
@@ -41,6 +41,10 @@ export default async function AccountPage() {
       <AccountForm
         userId={user.id}
         initialDisplayName={profile?.display_name ?? ""}
+        initialTimezone={profile?.timezone ?? ""}
+        initialNotifyTradeProposals={profile?.notify_trade_proposals ?? true}
+        initialNotifyDraftReminder={profile?.notify_draft_reminder ?? true}
+        initialNotifyWeeklyResults={profile?.notify_weekly_results ?? true}
         email={user.email ?? ""}
       />
     </main>
