@@ -10,6 +10,8 @@ import { updateDraftDateFromFormAction } from "./actions";
 
 type Props = { params: Promise<{ slug: string }> };
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({ params }: Props) {
   try {
     const { slug } = await params;
@@ -25,7 +27,22 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function LeagueDetailPage({ params }: Props) {
-  const { slug } = await params;
+  let slug: string;
+  try {
+    const resolved = await params;
+    slug = resolved.slug;
+  } catch {
+    return (
+      <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 640, margin: "0 auto" }}>
+        <p style={{ marginBottom: 24 }}>
+          <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>← My leagues</Link>
+        </p>
+        <h1 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Something went wrong</h1>
+        <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>Back to My leagues</Link>
+      </main>
+    );
+  }
+
   let league: Awaited<ReturnType<typeof getLeagueBySlug>>;
   let members: Awaited<ReturnType<typeof getLeagueMembers>> = [];
   let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};

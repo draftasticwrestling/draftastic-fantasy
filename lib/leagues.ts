@@ -134,7 +134,11 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
     .maybeSingle();
 
   let league = result.data;
-  if (result.error && (result.error.code === "42703" || result.error.message?.includes("column"))) {
+  const isColumnError =
+    result.error &&
+    (result.error.code === "42703" ||
+      /column|relation.*does not exist/i.test(result.error.message ?? ""));
+  if (isColumnError) {
     const minimalResult = await supabase
       .from("leagues")
       .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, created_at")

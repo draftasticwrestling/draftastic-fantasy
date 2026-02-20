@@ -38,6 +38,7 @@ export async function getDraftOrder(
 
 /**
  * Get league draft state: status and current pick (whose turn).
+ * Tolerates missing draft_current_pick_started_at column (pre-migration).
  */
 export async function getLeagueDraftState(leagueId: string): Promise<{
   draft_status: "not_started" | "in_progress" | "completed";
@@ -47,13 +48,29 @@ export async function getLeagueDraftState(leagueId: string): Promise<{
   draft_current_pick_started_at: string | null;
 } | null> {
   const supabase = await createClient();
-  const { data: league, error } = await supabase
+  let league: { draft_status?: string; draft_current_pick?: number | null; draft_style?: string; draft_current_pick_started_at?: string | null } | null = null;
+  let err: { code?: string } | null = null;
+
+  const full = await supabase
     .from("leagues")
     .select("draft_status, draft_current_pick, draft_style, draft_current_pick_started_at")
     .eq("id", leagueId)
     .maybeSingle();
-
-  if (error || !league) return null;
+  if (full.error) {
+    err = full.error;
+    if (full.error.code === "42703" || full.error.message?.includes("column")) {
+      const fallback = await supabase
+        .from("leagues")
+        .select("draft_status, draft_current_pick, draft_style")
+        .eq("id", leagueId)
+        .maybeSingle();
+      if (fallback.data) league = { ...fallback.data, draft_current_pick_started_at: null };
+    }
+  } else {
+    league = full.data;
+  }
+  if (err && !league) return null;
+  if (!league) return null;
 
   const { count } = await supabase
     .from("league_draft_order")
@@ -246,7 +263,8 @@ export async function getDraftPicksHistory(
     .eq("league_id", leagueId)
     .order("overall_pick", { ascending: true });
 
-  if (error || !rows?.length) return [];
+  if (error) return []; /* table may not exist yet (migration not run) */
+  if (!rows?.length) return [];
 
   const wrestlerIds = [...new Set(rows.map((r) => r.wrestler_id))];
   const { data: wrestlers } = await supabase

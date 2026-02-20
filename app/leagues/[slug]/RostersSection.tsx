@@ -1,7 +1,7 @@
 import type { LeagueMember } from "@/lib/leagues";
 import type { LeagueRosterEntry } from "@/lib/leagues";
 import type { RosterRules } from "@/lib/leagueStructure";
-import { removeRosterEntryAction } from "./actions";
+import { removeRosterEntryFromFormAction } from "./actions";
 import { AddRosterForm } from "./AddRosterForm";
 
 type WrestlerOption = { id: string; name: string | null; gender?: string | null };
@@ -155,9 +155,7 @@ export function RostersSection({
                       <span>{wrestlerName(wrestlers, e.wrestler_id)}</span>
                       {isCommissioner && (
                         <form
-                        action={async (formData) => {
-                          await removeRosterEntryAction(formData);
-                        }}
+                        action={removeRosterEntryFromFormAction}
                         style={{ margin: 0 }}
                       >
                           <input type="hidden" name="leagueSlug" value={leagueSlug} />

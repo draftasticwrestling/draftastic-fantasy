@@ -44,6 +44,11 @@ export async function removeRosterEntryAction(formData: FormData): Promise<{ err
   return {};
 }
 
+/** FormData-only wrapper for form action (void return for Next.js). */
+export async function removeRosterEntryFromFormAction(formData: FormData): Promise<void> {
+  await removeRosterEntryAction(formData);
+}
+
 export async function updateDraftDateAction(
   leagueSlug: string,
   formData: FormData
