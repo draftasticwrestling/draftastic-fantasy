@@ -1,14 +1,18 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
 import {
   getDraftOrder,
   getLeagueDraftState,
   getCurrentPick,
+  getDraftPicksHistory,
+  runAutoPickIfExpired,
 } from "@/lib/leagueDraft";
 import { generateDraftOrderFromFormAction } from "./actions";
 import { MakePickForm } from "./MakePickForm";
+import { DraftTimer } from "./DraftTimer";
+import { CommissionerDraftActions } from "./CommissionerDraftActions";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -39,12 +43,16 @@ export default async function LeagueDraftPage({ params }: Props) {
   let availableWrestlers: { id: string; name: string | null }[] = [];
   let isCommissioner = false;
   let isCurrentPicker = false;
+  let picksHistory: Awaited<ReturnType<typeof getDraftPicksHistory>> = [];
 
   try {
     league = await getLeagueBySlug(slug);
     if (!league) notFound();
 
-    const [membersData, orderData, stateData, currentPickData, rostersData, wrestlersData] = await Promise.all([
+    const autoResult = await runAutoPickIfExpired(league.id);
+    if (autoResult.didAutoPick) redirect(`/leagues/${slug}/draft`);
+
+    const [membersData, orderData, stateData, currentPickData, rostersData, wrestlersData, picksData] = await Promise.all([
       getLeagueMembers(league.id),
       getDraftOrder(league.id),
       getLeagueDraftState(league.id),
@@ -58,8 +66,10 @@ export default async function LeagueDraftPage({ params }: Props) {
           .order("name", { ascending: true });
         return (data ?? []) as { id: string; name: string | null }[];
       })(),
+      getDraftPicksHistory(league.id),
     ]);
     members = membersData;
+    picksHistory = picksData;
     order = orderData;
     state = stateData;
     currentPick = currentPickData;
@@ -163,6 +173,30 @@ export default async function LeagueDraftPage({ params }: Props) {
         </>
       )}
 
+      {(draftStatus === "in_progress" || draftStatus === "completed") && picksHistory.length > 0 && (
+        <section style={{ marginBottom: 24 }}>
+          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Picks so far</h2>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {picksHistory.map((p) => {
+              const managerName = memberByUserId[p.user_id]?.display_name?.trim() ?? "Unknown";
+              const wrestlerName = p.wrestler_name ?? p.wrestler_id;
+              return (
+                <li
+                  key={p.overall_pick}
+                  style={{
+                    padding: "6px 0",
+                    borderBottom: "1px solid #eee",
+                    fontSize: 14,
+                  }}
+                >
+                  <strong>#{p.overall_pick}</strong> — {managerName} picked <strong>{wrestlerName}</strong>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {draftStatus === "in_progress" && (
         <>
           <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Pick order</h2>
@@ -171,6 +205,11 @@ export default async function LeagueDraftPage({ params }: Props) {
             {currentPick &&
               ` — ${memberByUserId[currentPick.user_id]?.display_name?.trim() ?? "Unknown"}`}
           </p>
+          {state?.draft_current_pick_started_at && isCurrentPicker && (
+            <p style={{ marginBottom: 16, fontSize: 14 }}>
+              <DraftTimer startedAt={state.draft_current_pick_started_at} leagueSlug={slug} />
+            </p>
+          )}
 
           {order.length > 0 && (
             <ul
@@ -212,13 +251,22 @@ export default async function LeagueDraftPage({ params }: Props) {
           {isCurrentPicker && availableWrestlers.length === 0 && (
             <p style={{ color: "#666" }}>No wrestlers left to pick.</p>
           )}
+
+          {isCommissioner && (
+            <CommissionerDraftActions leagueSlug={slug} canClearLastPick={picksHistory.length > 0} />
+          )}
         </>
       )}
 
       {draftStatus === "completed" && (
-        <p style={{ marginBottom: 24, color: "#0d7d0d", fontWeight: 500 }}>
-          Draft complete. Rosters are set.
-        </p>
+        <>
+          <p style={{ marginBottom: 24, color: "#0d7d0d", fontWeight: 500 }}>
+            Draft complete. Rosters are set.
+          </p>
+          {isCommissioner && (
+            <CommissionerDraftActions leagueSlug={slug} canClearLastPick={false} />
+          )}
+        </>
       )}
     </main>
     );

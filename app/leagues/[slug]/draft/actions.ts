@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { generateDraftOrder, makeDraftPick } from "@/lib/leagueDraft";
+import { generateDraftOrder, makeDraftPick, restartDraft, clearLastPick } from "@/lib/leagueDraft";
 
 export async function generateDraftOrderAction(
   leagueSlug: string,
@@ -73,4 +73,48 @@ export async function makeDraftPickWithStateAction(
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return { error: "Missing league." };
   return makeDraftPickAction(leagueSlug, formData);
+}
+
+/** Commissioner only: restart draft (clear all picks and order). */
+export async function restartDraftAction(leagueSlug: string): Promise<{ error?: string }> {
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || league.commissioner_id !== user.id) return { error: "Only the commissioner can restart the draft." };
+  const result = await restartDraft(league.id);
+  if (result.error) return result;
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
+  return {};
+}
+
+/** Commissioner only: undo the last pick. */
+export async function clearLastPickAction(leagueSlug: string): Promise<{ error?: string }> {
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || league.commissioner_id !== user.id) return { error: "Only the commissioner can clear a pick." };
+  const result = await clearLastPick(league.id);
+  if (result.error) return result;
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
+  return {};
+}
+
+/** FormData wrapper for commissioner restart draft. */
+export async function restartDraftFromFormAction(formData: FormData): Promise<void> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return;
+  await restartDraftAction(leagueSlug);
+}
+
+/** FormData wrapper for commissioner clear last pick. */
+export async function clearLastPickFromFormAction(formData: FormData): Promise<void> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return;
+  await clearLastPickAction(leagueSlug);
 }
