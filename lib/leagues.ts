@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 
 export type League = {
   id: string;
@@ -233,4 +234,138 @@ export async function joinLeagueWithToken(token: string): Promise<{
   if (error) return { ok: false, error: error.message };
   const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
   return result;
+}
+
+// --- Commissioner manual rosters (league_rosters) ---
+
+export type LeagueRosterEntry = { wrestler_id: string; contract: string | null };
+
+/**
+ * Get all roster entries for a league, keyed by user_id. Caller must be a league member.
+ */
+export async function getRostersForLeague(
+  leagueId: string
+): Promise<Record<string, LeagueRosterEntry[]>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("league_rosters")
+    .select("user_id, wrestler_id, contract")
+    .eq("league_id", leagueId)
+    .order("created_at", { ascending: true });
+
+  if (error) return {};
+  const rows = (data ?? []) as { user_id: string; wrestler_id: string; contract: string | null }[];
+  const byUser: Record<string, LeagueRosterEntry[]> = {};
+  for (const r of rows) {
+    if (!byUser[r.user_id]) byUser[r.user_id] = [];
+    byUser[r.user_id].push({ wrestler_id: r.wrestler_id, contract: r.contract });
+  }
+  return byUser;
+}
+
+/** Normalize wrestler gender to F/M for roster rules. */
+function normalizeWrestlerGender(g: string | null | undefined): "F" | "M" | null {
+  if (g == null || typeof g !== "string") return null;
+  const lower = g.trim().toLowerCase();
+  if (lower === "female" || lower === "f") return "F";
+  if (lower === "male" || lower === "m") return "M";
+  return null;
+}
+
+/**
+ * Add a wrestler to a member's roster. Commissioner only (RLS enforced).
+ * Validates roster size and gender minimums (when league has 3–12 teams).
+ */
+export async function addWrestlerToRoster(
+  leagueId: string,
+  userId: string,
+  wrestlerId: string,
+  contract?: string | null
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const wid = String(wrestlerId).trim();
+  if (!wid) return { error: "Wrestler is required" };
+
+  const memberCountResult = await supabase
+    .from("league_members")
+    .select("id")
+    .eq("league_id", leagueId);
+  const teamCount = (memberCountResult.data ?? []).length;
+  const rules = getRosterRulesForLeague(teamCount);
+
+  if (rules) {
+    const { data: currentRows } = await supabase
+      .from("league_rosters")
+      .select("wrestler_id")
+      .eq("league_id", leagueId)
+      .eq("user_id", userId);
+    const currentIds = (currentRows ?? []).map((r) => r.wrestler_id);
+    if (currentIds.includes(wid)) return { error: "That wrestler is already on this roster." };
+    if (currentIds.length >= rules.rosterSize) {
+      return { error: `Roster full (max ${rules.rosterSize} wrestlers).` };
+    }
+
+    const wrestlerIdsToFetch = [...new Set([...currentIds, wid])];
+    const { data: wrestlerRows } = await supabase
+      .from("wrestlers")
+      .select("id, gender")
+      .in("id", wrestlerIdsToFetch);
+    const genderById: Record<string, "F" | "M" | null> = {};
+    for (const w of wrestlerRows ?? []) {
+      genderById[w.id] = normalizeWrestlerGender(w.gender);
+    }
+    let currentFemale = 0;
+    let currentMale = 0;
+    for (const id of currentIds) {
+      const g = genderById[id];
+      if (g === "F") currentFemale++;
+      else if (g === "M") currentMale++;
+    }
+    const newWrestlerGender = genderById[wid];
+    const newFemale = currentFemale + (newWrestlerGender === "F" ? 1 : 0);
+    const newMale = currentMale + (newWrestlerGender === "M" ? 1 : 0);
+    const newCount = currentIds.length + 1;
+
+    if (newCount === rules.rosterSize && (newFemale < rules.minFemale || newMale < rules.minMale)) {
+      return {
+        error: `Roster must have at least ${rules.minFemale} female and ${rules.minMale} male wrestlers when full. Current would be ${newFemale}F / ${newMale}M.`,
+      };
+    }
+  }
+
+  const { error } = await supabase.from("league_rosters").insert({
+    league_id: leagueId,
+    user_id: userId,
+    wrestler_id: wid,
+    contract: contract?.trim() || null,
+  });
+
+  if (error) return { error: error.message };
+  return {};
+}
+
+/**
+ * Remove a wrestler from a member's roster. Commissioner only (RLS enforced).
+ */
+export async function removeWrestlerFromRoster(
+  leagueId: string,
+  userId: string,
+  wrestlerId: string
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { error } = await supabase
+    .from("league_rosters")
+    .delete()
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("wrestler_id", String(wrestlerId).trim());
+
+  if (error) return { error: error.message };
+  return {};
 }

@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { CreateLeagueForm } from "../CreateLeagueForm";
 
 export const metadata = {
-  title: "Create a league — Draftastic Fantasy",
-  description: "Start a new fantasy league",
+  title: "Create a Public League — Draftastic Fantasy",
+  description: "Create an MVL Public League — season-only rosters, no long-term contracts",
 };
 
 export default async function NewLeaguePage() {
@@ -31,9 +31,12 @@ export default async function NewLeaguePage() {
           ← My leagues
         </Link>
       </p>
-      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Create a league</h1>
+      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Create a Public League</h1>
       <p style={{ color: "#555", marginBottom: 24 }}>
         You’ll be the commissioner. Add a name and optional dates (e.g. season window).
+      </p>
+      <p style={{ color: "#666", fontSize: 14, marginBottom: 24 }}>
+        Leagues have 3–12 teams. Roster size and gender minimums depend on how many teams join (see league page after creation).
       </p>
       <CreateLeagueForm />
     </main>

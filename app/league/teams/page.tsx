@@ -79,6 +79,9 @@ export default async function LeagueTeamsPage() {
   return (
     <>
       <h1 style={{ marginBottom: 8 }}>{EXAMPLE_LEAGUE.name}</h1>
+      <p style={{ color: "#666", fontSize: 14, marginBottom: 8 }}>
+        Legacy League — multi-year contracts, discovery picks, and full scoring. For the MVL season-only format, use <Link href="/leagues" style={{ color: "#1a73e8" }}>Public Leagues</Link>.
+      </p>
       <p style={{ color: "#555", marginBottom: 32 }}>
         Owners and links to their rosters.
       </p>

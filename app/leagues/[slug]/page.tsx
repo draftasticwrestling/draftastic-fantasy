@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { createClient } from "@/lib/supabase/server";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { InviteButton } from "../InviteButton";
+import { RostersSection } from "./RostersSection";
 
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
-  if (!league) return { title: "League — Draftastic Fantasy" };
+  if (!league) return { title: "Public League — Draftastic Fantasy" };
   return {
     title: `${league.name} — Draftastic Fantasy`,
-    description: `League: ${league.name}`,
+    description: `Public League (MVL): ${league.name} — season-only rosters`,
   };
 }
 
@@ -20,7 +23,18 @@ export default async function LeagueDetailPage({ params }: Props) {
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const members = await getLeagueMembers(league.id);
+  const [members, rosters, wrestlersResult] = await Promise.all([
+    getLeagueMembers(league.id),
+    getRostersForLeague(league.id),
+    (async () => {
+      const supabase = await createClient();
+      const { data } = await supabase
+        .from("wrestlers")
+        .select("id, name, gender")
+        .order("name", { ascending: true });
+      return (data ?? []) as { id: string; name: string | null; gender: string | null }[];
+    })(),
+  ]);
 
   return (
     <main
@@ -79,9 +93,16 @@ export default async function LeagueDetailPage({ params }: Props) {
         ))}
       </ul>
 
-      <p style={{ marginTop: 24, fontSize: 14, color: "#666" }}>
-        Draft, rosters, and matchups for this league will show up here once we add them.
-      </p>
+      <RostersSection
+        leagueId={league.id}
+        leagueSlug={slug}
+        members={members}
+        rosters={rosters}
+        wrestlers={wrestlersResult}
+        isCommissioner={league.role === "commissioner"}
+        rosterRules={getRosterRulesForLeague(members.length)}
+        teamCount={members.length}
+      />
     </main>
   );
 }

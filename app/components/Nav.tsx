@@ -9,8 +9,8 @@ import type { Profile } from "@/lib/profiles";
 
 const TOP_LINKS = [
   { href: "/", label: "Home" },
-  { href: "/leagues", label: "Leagues" },
-  { href: "/league/teams", label: "League" },
+  { href: "/leagues", label: "Public Leagues" },
+  { href: "/league/teams", label: "Legacy League" },
   { href: "/mvl", label: "MVL Example" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/wrestlers", label: "Wrestlers" },
@@ -26,12 +26,12 @@ const LEAGUE_SUB_LINKS = [
 
 function getSecondaryLabel(pathname: string): string {
   if (pathname === "/") return "Overview";
-  if (pathname === "/leagues" || pathname.startsWith("/leagues/")) return "Leagues";
-  if (pathname === "/league" || pathname === "/league/teams") return "League · Teams";
-  if (pathname === "/league/draft") return "League · Draft";
-  if (pathname === "/league/trades") return "League · Trades";
-  if (pathname === "/league/free-agents") return "League · Free Agents";
-  if (pathname.startsWith("/league/")) return "Team";
+  if (pathname === "/leagues" || pathname.startsWith("/leagues/")) return "Public Leagues";
+  if (pathname === "/league" || pathname === "/league/teams") return "Legacy League · Teams";
+  if (pathname === "/league/draft") return "Legacy League · Draft";
+  if (pathname === "/league/trades") return "Legacy League · Trades";
+  if (pathname === "/league/free-agents") return "Legacy League · Free Agents";
+  if (pathname.startsWith("/league/")) return "Legacy League · Team";
   if (pathname.startsWith("/how-it-works")) return "How it works";
   if (pathname.startsWith("/wrestlers")) return "Wrestlers";
   if (pathname.startsWith("/score")) return "Score event";
