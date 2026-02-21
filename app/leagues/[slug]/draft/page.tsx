@@ -10,6 +10,7 @@ import {
   runAutoPickIfExpired,
 } from "@/lib/leagueDraft";
 import { generateDraftOrderFromFormAction, startDraftFromFormAction } from "./actions";
+import { updateDraftDateFromFormAction } from "../actions";
 import { MakePickForm } from "./MakePickForm";
 import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
@@ -156,9 +157,55 @@ export default async function LeagueDraftPage({ params }: Props) {
         </Link>
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Draft</h1>
-      <p style={{ color: "#555", marginBottom: 24 }}>
-        {draftStyle === "linear" ? "Linear" : "Snake"} order · {totalPicks} total picks
-      </p>
+
+      {draftStatus === "completed" ? (
+        <p style={{ color: "#0d7d0d", fontWeight: 600, marginBottom: 24 }}>Draft completed.</p>
+      ) : (
+        <>
+          <p style={{ color: "#555", marginBottom: 8 }}>
+            {draftStyle === "linear" ? "Linear" : "Snake"} order · {totalPicks} total picks
+          </p>
+          {league.draft_date && (
+            <p style={{ fontSize: 14, color: "#666", marginBottom: 16 }}>
+              Draft date: <strong>{league.draft_date}</strong> (points from first event after this date)
+            </p>
+          )}
+          {isCommissioner && draftStatus === "not_started" && (
+            <form
+              action={updateDraftDateFromFormAction}
+              style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 24 }}
+            >
+              <input type="hidden" name="league_slug" value={slug} />
+              <div>
+                <label htmlFor="draft-date" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
+                  Draft date
+                </label>
+                <input
+                  id="draft-date"
+                  type="date"
+                  name="draft_date"
+                  defaultValue={league.draft_date ?? ""}
+                  style={{ padding: "8px 12px", fontSize: 14, border: "1px solid #ccc", borderRadius: 6 }}
+                />
+              </div>
+              <button
+                type="submit"
+                style={{
+                  padding: "8px 16px",
+                  background: "#333",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                Save draft date
+              </button>
+            </form>
+          )}
+        </>
+      )}
 
       {draftStatus === "not_started" && !orderReady && (
         <>
@@ -344,14 +391,9 @@ export default async function LeagueDraftPage({ params }: Props) {
       )}
 
       {draftStatus === "completed" && (
-        <>
-          <p style={{ marginBottom: 24, color: "#0d7d0d", fontWeight: 500 }}>
-            Draft complete. Rosters are set.
-          </p>
-          {isCommissioner && (
-            <CommissionerDraftActions leagueSlug={slug} canClearLastPick={false} />
-          )}
-        </>
+        <p style={{ marginBottom: 24, color: "#666", fontSize: 14 }}>
+          Rosters are set. View teams on the league page.
+        </p>
       )}
     </main>
     );

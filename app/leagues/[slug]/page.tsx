@@ -6,7 +6,6 @@ import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { InviteButton } from "../InviteButton";
 import { RostersSection } from "./RostersSection";
-import { updateDraftDateFromFormAction } from "./actions";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -87,9 +86,6 @@ export default async function LeagueDetailPage({ params }: Props) {
     const pointsByUserId = pointsByOwner ?? {};
 
     const rosterRules = getRosterRulesForLeague(members.length);
-    const draftStatus = league.draft_status ?? "not_started";
-    const draftStyle = league.draft_style ?? "snake";
-    const draftDate = league.draft_date ?? "";
     const membersByPoints = [...members].sort(
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
     );
@@ -192,95 +188,6 @@ export default async function LeagueDetailPage({ params }: Props) {
           );
         })}
       </ul>
-
-      <section
-        style={{
-          marginBottom: 24,
-          padding: 16,
-          background: "#f8f8f8",
-          borderRadius: 8,
-          border: "1px solid #e8e8e8",
-        }}
-      >
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Draft</h2>
-        <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-          Draft status: <strong>{draftStatus === "in_progress" ? "In progress" : draftStatus === "completed" ? "Completed" : "Not started"}</strong>
-          {draftStyle && draftStatus === "not_started" && (
-            <> · Type: {draftStyle === "linear" ? "Linear" : "Snake"}</>
-          )}
-        </p>
-        <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-          {draftDate ? (
-            <>Draft date: <strong>{draftDate}</strong> (points from first event after this date)</>
-          ) : (
-            "Draft date not set."
-          )}
-        </p>
-        {league.role === "commissioner" && (
-          <>
-            <form
-              action={updateDraftDateFromFormAction}
-              style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 16 }}
-            >
-              <input type="hidden" name="league_slug" value={slug} />
-              <div>
-                <label htmlFor="draft-date" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
-                  Draft date
-                </label>
-                <input
-                  id="draft-date"
-                  type="date"
-                  name="draft_date"
-                  defaultValue={draftDate}
-                  style={{
-                    padding: "8px 12px",
-                    fontSize: 14,
-                    border: "1px solid #ccc",
-                    borderRadius: 6,
-                  }}
-                />
-              </div>
-              <button
-                type="submit"
-                style={{
-                  padding: "8px 16px",
-                  background: "#333",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  fontSize: 14,
-                  cursor: "pointer",
-                }}
-              >
-                Save draft date
-              </button>
-            </form>
-            <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Set draft type (snake or linear) and generate a randomized draft order. Then run the live draft pick-by-pick.
-            </p>
-            <Link
-              href={`/leagues/${slug}/draft`}
-              style={{
-                display: "inline-block",
-                padding: "10px 20px",
-                background: "#1a73e8",
-                color: "#fff",
-                textDecoration: "none",
-                borderRadius: 8,
-                fontSize: 16,
-                fontWeight: 600,
-              }}
-            >
-              Open draft
-            </Link>
-          </>
-        )}
-      {league.role !== "commissioner" && (
-        <Link href={`/leagues/${slug}/draft`} style={{ color: "#1a73e8" }}>
-          View draft
-        </Link>
-        )}
-      </section>
 
       <RostersSection
         leagueId={league.id}

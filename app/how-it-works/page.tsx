@@ -142,7 +142,7 @@ export default function HowItWorksPage() {
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Other rules</h2>
         <ul>
-          <li><strong>DQ win</strong> — Match points for the winner are <strong>halved</strong> (rounded down). Title and main event bonuses are unchanged.</li>
+          <li><strong>DQ win</strong> — Only <strong>win</strong> points are halved (rounded down). “On card” and main event bonuses are unchanged.</li>
           <li><strong>No Contest</strong> — Only <strong>appearance</strong> (“on card”) points are awarded. No win or main event bonus.</li>
           <li><strong>Promos / segments</strong> — No points. Segments classified as “Promo” in the data are excluded from scoring.</li>
           <li><strong>Tag teams</strong> — Points are awarded to <strong>individual wrestlers</strong> only (e.g. each member of a tag team gets their own match/win/main event points).</li>
@@ -150,7 +150,7 @@ export default function HowItWorksPage() {
       </section>
 
       <p style={{ marginTop: 24 }}>
-        <Link href="/score">Score an event</Link> to see points in action, or open any <Link href="/">completed event</Link> from the list to view the full breakdown per wrestler.
+        <Link href="/score">Scored Events</Link> to see points in action, or open any <Link href="/">completed event</Link> from the list to view the full breakdown per wrestler.
       </p>
     </main>
   );

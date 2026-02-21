@@ -611,7 +611,7 @@ export default async function EventResultsPage({
       }}
     >
       <p style={{ marginBottom: 24 }}>
-        <Link href="/score">← Score an event</Link>
+        <Link href="/score">← Scored Events</Link>
         {" · "}
         <Link href="/">Home</Link>
       </p>

@@ -14,7 +14,7 @@ const TOP_LINKS = [
   { href: "/mvl", label: "MVL Example" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/wrestlers", label: "Wrestlers" },
-  { href: "/score", label: "Score event" },
+  { href: "/score", label: "Scored Events" },
 ] as const;
 
 const LEAGUE_SUB_LINKS = [
@@ -58,7 +58,7 @@ function getSecondaryLabel(pathname: string): string {
   if (pathname.startsWith("/league/")) return "Legacy League · Team";
   if (pathname.startsWith("/how-it-works")) return "How it works";
   if (pathname.startsWith("/wrestlers")) return "Wrestlers";
-  if (pathname.startsWith("/score")) return "Score event";
+  if (pathname.startsWith("/score")) return "Scored Events";
   if (pathname.startsWith("/results")) return "Event results";
   if (pathname.startsWith("/mvl")) return "MVL Example";
   if (pathname.startsWith("/auth")) return "Account";

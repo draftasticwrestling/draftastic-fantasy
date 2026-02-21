@@ -2,17 +2,17 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
 export const metadata = {
-  title: "Score an event — Draftastic Fantasy",
-  description: "Run fantasy points for an event from Pro Wrestling Boxscore.",
+  title: "Scored Events — Draftastic Fantasy",
+  description: "Review fantasy scoring for completed events from Pro Wrestling Boxscore.",
 };
 
-export default async function ScorePage() {
+export default async function ScoredEventsPage() {
   const { data: events, error } = await supabase
     .from("events")
     .select("id, name, date")
     .eq("status", "completed")
     .order("date", { ascending: false })
-    .limit(30);
+    .limit(60);
 
   return (
     <main
@@ -24,26 +24,32 @@ export default async function ScorePage() {
       }}
     >
       <p style={{ marginBottom: 24 }}>
-        <Link href="/">← Home</Link>
+        <Link href="/" style={{ color: "#1a73e8", textDecoration: "none" }}>← Home</Link>
       </p>
 
-      <h1>Score an event</h1>
-      <p>
-        Pick a completed event below to see fantasy points per wrestler per match.
+      <h1 style={{ fontSize: "1.75rem", marginBottom: 8 }}>Scored Events</h1>
+      <p style={{ color: "#555", marginBottom: 24, fontSize: 15 }}>
+        When a new event is added and marked completed on{" "}
+        <a href="https://prowrestlingboxscore.com" target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8" }}>
+          prowrestlingboxscore.com
+        </a>
+        , it appears here. Click an event to review fantasy scoring and confirm points per wrestler per match.
       </p>
 
       {error && (
-        <p style={{ color: "red" }}>
+        <p style={{ color: "#c00", marginBottom: 16 }}>
           Error loading events: {error.message}
         </p>
       )}
 
       {events && events.length === 0 && !error && (
-        <p>No events in the database. Add events in Pro Wrestling Boxscore first.</p>
+        <p style={{ color: "#666" }}>
+          No completed events yet. Add and complete events in Pro Wrestling Boxscore first.
+        </p>
       )}
 
       {events && events.length > 0 && (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {events.map((event) => (
             <li
               key={event.id}
@@ -54,11 +60,11 @@ export default async function ScorePage() {
             >
               <Link
                 href={`/results/${encodeURIComponent(event.id)}`}
-                style={{ color: "#0066cc", textDecoration: "underline" }}
+                style={{ color: "#1a73e8", textDecoration: "none", fontWeight: 500 }}
               >
                 {event.name}
               </Link>
-              <span style={{ color: "#666", marginLeft: 8 }}>{event.date}</span>
+              <span style={{ color: "#666", marginLeft: 10 }}>{event.date}</span>
             </li>
           ))}
         </ul>

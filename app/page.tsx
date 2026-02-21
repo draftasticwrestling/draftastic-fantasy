@@ -35,7 +35,7 @@ export default async function HomePage() {
           <Link href="/wrestlers">Wrestlers</Link> — draft-eligible wrestlers and roster rules (min 4M / 4F).
         </p>
         <p style={{ fontSize: "1.1em" }}>
-          <Link href="/score">Score an event</Link> — run fantasy points for any event (pick from list).
+          <Link href="/score">Scored Events</Link> — review fantasy scoring for completed events from Pro Wrestling Boxscore.
         </p>
         <p style={{ fontSize: "1.1em" }}>
           <Link href="/how-it-works">How it works</Link> — scoring rules, event types, titles, and special matches.
