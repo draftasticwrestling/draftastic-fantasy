@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
@@ -35,74 +36,183 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   if (!matchup) notFound();
 
   const weekEnd = getSundayOfWeek(weekStart);
-  const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const teamLabel = (m: { team_name?: string | null; display_name?: string | null }) =>
     (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
 
   const sorted = [...members].sort(
-    (a, b) => (matchup.pointsByUserId[b.user_id] ?? 0) - (matchup.pointsByUserId[a.user_id] ?? 0)
+    (a, b) => {
+      const aPts = (matchup.pointsByUserId[a.user_id] ?? 0) + (matchup.winnerUserId === a.user_id ? 15 : 0) + (matchup.beltHolderUserId === a.user_id ? (matchup.beltRetained ? 4 : 5) : 0);
+      const bPts = (matchup.pointsByUserId[b.user_id] ?? 0) + (matchup.winnerUserId === b.user_id ? 15 : 0) + (matchup.beltHolderUserId === b.user_id ? (matchup.beltRetained ? 4 : 5) : 0);
+      return bPts - aPts;
+    }
   );
+
+  const teamData = sorted.map((m) => {
+    const eventPts = matchup.pointsByUserId[m.user_id] ?? 0;
+    const isWinner = matchup.winnerUserId === m.user_id;
+    const isBeltHolder = matchup.beltHolderUserId === m.user_id;
+    const winBonus = isWinner ? 15 : 0;
+    const beltBonus = isBeltHolder ? (matchup.beltRetained ? 4 : 5) : 0;
+    const totalPts = eventPts + winBonus + beltBonus;
+    const breakdown: { label: string; value: number }[] = [{ label: "Event", value: eventPts }];
+    if (winBonus) breakdown.push({ label: "Weekly win", value: winBonus });
+    if (beltBonus) breakdown.push({ label: matchup.beltRetained ? "Belt retain" : "Belt win", value: beltBonus });
+    return { member: m, eventPts, winBonus, beltBonus, totalPts, breakdown, isWinner, isBeltHolder };
+  });
+
+  const isHeadToHead = teamData.length === 2;
+  const matchupLabel = teamData.length === 2 ? "Head to head" : teamData.length === 3 ? "Triple threat" : `${teamData.length}-team matchup`;
 
   return (
     <main
       style={{
         fontFamily: "system-ui, sans-serif",
-        padding: 24,
-        maxWidth: 640,
+        padding: "24px 16px",
+        maxWidth: 900,
         margin: "0 auto",
         fontSize: 16,
         lineHeight: 1.5,
+        background: "#f5f6f8",
+        minHeight: "100vh",
       }}
     >
-      <p style={{ marginBottom: 24 }}>
-        <Link href={`/leagues/${slug}/matchups`} style={{ color: "#1a73e8", textDecoration: "none" }}>
+      <p style={{ marginBottom: 20 }}>
+        <Link href={`/leagues/${slug}/matchups`} style={{ color: "#6001d3", textDecoration: "none", fontWeight: 500 }}>
           ← Matchups
         </Link>
         {" · "}
-        <Link href={`/leagues/${slug}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
+        <Link href={`/leagues/${slug}`} style={{ color: "#6001d3", textDecoration: "none", fontWeight: 500 }}>
           {league.name}
         </Link>
       </p>
-      <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>
-        {formatWeekRange(weekStart, weekEnd)}
-      </h1>
-      <p style={{ color: "#555", marginBottom: 24, fontSize: 14 }}>
-        Event points this week only. Winner gets +15; belt holder gets +5 (win) or +4 (retain).
+
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 12,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+          overflow: "hidden",
+          marginBottom: 24,
+        }}
+      >
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: "1px solid #e8eaed",
+            background: "linear-gradient(180deg, #fafafa 0%, #fff 100%)",
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#5f6368", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+            {matchupLabel}
+          </div>
+          <h1 style={{ fontSize: "1.35rem", fontWeight: 700, color: "#202124", margin: 0 }}>
+            {formatWeekRange(weekStart, weekEnd)}
+          </h1>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: isHeadToHead ? "1fr auto 1fr" : "repeat(auto-fill, minmax(200px, 1fr))",
+            gap: isHeadToHead ? 0 : 16,
+            padding: isHeadToHead ? 0 : 20,
+            alignItems: "stretch",
+          }}
+        >
+          {teamData.map((t, idx) => (
+            <Fragment key={t.member.user_id}>
+              {isHeadToHead && idx === 1 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 16px",
+                    background: "#fafafa",
+                    borderLeft: "1px solid #e8eaed",
+                    borderRight: "1px solid #e8eaed",
+                  }}
+                >
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "#9aa0a6", letterSpacing: "0.1em" }}>
+                    VS
+                  </span>
+                </div>
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: isHeadToHead ? 24 : 20,
+                  background: t.isWinner ? "linear-gradient(180deg, #e8f5e9 0%, #fff 100%)" : "#fff",
+                  borderRight: isHeadToHead && idx === 0 ? "1px solid #e8eaed" : "none",
+                  borderLeft: isHeadToHead && idx === 1 ? "1px solid #e8eaed" : "none",
+                  position: "relative",
+                  border: !isHeadToHead ? "1px solid #e8eaed" : undefined,
+                  borderRadius: !isHeadToHead ? 10 : 0,
+                  boxShadow: !isHeadToHead ? "0 1px 3px rgba(0,0,0,0.06)" : undefined,
+                }}
+              >
+                {t.isWinner && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 12,
+                      right: 12,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#0d7d0d",
+                      background: "#c8e6c9",
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                    }}
+                  >
+                    Winner
+                  </div>
+                )}
+                {t.isBeltHolder && !t.isWinner && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 12,
+                      right: 12,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#1565c0",
+                      background: "#e3f2fd",
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                    }}
+                  >
+                    Belt
+                  </div>
+                )}
+                <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "#202124", marginBottom: 12, paddingRight: t.isWinner || t.isBeltHolder ? 80 : 0 }}>
+                  {teamLabel(t.member)}
+                </div>
+                <div style={{ fontSize: "2rem", fontWeight: 800, color: "#6001d3", lineHeight: 1.2, marginBottom: 12 }}>
+                  {t.totalPts}
+                  <span style={{ fontSize: "0.6em", fontWeight: 600, color: "#5f6368", marginLeft: 2 }}>pts</span>
+                </div>
+                <div style={{ fontSize: 12, color: "#5f6368", marginTop: "auto" }}>
+                  {t.breakdown.map((b) => (
+                    <div key={b.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 2 }}>
+                      <span>{b.label}</span>
+                      <span style={{ fontWeight: 600, color: "#202124" }}>+{b.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Fragment>
+          ))}
+        </div>
+      </div>
+
+      <p style={{ fontSize: 13, color: "#5f6368", margin: 0, lineHeight: 1.5 }}>
+        Event points = your roster’s wrestlers from matches this week. Winner gets +15; Draftastic Championship belt: +5 (win) or +4 (retain). These are added to your league total.
       </p>
 
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-        {sorted.map((m) => {
-          const pts = matchup.pointsByUserId[m.user_id] ?? 0;
-          const isWinner = matchup.winnerUserId === m.user_id;
-          const isBeltHolder = matchup.beltHolderUserId === m.user_id;
-          return (
-            <li
-              key={m.user_id}
-              style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #eee",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 16,
-              }}
-            >
-              <span style={{ fontWeight: isWinner ? 600 : 400 }}>
-                {teamLabel(m)}
-                {isWinner && <span style={{ color: "#0d7d0d", marginLeft: 6 }}>— Winner (+15)</span>}
-                {isBeltHolder && !isWinner && <span style={{ color: "#1a73e8", marginLeft: 6 }}>— Belt holder</span>}
-                {isBeltHolder && <span style={{ color: "#666", marginLeft: 4 }}>{matchup.beltRetained ? "(+4 retain)" : "(+5 win)"}</span>}
-              </span>
-              <span style={{ fontWeight: 600, color: "#c00", flexShrink: 0 }}>
-                {pts} pts
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-
       {!matchup.winnerUserId && (
-        <p style={{ marginTop: 16, color: "#666", fontSize: 14 }}>
+        <p style={{ marginTop: 16, color: "#5f6368", fontSize: 14 }}>
           No winner this week (no events in range or tie).
         </p>
       )}
