@@ -32,7 +32,9 @@ export function getWeeksInRange(leagueStart: string, leagueEnd: string): string[
   return weeks;
 }
 
-/** Points per owner for a single week (Monday–Sunday). Event points only; no weekly/belt bonuses. */
+/** Points per owner for a single week (Monday–Sunday). Event points only; no weekly/belt bonuses.
+ * Only events that fall in BOTH the week AND the league's date range (draft_date/start_date through end_date) are counted,
+ * so matchup totals match the league/team page. */
 export async function getPointsByOwnerForLeagueForWeek(
   leagueId: string,
   weekStartMonday: string
@@ -46,6 +48,9 @@ export async function getPointsByOwnerForLeagueForWeek(
     .single();
   if (!league) return {};
 
+  const leagueStart = (league.draft_date || league.start_date) ?? "";
+  const leagueEnd = league.end_date ?? "";
+
   const { data: events } = await supabase
     .from("events")
     .select("id, name, date, matches")
@@ -54,7 +59,9 @@ export async function getPointsByOwnerForLeagueForWeek(
 
   const filtered = (events ?? []).filter((e) => {
     const d = (e.date ?? "").toString().slice(0, 10);
-    return d >= weekStartMonday && d <= weekEndSunday;
+    const inWeek = d >= weekStartMonday && d <= weekEndSunday;
+    const inLeagueRange = (!leagueStart || d >= leagueStart) && (!leagueEnd || d <= leagueEnd);
+    return inWeek && inLeagueRange;
   });
 
   const pointsBySlug = aggregateWrestlerPoints(filtered) as Record<
