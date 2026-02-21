@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getPointsByOwnerForLeague } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { InviteButton } from "../InviteButton";
@@ -65,7 +65,10 @@ export default async function LeagueDetailPage({ params }: Props) {
     league = await getLeagueBySlug(slug);
     if (!league) notFound();
 
-    const [membersData, rostersData, wrestlersData] = await Promise.all([
+    const supabase = await createClient();
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+    const [membersData, rostersData, wrestlersData, pointsByOwner] = await Promise.all([
       getLeagueMembers(league.id),
       getRostersForLeague(league.id),
       (async () => {
@@ -76,15 +79,20 @@ export default async function LeagueDetailPage({ params }: Props) {
           .order("name", { ascending: true });
         return (data ?? []) as { id: string; name: string | null; gender: string | null }[];
       })(),
+      getPointsByOwnerForLeague(league.id),
     ]);
     members = membersData;
     rosters = rostersData;
     wrestlersResult = wrestlersData;
+    const pointsByUserId = pointsByOwner ?? {};
 
     const rosterRules = getRosterRulesForLeague(members.length);
     const draftStatus = league.draft_status ?? "not_started";
     const draftStyle = league.draft_style ?? "snake";
     const draftDate = league.draft_date ?? "";
+    const membersByPoints = [...members].sort(
+      (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
+    );
 
     return (
     <main
@@ -119,9 +127,16 @@ export default async function LeagueDetailPage({ params }: Props) {
       <p style={{ marginBottom: 16, fontSize: 14, color: "#666" }}>
         {league.role === "commissioner" ? "You are the commissioner." : "Member."}
         {" "}
-        <Link href={`/leagues/${slug}/team`} style={{ color: "#1a73e8" }}>
-          My team →
-        </Link>
+        {currentUser && (
+          <Link href={`/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}`} style={{ color: "#1a73e8" }}>
+            My team →
+          </Link>
+        )}
+        {!currentUser && (
+          <Link href={`/leagues/${slug}/team`} style={{ color: "#1a73e8" }}>
+            My team →
+          </Link>
+        )}
       </p>
 
       {league.role === "commissioner" && (
@@ -143,6 +158,40 @@ export default async function LeagueDetailPage({ params }: Props) {
           </Link>
         </div>
       )}
+
+      <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Teams</h2>
+      <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
+        Click a team to see that owner’s roster and points.
+      </p>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0, marginBottom: 24 }}>
+        {membersByPoints.map((m) => {
+          const teamLabel = (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+          const pts = pointsByUserId[m.user_id] ?? 0;
+          return (
+            <li
+              key={m.id}
+              style={{
+                padding: "10px 0",
+                borderBottom: "1px solid #eee",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+              }}
+            >
+              <Link
+                href={`/leagues/${slug}/team/${encodeURIComponent(m.user_id)}`}
+                style={{ color: "#1a73e8", textDecoration: "none", fontWeight: 500 }}
+              >
+                {teamLabel}
+              </Link>
+              <span style={{ fontWeight: 600, color: "#c00", flexShrink: 0 }}>
+                {pts} pts
+              </span>
+            </li>
+          );
+        })}
+      </ul>
 
       <section
         style={{
@@ -226,35 +275,12 @@ export default async function LeagueDetailPage({ params }: Props) {
             </Link>
           </>
         )}
-        {league.role !== "commissioner" && (
-          <Link href={`/leagues/${slug}/draft`} style={{ color: "#1a73e8" }}>
-            View draft
-          </Link>
+      {league.role !== "commissioner" && (
+        <Link href={`/leagues/${slug}/draft`} style={{ color: "#1a73e8" }}>
+          View draft
+        </Link>
         )}
       </section>
-
-      <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Members</h2>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-        {members.map((m) => (
-          <li
-            key={m.id}
-            style={{
-              padding: "10px 0",
-              borderBottom: "1px solid #eee",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <span style={{ fontWeight: 500 }}>
-              {m.display_name?.trim() || "Unknown"}
-            </span>
-            <span style={{ fontSize: 14, color: "#666" }}>
-              {m.role === "commissioner" ? "(Commissioner)" : ""}
-            </span>
-          </li>
-        ))}
-      </ul>
 
       <RostersSection
         leagueId={league.id}

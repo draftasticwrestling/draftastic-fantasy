@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getDefaultStartEndForSeason } from "@/lib/leagueSeasons";
+import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 
 export type League = {
   id: string;
@@ -25,6 +26,7 @@ export type LeagueMember = {
   role: "commissioner" | "owner";
   joined_at: string;
   display_name?: string | null;
+  team_name?: string | null;
 };
 
 export type LeagueWithRole = League & { role: "commissioner" | "owner" };
@@ -207,13 +209,32 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
   const supabase = await createClient();
   const { data: rows, error } = await supabase
     .from("league_members")
-    .select("id, league_id, user_id, role, joined_at")
+    .select("id, league_id, user_id, role, joined_at, team_name")
     .eq("league_id", leagueId)
     .order("joined_at", { ascending: true });
 
-  if (error || !rows?.length) return [];
+  if (error) {
+    const fallback = await supabase
+      .from("league_members")
+      .select("id, league_id, user_id, role, joined_at")
+      .eq("league_id", leagueId)
+      .order("joined_at", { ascending: true });
+    if (fallback.error || !fallback.data?.length) return [];
+    const rows2 = fallback.data as { id: string; league_id: string; user_id: string; role: string; joined_at: string }[];
+    const userIds = [...new Set(rows2.map((r) => r.user_id))];
+    const { data: profiles } = await supabase.from("profiles").select("id, display_name").in("id", userIds);
+    const nameByUserId = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.display_name]));
+    return rows2.map((r) => ({
+      ...r,
+      display_name: nameByUserId[r.user_id] ?? null,
+      team_name: null,
+    })) as LeagueMember[];
+  }
 
-  const userIds = [...new Set(rows.map((r) => r.user_id))];
+  const rowsList = (rows ?? []) as { id: string; league_id: string; user_id: string; role: string; joined_at: string; team_name?: string | null }[];
+  if (!rowsList.length) return [];
+
+  const userIds = [...new Set(rowsList.map((r) => r.user_id))];
   const { data: profiles } = await supabase
     .from("profiles")
     .select("id, display_name")
@@ -223,10 +244,31 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
     (profiles ?? []).map((p) => [p.id, p.display_name])
   );
 
-  return rows.map((r) => ({
+  return rowsList.map((r) => ({
     ...r,
     display_name: nameByUserId[r.user_id] ?? null,
+    team_name: r.team_name ?? null,
   })) as LeagueMember[];
+}
+
+/**
+ * Update the current user's team name for a league. Only the member themselves can update.
+ */
+export async function updateLeagueMemberTeamName(
+  leagueId: string,
+  teamName: string | null
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { error } = await supabase
+    .from("league_members")
+    .update({ team_name: teamName?.trim() || null })
+    .eq("league_id", leagueId)
+    .eq("user_id", user.id);
+
+  return error ? { error: error.message } : {};
 }
 
 /**
@@ -426,4 +468,64 @@ export async function removeWrestlerFromRoster(
 
   if (error) return { error: error.message };
   return {};
+}
+
+export type PointsBySlug = Record<string, { rsPoints: number; plePoints: number; beltPoints: number }>;
+
+/**
+ * Load events in league date range and return points per wrestler slug and per owner.
+ * Use for league page (totals) and team page (per-wrestler + total).
+ */
+export async function getLeagueScoring(
+  leagueId: string
+): Promise<{ pointsBySlug: PointsBySlug; pointsByOwner: Record<string, number> }> {
+  const supabase = await createClient();
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("id, start_date, end_date, draft_date")
+    .eq("id", leagueId)
+    .single();
+
+  if (!league) return { pointsBySlug: {}, pointsByOwner: {} };
+
+  const start = (league.draft_date || league.start_date) ?? "";
+  const end = league.end_date ?? "";
+  if (!start && !end) return { pointsBySlug: {}, pointsByOwner: {} };
+
+  const { data: events } = await supabase
+    .from("events")
+    .select("id, name, date, matches")
+    .eq("status", "completed")
+    .order("date", { ascending: true });
+
+  const filtered = (events ?? []).filter((e) => {
+    const d = (e.date ?? "").toString().slice(0, 10);
+    if (start && d < start) return false;
+    if (end && d > end) return false;
+    return true;
+  });
+
+  const pointsBySlug = aggregateWrestlerPoints(filtered) as PointsBySlug;
+  const rosters = await getRostersForLeague(leagueId);
+  const pointsByOwner: Record<string, number> = {};
+  for (const [userId, entries] of Object.entries(rosters)) {
+    let total = 0;
+    for (const e of entries) {
+      const p = pointsBySlug[e.wrestler_id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
+      total += p.rsPoints + p.plePoints + p.beltPoints;
+    }
+    pointsByOwner[userId] = total;
+  }
+  return { pointsBySlug, pointsByOwner };
+}
+
+/**
+ * Compute total fantasy points per owner for a league. Uses league start/end and draft_date
+ * (points from first event on or after draft_date). Returns a map of user_id -> total points.
+ */
+export async function getPointsByOwnerForLeague(
+  leagueId: string
+): Promise<Record<string, number>> {
+  const { pointsByOwner } = await getLeagueScoring(leagueId);
+  return pointsByOwner;
 }

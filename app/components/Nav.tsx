@@ -24,9 +24,33 @@ const LEAGUE_SUB_LINKS = [
   { href: "/league/free-agents", label: "Free Agents" },
 ] as const;
 
+function getPrivateLeagueSlug(pathname: string): string | null {
+  if (!pathname.startsWith("/leagues/")) return null;
+  const parts = pathname.slice(1).split("/");
+  if (parts[1] === "new" || parts[1] === "join" || !parts[1]) return null;
+  return parts[1];
+}
+
+function formatLeagueSlugForDisplay(slug: string): string {
+  return slug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function getSecondaryLabel(pathname: string): string {
   if (pathname === "/") return "Overview";
-  if (pathname === "/leagues" || pathname.startsWith("/leagues/")) return "Private Leagues";
+  if (pathname === "/leagues") return "Private Leagues";
+  const leagueSlug = getPrivateLeagueSlug(pathname);
+  if (leagueSlug) {
+    if (pathname === `/leagues/${leagueSlug}` || pathname === `/leagues/${leagueSlug}/`) return "Teams";
+    if (pathname.startsWith(`/leagues/${leagueSlug}/draft`)) return "Draft";
+    if (pathname.startsWith(`/leagues/${leagueSlug}/proposals`)) return "Trades";
+    if (pathname.startsWith(`/leagues/${leagueSlug}/free-agents`)) return "Free Agents";
+    if (pathname.startsWith(`/leagues/${leagueSlug}/team`)) return "Team";
+    return "League";
+  }
+  if (pathname.startsWith("/leagues/")) return "Private Leagues";
   if (pathname === "/league" || pathname === "/league/teams") return "Legacy League · Teams";
   if (pathname === "/league/draft") return "Legacy League · Draft";
   if (pathname === "/league/trades") return "Legacy League · Trades";
@@ -226,7 +250,49 @@ export default function Nav() {
             fontSize: "0.9rem",
           }}
         >
-          {pathname.startsWith("/league") ? (
+          {getPrivateLeagueSlug(pathname) ? (
+            (() => {
+              const slug = getPrivateLeagueSlug(pathname)!;
+              const leagueLabel = formatLeagueSlugForDisplay(slug);
+              const subLinks = [
+                { href: `/leagues/${slug}`, label: "Teams" },
+                { href: `/leagues/${slug}/draft`, label: "Draft" },
+                { href: `/leagues/${slug}/proposals`, label: "Trades" },
+                { href: `/leagues/${slug}/free-agents`, label: "Free Agents" },
+              ];
+              return (
+                <>
+                  <li style={{ marginRight: 8 }}>
+                    <span style={{ color: "#555", fontWeight: 600 }}>{leagueLabel}</span>
+                  </li>
+                  {subLinks.map(({ href, label }) => {
+                const isActive =
+                  href === `/leagues/${slug}`
+                    ? pathname === href || pathname === `${href}/` || pathname.startsWith(`${href}/team`)
+                    : pathname === href || pathname.startsWith(`${href}/`);
+                return (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      style={{
+                        color: isActive ? "#1a73e8" : "#333",
+                        textDecoration: "none",
+                        fontWeight: isActive ? 600 : 400,
+                        padding: "8px 0",
+                        display: "block",
+                        borderBottom: isActive ? "2px solid #1a73e8" : "2px solid transparent",
+                        marginBottom: -1,
+                      }}
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
+                </>
+              );
+            })()
+          ) : pathname.startsWith("/league") ? (
             LEAGUE_SUB_LINKS.map(({ href, label }) => {
               const isActive = pathname === href || (href === "/league/teams" && pathname === "/league");
               return (
