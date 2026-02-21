@@ -118,11 +118,29 @@ export default async function LeagueDetailPage({ params }: Props) {
       )}
       <p style={{ marginBottom: 16, fontSize: 14, color: "#666" }}>
         {league.role === "commissioner" ? "You are the commissioner." : "Member."}
+        {" "}
+        <Link href={`/leagues/${slug}/team`} style={{ color: "#1a73e8" }}>
+          My team →
+        </Link>
       </p>
 
       {league.role === "commissioner" && (
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 24, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <InviteButton leagueId={league.id} leagueName={league.name} />
+          <Link
+            href={`/leagues/${slug}/proposals`}
+            style={{
+              padding: "8px 16px",
+              background: "#333",
+              color: "#fff",
+              textDecoration: "none",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            Pending proposals
+          </Link>
         </div>
       )}
 

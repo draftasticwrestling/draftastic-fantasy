@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { generateDraftOrder, makeDraftPick, restartDraft, clearLastPick } from "@/lib/leagueDraft";
+import { generateDraftOrder, makeDraftPick, restartDraft, clearLastPick, startDraft } from "@/lib/leagueDraft";
 
 export async function generateDraftOrderAction(
   leagueSlug: string,
@@ -56,6 +56,25 @@ export async function generateDraftOrderFromFormAction(formData: FormData): Prom
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return;
   await generateDraftOrderAction(leagueSlug, formData);
+}
+
+/** Commissioner only: start the draft (begin pick clock). */
+export async function startDraftAction(leagueSlug: string): Promise<{ error?: string }> {
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+  const result = await startDraft(league.id);
+  if (result.error) return result;
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
+  return {};
+}
+
+/** FormData-only wrapper for Start Draft. */
+export async function startDraftFromFormAction(formData: FormData): Promise<void> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return;
+  await startDraftAction(leagueSlug);
 }
 
 /** FormData-only wrapper so draft page form has no closure (better RSC serialization). */

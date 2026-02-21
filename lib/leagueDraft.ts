@@ -172,11 +172,47 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
   if (insertError) return { error: insertError.message };
 
   const updatePayload = {
+    draft_status: "not_started",
+    draft_current_pick: null,
+    draft_current_pick_started_at: null,
+  };
+  const admin = getAdminClient();
+  const { error: updateError } = admin
+    ? await admin.from("leagues").update(updatePayload).eq("id", leagueId)
+    : await supabase.from("leagues").update(updatePayload).eq("id", leagueId);
+  if (updateError) return { error: updateError.message };
+  return {};
+}
+
+/**
+ * Start the draft (commissioner only). Sets draft in progress and first pick clock.
+ */
+export async function startDraft(leagueId: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("id, commissioner_id, draft_current_pick")
+    .eq("id", leagueId)
+    .single();
+  if (!league || league.commissioner_id !== user.id) {
+    return { error: "Only the commissioner can start the draft." };
+  }
+
+  const { count } = await supabase
+    .from("league_draft_order")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", leagueId);
+  if (!count || count === 0) return { error: "No draft order. Generate draft order first." };
+
+  const admin = getAdminClient();
+  const updatePayload = {
     draft_status: "in_progress",
     draft_current_pick: 1,
     draft_current_pick_started_at: new Date().toISOString(),
   };
-  const admin = getAdminClient();
   const { error: updateError } = admin
     ? await admin.from("leagues").update(updatePayload).eq("id", leagueId)
     : await supabase.from("leagues").update(updatePayload).eq("id", leagueId);
