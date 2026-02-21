@@ -7,6 +7,7 @@ import {
   getRostersForLeague,
   getLeagueScoring,
 } from "@/lib/leagues";
+import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import {
   getNextUpcomingEvent,
   getLineupForEvent,
@@ -52,10 +53,11 @@ export default async function TeamUserIdPage({ params }: Props) {
   const { data: { user: currentUser } } = await supabase.auth.getUser();
   if (!currentUser) notFound();
 
-  const [members, rosters, scoring] = await Promise.all([
+  const [members, rosters, scoring, pointsWithBonuses] = await Promise.all([
     getLeagueMembers(league.id),
     getRostersForLeague(league.id),
     getLeagueScoring(league.id),
+    getPointsByOwnerForLeagueWithBonuses(league.id),
   ]);
   const isMember = members.some((m) => m.user_id === currentUser.id);
   if (!isMember) notFound();
@@ -69,7 +71,7 @@ export default async function TeamUserIdPage({ params }: Props) {
     "Unknown";
   const rosterEntries = rosters[userId] ?? [];
   const pointsBySlug = scoring.pointsBySlug;
-  const totalPoints = scoring.pointsByOwner[userId] ?? 0;
+  const totalPoints = pointsWithBonuses[userId] ?? 0;
 
   const wrestlers =
     (await supabase.from("wrestlers").select("id, name").order("name", { ascending: true })).data ??

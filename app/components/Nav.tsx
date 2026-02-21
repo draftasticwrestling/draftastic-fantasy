@@ -44,6 +44,7 @@ function getSecondaryLabel(pathname: string): string {
   const leagueSlug = getPrivateLeagueSlug(pathname);
   if (leagueSlug) {
     if (pathname === `/leagues/${leagueSlug}` || pathname === `/leagues/${leagueSlug}/`) return "Teams";
+    if (pathname.startsWith(`/leagues/${leagueSlug}/matchups`)) return "Matchups";
     if (pathname.startsWith(`/leagues/${leagueSlug}/draft`)) return "Draft";
     if (pathname.startsWith(`/leagues/${leagueSlug}/proposals`)) return "Trades";
     if (pathname.startsWith(`/leagues/${leagueSlug}/free-agents`)) return "Free Agents";
@@ -256,6 +257,7 @@ export default function Nav() {
               const leagueLabel = formatLeagueSlugForDisplay(slug);
               const subLinks = [
                 { href: `/leagues/${slug}`, label: "Teams" },
+                { href: `/leagues/${slug}/matchups`, label: "Matchups" },
                 { href: `/leagues/${slug}/draft`, label: "Draft" },
                 { href: `/leagues/${slug}/proposals`, label: "Trades" },
                 { href: `/leagues/${slug}/free-agents`, label: "Free Agents" },

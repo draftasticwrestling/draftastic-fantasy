@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getPointsByOwnerForLeague } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { InviteButton } from "../InviteButton";
@@ -78,7 +79,7 @@ export default async function LeagueDetailPage({ params }: Props) {
           .order("name", { ascending: true });
         return (data ?? []) as { id: string; name: string | null; gender: string | null }[];
       })(),
-      getPointsByOwnerForLeague(league.id),
+      getPointsByOwnerForLeagueWithBonuses(league.id),
     ]);
     members = membersData;
     rosters = rostersData;
