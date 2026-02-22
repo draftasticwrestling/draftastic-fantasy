@@ -24,21 +24,21 @@ export function AddRosterForm({ leagueId, leagueSlug, members, wrestlers }: Prop
       style={{
         marginBottom: 24,
         padding: 16,
-        background: "#f8f9fa",
-        borderRadius: 8,
-        border: "1px solid #eee",
+        background: "var(--color-bg-surface)",
+        borderRadius: "var(--radius)",
+        border: "1px solid var(--color-border)",
       }}
     >
-      <h3 style={{ fontSize: "1rem", marginBottom: 12 }}>Add wrestler to roster</h3>
+      <h3 style={{ fontSize: "1rem", marginBottom: 12, color: "var(--color-text)" }}>Add wrestler to roster</h3>
       {state?.error && (
         <p
           style={{
             marginBottom: 12,
             padding: "8px 12px",
-            background: "#fff0f0",
-            border: "1px solid #fcc",
-            borderRadius: 6,
-            color: "#c00",
+            background: "var(--color-red-bg)",
+            border: "1px solid var(--color-red-muted)",
+            borderRadius: "var(--radius-sm)",
+            color: "var(--color-red)",
             fontSize: 14,
           }}
         >
@@ -49,14 +49,14 @@ export function AddRosterForm({ leagueId, leagueSlug, members, wrestlers }: Prop
         <input type="hidden" name="leagueSlug" value={leagueSlug} />
         <input type="hidden" name="leagueId" value={leagueId} />
         <div>
-          <label htmlFor="roster-member" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
+          <label htmlFor="roster-member" style={{ display: "block", fontSize: 12, marginBottom: 4, color: "var(--color-text-muted)" }}>
             Member
           </label>
           <select
             id="roster-member"
             name="userId"
             required
-            style={{ padding: "8px 12px", minWidth: 160 }}
+            style={{ padding: "8px 12px", minWidth: 160, background: "var(--color-bg-input)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text)" }}
           >
             <option value="">Select member</option>
             {members.map((m) => (
@@ -89,10 +89,10 @@ export function AddRosterForm({ leagueId, leagueSlug, members, wrestlers }: Prop
           type="submit"
           style={{
             padding: "8px 16px",
-            background: "#333",
-            color: "#fff",
+            background: "var(--color-blue)",
+            color: "var(--color-text)",
             border: "none",
-            borderRadius: 6,
+            borderRadius: "var(--radius-sm)",
             cursor: "pointer",
             fontSize: 14,
           }}

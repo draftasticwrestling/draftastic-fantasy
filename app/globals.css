@@ -11,6 +11,8 @@
   --color-bg-content: #171717;
   --color-bg-card: #1f1f1f;
   --color-bg-elevated: #262626;
+  /* Surface for form/card areas that were white — medium dark grey, easier on eyes */
+  --color-bg-surface: #252525;
   --color-bg-input: #262626;
 
   /* Text */

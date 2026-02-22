@@ -141,32 +141,23 @@ export default async function LeagueDraftPage({ params }: Props) {
     }
 
     return (
-    <main
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: 24,
-        maxWidth: 720,
-        margin: "0 auto",
-        fontSize: 16,
-        lineHeight: 1.5,
-      }}
-    >
+    <main className="app-page" style={{ maxWidth: 720, fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 24 }}>
-        <Link href={`/leagues/${slug}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
+        <Link href={`/leagues/${slug}`} className="app-link">
           ← {league.name}
         </Link>
       </p>
-      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Draft</h1>
+      <h1 style={{ marginBottom: 8, fontSize: "1.5rem", color: "var(--color-text)" }}>Draft</h1>
 
       {draftStatus === "completed" ? (
         <p style={{ color: "#0d7d0d", fontWeight: 600, marginBottom: 24 }}>Draft completed.</p>
       ) : (
         <>
-          <p style={{ color: "#555", marginBottom: 8 }}>
+          <p style={{ color: "var(--color-text-muted)", marginBottom: 8 }}>
             {draftStyle === "linear" ? "Linear" : "Snake"} order · {totalPicks} total picks
           </p>
           {league.draft_date && (
-            <p style={{ fontSize: 14, color: "#666", marginBottom: 16 }}>
+            <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 16 }}>
               Draft date: <strong>{league.draft_date}</strong> (points from first event after this date)
             </p>
           )}
@@ -294,8 +285,8 @@ export default async function LeagueDraftPage({ params }: Props) {
             </p>
           )}
           <section style={{ marginBottom: 24 }}>
-            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Draft board</h2>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, border: "1px solid #eee", borderRadius: 8, overflow: "hidden" }}>
+            <h2 style={{ fontSize: "1.1rem", marginBottom: 12, color: "var(--color-text)" }}>Draft board</h2>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, border: "1px solid var(--color-border)", borderRadius: "var(--radius)", overflow: "hidden", background: "var(--color-bg-surface)" }}>
               {order.map((o) => {
                 const managerName = memberByUserId[o.user_id]?.display_name?.trim() ?? "Unknown";
                 return (
@@ -303,16 +294,16 @@ export default async function LeagueDraftPage({ params }: Props) {
                     key={o.overall_pick}
                     style={{
                       padding: "10px 14px",
-                      borderBottom: "1px solid #eee",
+                      borderBottom: "1px solid var(--color-border)",
                       fontSize: 14,
-                      display: "flex",
-                      alignItems: "center",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
                       gap: 12,
+                      alignItems: "center",
                     }}
                   >
-                    <span style={{ fontWeight: 600, minWidth: 32 }}>#{o.overall_pick}</span>
-                    <span style={{ minWidth: 120 }}>{managerName}</span>
-                    <span style={{ color: "#999" }}>—</span>
+                    <span style={{ color: "var(--color-text-muted)", fontWeight: 600 }}>#{o.overall_pick} · {managerName}</span>
+                    <span style={{ color: "var(--color-text-dim)" }}>—</span>
                   </li>
                 );
               })}
@@ -325,8 +316,8 @@ export default async function LeagueDraftPage({ params }: Props) {
         <>
           {draftStatus === "in_progress" && <DraftPolling />}
           <section style={{ marginBottom: 24 }}>
-            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Draft board</h2>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, border: "1px solid #eee", borderRadius: 8, overflow: "hidden" }}>
+            <h2 style={{ fontSize: "1.1rem", marginBottom: 12, color: "var(--color-text)" }}>Draft board</h2>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, border: "1px solid var(--color-border)", borderRadius: "var(--radius)", overflow: "hidden", background: "var(--color-bg-surface)" }}>
               {order.map((o) => {
                 const managerName = memberByUserId[o.user_id]?.display_name?.trim() ?? "Unknown";
                 const pick = picksBySlot[o.overall_pick];
@@ -339,27 +330,27 @@ export default async function LeagueDraftPage({ params }: Props) {
                     key={o.overall_pick}
                     style={{
                       padding: "10px 14px",
-                      borderBottom: "1px solid #eee",
+                      borderBottom: "1px solid var(--color-border)",
                       fontSize: 14,
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "center",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
                       gap: 12,
-                      background: isCurrent ? "#e3f2fd" : undefined,
-                      borderLeft: isCurrent ? "4px solid #1a73e8" : undefined,
+                      alignItems: "center",
+                      background: isCurrent ? "var(--color-blue-bg)" : undefined,
+                      borderLeft: isCurrent ? "4px solid var(--color-blue)" : undefined,
                     }}
                   >
-                    <span style={{ fontWeight: 600, minWidth: 32 }}>#{o.overall_pick}</span>
-                    <span style={{ minWidth: 120 }}>{managerName}</span>
-                    <span style={{ color: "#555" }}>—</span>
-                    <span style={{ flex: 1 }}>
+                    <div>
+                      <span style={{ color: "var(--color-text-muted)", fontWeight: 600 }}>#{o.overall_pick} · {managerName}</span>
+                      {risk && (
+                        <span style={{ display: "block", fontSize: 12, color: "#d4a017", marginTop: 4 }}>
+                          Roster: need {risk}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ color: "var(--color-text)", fontWeight: risk ? 500 : undefined }}>
                       {wrestlerDisplay ?? (isYourTurn ? "Your turn" : "—")}
                     </span>
-                    {risk && (
-                      <span style={{ fontSize: 12, color: "#b45309", background: "#fff4e6", padding: "4px 8px", borderRadius: 6 }}>
-                        Roster: need {risk}
-                      </span>
-                    )}
                   </li>
                 );
               })}

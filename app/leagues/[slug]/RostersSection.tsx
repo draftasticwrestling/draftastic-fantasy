@@ -101,20 +101,20 @@ export function RostersSection({
               key={member.id}
               style={{
                 padding: 16,
-                border: "1px solid #eee",
-                borderRadius: 8,
-                background: "#fff",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius)",
+                background: "var(--color-bg-surface)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                <span style={{ fontWeight: 600 }}>
+                <span style={{ fontWeight: 600, color: "var(--color-text)" }}>
                   {member.display_name?.trim() || "Unknown"}
                   {member.role === "commissioner" ? (
-                    <span style={{ fontSize: 14, color: "#666", fontWeight: 400 }}> (Commissioner)</span>
+                    <span style={{ fontSize: 14, color: "var(--color-text-muted)", fontWeight: 400 }}> (Commissioner)</span>
                   ) : null}
                 </span>
                 {rosterRules && (
-                  <span style={{ fontSize: 13, color: "#666" }}>
+                  <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
                     {entries.length}/{rosterRules.rosterSize} ({female}F / {male}M)
                   </span>
                 )}
@@ -135,7 +135,7 @@ export function RostersSection({
                 </p>
               )}
               {entries.length === 0 ? (
-                <p style={{ fontSize: 14, color: "#666", margin: 0 }}>
+                <p style={{ fontSize: 14, color: "var(--color-text-muted)", margin: 0 }}>
                   No wrestlers on roster yet.
                 </p>
               ) : (
@@ -148,7 +148,7 @@ export function RostersSection({
                         alignItems: "center",
                         justifyContent: "space-between",
                         padding: "6px 0",
-                        borderBottom: "1px solid #f0f0f0",
+                        borderBottom: "1px solid var(--color-border)",
                         gap: 8,
                       }}
                     >
@@ -167,9 +167,9 @@ export function RostersSection({
                             style={{
                               padding: "4px 10px",
                               fontSize: 12,
-                              color: "#c00",
+                              color: "var(--color-red)",
                               background: "none",
-                              border: "1px solid #c00",
+                              border: "1px solid var(--color-red)",
                               borderRadius: 4,
                               cursor: "pointer",
                             }}

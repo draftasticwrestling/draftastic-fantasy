@@ -129,10 +129,10 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir):
   return dir === "asc" ? out : -out;
 }
 
-const HEADER_CONFIG: { key: SortColumn | null; label: string; width?: string | number; align: "left" | "center" }[] = [
+const HEADER_CONFIG: { key: SortColumn | null; label: string; width?: number; align: "left" | "center" }[] = [
   { key: "roster", label: "Roster", width: 44, align: "center" },
   { key: null, label: "", width: 72, align: "center" },
-  { key: "name", label: "Name", align: "left" },
+  { key: "name", label: "Name", width: 140, align: "left" },
   { key: "gender", label: "Gender", width: 56, align: "center" },
   { key: "age", label: "Age", width: 56, align: "center" },
   { key: "rsPoints", label: "R/S Points", width: 72, align: "center" },
@@ -141,6 +141,9 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; width?: string | n
   { key: "totalPoints", label: "Total Points", width: 80, align: "center" },
   { key: null, label: "Rating", width: 64, align: "center" },
 ];
+
+const STICKY_COLUMN_COUNT = 3;
+const stickyLefts = [0, 44, 116]; // cumulative: 0, 44, 44+72
 
 const thBase = {
   padding: "10px 8px",
@@ -170,6 +173,8 @@ export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }
     return list;
   }, [wrestlers, sortColumn, sortDir]);
 
+  const tableMinWidth = HEADER_CONFIG.reduce((sum, h) => sum + (h.width ?? 80), 0);
+
   return (
     <>
       <div
@@ -178,21 +183,33 @@ export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }
           borderRadius: 8,
           overflow: "hidden",
           background: "#111",
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
         }}
       >
-        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", minWidth: tableMinWidth }}>
           <thead>
             <tr style={{ background: "#1a1a1a", color: "#fff" }}>
               {HEADER_CONFIG.map((h, i) => {
                 const isSortable = h.key != null;
                 const isActive = sortColumn === h.key;
-                const style = {
+                const isSticky = i < STICKY_COLUMN_COUNT;
+                const style: React.CSSProperties = {
                   ...thBase,
                   width: h.width ?? undefined,
                   minWidth: h.width ?? undefined,
                   textAlign: h.align,
                   ...(h.align === "left" ? { paddingLeft: 12, paddingRight: 12 } : {}),
-                  ...(i === HEADER_CONFIG.length - 1 ? { borderRight: "none" } : {}),
+                  ...(i === HEADER_CONFIG.length - 1 && !isSticky ? { borderRight: "none" } : {}),
+                  ...(isSticky
+                    ? {
+                        position: "sticky" as const,
+                        left: stickyLefts[i],
+                        zIndex: 2,
+                        background: "#1a1a1a",
+                        boxShadow: i === STICKY_COLUMN_COUNT - 1 ? "4px 0 8px rgba(0,0,0,0.4)" : undefined,
+                      }
+                    : {}),
                 };
                 if (!isSortable) {
                   return <th key={i} style={style}>{h.label}</th>;
@@ -266,9 +283,14 @@ export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }
                   <td
                     style={{
                       width: 72,
+                      minWidth: 72,
                       padding: 6,
                       borderBottom: "1px solid rgba(255,255,255,0.15)",
                       borderRight: "1px solid rgba(255,255,255,0.15)",
+                      position: "sticky",
+                      left: 44,
+                      zIndex: 1,
+                      background: style.bg,
                     }}
                   >
                     {w.image_url ? (
@@ -305,11 +327,18 @@ export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }
                   </td>
                   <td
                     style={{
+                      width: 140,
+                      minWidth: 140,
                       padding: "10px 12px",
                       borderBottom: "1px solid rgba(255,255,255,0.15)",
                       borderRight: "1px solid rgba(255,255,255,0.15)",
                       color: "#fff",
                       fontWeight: 600,
+                      position: "sticky",
+                      left: 116,
+                      zIndex: 1,
+                      background: style.bg,
+                      boxShadow: "4px 0 8px rgba(0,0,0,0.4)",
                     }}
                   >
                     <Link

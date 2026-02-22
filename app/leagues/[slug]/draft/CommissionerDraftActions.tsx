@@ -33,8 +33,8 @@ export function CommissionerDraftActions({
   }
 
   return (
-    <section style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #eee" }}>
-      <h3 style={{ fontSize: "1rem", marginBottom: 12, color: "#555" }}>Commissioner</h3>
+    <section style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--color-border)" }}>
+      <h3 style={{ fontSize: "1rem", marginBottom: 12, color: "var(--color-text-muted)" }}>Commissioner</h3>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
         {canClearLastPick && (
           <button
@@ -44,10 +44,10 @@ export function CommissionerDraftActions({
             style={{
               padding: "8px 16px",
               fontSize: 14,
-              background: "#fff",
-              color: "#1a73e8",
-              border: "1px solid #1a73e8",
-              borderRadius: 8,
+              background: "var(--color-bg-surface)",
+              color: "var(--color-blue)",
+              border: "1px solid var(--color-blue)",
+              borderRadius: "var(--radius)",
               cursor: pending ? "not-allowed" : "pointer",
             }}
           >
@@ -61,10 +61,10 @@ export function CommissionerDraftActions({
           style={{
             padding: "8px 16px",
             fontSize: 14,
-            background: "#fff",
-            color: "#c62828",
-            border: "1px solid #c62828",
-            borderRadius: 8,
+            background: "var(--color-bg-surface)",
+            color: "var(--color-red)",
+            border: "1px solid var(--color-red)",
+            borderRadius: "var(--radius)",
             cursor: pending ? "not-allowed" : "pointer",
           }}
         >

@@ -43,12 +43,12 @@ function getSecondaryLabel(pathname: string): string {
   if (pathname === "/leagues") return "Private Leagues";
   const leagueSlug = getPrivateLeagueSlug(pathname);
   if (leagueSlug) {
-    if (pathname === `/leagues/${leagueSlug}` || pathname === `/leagues/${leagueSlug}/`) return "Teams";
-    if (pathname.startsWith(`/leagues/${leagueSlug}/matchups`)) return "Matchups";
+    if (pathname === `/leagues/${leagueSlug}` || pathname === `/leagues/${leagueSlug}/`) return "League";
+    if (pathname.startsWith(`/leagues/${leagueSlug}/team`)) return "Roster";
+    if (pathname.startsWith(`/leagues/${leagueSlug}/matchups`)) return "Matchup";
+    if (pathname.startsWith(`/leagues/${leagueSlug}/free-agents`)) return "Wrestlers";
     if (pathname.startsWith(`/leagues/${leagueSlug}/draft`)) return "Draft";
     if (pathname.startsWith(`/leagues/${leagueSlug}/proposals`)) return "Trades";
-    if (pathname.startsWith(`/leagues/${leagueSlug}/free-agents`)) return "Free Agents";
-    if (pathname.startsWith(`/leagues/${leagueSlug}/team`)) return "Team";
     return "League";
   }
   if (pathname.startsWith("/leagues/")) return "Private Leagues";
@@ -163,12 +163,14 @@ export default function Nav() {
             (() => {
               const slug = getPrivateLeagueSlug(pathname)!;
               const leagueLabel = formatLeagueSlugForDisplay(slug);
+              const rosterHref = user?.id
+                ? `/leagues/${slug}/team/${encodeURIComponent(user.id)}`
+                : `/leagues/${slug}/team`;
               const subLinks = [
-                { href: `/leagues/${slug}`, label: "Teams" },
-                { href: `/leagues/${slug}/matchups`, label: "Matchups" },
-                { href: `/leagues/${slug}/draft`, label: "Draft" },
-                { href: `/leagues/${slug}/proposals`, label: "Trades" },
-                { href: `/leagues/${slug}/free-agents`, label: "Free Agents" },
+                { href: `/leagues/${slug}`, label: "League" },
+                { href: rosterHref, label: "Roster" },
+                { href: `/leagues/${slug}/matchups`, label: "Matchup" },
+                { href: `/leagues/${slug}/free-agents`, label: "Wrestlers" },
               ];
               return (
                 <>
@@ -176,12 +178,15 @@ export default function Nav() {
                     <span className="nav-secondary-label">{leagueLabel}</span>
                   </li>
                   {subLinks.map(({ href, label }) => {
-                    const isActive =
-                      href === `/leagues/${slug}`
-                        ? pathname === href || pathname === `${href}/` || pathname.startsWith(`${href}/team`)
+                    const isLeague = href === `/leagues/${slug}`;
+                    const isRoster = label === "Roster";
+                    const isActive = isLeague
+                      ? pathname === href || pathname === `${href}/`
+                      : isRoster
+                        ? pathname.startsWith(`/leagues/${slug}/team`)
                         : pathname === href || pathname.startsWith(`${href}/`);
                     return (
-                      <li key={href}>
+                      <li key={label}>
                         <Link
                           href={href}
                           className={`nav-secondary-link ${isActive ? "is-active" : ""}`}
