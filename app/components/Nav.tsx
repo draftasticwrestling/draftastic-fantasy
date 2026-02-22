@@ -107,75 +107,30 @@ export default function Nav() {
 
   return (
     <>
-      {/* Top bar - dark */}
-      <header
-        style={{
-          background: "#1a2332",
-          color: "#fff",
-          padding: "10px 24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-        }}
-      >
-        <Link
-          href="/"
-          style={{
-            color: "inherit",
-            textDecoration: "none",
-            fontWeight: 700,
-            fontSize: "1.1rem",
-          }}
-        >
+      <header className="nav-header">
+        <Link href="/" className="nav-header-brand">
           Draftastic Fantasy
         </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "0.9rem" }}>
+        <div className="nav-header-actions">
           {user ? (
             <>
               <Link
                 href="/account"
-                style={{
-                  color: "rgba(255,255,255,0.85)",
-                  textDecoration: "none",
-                  padding: "6px 0",
-                }}
+                className="nav-header-link"
                 title={user.email ?? undefined}
               >
                 {profile?.display_name?.trim() || user.email || "Signed in"}
               </Link>
-              <button
-                type="button"
-                onClick={handleSignOut}
-                style={{
-                  padding: "6px 12px",
-                  background: "transparent",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.5)",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: "0.9rem",
-                }}
-              >
+              <button type="button" onClick={handleSignOut} className="nav-header-btn">
                 Sign out
               </button>
             </>
           ) : (
             <>
-              <Link href="/auth/sign-in" style={{ color: "#fff", textDecoration: "none", padding: "6px 0" }}>
+              <Link href="/auth/sign-in" className="nav-header-link">
                 Sign in
               </Link>
-              <Link
-                href="/auth/sign-up"
-                style={{
-                  color: "#1a2332",
-                  background: "#fff",
-                  textDecoration: "none",
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  fontWeight: 500,
-                }}
-              >
+              <Link href="/auth/sign-up" className="nav-header-cta">
                 Sign up
               </Link>
             </>
@@ -183,45 +138,16 @@ export default function Nav() {
         </div>
       </header>
 
-      {/* Primary nav - light grey */}
-      <nav
-        style={{
-          background: "#e8ecef",
-          borderBottom: "1px solid #d0d5db",
-          padding: "0 24px",
-        }}
-      >
-        <ul
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 24,
-            alignItems: "center",
-            minHeight: 40,
-          }}
-        >
+      <nav className="nav-primary-wrap" aria-label="Main">
+        <ul className="nav-primary-list">
           {TOP_LINKS.map(({ href, label }) => {
             const isActive =
-              href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(href);
+              href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
               <li key={href}>
                 <Link
                   href={href}
-                  style={{
-                    color: isActive ? "#1a73e8" : "#333",
-                    textDecoration: "none",
-                    fontWeight: isActive ? 600 : 400,
-                    fontSize: "0.95rem",
-                    padding: "10px 0",
-                    display: "block",
-                    borderBottom: isActive ? "2px solid #1a73e8" : "2px solid transparent",
-                    marginBottom: -1,
-                  }}
+                  className={`nav-primary-link ${isActive ? "is-active" : ""}`}
                 >
                   {label}
                 </Link>
@@ -231,26 +157,8 @@ export default function Nav() {
         </ul>
       </nav>
 
-      {/* Secondary nav - white, context links or league sub-menu */}
-      <nav
-        style={{
-          background: "#fff",
-          borderBottom: "1px solid #e0e0e0",
-          padding: "0 24px",
-        }}
-      >
-        <ul
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-            display: "flex",
-            gap: 20,
-            alignItems: "center",
-            minHeight: 36,
-            fontSize: "0.9rem",
-          }}
-        >
+      <nav className="nav-secondary-wrap" aria-label="Section">
+        <ul className="nav-secondary-list">
           {getPrivateLeagueSlug(pathname) ? (
             (() => {
               const slug = getPrivateLeagueSlug(pathname)!;
@@ -264,33 +172,25 @@ export default function Nav() {
               ];
               return (
                 <>
-                  <li style={{ marginRight: 8 }}>
-                    <span style={{ color: "#555", fontWeight: 600 }}>{leagueLabel}</span>
+                  <li>
+                    <span className="nav-secondary-label">{leagueLabel}</span>
                   </li>
                   {subLinks.map(({ href, label }) => {
-                const isActive =
-                  href === `/leagues/${slug}`
-                    ? pathname === href || pathname === `${href}/` || pathname.startsWith(`${href}/team`)
-                    : pathname === href || pathname.startsWith(`${href}/`);
-                return (
-                  <li key={href}>
-                    <Link
-                      href={href}
-                      style={{
-                        color: isActive ? "#1a73e8" : "#333",
-                        textDecoration: "none",
-                        fontWeight: isActive ? 600 : 400,
-                        padding: "8px 0",
-                        display: "block",
-                        borderBottom: isActive ? "2px solid #1a73e8" : "2px solid transparent",
-                        marginBottom: -1,
-                      }}
-                    >
-                      {label}
-                    </Link>
-                  </li>
-                );
-              })}
+                    const isActive =
+                      href === `/leagues/${slug}`
+                        ? pathname === href || pathname === `${href}/` || pathname.startsWith(`${href}/team`)
+                        : pathname === href || pathname.startsWith(`${href}/`);
+                    return (
+                      <li key={href}>
+                        <Link
+                          href={href}
+                          className={`nav-secondary-link ${isActive ? "is-active" : ""}`}
+                        >
+                          {label}
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </>
               );
             })()
@@ -301,15 +201,7 @@ export default function Nav() {
                 <li key={href}>
                   <Link
                     href={href}
-                    style={{
-                      color: isActive ? "#1a73e8" : "#333",
-                      textDecoration: "none",
-                      fontWeight: isActive ? 600 : 400,
-                      padding: "8px 0",
-                      display: "block",
-                      borderBottom: isActive ? "2px solid #1a73e8" : "2px solid transparent",
-                      marginBottom: -1,
-                    }}
+                    className={`nav-secondary-link ${isActive ? "is-active" : ""}`}
                   >
                     {label}
                   </Link>
@@ -318,7 +210,7 @@ export default function Nav() {
             })
           ) : (
             <li>
-              <span style={{ color: "#111", fontWeight: 600 }}>{secondaryLabel}</span>
+              <span className="nav-secondary-context">{secondaryLabel}</span>
             </li>
           )}
         </ul>

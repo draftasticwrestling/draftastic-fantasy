@@ -50,29 +50,20 @@ export default async function LeagueMatchupsPage({ params }: Props) {
     (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
 
   return (
-    <main
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: 24,
-        maxWidth: 720,
-        margin: "0 auto",
-        fontSize: 16,
-        lineHeight: 1.5,
-      }}
-    >
+    <main className="app-page" style={{ maxWidth: 720, fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 24 }}>
-        <Link href={`/leagues/${slug}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
+        <Link href={`/leagues/${slug}`} className="app-link">
           ← {league.name}
         </Link>
       </p>
-      <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Matchups</h1>
-      <p style={{ color: "#555", marginBottom: 24, fontSize: 14 }}>
+      <h1 style={{ fontSize: "1.5rem", marginBottom: 8, color: "var(--color-text)" }}>Matchups</h1>
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
         Each week (Monday–Sunday) all teams compete. The team with the most event points that week wins the matchup and gets <strong>+15 pts</strong>. 
         The winner also holds or wins the <strong>Draftastic Championship</strong> belt: <strong>+5 pts</strong> for winning the belt, <strong>+4 pts</strong> for retaining it.
       </p>
 
       {matchups.length === 0 ? (
-        <p style={{ color: "#666" }}>No weeks in the league date range yet. Set draft date and end date for the league.</p>
+        <p style={{ color: "var(--color-text-muted)" }}>No weeks in the league date range yet. Set draft date and end date for the league.</p>
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {matchups.map((m, idx) => {
@@ -83,16 +74,17 @@ export default async function LeagueMatchupsPage({ params }: Props) {
                 key={m.weekStart}
                 style={{
                   padding: "14px 0",
-                  borderBottom: "1px solid #eee",
+                  borderBottom: "1px solid var(--color-border)",
                 }}
               >
                 <Link
                   href={`/leagues/${slug}/matchups/${encodeURIComponent(m.weekStart)}`}
-                  style={{ color: "#1a73e8", textDecoration: "none", fontWeight: 500 }}
+                  className="app-link"
+                  style={{ fontWeight: 500 }}
                 >
                   Week {idx + 1}: {formatWeekRange(m.weekStart, m.weekEnd)}
                 </Link>
-                <div style={{ fontSize: 14, color: "#555", marginTop: 4 }}>
+                <div style={{ fontSize: 14, color: "var(--color-text-muted)", marginTop: 4 }}>
                   {winnerName ? (
                     <>Winner: <strong>{winnerName}</strong> (+15) {beltName && <> · Belt: <strong>{beltName}</strong> {m.beltRetained ? "(+4 retain)" : "(+5 win)"}</>}</>
                   ) : (

@@ -8,7 +8,7 @@ export default function LeagueLayout({
   return (
     <>
       <p style={{ marginBottom: 24 }}>
-        <Link href="/">← Home</Link>
+        <Link href="/" style={{ color: "var(--color-blue)", textDecoration: "none" }}>← Home</Link>
       </p>
       {children}
     </>

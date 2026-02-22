@@ -65,47 +65,25 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
 
   return (
     <main
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: "24px 16px",
-        maxWidth: 900,
-        margin: "0 auto",
-        fontSize: 16,
-        lineHeight: 1.5,
-        background: "#f5f6f8",
-        minHeight: "100vh",
-      }}
+      className="app-page"
+      style={{ maxWidth: 900, fontSize: 16, lineHeight: 1.5, minHeight: "100vh" }}
     >
       <p style={{ marginBottom: 20 }}>
-        <Link href={`/leagues/${slug}/matchups`} style={{ color: "#6001d3", textDecoration: "none", fontWeight: 500 }}>
+        <Link href={`/leagues/${slug}/matchups`} className="app-link" style={{ fontWeight: 500 }}>
           ← Matchups
         </Link>
         {" · "}
-        <Link href={`/leagues/${slug}`} style={{ color: "#6001d3", textDecoration: "none", fontWeight: 500 }}>
+        <Link href={`/leagues/${slug}`} className="app-link" style={{ fontWeight: 500 }}>
           {league.name}
         </Link>
       </p>
 
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 12,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          overflow: "hidden",
-          marginBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            padding: "16px 20px",
-            borderBottom: "1px solid #e8eaed",
-            background: "linear-gradient(180deg, #fafafa 0%, #fff 100%)",
-          }}
-        >
-          <div style={{ fontSize: 12, color: "#5f6368", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+      <div className="app-card" style={{ marginBottom: 24 }}>
+        <div className="app-card-header">
+          <div style={{ fontSize: 12, color: "var(--color-text-dim)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
             {matchupLabel}
           </div>
-          <h1 style={{ fontSize: "1.35rem", fontWeight: 700, color: "#202124", margin: 0 }}>
+          <h1 style={{ fontSize: "1.35rem", fontWeight: 700, color: "var(--color-text)", margin: 0 }}>
             {formatWeekRange(weekStart, weekEnd)}
           </h1>
         </div>
@@ -143,13 +121,12 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   display: "flex",
                   flexDirection: "column",
                   padding: isHeadToHead ? 24 : 20,
-                  background: t.isWinner ? "linear-gradient(180deg, #e8f5e9 0%, #fff 100%)" : "#fff",
-                  borderRight: isHeadToHead && idx === 0 ? "1px solid #e8eaed" : "none",
-                  borderLeft: isHeadToHead && idx === 1 ? "1px solid #e8eaed" : "none",
+                  background: t.isWinner ? "var(--color-success-bg)" : "var(--color-bg-card)",
+                  borderRight: isHeadToHead && idx === 0 ? "1px solid var(--color-border)" : "none",
+                  borderLeft: isHeadToHead && idx === 1 ? "1px solid var(--color-border)" : "none",
                   position: "relative",
-                  border: !isHeadToHead ? "1px solid #e8eaed" : undefined,
-                  borderRadius: !isHeadToHead ? 10 : 0,
-                  boxShadow: !isHeadToHead ? "0 1px 3px rgba(0,0,0,0.06)" : undefined,
+                  border: !isHeadToHead ? "1px solid var(--color-border)" : undefined,
+                  borderRadius: !isHeadToHead ? "var(--radius-lg)" : 0,
                 }}
               >
                 {t.isWinner && (
@@ -177,8 +154,8 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                       right: 12,
                       fontSize: 11,
                       fontWeight: 600,
-                      color: "#1565c0",
-                      background: "#e3f2fd",
+                      color: "var(--color-blue)",
+                      background: "var(--color-blue-bg)",
                       padding: "4px 8px",
                       borderRadius: 6,
                     }}
@@ -186,18 +163,18 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                     Belt
                   </div>
                 )}
-                <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "#202124", marginBottom: 12, paddingRight: t.isWinner || t.isBeltHolder ? 80 : 0 }}>
+                <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--color-text)", marginBottom: 12, paddingRight: t.isWinner || t.isBeltHolder ? 80 : 0 }}>
                   {teamLabel(t.member)}
                 </div>
-                <div style={{ fontSize: "2rem", fontWeight: 800, color: "#6001d3", lineHeight: 1.2, marginBottom: 12 }}>
+                <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--color-red)", lineHeight: 1.2, marginBottom: 12 }}>
                   {t.totalPts}
-                  <span style={{ fontSize: "0.6em", fontWeight: 600, color: "#5f6368", marginLeft: 2 }}>pts</span>
+                  <span style={{ fontSize: "0.6em", fontWeight: 600, color: "var(--color-text-dim)", marginLeft: 2 }}>pts</span>
                 </div>
-                <div style={{ fontSize: 12, color: "#5f6368", marginTop: "auto" }}>
+                <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: "auto" }}>
                   {t.breakdown.map((b) => (
                     <div key={b.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 2 }}>
                       <span>{b.label}</span>
-                      <span style={{ fontWeight: 600, color: "#202124" }}>+{b.value}</span>
+                      <span style={{ fontWeight: 600, color: "var(--color-text)" }}>+{b.value}</span>
                     </div>
                   ))}
                 </div>
@@ -212,7 +189,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
       </p>
 
       {!matchup.winnerUserId && (
-        <p style={{ marginTop: 16, color: "#5f6368", fontSize: 14 }}>
+        <p style={{ marginTop: 16, color: "var(--color-text-muted)", fontSize: 14 }}>
           No winner this week (no events in range or tie).
         </p>
       )}

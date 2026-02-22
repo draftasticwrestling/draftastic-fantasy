@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./globals.css";
 import Nav from "./components/Nav";
 import PageLayout from "./components/PageLayout";
 
@@ -14,18 +15,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: "system-ui, sans-serif" }}>
-        <div style={{ maxHeight: 380, overflow: "hidden" }}>
+      <body>
+        <div className="banner-wrap">
           <img
             src="/banner.png"
             alt="Draftastic Pro Wrestling Fantasy"
-            style={{
-              width: "100%",
-              display: "block",
-              verticalAlign: "top",
-              objectFit: "cover",
-              maxHeight: 380,
-            }}
+            className="banner-img"
           />
         </div>
         <Nav />

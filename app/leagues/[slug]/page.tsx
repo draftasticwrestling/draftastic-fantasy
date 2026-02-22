@@ -33,12 +33,12 @@ export default async function LeagueDetailPage({ params }: Props) {
     slug = resolved.slug;
   } catch {
     return (
-      <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 640, margin: "0 auto" }}>
+      <main className="app-page">
         <p style={{ marginBottom: 24 }}>
-          <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>← My leagues</Link>
+          <Link href="/leagues" className="app-link">← My leagues</Link>
         </p>
-        <h1 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Something went wrong</h1>
-        <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>Back to My leagues</Link>
+        <h1 style={{ fontSize: "1.25rem", marginBottom: 16, color: "var(--color-text)" }}>Something went wrong</h1>
+        <Link href="/leagues" className="app-link">Back to My leagues</Link>
       </main>
     );
   }
@@ -49,15 +49,15 @@ export default async function LeagueDetailPage({ params }: Props) {
   let wrestlersResult: { id: string; name: string | null; gender: string | null }[] = [];
 
   const fallback = (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 640, margin: "0 auto" }}>
+    <main className="app-page">
       <p style={{ marginBottom: 24 }}>
-        <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>← My leagues</Link>
+        <Link href="/leagues" className="app-link">← My leagues</Link>
       </p>
-      <h1 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Something went wrong</h1>
-      <p style={{ color: "#666", marginBottom: 16 }}>
+      <h1 style={{ fontSize: "1.25rem", marginBottom: 16, color: "var(--color-text)" }}>Something went wrong</h1>
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
         We couldn’t load this league. You may need to sign in, or the league may not exist.
       </p>
-      <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>Back to My leagues</Link>
+      <Link href="/leagues" className="app-link">Back to My leagues</Link>
     </main>
   );
 

@@ -68,11 +68,11 @@ export function RostersSection({
 
   return (
     <section style={{ marginTop: 24 }}>
-      <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Rosters</h2>
-      <p style={{ fontSize: 14, color: "#666", marginBottom: 8 }}>
+      <h2 style={{ fontSize: "1.1rem", marginBottom: 12, color: "var(--color-text)" }}>Rosters</h2>
+      <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 8 }}>
         {rulesText}
       </p>
-      <p style={{ fontSize: 14, color: "#666", marginBottom: 16 }}>
+      <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 16 }}>
         Season-only rosters (no long-term contracts). Commissioner can run a live draft (set type, generate order) or add or remove wrestlers manually.
       </p>
 
