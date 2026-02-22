@@ -114,7 +114,8 @@ export default function Nav() {
             alt=""
             className="nav-header-logo"
           />
-          <span className="nav-header-brand">Draftastic Pro Wrestling Fantasy</span>
+          <span className="nav-header-brand nav-header-brand-full">Draftastic Pro Wrestling Fantasy</span>
+          <span className="nav-header-brand nav-header-brand-short" aria-hidden>Draftastic</span>
         </Link>
         <div className="nav-header-actions">
           {user ? (
