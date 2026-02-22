@@ -108,8 +108,13 @@ export default function Nav() {
   return (
     <>
       <header className="nav-header">
-        <Link href="/" className="nav-header-brand">
-          Draftastic Fantasy
+        <Link href="/" className="nav-header-brand-wrap">
+          <img
+            src="/draftastic_belt_logo.png"
+            alt=""
+            className="nav-header-logo"
+          />
+          <span className="nav-header-brand">Draftastic Pro Wrestling Fantasy</span>
         </Link>
         <div className="nav-header-actions">
           {user ? (
@@ -127,6 +132,9 @@ export default function Nav() {
             </>
           ) : (
             <>
+              <Link href="/" className="nav-header-link">
+                Home
+              </Link>
               <Link href="/auth/sign-in" className="nav-header-link">
                 Sign in
               </Link>

@@ -16,13 +16,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="banner-wrap">
-          <img
-            src="/banner.png"
-            alt="Draftastic Pro Wrestling Fantasy"
-            className="banner-img"
-          />
-        </div>
         <Nav />
         <PageLayout>{children}</PageLayout>
       </body>

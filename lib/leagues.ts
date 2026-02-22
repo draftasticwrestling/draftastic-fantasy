@@ -13,6 +13,8 @@ export type League = {
   end_date: string | null;
   season_slug?: string | null;
   draft_date?: string | null;
+  league_type?: string | null;
+  max_teams?: number | null;
   draft_style?: "snake" | "linear";
   draft_status?: "not_started" | "in_progress" | "completed";
   draft_current_pick?: number | null;
@@ -60,6 +62,8 @@ export async function createLeague(params: {
   draft_date?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  league_type?: string | null;
+  max_teams?: number | null;
 }): Promise<{ league?: League; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -92,6 +96,11 @@ export async function createLeague(params: {
   const slug = makeSlugUnique(baseSlug, existingSlugs);
 
   const draft_date = params.draft_date?.trim() || null;
+  const league_type = params.league_type?.trim() || null;
+  const max_teams =
+    params.max_teams != null && Number.isFinite(Number(params.max_teams))
+      ? Math.min(12, Math.max(3, Math.floor(Number(params.max_teams))))
+      : null;
 
   const { data: league, error } = await admin
     .from("leagues")
@@ -103,8 +112,10 @@ export async function createLeague(params: {
       end_date: window.end_date,
       season_slug: seasonSlug,
       draft_date,
+      league_type,
+      max_teams,
     })
-    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, created_at")
+    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, created_at")
     .single();
 
   if (error) return { error: error.message };
@@ -128,7 +139,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, created_at";
+  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_style, draft_status, draft_current_pick, created_at";
   let result = await supabase
     .from("leagues")
     .select(fullSelect)
