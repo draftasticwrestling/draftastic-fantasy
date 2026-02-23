@@ -23,7 +23,8 @@ function formatWeekRange(weekStart: string, weekEnd: string): string {
 }
 
 export default async function LeagueMatchupDetailPage({ params }: Props) {
-  const { slug, weekStartParam } = await params;
+  const { slug, weekStart } = await params;
+  const weekStartDecoded = decodeURIComponent(weekStart);
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
@@ -33,17 +34,15 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
     getLeagueMembers(league.id),
     getLeagueWeeklyMatchups(league.id),
     getRostersForLeague(league.id),
-    getPointsByOwnerByWrestlerForWeek(league.id, decodeURIComponent(weekStartParam)),
+    getPointsByOwnerByWrestlerForWeek(league.id, weekStartDecoded),
     supabase.from("wrestlers").select("id, name").order("name", { ascending: true }),
   ]);
   const isMember = user && members.some((m) => m.user_id === user.id);
   if (!isMember) notFound();
-
-  const weekStart = decodeURIComponent(weekStartParam);
-  const matchup = matchups.find((m) => m.weekStart === weekStart);
+  const matchup = matchups.find((m) => m.weekStart === weekStartDecoded);
   if (!matchup) notFound();
 
-  const weekEnd = getSundayOfWeek(weekStart);
+  const weekEnd = getSundayOfWeek(weekStartDecoded);
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const teamLabel = (m: { team_name?: string | null; display_name?: string | null }) =>
     (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
@@ -73,7 +72,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
     >
       <p style={{ marginBottom: 20 }}>
         <Link
-          href={`/leagues/${slug}/matchups?week=${encodeURIComponent(weekStart)}`}
+          href={`/leagues/${slug}/matchups?week=${encodeURIComponent(weekStartDecoded)}`}
           className="app-link"
           style={{ fontWeight: 500 }}
         >
@@ -87,7 +86,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
 
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: "1.35rem", fontWeight: 700, color: "var(--color-text)", margin: "0 0 4px 0" }}>
-          Matchup {matchups.findIndex((m) => m.weekStart === weekStart) + 1} ({formatWeekRange(weekStart, weekEnd)})
+          Matchup {matchups.findIndex((m) => m.weekStart === weekStartDecoded) + 1} ({formatWeekRange(weekStartDecoded, weekEnd)})
         </h1>
         <div style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
           Week runs Monday–Sunday. Event points + weekly win (+15) and belt (+5/+4) bonuses.
