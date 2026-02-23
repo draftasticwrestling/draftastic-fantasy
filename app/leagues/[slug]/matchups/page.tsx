@@ -42,6 +42,34 @@ function formatWeekRangeShort(weekStart: string, weekEnd: string): string {
   return `${fmt(weekStart)} – ${fmt(weekEnd)}`;
 }
 
+function TeamHeaderCell({
+  t,
+  isWinner,
+  borderRight,
+}: {
+  t: { label: string; total: number; userId: string };
+  isWinner: boolean;
+  borderRight?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        padding: "16px 12px",
+        background: isWinner ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
+        borderRight: borderRight ? "1px solid var(--color-border)" : undefined,
+      }}
+    >
+      <div style={{ fontWeight: 700, fontSize: 15, color: "var(--color-text)", marginBottom: 4 }}>
+        {t.label}
+        {isWinner && (
+          <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>W</span>
+        )}
+      </div>
+      <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-red)" }}>{t.total}</div>
+    </div>
+  );
+}
+
 
 export default async function LeagueMatchupsPage({ params, searchParams }: Props) {
   const { slug } = await params;
@@ -173,8 +201,22 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
             }));
             const isWinner = (uid: string) => matchupForWeek?.winnerUserId === uid;
 
+            const rosterByTeam = teamData.map((t) => {
+              const entries = (rosters[t.userId] ?? []).slice(0, maxSlots);
+              const byWrestler = pointsByOwnerByWrestler[t.userId] ?? {};
+              return entries.map((e, i) => ({
+                name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
+                points: byWrestler[e.wrestler_id] ?? 0,
+              }));
+            });
+            while (rosterByTeam.some((r) => r.length < maxSlots)) {
+              rosterByTeam.forEach((r) => {
+                if (r.length < maxSlots) r.push({ name: "—", points: 0 });
+              });
+            }
+
             return (
-              <section key={idx} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <section key={idx} style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                 <Link
                   href={`/leagues/${slug}/matchups/${encodeURIComponent(selectedWeekStart!)}`}
                   style={{ textDecoration: "none", color: "inherit" }}
@@ -190,95 +232,116 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                       overflow: "hidden",
                     }}
                   >
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+                    {/* Side-by-side team headers (names + totals); space between = wrestler rows below */}
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: mu.type === "triple" ? "1fr 1fr 1fr" : "1fr auto 1fr",
+                        gap: 0,
+                        alignItems: "stretch",
+                        borderBottom: "1px solid var(--color-border)",
+                      }}
+                    >
+                      {mu.type === "h2h" ? (
+                        <>
+                          <TeamHeaderCell t={teamData[0]!} isWinner={isWinner(teamData[0]!.userId)} borderRight />
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "0 8px",
+                              background: "var(--color-bg-elevated)",
+                              borderLeft: "1px solid var(--color-border)",
+                              borderRight: "1px solid var(--color-border)",
+                            }}
+                          >
+                            <span style={{ fontSize: 12, fontWeight: 800, color: "var(--color-text-muted)", letterSpacing: "0.05em" }}>VS</span>
+                          </div>
+                          <TeamHeaderCell t={teamData[1]!} isWinner={isWinner(teamData[1]!.userId)} />
+                        </>
+                      ) : (
+                        teamData.map((t, ti) => (
+                          <div
+                            key={t.userId}
+                            style={{
+                              padding: "16px 12px",
+                              background: isWinner(t.userId) ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
+                              borderLeft: ti > 0 ? "1px solid var(--color-border)" : undefined,
+                            }}
+                          >
+                            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--color-text)", marginBottom: 4 }}>
+                              {t.label}
+                              {isWinner(t.userId) && (
+                                <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>W</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-red)" }}>{t.total}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Roster rows: slot | Team A wrestler + pts | Team B wrestler + pts (the "empty space" between teams) */}
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                       <thead>
                         <tr style={{ background: "#f0f2f5" }}>
-                          <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "var(--color-text)" }}>
-                            Team
-                          </th>
-                          <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "var(--color-text)", width: 80 }}>
-                            Score
-                          </th>
+                          <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text-muted)", width: 36 }}>#</th>
+                          {teamData.map((t) => (
+                            <th
+                              key={t.userId}
+                              style={{
+                                padding: "8px 12px",
+                                textAlign: "left",
+                                fontWeight: 600,
+                                color: "var(--color-text)",
+                                borderLeft: "1px solid var(--color-border)",
+                              }}
+                            >
+                              {t.label}
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {teamData.map((t) => (
+                        {Array.from({ length: maxSlots }, (_, rowIdx) => (
                           <tr
-                            key={t.userId}
+                            key={rowIdx}
                             style={{
+                              background: rowIdx % 2 === 0 ? "#fff" : "#f8f9fa",
                               borderTop: "1px solid var(--color-border)",
-                              background: isWinner(t.userId) ? "var(--color-success-bg)" : undefined,
                             }}
                           >
-                            <td style={{ padding: "12px 16px", color: "var(--color-text)", fontWeight: 500 }}>
-                              {t.label}
-                              {isWinner(t.userId) && (
-                                <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>
-                                  W
-                                </span>
-                              )}
-                            </td>
-                            <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 800, color: "var(--color-red)" }}>
-                              {t.total}
-                            </td>
+                            <td style={{ padding: "6px 12px", color: "var(--color-text-muted)", width: 36 }}>{rowIdx + 1}</td>
+                            {teamData.map((t, colIdx) => {
+                              const row = rosterByTeam[colIdx]?.[rowIdx];
+                              return (
+                                <td
+                                  key={t.userId}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderLeft: "1px solid var(--color-border)",
+                                    color: row?.name && row.name !== "—" ? "var(--color-text)" : "var(--color-text-muted)",
+                                  }}
+                                >
+                                  <span style={{ display: "block" }}>{row?.name ?? "—"}</span>
+                                  {(row?.points ?? 0) > 0 && (
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>+{row?.points}</span>
+                                  )}
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 </Link>
-
-                <div
-                  style={{
-                    padding: 12,
-                    background: "var(--color-bg-elevated)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius)",
-                    fontSize: 14,
-                  }}
-                >
-                  <div style={{ fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 10 }}>
-                    How the score happened
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {teamData.map((t) => {
-                      const entries = (rosters[t.userId] ?? []).slice(0, maxSlots);
-                      const byWrestler = pointsByOwnerByWrestler[t.userId] ?? {};
-                      const rows = entries.map((e, i) => ({
-                        name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
-                        points: byWrestler[e.wrestler_id] ?? 0,
-                      }));
-                      return (
-                        <div key={t.userId}>
-                          <div style={{ fontWeight: 600, color: "var(--color-text)", marginBottom: 4 }}>
-                            {t.label}
-                          </div>
-                          {rows.length === 0 ? (
-                            <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No wrestlers on roster</div>
-                          ) : (
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                              <tbody>
-                                {rows.map((r, i) => (
-                                  <tr key={i} style={{ borderBottom: "1px solid var(--color-border-light)" }}>
-                                    <td style={{ padding: "4px 0", color: "var(--color-text)" }}>{r.name}</td>
-                                    <td style={{ padding: "4px 0", textAlign: "right", fontWeight: 600, color: "var(--color-red)" }}>
-                                      +{r.points}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p style={{ marginTop: 12, marginBottom: 0, fontSize: 12, color: "var(--color-text-muted)" }}>
-                    <Link href={`/leagues/${slug}/matchups/${encodeURIComponent(selectedWeekStart!)}`} className="app-link">
-                      View full matchup details →
-                    </Link>
-                  </p>
-                </div>
+                <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, color: "var(--color-text-muted)" }}>
+                  <Link href={`/leagues/${slug}/matchups/${encodeURIComponent(selectedWeekStart!)}`} className="app-link">
+                    View full matchup details →
+                  </Link>
+                </p>
               </section>
             );
           })}
