@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
   getMatchupsForWeek,
   getWeeksInRange,
   getCurrentWeekStart,
   getSundayOfWeek,
+  getPointsByOwnerByWrestlerForWeek,
 } from "@/lib/leagueMatchups";
 import { MatchupWeekSelector } from "./MatchupWeekSelector";
 
@@ -40,62 +42,6 @@ function formatWeekRangeShort(weekStart: string, weekEnd: string): string {
   return `${fmt(weekStart)} – ${fmt(weekEnd)}`;
 }
 
-function TeamScoreBlock({
-  team,
-  isWinner,
-}: {
-  team: { label: string; total: number; userId: string };
-  isWinner: boolean;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 8,
-        flexWrap: "wrap",
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            fontWeight: 600,
-            color: "var(--color-text)",
-            fontSize: 14,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {team.label}
-          {isWinner && (
-            <span
-              style={{
-                marginLeft: 6,
-                fontSize: 11,
-                fontWeight: 700,
-                color: "var(--color-success-muted)",
-              }}
-            >
-              W
-            </span>
-          )}
-        </div>
-      </div>
-      <span
-        style={{
-          fontWeight: 800,
-          fontSize: "1.25rem",
-          color: "var(--color-red)",
-          flexShrink: 0,
-        }}
-      >
-        {team.total}
-      </span>
-    </div>
-  );
-}
 
 export default async function LeagueMatchupsPage({ params, searchParams }: Props) {
   const { slug } = await params;
@@ -134,6 +80,23 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     label: formatWeekRangeShort(ws, getSundayOfWeek(ws)),
     weekNumber: idx + 1,
   }));
+
+  const rosters = await getRostersForLeague(league.id);
+  const rosterRules = getRosterRulesForLeague(members.length);
+  const maxSlots = rosterRules?.rosterSize ?? 12;
+
+  let pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
+  let wrestlerNames: Record<string, string> = {};
+  if (selectedWeekStart) {
+    const [pts, wr] = await Promise.all([
+      getPointsByOwnerByWrestlerForWeek(league.id, selectedWeekStart),
+      supabase.from("wrestlers").select("id, name").order("name", { ascending: true }),
+    ]);
+    pointsByOwnerByWrestler = pts;
+    wrestlerNames = Object.fromEntries(
+      ((wr.data ?? []) as { id: string; name: string | null }[]).map((w) => [w.id, w.name ?? w.id])
+    );
+  }
 
   const matchupForWeek = selectedWeekStart
     ? matchups.find((m) => m.weekStart === selectedWeekStart)
@@ -201,68 +164,122 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
       ) : !selectedWeekStart ? (
         <p style={{ color: "var(--color-text-muted)" }}>Select a week above.</p>
       ) : (
-        <div className="scoreboard-cards" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="scoreboard-cards" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {weekMatchups.map((mu, idx) => {
             const teamData = mu.userIds.map((uid) => ({
               userId: uid,
               label: teamLabel(memberByUserId[uid] ?? {}),
               total: totalForUser(uid),
             }));
-            const isWinner = (uid: string) =>
-              matchupForWeek?.winnerUserId === uid;
+            const isWinner = (uid: string) => matchupForWeek?.winnerUserId === uid;
+
             return (
-              <Link
-                key={idx}
-                href={`/leagues/${slug}/matchups/${encodeURIComponent(selectedWeekStart)}`}
-                style={{ textDecoration: "none", color: "inherit" }}
-                className="scoreboard-card-link"
-              >
-                <div
-                  className="scoreboard-card"
-                  style={{
-                    padding: 16,
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-lg)",
-                    background: "var(--color-bg-card)",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-                  }}
+              <section key={idx} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Link
+                  href={`/leagues/${slug}/matchups/${encodeURIComponent(selectedWeekStart!)}`}
+                  style={{ textDecoration: "none", color: "inherit" }}
+                  className="scoreboard-card-link"
                 >
                   <div
+                    className="scoreboard-card"
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: mu.type === "triple" ? "1fr 1fr 1fr" : "1fr auto 1fr",
-                      gap: 12,
-                      alignItems: "center",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-lg)",
+                      background: "var(--color-bg-card)",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                      overflow: "hidden",
                     }}
                   >
-                    {mu.type === "h2h" ? (
-                      <>
-                        <TeamScoreBlock team={teamData[0]!} isWinner={isWinner(teamData[0]!.userId)} />
-                        <div
-                          style={{
-                            textAlign: "center",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: "var(--color-text-muted)",
-                            letterSpacing: "0.05em",
-                          }}
-                        >
-                          VS
-                        </div>
-                        <TeamScoreBlock team={teamData[1]!} isWinner={isWinner(teamData[1]!.userId)} />
-                      </>
-                    ) : (
-                      teamData.map((t) => (
-                        <TeamScoreBlock
-                          key={t.userId}
-                          team={t}
-                          isWinner={isWinner(t.userId)}
-                        />
-                      ))
-                    )}
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+                      <thead>
+                        <tr style={{ background: "#f0f2f5" }}>
+                          <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "var(--color-text)" }}>
+                            Team
+                          </th>
+                          <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: "var(--color-text)", width: 80 }}>
+                            Score
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {teamData.map((t) => (
+                          <tr
+                            key={t.userId}
+                            style={{
+                              borderTop: "1px solid var(--color-border)",
+                              background: isWinner(t.userId) ? "var(--color-success-bg)" : undefined,
+                            }}
+                          >
+                            <td style={{ padding: "12px 16px", color: "var(--color-text)", fontWeight: 500 }}>
+                              {t.label}
+                              {isWinner(t.userId) && (
+                                <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>
+                                  W
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 800, color: "var(--color-red)" }}>
+                              {t.total}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
+                </Link>
+
+                <div
+                  style={{
+                    padding: 12,
+                    background: "var(--color-bg-elevated)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius)",
+                    fontSize: 14,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 10 }}>
+                    How the score happened
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {teamData.map((t) => {
+                      const entries = (rosters[t.userId] ?? []).slice(0, maxSlots);
+                      const byWrestler = pointsByOwnerByWrestler[t.userId] ?? {};
+                      const rows = entries.map((e, i) => ({
+                        name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
+                        points: byWrestler[e.wrestler_id] ?? 0,
+                      }));
+                      return (
+                        <div key={t.userId}>
+                          <div style={{ fontWeight: 600, color: "var(--color-text)", marginBottom: 4 }}>
+                            {t.label}
+                          </div>
+                          {rows.length === 0 ? (
+                            <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No wrestlers on roster</div>
+                          ) : (
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                              <tbody>
+                                {rows.map((r, i) => (
+                                  <tr key={i} style={{ borderBottom: "1px solid var(--color-border-light)" }}>
+                                    <td style={{ padding: "4px 0", color: "var(--color-text)" }}>{r.name}</td>
+                                    <td style={{ padding: "4px 0", textAlign: "right", fontWeight: 600, color: "var(--color-red)" }}>
+                                      +{r.points}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p style={{ marginTop: 12, marginBottom: 0, fontSize: 12, color: "var(--color-text-muted)" }}>
+                    <Link href={`/leagues/${slug}/matchups/${encodeURIComponent(selectedWeekStart!)}`} className="app-link">
+                      View full matchup details →
+                    </Link>
+                  </p>
                 </div>
-              </Link>
+              </section>
             );
           })}
         </div>
