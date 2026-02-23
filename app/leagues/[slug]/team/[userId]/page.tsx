@@ -22,7 +22,7 @@ import { ProposeReleaseForm } from "../ProposeReleaseForm";
 import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
 import { TradeProposalRespond } from "../TradeProposalRespond";
 import { EditTeamNameForm } from "../EditTeamNameForm";
-import { RosterTable } from "../RosterTable";
+import { RosterTable } from "../../RosterTable";
 
 export const dynamic = "force-dynamic";
 
