@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getDefaultStartEndForSeason } from "@/lib/leagueSeasons";
-import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 
 export type League = {
   id: string;
