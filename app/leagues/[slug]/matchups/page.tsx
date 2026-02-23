@@ -42,21 +42,19 @@ function formatWeekRangeShort(weekStart: string, weekEnd: string): string {
   return `${fmt(weekStart)} – ${fmt(weekEnd)}`;
 }
 
-function TeamHeaderCell({
+function ScoreHeaderCell({
   t,
   isWinner,
-  borderRight,
 }: {
   t: { label: string; total: number; userId: string };
   isWinner: boolean;
-  borderRight?: boolean;
 }) {
   return (
-    <div
+    <td
       style={{
-        padding: "16px 12px",
+        padding: "14px 12px",
         background: isWinner ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
-        borderRight: borderRight ? "1px solid var(--color-border)" : undefined,
+        borderLeft: "1px solid var(--color-border)",
       }}
     >
       <div style={{ fontWeight: 700, fontSize: 15, color: "var(--color-text)", marginBottom: 4 }}>
@@ -66,7 +64,30 @@ function TeamHeaderCell({
         )}
       </div>
       <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-red)" }}>{t.total}</div>
-    </div>
+    </td>
+  );
+}
+
+function RosterCell({
+  row,
+  borderLeft,
+}: {
+  row?: { name: string; points: number } | undefined;
+  borderLeft?: boolean;
+}) {
+  return (
+    <td
+      style={{
+        padding: "6px 12px",
+        borderLeft: borderLeft ? "1px solid var(--color-border)" : undefined,
+        color: row?.name && row.name !== "—" ? "var(--color-text)" : "var(--color-text-muted)",
+      }}
+    >
+      <span style={{ display: "block" }}>{row?.name ?? "—"}</span>
+      {(row?.points ?? 0) > 0 && (
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>+{row?.points}</span>
+      )}
+    </td>
   );
 }
 
@@ -232,75 +253,89 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                       overflow: "hidden",
                     }}
                   >
-                    {/* Side-by-side team headers (names + totals); space between = wrestler rows below */}
-                    <div
+                    {/* Single table so score row and roster columns stay aligned */}
+                    <table
                       style={{
-                        display: "grid",
-                        gridTemplateColumns: mu.type === "triple" ? "1fr 1fr 1fr" : "1fr auto 1fr",
-                        gap: 0,
-                        alignItems: "stretch",
-                        borderBottom: "1px solid var(--color-border)",
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: 13,
+                        tableLayout: "fixed",
                       }}
                     >
-                      {mu.type === "h2h" ? (
-                        <>
-                          <TeamHeaderCell t={teamData[0]!} isWinner={isWinner(teamData[0]!.userId)} borderRight />
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: "0 8px",
-                              background: "var(--color-bg-elevated)",
-                              borderLeft: "1px solid var(--color-border)",
-                              borderRight: "1px solid var(--color-border)",
-                            }}
-                          >
-                            <span style={{ fontSize: 12, fontWeight: 800, color: "var(--color-text-muted)", letterSpacing: "0.05em" }}>VS</span>
-                          </div>
-                          <TeamHeaderCell t={teamData[1]!} isWinner={isWinner(teamData[1]!.userId)} />
-                        </>
-                      ) : (
-                        teamData.map((t, ti) => (
-                          <div
-                            key={t.userId}
-                            style={{
-                              padding: "16px 12px",
-                              background: isWinner(t.userId) ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
-                              borderLeft: ti > 0 ? "1px solid var(--color-border)" : undefined,
-                            }}
-                          >
-                            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--color-text)", marginBottom: 4 }}>
-                              {t.label}
-                              {isWinner(t.userId) && (
-                                <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>W</span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-red)" }}>{t.total}</div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    {/* Roster rows: slot | Team A wrestler + pts | Team B wrestler + pts (the "empty space" between teams) */}
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <colgroup>
+                        <col style={{ width: 40 }} />
+                        {mu.type === "h2h" ? (
+                          <>
+                            <col style={{ width: "47%" }} />
+                            <col style={{ width: 48 }} />
+                            <col style={{ width: "47%" }} />
+                          </>
+                        ) : (
+                          <>
+                            <col style={{ width: "33.33%" }} />
+                            <col style={{ width: "33.33%" }} />
+                            <col style={{ width: "33.33%" }} />
+                          </>
+                        )}
+                      </colgroup>
                       <thead>
+                        {/* Score row: team name + total in same columns as roster */}
+                        <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+                          <td style={{ padding: "14px 12px", background: "var(--color-bg-elevated)", borderRight: "1px solid var(--color-border)" }} />
+                          {mu.type === "h2h" ? (
+                            <>
+                              <ScoreHeaderCell t={teamData[0]!} isWinner={isWinner(teamData[0]!.userId)} />
+                              <td
+                                style={{
+                                  padding: "14px 8px",
+                                  background: "var(--color-bg-elevated)",
+                                  borderLeft: "1px solid var(--color-border)",
+                                  borderRight: "1px solid var(--color-border)",
+                                  textAlign: "center",
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                  color: "var(--color-text-muted)",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                VS
+                              </td>
+                              <ScoreHeaderCell t={teamData[1]!} isWinner={isWinner(teamData[1]!.userId)} />
+                            </>
+                          ) : (
+                            teamData.map((t) => (
+                              <ScoreHeaderCell
+                                key={t.userId}
+                                t={t}
+                                isWinner={isWinner(t.userId)}
+                              />
+                            ))
+                          )}
+                        </tr>
                         <tr style={{ background: "#f0f2f5" }}>
-                          <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text-muted)", width: 36 }}>#</th>
-                          {teamData.map((t) => (
-                            <th
-                              key={t.userId}
-                              style={{
-                                padding: "8px 12px",
-                                textAlign: "left",
-                                fontWeight: 600,
-                                color: "var(--color-text)",
-                                borderLeft: "1px solid var(--color-border)",
-                              }}
-                            >
-                              {t.label}
-                            </th>
-                          ))}
+                          <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text-muted)", borderRight: "1px solid var(--color-border)" }}>
+                            #
+                          </th>
+                          {mu.type === "h2h"
+                            ? [
+                                <th key={teamData[0]!.userId} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text)", borderLeft: "1px solid var(--color-border)" }}>{teamData[0]!.label}</th>,
+                                <th key="vs" style={{ padding: 0, borderLeft: "1px solid var(--color-border)" }} />,
+                                <th key={teamData[1]!.userId} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text)", borderLeft: "1px solid var(--color-border)" }}>{teamData[1]!.label}</th>,
+                              ]
+                            : teamData.map((t) => (
+                                <th
+                                  key={t.userId}
+                                  style={{
+                                    padding: "8px 12px",
+                                    textAlign: "left",
+                                    fontWeight: 600,
+                                    color: "var(--color-text)",
+                                    borderLeft: "1px solid var(--color-border)",
+                                  }}
+                                >
+                                  {t.label}
+                                </th>
+                              ))}
                         </tr>
                       </thead>
                       <tbody>
@@ -312,25 +347,24 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                               borderTop: "1px solid var(--color-border)",
                             }}
                           >
-                            <td style={{ padding: "6px 12px", color: "var(--color-text-muted)", width: 36 }}>{rowIdx + 1}</td>
-                            {teamData.map((t, colIdx) => {
-                              const row = rosterByTeam[colIdx]?.[rowIdx];
-                              return (
-                                <td
+                            <td style={{ padding: "6px 12px", color: "var(--color-text-muted)", borderRight: "1px solid var(--color-border)" }}>
+                              {rowIdx + 1}
+                            </td>
+                            {mu.type === "h2h" ? (
+                              <>
+                                <RosterCell row={rosterByTeam[0]?.[rowIdx]} borderLeft />
+                                <td style={{ borderLeft: "1px solid var(--color-border)", borderRight: "1px solid var(--color-border)" }} />
+                                <RosterCell row={rosterByTeam[1]?.[rowIdx]} borderLeft />
+                              </>
+                            ) : (
+                              teamData.map((t, colIdx) => (
+                                <RosterCell
                                   key={t.userId}
-                                  style={{
-                                    padding: "6px 12px",
-                                    borderLeft: "1px solid var(--color-border)",
-                                    color: row?.name && row.name !== "—" ? "var(--color-text)" : "var(--color-text-muted)",
-                                  }}
-                                >
-                                  <span style={{ display: "block" }}>{row?.name ?? "—"}</span>
-                                  {(row?.points ?? 0) > 0 && (
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>+{row?.points}</span>
-                                  )}
-                                </td>
-                              );
-                            })}
+                                  row={rosterByTeam[colIdx]?.[rowIdx]}
+                                  borderLeft
+                                />
+                              ))
+                            )}
                           </tr>
                         ))}
                       </tbody>
