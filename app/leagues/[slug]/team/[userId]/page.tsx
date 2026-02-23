@@ -72,15 +72,18 @@ export default async function TeamUserIdPage({ params }: Props) {
     "Unknown";
   const rosterEntries = rosters[userId] ?? [];
   const pointsBySlug = scoring.pointsBySlug;
+  const pointsByOwnerByWrestler = scoring.pointsByOwnerByWrestler ?? {};
   const totalPoints = pointsWithBonuses[userId] ?? 0;
 
   const wrestlers =
     (await supabase.from("wrestlers").select("id, name").order("name", { ascending: true })).data ??
     [];
   const wrestlerNamesMap = Object.fromEntries(wrestlers.map((w) => [w.id, w.name ?? w.id]));
+  const ownerWrestlerPts = pointsByOwnerByWrestler[userId];
   const rosterWithPoints = rosterEntries.map((e) => {
     const p = pointsBySlug[e.wrestler_id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
-    const wrestlerTotal = p.rsPoints + p.plePoints + p.beltPoints;
+    const fullSeason = p.rsPoints + p.plePoints + p.beltPoints;
+    const wrestlerTotal = ownerWrestlerPts?.[e.wrestler_id] ?? fullSeason;
     return {
       wrestler_id: e.wrestler_id,
       name: wrestlerNamesMap[e.wrestler_id] ?? e.wrestler_id,

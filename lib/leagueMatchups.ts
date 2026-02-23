@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { getRostersForLeague, getLeagueScoring } from "@/lib/leagues";
-import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { getRosterStintsForLeague, getLeagueScoring } from "@/lib/leagues";
+import { getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 
 /** Monday of the week containing the given date (YYYY-MM-DD). Weeks are Monday–Sunday. */
 export function getMondayOfWeek(dateStr: string): string {
@@ -32,9 +32,8 @@ export function getWeeksInRange(leagueStart: string, leagueEnd: string): string[
   return weeks;
 }
 
-/** Points per owner for a single week (Monday–Sunday). Event points only; no weekly/belt bonuses.
- * Only events that fall in BOTH the week AND the league's date range (draft_date/start_date through end_date) are counted,
- * so matchup totals match the league/team page. */
+/** Points per owner for a single week (Monday–Sunday). Uses acquisition/release windows.
+ * Only events in the week and in league range count; KOTR carryover uses all league events in order. */
 export async function getPointsByOwnerForLeagueForWeek(
   leagueId: string,
   weekStartMonday: string
@@ -57,26 +56,28 @@ export async function getPointsByOwnerForLeagueForWeek(
     .eq("status", "completed")
     .order("date", { ascending: true });
 
-  const filtered = (events ?? []).filter((e) => {
+  const allInRange = (events ?? []).filter((e) => {
     const d = (e.date ?? "").toString().slice(0, 10);
-    const inWeek = d >= weekStartMonday && d <= weekEndSunday;
-    const inLeagueRange = (!leagueStart || d >= leagueStart) && (!leagueEnd || d <= leagueEnd);
-    return inWeek && inLeagueRange;
+    return (!leagueStart || d >= leagueStart) && (!leagueEnd || d <= leagueEnd);
   });
-
-  const pointsBySlug = aggregateWrestlerPoints(filtered) as Record<
-    string,
-    { rsPoints: number; plePoints: number; beltPoints: number }
-  >;
-  const rosters = await getRostersForLeague(leagueId);
+  const stints = await getRosterStintsForLeague(leagueId);
   const pointsByOwner: Record<string, number> = {};
-  for (const [userId, entries] of Object.entries(rosters)) {
-    let total = 0;
-    for (const e of entries) {
-      const p = pointsBySlug[e.wrestler_id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
-      total += p.rsPoints + p.plePoints + p.beltPoints;
+  let kotrCarryOver: Record<string, number> = {};
+  for (const event of allInRange) {
+    const eventDate = (event.date ?? "").toString().slice(0, 10);
+    const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
+    const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
+      event,
+      kotrCarryOver
+    );
+    kotrCarryOver = updatedCarryOver;
+    if (!inWeek) continue;
+    for (const stint of stints) {
+      if (eventDate < stint.acquired_at) continue;
+      if (stint.released_at != null && eventDate > stint.released_at) continue;
+      const pts = eventPoints[stint.wrestler_id] ?? 0;
+      pointsByOwner[stint.user_id] = (pointsByOwner[stint.user_id] ?? 0) + pts;
     }
-    pointsByOwner[userId] = total;
   }
   return pointsByOwner;
 }

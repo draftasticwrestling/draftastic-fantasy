@@ -389,16 +389,20 @@ export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoP
     .from("league_rosters")
     .select("wrestler_id")
     .eq("league_id", leagueId)
-    .eq("user_id", current.user_id);
+    .eq("user_id", current.user_id)
+    .is("released_at", null);
   const currentIds = (currentRows ?? []).map((r: { wrestler_id: string }) => r.wrestler_id);
   if (currentIds.includes(wrestlerId)) return { didAutoPick: false, error: "Wrestler already on roster." };
   if (currentIds.length >= rules.rosterSize) return { didAutoPick: false, error: "Roster full." };
 
+  const draftDate = new Date().toISOString().slice(0, 10);
   const { error: rosterErr } = await admin.from("league_rosters").insert({
     league_id: leagueId,
     user_id: current.user_id,
     wrestler_id: wrestlerId,
     contract: null,
+    acquired_at: draftDate,
+    released_at: null,
   });
   if (rosterErr) return { didAutoPick: false, error: rosterErr.message };
 
@@ -474,12 +478,17 @@ export async function clearLastPick(leagueId: string): Promise<{ error?: string 
 
   if (lastErr || !lastRow) return { error: "No pick to clear." };
 
-  const { error: rosterErr } = await admin
+  const { data: activeRow } = await admin
     .from("league_rosters")
-    .delete()
+    .select("id")
     .eq("league_id", leagueId)
     .eq("user_id", lastRow.user_id)
-    .eq("wrestler_id", lastRow.wrestler_id);
+    .eq("wrestler_id", lastRow.wrestler_id)
+    .is("released_at", null)
+    .maybeSingle();
+  const { error: rosterErr } = activeRow
+    ? await admin.from("league_rosters").delete().eq("id", activeRow.id)
+    : { error: null };
   if (rosterErr) return { error: rosterErr.message };
 
   const { error: pickErr } = await admin

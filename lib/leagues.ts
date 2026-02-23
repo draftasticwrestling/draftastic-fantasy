@@ -344,8 +344,17 @@ export async function joinLeagueWithToken(token: string): Promise<{
 
 export type LeagueRosterEntry = { wrestler_id: string; contract: string | null };
 
+/** Stint for scoring: points count when event_date >= acquired_at and (released_at is null or event_date <= released_at). */
+export type LeagueRosterStint = {
+  user_id: string;
+  wrestler_id: string;
+  contract: string | null;
+  acquired_at: string; // YYYY-MM-DD
+  released_at: string | null; // YYYY-MM-DD
+};
+
 /**
- * Get all roster entries for a league, keyed by user_id. Caller must be a league member.
+ * Get current roster entries for a league (released_at IS NULL), keyed by user_id.
  */
 export async function getRostersForLeague(
   leagueId: string
@@ -355,6 +364,7 @@ export async function getRostersForLeague(
     .from("league_rosters")
     .select("user_id, wrestler_id, contract")
     .eq("league_id", leagueId)
+    .is("released_at", null)
     .order("created_at", { ascending: true });
 
   if (error) return {};
@@ -365,6 +375,36 @@ export async function getRostersForLeague(
     byUser[r.user_id].push({ wrestler_id: r.wrestler_id, contract: r.contract });
   }
   return byUser;
+}
+
+/**
+ * Get all roster stints for a league (active and released) for acquisition-window scoring.
+ */
+export async function getRosterStintsForLeague(
+  leagueId: string
+): Promise<LeagueRosterStint[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("league_rosters")
+    .select("user_id, wrestler_id, contract, acquired_at, released_at")
+    .eq("league_id", leagueId)
+    .order("acquired_at", { ascending: true });
+
+  if (error) return [];
+  const rows = (data ?? []) as {
+    user_id: string;
+    wrestler_id: string;
+    contract: string | null;
+    acquired_at: string;
+    released_at: string | null;
+  }[];
+  return rows.map((r) => ({
+    user_id: r.user_id,
+    wrestler_id: r.wrestler_id,
+    contract: r.contract,
+    acquired_at: String(r.acquired_at ?? "").slice(0, 10),
+    released_at: r.released_at ? String(r.released_at).slice(0, 10) : null,
+  }));
 }
 
 /** Normalize wrestler gender to F/M for roster rules. */
@@ -379,14 +419,16 @@ function normalizeWrestlerGender(g: string | null | undefined): "F" | "M" | null
 /**
  * Add a wrestler to a member's roster.
  * Validates roster size and gender minimums (when league has 3–12 teams).
- * By default uses RLS (commissioner only). Pass useServiceRole: true for draft picks so the current picker can add to their own roster.
+ * acquiredAt: first date owner gets points (YYYY-MM-DD); default today.
+ * By default uses RLS (commissioner only). Pass useServiceRole: true for draft picks.
  */
 export async function addWrestlerToRoster(
   leagueId: string,
   userId: string,
   wrestlerId: string,
   contract?: string | null,
-  useServiceRole?: boolean
+  useServiceRole?: boolean,
+  acquiredAt?: string | null
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -407,7 +449,8 @@ export async function addWrestlerToRoster(
       .from("league_rosters")
       .select("wrestler_id")
       .eq("league_id", leagueId)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .is("released_at", null);
     const currentIds = (currentRows ?? []).map((r) => r.wrestler_id);
     if (currentIds.includes(wid)) return { error: "That wrestler is already on this roster." };
     if (currentIds.length >= rules.rosterSize) {
@@ -447,11 +490,16 @@ export async function addWrestlerToRoster(
     return { error: "Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set. Draft picks need this. Add it in .env and Netlify environment variables." };
   }
   const insertClient = useServiceRole && admin ? admin : supabase;
+  const acquiredDate =
+    (acquiredAt && /^\d{4}-\d{2}-\d{2}$/.test(acquiredAt.trim()) ? acquiredAt.trim() : null) ||
+    new Date().toISOString().slice(0, 10);
   const { error } = await insertClient.from("league_rosters").insert({
     league_id: leagueId,
     user_id: userId,
     wrestler_id: wid,
     contract: contract?.trim() || null,
+    acquired_at: acquiredDate,
+    released_at: null,
   });
 
   if (error) return { error: error.message };
@@ -459,25 +507,35 @@ export async function addWrestlerToRoster(
 }
 
 /**
- * Remove a wrestler from a member's roster. Commissioner only (RLS enforced).
+ * Remove a wrestler from a member's roster (set released_at = today so points before today still count).
+ * Commissioner only (RLS enforced).
  */
 export async function removeWrestlerFromRoster(
   leagueId: string,
   userId: string,
-  wrestlerId: string
+  wrestlerId: string,
+  releasedAt?: string | null
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { error } = await supabase
+  const releasedDate =
+    (releasedAt && /^\d{4}-\d{2}-\d{2}$/.test(releasedAt.trim()) ? releasedAt.trim() : null) ||
+    new Date().toISOString().slice(0, 10);
+
+  const { data: updated, error } = await supabase
     .from("league_rosters")
-    .delete()
+    .update({ released_at: releasedDate })
     .eq("league_id", leagueId)
     .eq("user_id", userId)
-    .eq("wrestler_id", String(wrestlerId).trim());
+    .eq("wrestler_id", String(wrestlerId).trim())
+    .is("released_at", null)
+    .select("id")
+    .maybeSingle();
 
   if (error) return { error: error.message };
+  if (!updated) return { error: "Wrestler not on roster or already released." };
   return {};
 }
 
@@ -485,7 +543,8 @@ export type PointsBySlug = Record<string, { rsPoints: number; plePoints: number;
 
 /**
  * Load events in league date range and return points per wrestler slug and per owner.
- * Use for league page (totals) and team page (per-wrestler + total).
+ * Owner points use acquisition/release windows: only count event points when
+ * event_date >= stint.acquired_at and (stint.released_at is null or event_date <= stint.released_at).
  */
 export async function getLeagueScoring(
   leagueId: string
@@ -517,17 +576,34 @@ export async function getLeagueScoring(
   });
 
   const pointsBySlug = aggregateWrestlerPoints(filtered) as PointsBySlug;
-  const rosters = await getRostersForLeague(leagueId);
+  const stints = await getRosterStintsForLeague(leagueId);
   const pointsByOwner: Record<string, number> = {};
-  for (const [userId, entries] of Object.entries(rosters)) {
-    let total = 0;
-    for (const e of entries) {
-      const p = pointsBySlug[e.wrestler_id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
-      total += p.rsPoints + p.plePoints + p.beltPoints;
+  /** Per owner, points from each wrestler (only while on roster). For team page per-wrestler breakdown. */
+  const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
+  let kotrCarryOver: Record<string, number> = {};
+  const sortedEvents = [...filtered].sort((a, b) =>
+    String(a.date ?? "").localeCompare(String(b.date ?? ""))
+  );
+  for (const event of sortedEvents) {
+    const eventDate = (event.date ?? "").toString().slice(0, 10);
+    const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
+      event,
+      kotrCarryOver
+    );
+    kotrCarryOver = updatedCarryOver;
+    for (const stint of stints) {
+      if (eventDate < stint.acquired_at) continue;
+      if (stint.released_at != null && eventDate > stint.released_at) continue;
+      const pts = eventPoints[stint.wrestler_id] ?? 0;
+      pointsByOwner[stint.user_id] = (pointsByOwner[stint.user_id] ?? 0) + pts;
+      if (pts > 0) {
+        if (!pointsByOwnerByWrestler[stint.user_id]) pointsByOwnerByWrestler[stint.user_id] = {};
+        pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] =
+          (pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] ?? 0) + pts;
+      }
     }
-    pointsByOwner[userId] = total;
   }
-  return { pointsBySlug, pointsByOwner };
+  return { pointsBySlug, pointsByOwner, pointsByOwnerByWrestler };
 }
 
 /**

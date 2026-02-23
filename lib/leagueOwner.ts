@@ -239,6 +239,7 @@ export async function respondToTradeProposal(
       .eq("proposal_id", proposalId);
     const admin = getAdminClient();
     if (!admin) return { error: "Service role required to execute trade." };
+    const today = new Date().toISOString().slice(0, 10);
     for (const it of items ?? []) {
       const w = it as { wrestler_id: string; direction: string };
       if (w.direction === "give") {
@@ -248,9 +249,25 @@ export async function respondToTradeProposal(
           .eq("league_id", proposal.league_id)
           .eq("user_id", proposal.from_user_id)
           .eq("wrestler_id", w.wrestler_id)
-          .single();
-        await admin.from("league_rosters").delete().eq("league_id", proposal.league_id).eq("user_id", proposal.from_user_id).eq("wrestler_id", w.wrestler_id);
-        if (row) await admin.from("league_rosters").insert({ league_id: proposal.league_id, user_id: proposal.to_user_id, wrestler_id: w.wrestler_id, contract: (row as { contract: string | null }).contract });
+          .is("released_at", null)
+          .maybeSingle();
+        await admin
+          .from("league_rosters")
+          .update({ released_at: today })
+          .eq("league_id", proposal.league_id)
+          .eq("user_id", proposal.from_user_id)
+          .eq("wrestler_id", w.wrestler_id)
+          .is("released_at", null);
+        if (row) {
+          await admin.from("league_rosters").insert({
+            league_id: proposal.league_id,
+            user_id: proposal.to_user_id,
+            wrestler_id: w.wrestler_id,
+            contract: (row as { contract: string | null }).contract,
+            acquired_at: today,
+            released_at: null,
+          });
+        }
       } else {
         const { data: row } = await admin
           .from("league_rosters")
@@ -258,9 +275,25 @@ export async function respondToTradeProposal(
           .eq("league_id", proposal.league_id)
           .eq("user_id", proposal.to_user_id)
           .eq("wrestler_id", w.wrestler_id)
-          .single();
-        await admin.from("league_rosters").delete().eq("league_id", proposal.league_id).eq("user_id", proposal.to_user_id).eq("wrestler_id", w.wrestler_id);
-        if (row) await admin.from("league_rosters").insert({ league_id: proposal.league_id, user_id: proposal.from_user_id, wrestler_id: w.wrestler_id, contract: (row as { contract: string | null }).contract });
+          .is("released_at", null)
+          .maybeSingle();
+        await admin
+          .from("league_rosters")
+          .update({ released_at: today })
+          .eq("league_id", proposal.league_id)
+          .eq("user_id", proposal.to_user_id)
+          .eq("wrestler_id", w.wrestler_id)
+          .is("released_at", null);
+        if (row) {
+          await admin.from("league_rosters").insert({
+            league_id: proposal.league_id,
+            user_id: proposal.from_user_id,
+            wrestler_id: w.wrestler_id,
+            contract: (row as { contract: string | null }).contract,
+            acquired_at: today,
+            released_at: null,
+          });
+        }
       }
     }
   }

@@ -15,12 +15,20 @@ export async function addRosterEntryAction(
   const userId = formData.get("userId") as string;
   const wrestlerId = (formData.get("wrestlerId") as string)?.trim();
   const contract = (formData.get("contract") as string)?.trim() || undefined;
+  const acquiredAt = (formData.get("acquiredAt") as string)?.trim() || undefined;
 
   if (!leagueSlug || !leagueId || !userId || !wrestlerId) {
     return { error: "Member and wrestler are required." };
   }
 
-  const result = await addWrestlerToRoster(leagueId, userId, wrestlerId, contract ?? null);
+  const result = await addWrestlerToRoster(
+    leagueId,
+    userId,
+    wrestlerId,
+    contract ?? null,
+    undefined,
+    acquiredAt || undefined
+  );
   if (result.error) return { error: result.error };
 
   revalidatePath(`/leagues/${leagueSlug}`);

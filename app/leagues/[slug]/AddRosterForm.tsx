@@ -85,6 +85,18 @@ export function AddRosterForm({ leagueId, leagueSlug, members, wrestlers }: Prop
             ))}
           </select>
         </div>
+        <div>
+          <label htmlFor="roster-acquired" style={{ display: "block", fontSize: 12, marginBottom: 4, color: "var(--color-text-muted)" }}>
+            Acquisition date (optional)
+          </label>
+          <input
+            id="roster-acquired"
+            type="date"
+            name="acquiredAt"
+            style={{ padding: "8px 12px", background: "var(--color-bg-input)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text)" }}
+          />
+          <span style={{ fontSize: 11, color: "var(--color-text-muted)", marginLeft: 6 }}>Points count from this date onward. Default: today.</span>
+        </div>
         <button
           type="submit"
           style={{
