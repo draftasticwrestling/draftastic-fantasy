@@ -3,6 +3,7 @@ import type { LeagueRosterEntry } from "@/lib/leagues";
 import type { RosterRules } from "@/lib/leagueStructure";
 import { removeRosterEntryFromFormAction } from "./actions";
 import { AddRosterForm } from "./AddRosterForm";
+import { RosterTable } from "./RosterTable";
 
 type WrestlerOption = { id: string; name: string | null; gender?: string | null };
 
@@ -85,7 +86,7 @@ export function RostersSection({
         />
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="roster-cards-grid">
         {members.map((member) => {
           const entries = rosters[member.user_id] ?? [];
           const ids = entries.map((e) => e.wrestler_id);
@@ -134,54 +135,16 @@ export function RostersSection({
                   Roster is full but needs at least {rosterRules!.minFemale} female and {rosterRules!.minMale} male wrestlers.
                 </p>
               )}
-              {entries.length === 0 ? (
-                <p style={{ fontSize: 14, color: "var(--color-text-muted)", margin: 0 }}>
-                  No wrestlers on roster yet.
-                </p>
-              ) : (
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                  {entries.map((e) => (
-                    <li
-                      key={e.wrestler_id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "6px 0",
-                        borderBottom: "1px solid var(--color-border)",
-                        gap: 8,
-                      }}
-                    >
-                      <span>{wrestlerName(wrestlers, e.wrestler_id)}</span>
-                      {isCommissioner && (
-                        <form
-                        action={removeRosterEntryFromFormAction}
-                        style={{ margin: 0 }}
-                      >
-                          <input type="hidden" name="leagueSlug" value={leagueSlug} />
-                          <input type="hidden" name="leagueId" value={leagueId} />
-                          <input type="hidden" name="userId" value={member.user_id} />
-                          <input type="hidden" name="wrestlerId" value={e.wrestler_id} />
-                          <button
-                            type="submit"
-                            style={{
-                              padding: "4px 10px",
-                              fontSize: 12,
-                              color: "var(--color-red)",
-                              background: "none",
-                              border: "1px solid var(--color-red)",
-                              borderRadius: 4,
-                              cursor: "pointer",
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </form>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <RosterTable
+                entries={entries}
+                wrestlerName={(id) => wrestlerName(wrestlers, id)}
+                leagueSlug={leagueSlug}
+                maxSlots={rosterRules?.rosterSize}
+                showRemove={isCommissioner}
+                leagueId={leagueId}
+                userId={member.user_id}
+                removeAction={removeRosterEntryFromFormAction}
+              />
             </div>
           );
         })}

@@ -1114,6 +1114,85 @@ body {
   text-decoration: underline;
 }
 
+/* Roster table (league/team pages — ESPN-style SLOT / PLAYER / ACQ) */
+.roster-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg-card);
+}
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.roster-table .roster-th,
+.roster-table .roster-td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+.roster-table .roster-th {
+  background: #f0f2f5;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.roster-table .roster-tr:nth-child(even) {
+  background: #f8f9fa;
+}
+.roster-table .roster-tr:nth-child(odd) {
+  background: #ffffff;
+}
+.roster-table .roster-th-slot,
+.roster-table .roster-td-slot {
+  width: 56px;
+  min-width: 56px;
+}
+.roster-table .roster-th-acq,
+.roster-table .roster-td-acq {
+  width: 80px;
+  min-width: 80px;
+}
+.roster-table .roster-th-pts,
+.roster-table .roster-td-pts {
+  width: 56px;
+  min-width: 56px;
+  text-align: right;
+}
+.roster-table .roster-th-action,
+.roster-table .roster-td-action {
+  width: 80px;
+  min-width: 80px;
+}
+.roster-table .roster-player-link {
+  color: var(--color-blue);
+  text-decoration: none;
+}
+.roster-table .roster-player-link:hover {
+  text-decoration: underline;
+}
+.roster-table .roster-empty {
+  color: var(--color-text-muted);
+}
+.roster-table .roster-remove-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--color-red);
+  background: none;
+  border: 1px solid var(--color-red);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.roster-table .roster-remove-btn:hover {
+  background: var(--color-red-bg);
+}
+
+.roster-cards-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
 /* My Team in sidebar */
 .lm-myteam-avatar {
   width: 72px;

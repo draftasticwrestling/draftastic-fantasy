@@ -22,6 +22,7 @@ import { ProposeReleaseForm } from "../ProposeReleaseForm";
 import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
 import { TradeProposalRespond } from "../TradeProposalRespond";
 import { EditTeamNameForm } from "../EditTeamNameForm";
+import { RosterTable } from "../RosterTable";
 
 export const dynamic = "force-dynamic";
 
@@ -110,27 +111,12 @@ export default async function TeamUserIdPage({ params }: Props) {
         </p>
         <section style={{ marginBottom: 32 }}>
           <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Roster</h2>
-          {rosterWithPoints.length === 0 ? (
-            <p style={{ color: "#666" }}>No wrestlers on this roster yet.</p>
-          ) : (
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {rosterWithPoints.map((w) => (
-                <li
-                  key={w.wrestler_id}
-                  style={{
-                    padding: "8px 0",
-                    borderBottom: "1px solid #eee",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span>{w.name}</span>
-                  <span style={{ fontWeight: 600, color: "#c00" }}>{w.points} pts</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <RosterTable
+            entries={rosterEntries}
+            wrestlerName={(id) => wrestlerNamesMap[id] ?? id}
+            leagueSlug={slug}
+            pointsByWrestlerId={Object.fromEntries(rosterWithPoints.map((w) => [w.wrestler_id, w.points]))}
+          />
         </section>
       </main>
     );
@@ -210,29 +196,13 @@ export default async function TeamUserIdPage({ params }: Props) {
             {rosterEntries.length} / {rosterRules.rosterSize} wrestlers (min {rosterRules.minFemale} female, min {rosterRules.minMale} male).
           </p>
         )}
-        {rosterWithPoints.length === 0 ? (
-          <p style={{ color: "#666" }}>
-            No wrestlers on your roster yet. Join the draft or ask the commissioner to add you.
-          </p>
-        ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {rosterWithPoints.map((w) => (
-              <li
-                key={w.wrestler_id}
-                style={{
-                  padding: "8px 0",
-                  borderBottom: "1px solid #eee",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span>{w.name}</span>
-                <span style={{ fontWeight: 600, color: "#c00" }}>{w.points} pts</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <RosterTable
+          entries={rosterEntries}
+          wrestlerName={(id) => wrestlerNamesMap[id] ?? id}
+          leagueSlug={slug}
+          pointsByWrestlerId={Object.fromEntries(rosterWithPoints.map((w) => [w.wrestler_id, w.points]))}
+          maxSlots={rosterRules?.rosterSize}
+        />
       </section>
 
       {nextEvent && activePerEvent != null && rosterWrestlers.length > 0 && (
