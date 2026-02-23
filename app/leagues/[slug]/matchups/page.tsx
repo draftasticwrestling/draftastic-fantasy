@@ -46,9 +46,23 @@ function ScoreHeaderCell({
   t,
   isWinner,
 }: {
-  t: { label: string; total: number; userId: string };
+  t: {
+    label: string;
+    total: number;
+    userId: string;
+    eventPts?: number;
+    winBonus?: number;
+    beltBonus?: number;
+  };
   isWinner: boolean;
 }) {
+  const { eventPts = 0, winBonus = 0, beltBonus = 0 } = t;
+  const showBreakdown = isWinner;
+  const parts: string[] = [];
+  if (showBreakdown) parts.push(`${eventPts} event`);
+  if (showBreakdown && winBonus > 0) parts.push(`+${winBonus} win`);
+  if (showBreakdown && beltBonus > 0) parts.push(`+${beltBonus} belt`);
+  const bonusLine = parts.join(" · ");
   return (
     <td
       style={{
@@ -64,6 +78,9 @@ function ScoreHeaderCell({
         )}
       </div>
       <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-red)" }}>{t.total}</div>
+      {showBreakdown && bonusLine && (
+        <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 4 }}>{bonusLine}</div>
+      )}
     </td>
   );
 }
@@ -75,6 +92,8 @@ function RosterCell({
   row?: { name: string; points: number } | undefined;
   borderLeft?: boolean;
 }) {
+  const name = row?.name ?? "—";
+  const pts = row?.points ?? 0;
   return (
     <td
       style={{
@@ -83,10 +102,12 @@ function RosterCell({
         color: row?.name && row.name !== "—" ? "var(--color-text)" : "var(--color-text-muted)",
       }}
     >
-      <span style={{ display: "block" }}>{row?.name ?? "—"}</span>
-      {(row?.points ?? 0) > 0 && (
-        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>+{row?.points}</span>
-      )}
+      <span style={{ whiteSpace: "nowrap" }}>
+        {name}
+        {pts > 0 && (
+          <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>+{pts}</span>
+        )}
+      </span>
     </td>
   );
 }
@@ -215,11 +236,22 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
       ) : (
         <div className="scoreboard-cards" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {weekMatchups.map((mu, idx) => {
-            const teamData = mu.userIds.map((uid) => ({
-              userId: uid,
-              label: teamLabel(memberByUserId[uid] ?? {}),
-              total: totalForUser(uid),
-            }));
+            const teamData = mu.userIds.map((uid) => {
+              const eventPts = matchupForWeek?.pointsByUserId[uid] ?? 0;
+              const winBonus = matchupForWeek?.winnerUserId === uid ? (matchupForWeek?.weeklyWinPoints ?? 15) : 0;
+              const beltBonus =
+                matchupForWeek?.beltHolderUserId === uid
+                  ? (matchupForWeek?.beltRetained ? matchupForWeek?.beltPoints ?? 4 : matchupForWeek?.beltPoints ?? 5)
+                  : 0;
+              return {
+                userId: uid,
+                label: teamLabel(memberByUserId[uid] ?? {}),
+                total: totalForUser(uid),
+                eventPts,
+                winBonus,
+                beltBonus,
+              };
+            });
             const isWinner = (uid: string) => matchupForWeek?.winnerUserId === uid;
 
             const rosterByTeam = teamData.map((t) => {
