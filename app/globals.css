@@ -1193,6 +1193,44 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 
+/* Matchups: week selector + scoreboard */
+.matchup-week-selector {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.scoreboard-card-link:hover .scoreboard-card {
+  border-color: var(--color-blue);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.matchup-roster-table-wrap {
+  min-width: 0;
+}
+
+/* Week detail: mobile-friendly triple threat */
+@media (max-width: 640px) {
+  .matchup-detail-card .matchup-roster-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .matchup-detail-card .matchup-roster-table-wrap table {
+    min-width: 480px;
+  }
+  /* Stack triple-threat team headers vertically on mobile */
+  .matchup-detail-card--triple .matchup-detail-header {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+    padding: 16px;
+  }
+  .matchup-detail-card--triple .matchup-detail-header > div:not(:last-child) {
+    border-bottom: 1px solid var(--color-border-light);
+    padding-bottom: 12px;
+  }
+}
+
 /* My Team in sidebar */
 .lm-myteam-avatar {
   width: 72px;

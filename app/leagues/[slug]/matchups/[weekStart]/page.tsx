@@ -1,9 +1,14 @@
 import Link from "next/link";
-import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
-import { getLeagueWeeklyMatchups, getSundayOfWeek } from "@/lib/leagueMatchups";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import {
+  getLeagueWeeklyMatchups,
+  getMatchupsForWeek,
+  getSundayOfWeek,
+  getPointsByOwnerByWrestlerForWeek,
+} from "@/lib/leagueMatchups";
 
 type Props = { params: Promise<{ slug: string; weekStart: string }> };
 
@@ -18,15 +23,18 @@ function formatWeekRange(weekStart: string, weekEnd: string): string {
 }
 
 export default async function LeagueMatchupDetailPage({ params }: Props) {
-  const { slug, weekStart: weekStartParam } = await params;
+  const { slug, weekStartParam } = await params;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const [members, matchups] = await Promise.all([
+  const [members, matchups, rosters, pointsByOwnerByWrestler, wrestlersRows] = await Promise.all([
     getLeagueMembers(league.id),
     getLeagueWeeklyMatchups(league.id),
+    getRostersForLeague(league.id),
+    getPointsByOwnerByWrestlerForWeek(league.id, decodeURIComponent(weekStartParam)),
+    supabase.from("wrestlers").select("id, name").order("name", { ascending: true }),
   ]);
   const isMember = user && members.some((m) => m.user_id === user.id);
   if (!isMember) notFound();
@@ -36,41 +44,40 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   if (!matchup) notFound();
 
   const weekEnd = getSundayOfWeek(weekStart);
+  const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const teamLabel = (m: { team_name?: string | null; display_name?: string | null }) =>
     (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+  const wrestlerNames: Record<string, string> = Object.fromEntries(
+    (wrestlersRows.data ?? []).map((w) => [w.id, w.name ?? w.id])
+  );
+  const rosterRules = getRosterRulesForLeague(members.length);
+  const maxSlots = rosterRules?.rosterSize ?? 12;
 
-  const sorted = [...members].sort(
-    (a, b) => {
-      const aPts = (matchup.pointsByUserId[a.user_id] ?? 0) + (matchup.winnerUserId === a.user_id ? 15 : 0) + (matchup.beltHolderUserId === a.user_id ? (matchup.beltRetained ? 4 : 5) : 0);
-      const bPts = (matchup.pointsByUserId[b.user_id] ?? 0) + (matchup.winnerUserId === b.user_id ? 15 : 0) + (matchup.beltHolderUserId === b.user_id ? (matchup.beltRetained ? 4 : 5) : 0);
-      return bPts - aPts;
-    }
+  const weekMatchups = getMatchupsForWeek(
+    members.map((m) => m.user_id),
+    members.length
   );
 
-  const teamData = sorted.map((m) => {
-    const eventPts = matchup.pointsByUserId[m.user_id] ?? 0;
-    const isWinner = matchup.winnerUserId === m.user_id;
-    const isBeltHolder = matchup.beltHolderUserId === m.user_id;
-    const winBonus = isWinner ? 15 : 0;
-    const beltBonus = isBeltHolder ? (matchup.beltRetained ? 4 : 5) : 0;
-    const totalPts = eventPts + winBonus + beltBonus;
-    const breakdown: { label: string; value: number }[] = [{ label: "Event", value: eventPts }];
-    if (winBonus) breakdown.push({ label: "Weekly win", value: winBonus });
-    if (beltBonus) breakdown.push({ label: matchup.beltRetained ? "Belt retain" : "Belt win", value: beltBonus });
-    return { member: m, eventPts, winBonus, beltBonus, totalPts, breakdown, isWinner, isBeltHolder };
-  });
-
-  const isHeadToHead = teamData.length === 2;
-  const matchupLabel = teamData.length === 2 ? "Head to head" : teamData.length === 3 ? "Triple threat" : `${teamData.length}-team matchup`;
+  function totalForUser(userId: string): number {
+    const eventPts = matchup.pointsByUserId[userId] ?? 0;
+    const winBonus = matchup.winnerUserId === userId ? 15 : 0;
+    const beltBonus =
+      matchup.beltHolderUserId === userId ? (matchup.beltRetained ? 4 : 5) : 0;
+    return eventPts + winBonus + beltBonus;
+  }
 
   return (
     <main
       className="app-page"
-      style={{ maxWidth: 900, fontSize: 16, lineHeight: 1.5, minHeight: "100vh" }}
+      style={{ maxWidth: 960, fontSize: 16, lineHeight: 1.5, minHeight: "100vh" }}
     >
       <p style={{ marginBottom: 20 }}>
-        <Link href={`/leagues/${slug}/matchups`} className="app-link" style={{ fontWeight: 500 }}>
-          ← Matchups
+        <Link
+          href={`/leagues/${slug}/matchups?week=${encodeURIComponent(weekStart)}`}
+          className="app-link"
+          style={{ fontWeight: 500 }}
+        >
+          ← Scoreboard
         </Link>
         {" · "}
         <Link href={`/leagues/${slug}`} className="app-link" style={{ fontWeight: 500 }}>
@@ -78,121 +85,266 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
         </Link>
       </p>
 
-      <div className="app-card" style={{ marginBottom: 24 }}>
-        <div className="app-card-header">
-          <div style={{ fontSize: 12, color: "var(--color-text-dim)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-            {matchupLabel}
-          </div>
-          <h1 style={{ fontSize: "1.35rem", fontWeight: 700, color: "var(--color-text)", margin: 0 }}>
-            {formatWeekRange(weekStart, weekEnd)}
-          </h1>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isHeadToHead ? "1fr auto 1fr" : "repeat(auto-fill, minmax(200px, 1fr))",
-            gap: isHeadToHead ? 0 : 16,
-            padding: isHeadToHead ? 0 : 20,
-            alignItems: "stretch",
-          }}
-        >
-          {teamData.map((t, idx) => (
-            <Fragment key={t.member.user_id}>
-              {isHeadToHead && idx === 1 && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0 16px",
-                    background: "#fafafa",
-                    borderLeft: "1px solid #e8eaed",
-                    borderRight: "1px solid #e8eaed",
-                  }}
-                >
-                  <span style={{ fontSize: 14, fontWeight: 800, color: "#9aa0a6", letterSpacing: "0.1em" }}>
-                    VS
-                  </span>
-                </div>
-              )}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  padding: isHeadToHead ? 24 : 20,
-                  background: t.isWinner ? "var(--color-success-bg)" : "var(--color-bg-card)",
-                  borderRight: isHeadToHead && idx === 0 ? "1px solid var(--color-border)" : "none",
-                  borderLeft: isHeadToHead && idx === 1 ? "1px solid var(--color-border)" : "none",
-                  position: "relative",
-                  border: !isHeadToHead ? "1px solid var(--color-border)" : undefined,
-                  borderRadius: !isHeadToHead ? "var(--radius-lg)" : 0,
-                }}
-              >
-                {t.isWinner && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 12,
-                      right: 12,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: "#0d7d0d",
-                      background: "#c8e6c9",
-                      padding: "4px 8px",
-                      borderRadius: 6,
-                    }}
-                  >
-                    Winner
-                  </div>
-                )}
-                {t.isBeltHolder && !t.isWinner && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 12,
-                      right: 12,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: "var(--color-blue)",
-                      background: "var(--color-blue-bg)",
-                      padding: "4px 8px",
-                      borderRadius: 6,
-                    }}
-                  >
-                    Belt
-                  </div>
-                )}
-                <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--color-text)", marginBottom: 12, paddingRight: t.isWinner || t.isBeltHolder ? 80 : 0 }}>
-                  {teamLabel(t.member)}
-                </div>
-                <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--color-red)", lineHeight: 1.2, marginBottom: 12 }}>
-                  {t.totalPts}
-                  <span style={{ fontSize: "0.6em", fontWeight: 600, color: "var(--color-text-dim)", marginLeft: 2 }}>pts</span>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: "auto" }}>
-                  {t.breakdown.map((b) => (
-                    <div key={b.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 2 }}>
-                      <span>{b.label}</span>
-                      <span style={{ fontWeight: 600, color: "var(--color-text)" }}>+{b.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Fragment>
-          ))}
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: "1.35rem", fontWeight: 700, color: "var(--color-text)", margin: "0 0 4px 0" }}>
+          Matchup {matchups.findIndex((m) => m.weekStart === weekStart) + 1} ({formatWeekRange(weekStart, weekEnd)})
+        </h1>
+        <div style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
+          Week runs Monday–Sunday. Event points + weekly win (+15) and belt (+5/+4) bonuses.
         </div>
       </div>
 
-      <p style={{ fontSize: 13, color: "#5f6368", margin: 0, lineHeight: 1.5 }}>
-        Event points = your roster’s wrestlers from matches this week. Winner gets +15; Draftastic Championship belt: +5 (win) or +4 (retain). These are added to your league total.
-      </p>
+      {weekMatchups.length === 0 ? (
+        <p style={{ color: "var(--color-text-muted)" }}>No matchups this week.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+          {weekMatchups.map((mu, matchupIdx) => {
+            const teamData = mu.userIds.map((uid) => {
+              const member = memberByUserId[uid];
+              const entries = (rosters[uid] ?? []).slice(0, maxSlots);
+              const byWrestler = pointsByOwnerByWrestler[uid] ?? {};
+              const rosterRows = entries.map((e, i) => ({
+                slot: i + 1,
+                wrestlerId: e.wrestler_id,
+                name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
+                points: byWrestler[e.wrestler_id] ?? 0,
+              }));
+              while (rosterRows.length < maxSlots) {
+                rosterRows.push({
+                  slot: rosterRows.length + 1,
+                  wrestlerId: "",
+                  name: "—",
+                  points: 0,
+                });
+              }
+              return {
+                userId: uid,
+                member,
+                label: member ? teamLabel(member) : "Unknown",
+                total: totalForUser(uid),
+                isWinner: matchup.winnerUserId === uid,
+                isBeltHolder: matchup.beltHolderUserId === uid,
+                rosterRows,
+              };
+            });
 
-      {!matchup.winnerUserId && (
-        <p style={{ marginTop: 16, color: "var(--color-text-muted)", fontSize: 14 }}>
-          No winner this week (no events in range or tie).
-        </p>
+            return (
+              <section
+                key={matchupIdx}
+                className={`matchup-detail-card ${mu.type === "triple" ? "matchup-detail-card--triple" : ""}`}
+                style={{
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-lg)",
+                  overflow: "hidden",
+                  background: "var(--color-bg-card)",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                }}
+              >
+                {/* Header: team names + totals side by side (stacks on mobile for triple) */}
+                <div
+                  className="matchup-detail-header"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      mu.type === "triple"
+                        ? "1fr 1fr 1fr"
+                        : "1fr auto 1fr",
+                    gap: 16,
+                    alignItems: "center",
+                    padding: "20px 20px 16px",
+                    borderBottom: "1px solid var(--color-border)",
+                    background: "var(--color-bg-elevated)",
+                  }}
+                >
+                  {mu.type === "h2h" ? (
+                    <>
+                      <TeamHeaderBlock data={teamData[0]!} />
+                      <div
+                        style={{
+                          textAlign: "center",
+                          fontSize: 14,
+                          fontWeight: 800,
+                          color: "var(--color-text-muted)",
+                          letterSpacing: "0.08em",
+                        }}
+                      >
+                        VS
+                      </div>
+                      <TeamHeaderBlock data={teamData[1]!} />
+                    </>
+                  ) : (
+                    teamData.map((t) => <TeamHeaderBlock key={t.userId} data={t} />)
+                  )}
+                </div>
+
+                {/* Roster breakdown table */}
+                <div
+                  className="matchup-roster-table-wrap"
+                  style={{
+                    overflowX: "auto",
+                    padding: 16,
+                  }}
+                >
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: 14,
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        <th
+                          style={{
+                            padding: "8px 12px",
+                            textAlign: "left",
+                            fontWeight: 600,
+                            color: "var(--color-text-muted)",
+                            background: "#f0f2f5",
+                            width: 48,
+                          }}
+                        >
+                          #
+                        </th>
+                        {teamData.map((t) => (
+                          <th
+                            key={t.userId}
+                            style={{
+                              padding: "8px 12px",
+                              textAlign: "left",
+                              fontWeight: 600,
+                              color: "var(--color-text)",
+                              background: "#f0f2f5",
+                              borderLeft: "1px solid var(--color-border)",
+                            }}
+                          >
+                            {t.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: maxSlots }, (_, rowIdx) => (
+                        <tr
+                          key={rowIdx}
+                          style={{
+                            background: rowIdx % 2 === 0 ? "#fff" : "#f8f9fa",
+                          }}
+                        >
+                          <td
+                            style={{
+                              padding: "8px 12px",
+                              color: "var(--color-text-muted)",
+                              borderBottom: "1px solid var(--color-border)",
+                            }}
+                          >
+                            {rowIdx + 1}
+                          </td>
+                          {teamData.map((t) => {
+                            const row = t.rosterRows[rowIdx];
+                            return (
+                              <td
+                                key={t.userId}
+                                style={{
+                                  padding: "8px 12px",
+                                  borderLeft: "1px solid var(--color-border)",
+                                  borderBottom: "1px solid var(--color-border)",
+                                  color: row?.wrestlerId ? "var(--color-text)" : "var(--color-text-muted)",
+                                }}
+                              >
+                                <span style={{ display: "block" }}>{row?.name ?? "—"}</span>
+                                {row?.wrestlerId && (
+                                  <span
+                                    style={{
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      color: "var(--color-red)",
+                                    }}
+                                  >
+                                    {row.points > 0 ? `+${row.points}` : "0"}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })}
+        </div>
       )}
+
+      <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginTop: 24, lineHeight: 1.5 }}>
+        Event points = roster wrestlers’ points from matches this week. Winner gets +15; Draftastic
+        Championship: +5 (win) or +4 (retain).
+      </p>
     </main>
+  );
+}
+
+function TeamHeaderBlock({
+  data,
+}: {
+  data: {
+    label: string;
+    total: number;
+    isWinner: boolean;
+    isBeltHolder: boolean;
+  };
+}) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 4,
+        }}
+      >
+        <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)" }}>
+          {data.label}
+        </span>
+        {data.isWinner && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--color-success-muted)",
+              background: "var(--color-success-bg)",
+              padding: "2px 6px",
+              borderRadius: 4,
+            }}
+          >
+            Winner
+          </span>
+        )}
+        {data.isBeltHolder && !data.isWinner && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--color-blue)",
+              background: "var(--color-blue-bg)",
+              padding: "2px 6px",
+              borderRadius: 4,
+            }}
+          >
+            Belt
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--color-red)", lineHeight: 1.2 }}>
+        {data.total}
+        <span style={{ fontSize: "0.5em", fontWeight: 600, color: "var(--color-text-dim)", marginLeft: 2 }}>
+          pts
+        </span>
+      </div>
+    </div>
   );
 }

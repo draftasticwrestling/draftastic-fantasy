@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getRosterStintsForLeague, getLeagueScoring } from "@/lib/leagues";
 import { getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { getWeeklyMatchupStructure } from "@/lib/publicLeagueMatchups";
 
 /** Monday of the week containing the given date (YYYY-MM-DD). Weeks are Monday–Sunday. */
 export function getMondayOfWeek(dateStr: string): string {
@@ -80,6 +81,59 @@ export async function getPointsByOwnerForLeagueForWeek(
     }
   }
   return pointsByOwner;
+}
+
+/** Event points per owner per wrestler for a single week (for roster breakdown in matchup view). */
+export async function getPointsByOwnerByWrestlerForWeek(
+  leagueId: string,
+  weekStartMonday: string
+): Promise<Record<string, Record<string, number>>> {
+  const weekEndSunday = getSundayOfWeek(weekStartMonday);
+  const supabase = await createClient();
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("id, start_date, end_date, draft_date")
+    .eq("id", leagueId)
+    .single();
+  if (!league) return {};
+
+  const leagueStart = (league.draft_date || league.start_date) ?? "";
+  const leagueEnd = league.end_date ?? "";
+
+  const { data: events } = await supabase
+    .from("events")
+    .select("id, name, date, matches")
+    .eq("status", "completed")
+    .order("date", { ascending: true });
+
+  const allInRange = (events ?? []).filter((e) => {
+    const d = (e.date ?? "").toString().slice(0, 10);
+    return (!leagueStart || d >= leagueStart) && (!leagueEnd || d <= leagueEnd);
+  });
+  const stints = await getRosterStintsForLeague(leagueId);
+  const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
+  let kotrCarryOver: Record<string, number> = {};
+  for (const event of allInRange) {
+    const eventDate = (event.date ?? "").toString().slice(0, 10);
+    const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
+    const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
+      event,
+      kotrCarryOver
+    );
+    kotrCarryOver = updatedCarryOver;
+    if (!inWeek) continue;
+    for (const stint of stints) {
+      if (eventDate < stint.acquired_at) continue;
+      if (stint.released_at != null && eventDate > stint.released_at) continue;
+      const pts = eventPoints[stint.wrestler_id] ?? 0;
+      if (pts > 0) {
+        if (!pointsByOwnerByWrestler[stint.user_id]) pointsByOwnerByWrestler[stint.user_id] = {};
+        pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] =
+          (pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] ?? 0) + pts;
+      }
+    }
+  }
+  return pointsByOwnerByWrestler;
 }
 
 export type WeeklyMatchupResult = {
@@ -180,6 +234,43 @@ export async function getWeeklyBonusesByOwner(
     }
   }
   return bonuses;
+}
+
+/** One matchup in a week: either H2H (2 teams) or Triple Threat (3 teams). */
+export type WeekMatchup = {
+  type: "h2h" | "triple";
+  userIds: string[];
+};
+
+/**
+ * Assign members to H2H and Triple Threat matchups for a week.
+ * Uses deterministic order (user_id sort). Even N: N/2 H2H. Odd N: 1 triple + (N-3)/2 H2H.
+ */
+export function getMatchupsForWeek(
+  memberUserIds: string[],
+  teamCount: number
+): WeekMatchup[] {
+  const structure = getWeeklyMatchupStructure(teamCount);
+  if (!structure || memberUserIds.length !== teamCount) return [];
+  const sorted = [...memberUserIds].sort((a, b) => a.localeCompare(b));
+  const out: WeekMatchup[] = [];
+  let idx = 0;
+  for (let t = 0; t < structure.numTripleThreat; t++) {
+    out.push({ type: "triple", userIds: sorted.slice(idx, idx + 3) });
+    idx += 3;
+  }
+  for (let h = 0; h < structure.numH2H; h++) {
+    out.push({ type: "h2h", userIds: sorted.slice(idx, idx + 2) });
+    idx += 2;
+  }
+  return out;
+}
+
+/** Week containing today (Monday YYYY-MM-DD) or null if before league start / after end. */
+export function getCurrentWeekStart(leagueStart: string, leagueEnd: string): string | null {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today < leagueStart || today > leagueEnd) return null;
+  return getMondayOfWeek(today);
 }
 
 /** Standings points = event points + weekly win (+15) and belt (+5 win / +4 retain) bonuses. */
