@@ -548,7 +548,11 @@ export type PointsBySlug = Record<string, { rsPoints: number; plePoints: number;
  */
 export async function getLeagueScoring(
   leagueId: string
-): Promise<{ pointsBySlug: PointsBySlug; pointsByOwner: Record<string, number> }> {
+): Promise<{
+  pointsBySlug: PointsBySlug;
+  pointsByOwner: Record<string, number>;
+  pointsByOwnerByWrestler: Record<string, Record<string, number>>;
+}> {
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
@@ -556,11 +560,12 @@ export async function getLeagueScoring(
     .eq("id", leagueId)
     .single();
 
-  if (!league) return { pointsBySlug: {}, pointsByOwner: {} };
+  const empty = { pointsBySlug: {}, pointsByOwner: {}, pointsByOwnerByWrestler: {} };
+  if (!league) return empty;
 
   const start = (league.draft_date || league.start_date) ?? "";
   const end = league.end_date ?? "";
-  if (!start && !end) return { pointsBySlug: {}, pointsByOwner: {} };
+  if (!start && !end) return empty;
 
   const { data: events } = await supabase
     .from("events")
