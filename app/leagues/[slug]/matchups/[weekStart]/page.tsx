@@ -41,6 +41,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   if (!isMember) notFound();
   const matchup = matchups.find((m) => m.weekStart === weekStartDecoded);
   if (!matchup) notFound();
+  const weekMatchup = matchup;
 
   const weekEnd = getSundayOfWeek(weekStartDecoded);
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
@@ -58,10 +59,10 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   );
 
   function totalForUser(userId: string): number {
-    const eventPts = matchup.pointsByUserId[userId] ?? 0;
-    const winBonus = matchup.winnerUserId === userId ? 15 : 0;
+    const eventPts = weekMatchup.pointsByUserId[userId] ?? 0;
+    const winBonus = weekMatchup.winnerUserId === userId ? 15 : 0;
     const beltBonus =
-      matchup.beltHolderUserId === userId ? (matchup.beltRetained ? 4 : 5) : 0;
+      weekMatchup.beltHolderUserId === userId ? (weekMatchup.beltRetained ? 4 : 5) : 0;
     return eventPts + winBonus + beltBonus;
   }
 
@@ -121,8 +122,8 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                 member,
                 label: member ? teamLabel(member) : "Unknown",
                 total: totalForUser(uid),
-                isWinner: matchup.winnerUserId === uid,
-                isBeltHolder: matchup.beltHolderUserId === uid,
+                isWinner: weekMatchup.winnerUserId === uid,
+                isBeltHolder: weekMatchup.beltHolderUserId === uid,
                 rosterRows,
               };
             });
