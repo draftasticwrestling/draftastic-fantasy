@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getRostersForLeagueForWeek } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
@@ -151,21 +151,25 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     weekNumber: idx + 1,
   }));
 
-  const rosters = await getRostersForLeague(league.id);
   const rosterRules = getRosterRulesForLeague(members.length);
   const maxSlots = rosterRules?.rosterSize ?? 12;
 
   let pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let wrestlerNames: Record<string, string> = {};
+  let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
   if (selectedWeekStart) {
-    const [pts, wr] = await Promise.all([
+    const [pts, wr, weekRosters] = await Promise.all([
       getPointsByOwnerByWrestlerForWeek(league.id, selectedWeekStart),
       supabase.from("wrestlers").select("id, name").order("name", { ascending: true }),
+      getRostersForLeagueForWeek(league.id, selectedWeekStart),
     ]);
     pointsByOwnerByWrestler = pts;
     wrestlerNames = Object.fromEntries(
       ((wr.data ?? []) as { id: string; name: string | null }[]).map((w) => [w.id, w.name ?? w.id])
     );
+    rosters = weekRosters;
+  } else {
+    rosters = await getRostersForLeague(league.id);
   }
 
   const matchupForWeek = selectedWeekStart

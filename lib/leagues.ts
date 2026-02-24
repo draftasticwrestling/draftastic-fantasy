@@ -407,6 +407,36 @@ export async function getRosterStintsForLeague(
   }));
 }
 
+/** Sunday of the week (weekStart is Monday YYYY-MM-DD). */
+function getSundayOfWeek(weekStart: string): string {
+  const d = new Date(weekStart + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 6);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Roster as of a specific week (Monday–Sunday). Used for matchup/scoreboard so we show
+ * who was on each team that week, not current roster. Wrestler counts if acquired_at <= weekEnd
+ * and (released_at is null or released_at >= weekStart). Ordered by acquired_at per user.
+ */
+export async function getRostersForLeagueForWeek(
+  leagueId: string,
+  weekStartMonday: string
+): Promise<Record<string, LeagueRosterEntry[]>> {
+  const weekEndSunday = getSundayOfWeek(weekStartMonday);
+  const stints = await getRosterStintsForLeague(leagueId);
+  const byUser: Record<string, LeagueRosterEntry[]> = {};
+  for (const s of stints) {
+    const acquired = s.acquired_at;
+    const released = s.released_at;
+    if (acquired > weekEndSunday) continue;
+    if (released != null && released < weekStartMonday) continue;
+    if (!byUser[s.user_id]) byUser[s.user_id] = [];
+    byUser[s.user_id].push({ wrestler_id: s.wrestler_id, contract: s.contract });
+  }
+  return byUser;
+}
+
 /** Normalize wrestler gender to F/M for roster rules. */
 function normalizeWrestlerGender(g: string | null | undefined): "F" | "M" | null {
   if (g == null || typeof g !== "string") return null;

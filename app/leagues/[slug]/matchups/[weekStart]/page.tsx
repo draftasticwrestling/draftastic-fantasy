@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeagueForWeek } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
@@ -33,7 +33,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   const [members, matchups, rosters, pointsByOwnerByWrestler, wrestlersRows] = await Promise.all([
     getLeagueMembers(league.id),
     getLeagueWeeklyMatchups(league.id),
-    getRostersForLeague(league.id),
+    getRostersForLeagueForWeek(league.id, weekStartDecoded),
     getPointsByOwnerByWrestlerForWeek(league.id, weekStartDecoded),
     supabase.from("wrestlers").select("id, name").order("name", { ascending: true }),
   ]);
