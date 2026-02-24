@@ -173,34 +173,40 @@ export async function getLeagueWeeklyMatchups(
   const weeks = getWeeksInRange(start, end);
   const results: WeeklyMatchupResult[] = [];
   let beltHolder: string | null = null;
+  const today = new Date().toISOString().slice(0, 10);
 
   for (const weekStart of weeks) {
     const weekEnd = getSundayOfWeek(weekStart);
     const pointsByUserId = await getPointsByOwnerForLeagueForWeek(leagueId, weekStart);
-    const userIds = Object.keys(pointsByUserId);
-    const maxPoints = Math.max(0, ...Object.values(pointsByUserId));
-    const winners = userIds.filter((id) => pointsByUserId[id] === maxPoints && maxPoints > 0);
-    const winnerUserId = winners.length === 1 ? winners[0]! : null;
+    const weekNotOver = today <= weekEnd;
 
+    let winnerUserId: string | null = null;
     let beltHolderUserId: string | null = null;
     let beltRetained = false;
     let beltPoints = 0;
     let weeklyWinPoints = 0;
 
-    if (winnerUserId) {
-      weeklyWinPoints = WEEKLY_WIN_BONUS;
-      if (beltHolder === null) {
-        beltHolderUserId = winnerUserId;
-        beltHolder = winnerUserId;
-        beltPoints = BELT_WIN_POINTS;
-      } else if (beltHolder === winnerUserId) {
-        beltHolderUserId = winnerUserId;
-        beltRetained = true;
-        beltPoints = BELT_RETAIN_POINTS;
-      } else {
-        beltHolderUserId = winnerUserId;
-        beltHolder = winnerUserId;
-        beltPoints = BELT_WIN_POINTS;
+    if (!weekNotOver) {
+      const userIds = Object.keys(pointsByUserId);
+      const maxPoints = Math.max(0, ...Object.values(pointsByUserId));
+      const winners = userIds.filter((id) => pointsByUserId[id] === maxPoints && maxPoints > 0);
+      winnerUserId = winners.length === 1 ? winners[0]! : null;
+
+      if (winnerUserId) {
+        weeklyWinPoints = WEEKLY_WIN_BONUS;
+        if (beltHolder === null) {
+          beltHolderUserId = winnerUserId;
+          beltHolder = winnerUserId;
+          beltPoints = BELT_WIN_POINTS;
+        } else if (beltHolder === winnerUserId) {
+          beltHolderUserId = winnerUserId;
+          beltRetained = true;
+          beltPoints = BELT_RETAIN_POINTS;
+        } else {
+          beltHolderUserId = winnerUserId;
+          beltHolder = winnerUserId;
+          beltPoints = BELT_WIN_POINTS;
+        }
       }
     }
 
