@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -43,9 +44,12 @@ export default function Nav() {
   const [leagues, setLeagues] = useState<LeagueItem[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
   const [leagueSwitcherOpen, setLeagueSwitcherOpen] = useState(false);
+  const [hoverPrimary, setHoverPrimary] = useState<"my-team" | "league" | "wrestlers" | "draft" | "gm-tools" | null>(null);
   const [lastVisitedSlug, setLastVisitedSlug] = useState<string | null>(null);
   const adminRef = useRef<HTMLDivElement>(null);
   const leagueSwitcherRef = useRef<HTMLDivElement>(null);
+  const leagueSwitcherButtonRef = useRef<HTMLButtonElement>(null);
+  const [leaguePanelRect, setLeaguePanelRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -108,12 +112,36 @@ export default function Nav() {
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (adminRef.current && !adminRef.current.contains(e.target as Node)) setAdminOpen(false);
-      if (leagueSwitcherRef.current && !leagueSwitcherRef.current.contains(e.target as Node)) setLeagueSwitcherOpen(false);
+      const target = e.target as Node;
+      if (adminRef.current && !adminRef.current.contains(target)) setAdminOpen(false);
+      const leagueWrap = leagueSwitcherRef.current;
+      const leaguePanel = document.getElementById("nav-league-switcher-panel");
+      const clickedInsideLeague = leagueWrap?.contains(target) || leaguePanel?.contains(target);
+      if (!clickedInsideLeague) setLeagueSwitcherOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!leagueSwitcherOpen) {
+      setLeaguePanelRect(null);
+      return;
+    }
+    const btn = leagueSwitcherButtonRef.current;
+    if (!btn) return;
+    const updateRect = () => {
+      const r = btn.getBoundingClientRect();
+      setLeaguePanelRect({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 160) });
+    };
+    updateRect();
+    window.addEventListener("scroll", updateRect, true);
+    window.addEventListener("resize", updateRect);
+    return () => {
+      window.removeEventListener("scroll", updateRect, true);
+      window.removeEventListener("resize", updateRect);
+    };
+  }, [leagueSwitcherOpen]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -236,53 +264,74 @@ export default function Nav() {
       </header>
 
       {showLowerBar && currentLeagueSlug && (
-        <>
+        <div
+          className="nav-lower-bar"
+          onMouseLeave={() => setHoverPrimary(null)}
+        >
           <nav className="nav-primary-wrap" aria-label="League">
             <ul className="nav-primary-list">
               <li>
-                <div className="nav-dropdown-wrap" ref={leagueSwitcherRef} style={{ position: "relative", zIndex: leagueSwitcherOpen ? 101 : undefined }}>
+                <div className="nav-dropdown-wrap" ref={leagueSwitcherRef}>
                   <button
+                    ref={leagueSwitcherButtonRef}
                     type="button"
                     className="nav-dropdown-trigger nav-primary-link"
                     style={{ border: "none", background: "none", cursor: "pointer", font: "inherit", color: "inherit" }}
-                    onClick={() => setLeagueSwitcherOpen((o) => !o)}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setLeagueSwitcherOpen((o) => !o);
+                    }}
                     aria-expanded={leagueSwitcherOpen}
                     aria-haspopup="true"
                     aria-label="Switch league"
                   >
                     {currentLeague?.name ?? currentLeagueSlug} ▾
                   </button>
-                  {leagueSwitcherOpen && (
-                    <div className="nav-dropdown-panel">
-                      {leagues.map((l) => (
-                        <Link
-                          key={l.slug}
-                          href={`/leagues/${l.slug}`}
-                          onClick={() => {
-                            setLeagueSwitcherOpen(false);
-                            try {
-                              localStorage.setItem(LAST_LEAGUE_KEY, l.slug);
-                            } catch {
-                              /* ignore */
-                            }
-                          }}
-                        >
-                          {l.name}
-                          {l.role === "commissioner" ? " (GM)" : ""}
-                        </Link>
-                      ))}
-                      <Link
-                        href="/leagues/new"
-                        className="nav-dropdown-panel-new"
-                        onClick={() => setLeagueSwitcherOpen(false)}
+                  {leagueSwitcherOpen &&
+                    leaguePanelRect &&
+                    typeof document !== "undefined" &&
+                    createPortal(
+                      <div
+                        id="nav-league-switcher-panel"
+                        className="nav-dropdown-panel nav-dropdown-panel-portal"
+                        style={{
+                          position: "fixed",
+                          top: leaguePanelRect.top,
+                          left: leaguePanelRect.left,
+                          width: leaguePanelRect.width,
+                          minWidth: 160,
+                        }}
                       >
-                        + Start Another League
-                      </Link>
-                    </div>
-                  )}
+                        {leagues.map((l) => (
+                          <Link
+                            key={l.slug}
+                            href={`/leagues/${l.slug}`}
+                            onClick={() => {
+                              setLeagueSwitcherOpen(false);
+                              try {
+                                localStorage.setItem(LAST_LEAGUE_KEY, l.slug);
+                              } catch {
+                                /* ignore */
+                              }
+                            }}
+                          >
+                            {l.name}
+                            {l.role === "commissioner" ? " (GM)" : ""}
+                          </Link>
+                        ))}
+                        <Link
+                          href="/leagues/new"
+                          className="nav-dropdown-panel-new"
+                          onClick={() => setLeagueSwitcherOpen(false)}
+                        >
+                          + Start Another League
+                        </Link>
+                      </div>,
+                      document.body
+                    )}
                 </div>
               </li>
-              <li>
+              <li onMouseEnter={() => setHoverPrimary("my-team")}>
                 <Link
                   href={rosterHref}
                   className={`nav-primary-link ${activePrimary === "my-team" ? "is-active" : ""}`}
@@ -290,7 +339,7 @@ export default function Nav() {
                   My Team
                 </Link>
               </li>
-              <li>
+              <li onMouseEnter={() => setHoverPrimary("league")}>
                 <Link
                   href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "#"}
                   className={`nav-primary-link ${activePrimary === "league" ? "is-active" : ""}`}
@@ -298,7 +347,7 @@ export default function Nav() {
                   League
                 </Link>
               </li>
-              <li>
+              <li onMouseEnter={() => setHoverPrimary("wrestlers")}>
                 <Link
                   href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers/league-leaders` : "#"}
                   className={`nav-primary-link ${activePrimary === "wrestlers" ? "is-active" : ""}`}
@@ -314,7 +363,7 @@ export default function Nav() {
                   Matchups
                 </Link>
               </li>
-              <li>
+              <li onMouseEnter={() => setHoverPrimary("draft")}>
                 <Link
                   href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/draft` : "#"}
                   className={`nav-primary-link ${activePrimary === "draft" ? "is-active" : ""}`}
@@ -323,7 +372,7 @@ export default function Nav() {
                 </Link>
               </li>
               {isCommissioner && (
-                <li>
+                <li onMouseEnter={() => setHoverPrimary("gm-tools")}>
                   <Link
                     href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/notify-league` : "#"}
                     className={`nav-primary-link ${activePrimary === "gm-tools" ? "is-active" : ""}`}
@@ -342,7 +391,7 @@ export default function Nav() {
 
           <nav className="nav-secondary-wrap" aria-label="Section">
             <ul className="nav-secondary-list">
-              {activePrimary === "my-team" &&
+              {(hoverPrimary ?? activePrimary) === "my-team" &&
                 myTeamSub.map(({ href, label }) => {
                   const isActive = pathname === href || pathname.startsWith(href + "/");
                   return (
@@ -353,7 +402,7 @@ export default function Nav() {
                     </li>
                   );
                 })}
-              {activePrimary === "league" &&
+              {(hoverPrimary ?? activePrimary) === "league" &&
                 leagueSub.map(({ href, label }) => {
                   const isActive = pathname === href || pathname.startsWith(href + "/");
                   const isLeagueHome = href === `/leagues/${currentLeagueSlug}`;
@@ -366,7 +415,7 @@ export default function Nav() {
                     </li>
                   );
                 })}
-              {activePrimary === "draft" &&
+              {(hoverPrimary ?? activePrimary) === "draft" &&
                 draftSub.map(({ href, label }) => {
                   const isActive = href === `/leagues/${currentLeagueSlug}/draft`
                     ? pathname === href || pathname === `${href}/`
@@ -379,7 +428,7 @@ export default function Nav() {
                     </li>
                   );
                 })}
-              {activePrimary === "gm-tools" &&
+              {(hoverPrimary ?? activePrimary) === "gm-tools" &&
                 gmSub.map(({ href, label }) => {
                   const isActive = pathname === href || pathname.startsWith(href + "/");
                   return (
@@ -390,12 +439,12 @@ export default function Nav() {
                     </li>
                   );
                 })}
-              {activePrimary === "matchups" && (
+              {(hoverPrimary ?? activePrimary) === "matchups" && (
                 <li>
                   <span className="nav-secondary-context">Matchups</span>
                 </li>
               )}
-              {activePrimary === "wrestlers" &&
+              {(hoverPrimary ?? activePrimary) === "wrestlers" &&
                 wrestlersSub.map(({ href, label }) => {
                   const isActive = pathname === href || pathname.startsWith(href + "/");
                   return (
@@ -406,14 +455,14 @@ export default function Nav() {
                     </li>
                   );
                 })}
-              {!activePrimary && showLowerBar && (
+              {!(hoverPrimary ?? activePrimary) && showLowerBar && (
                 <li>
                   <span className="nav-secondary-context">League</span>
                 </li>
               )}
             </ul>
           </nav>
-        </>
+        </div>
       )}
     </>
   );

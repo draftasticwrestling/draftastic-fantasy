@@ -411,6 +411,10 @@ body {
   padding-top: 8px !important;
 }
 
+.nav-dropdown-panel-portal {
+  z-index: 1000;
+}
+
 @media (max-width: 768px) {
   .nav-header-brand-full {
     display: none;
