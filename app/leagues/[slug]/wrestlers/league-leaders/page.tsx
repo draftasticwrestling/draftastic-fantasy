@@ -20,7 +20,12 @@ function firstMonthEndOnOrAfter(startDate: string): string {
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 
-const FALLBACK_LEAGUE_START_DATE = "2025-05-02";
+/** When league has no start_date, use created_at date so we don't pull in old season events (e.g. May 2025). */
+function getEffectiveLeagueStartDate(league: { start_date: string | null; created_at?: string }): string {
+  if (league.start_date) return league.start_date;
+  if (league.created_at) return league.created_at.slice(0, 10);
+  return "2025-05-02";
+}
 
 type ChampionshipReign = {
   champion_slug?: string | null;
@@ -60,7 +65,7 @@ export default async function LeagueLeadersPage({
     redirect("/leagues");
   }
 
-  const startDate = league.start_date ?? FALLBACK_LEAGUE_START_DATE;
+  const startDate = getEffectiveLeagueStartDate(league);
 
   const [
     { data: wrestlers, error },
