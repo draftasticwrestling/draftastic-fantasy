@@ -18,13 +18,26 @@ export type WrestlerRow = {
   personaDisplay?: string | null;
 };
 
+/** Roster categories used for filter checkboxes. Order matches display. */
+const ROSTER_CATEGORIES = [
+  { value: "Raw", label: "Raw" },
+  { value: "SmackDown", label: "SmackDown" },
+  { value: "NXT", label: "NXT" },
+  { value: "Front Office", label: "Front Office" },
+  { value: "Celebrity Guests", label: "Celebrity Guests" },
+  { value: "Alumni", label: "Alumni" },
+  { value: "Unassigned", label: "Unassigned" },
+  { value: "Other", label: "Other" },
+] as const;
+
 const ROSTER_ORDER = [
   "Raw",
   "SmackDown",
   "NXT",
+  "Front Office",
   "Celebrity Guests",
-  "Managers",
   "Alumni",
+  "Unassigned",
   "Other",
 ] as const;
 
@@ -32,34 +45,27 @@ const BRAND_STYLES: Record<string, { bg: string; showBg: string; label: string }
   Raw: { bg: "#8B1538", showBg: "#6B0F2A", label: "RAW" },
   SmackDown: { bg: "#0A2463", showBg: "#071A4A", label: "SD" },
   NXT: { bg: "#2C2C2C", showBg: "#1a1a1a", label: "NXT" },
+  "Front Office": { bg: "#4a4a4a", showBg: "#3a3a3a", label: "FRONT OFFICE" },
   "Celebrity Guests": { bg: "#3d3d3d", showBg: "#2d2d2d", label: "CELEBRITY" },
-  Managers: { bg: "#3d3d3d", showBg: "#2d2d2d", label: "MANAGERS" },
   Alumni: { bg: "#3d3d3d", showBg: "#2d2d2d", label: "ALUMNI" },
+  Unassigned: { bg: "#5c5c5c", showBg: "#4c4c4c", label: "UNASSIGNED" },
   Other: { bg: "#3d3d3d", showBg: "#2d2d2d", label: "OTHER" },
 };
 
+/** Map raw brand string to a filter category. */
 function normalizeRoster(brand: string | null): string {
-  if (!brand || !brand.trim()) return "Other";
+  if (!brand || !brand.trim()) return "Unassigned";
   const lower = brand.trim().toLowerCase();
   if (lower === "raw") return "Raw";
   if (lower === "smackdown" || lower === "smack down") return "SmackDown";
   if (lower === "nxt") return "NXT";
   if (lower === "celebrity guests" || lower === "celebrity" || lower === "celebrity guest") return "Celebrity Guests";
-  if (lower === "managers" || lower === "manager") return "Managers";
   if (lower === "alumni") return "Alumni";
+  if (lower === "managers" || lower === "manager") return "Front Office";
+  if (lower === "gm" || lower === "gms") return "Front Office";
+  if (lower === "head of creative") return "Front Office";
+  if (lower === "announcers" || lower === "announcer") return "Front Office";
   return "Other";
-}
-
-/** Exclude Head of Creative, GMs, Managers, Announcers & Alumni from the draft/free agent table. */
-function isExcludedFromPool(brand: string | null): boolean {
-  if (!brand || !brand.trim()) return false;
-  const lower = brand.trim().toLowerCase();
-  if (lower === "managers" || lower === "manager") return true;
-  if (lower === "gm" || lower === "gms") return true;
-  if (lower === "head of creative") return true;
-  if (lower === "announcers" || lower === "announcer") return true;
-  if (lower === "alumni") return true;
-  return false;
 }
 
 function normalizeGender(g: string | null): string {
@@ -173,19 +179,23 @@ const thBase = {
   fontSize: "13px",
 } as const;
 
-const SHOW_OPTIONS: { value: string; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "Raw", label: "RAW" },
-  { value: "SmackDown", label: "SmackDown" },
-  { value: "NXT", label: "NXT" },
-  { value: "Other", label: "Other" },
-];
+const ALL_ROSTER_VALUES = ROSTER_CATEGORIES.map((c) => c.value);
 
-export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }) {
-  const [sortColumn, setSortColumn] = useState<SortColumn>("roster");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+type WrestlerListProps = {
+  wrestlers: WrestlerRow[];
+  /** Default sort column (e.g. "totalPoints" for League Leaders view). */
+  defaultSortColumn?: SortColumn;
+  /** Default sort direction. */
+  defaultSortDir?: SortDir;
+};
+
+export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", defaultSortDir = "asc" }: WrestlerListProps) {
+  const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
+  const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
   const [search, setSearch] = useState("");
-  const [showFilter, setShowFilter] = useState("all");
+  const [includedRosters, setIncludedRosters] = useState<Set<string>>(
+    () => new Set(["Raw", "SmackDown"])
+  );
 
   const handleSort = (col: SortColumn) => {
     if (col === sortColumn) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -195,8 +205,20 @@ export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }
     }
   };
 
+  const toggleRoster = (value: string) => {
+    setIncludedRosters((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  };
+
+  const selectAllRosters = () => setIncludedRosters(new Set(ALL_ROSTER_VALUES));
+  const clearAllRosters = () => setIncludedRosters(new Set());
+
   const filteredAndSorted = useMemo(() => {
-    let list = wrestlers.filter((w) => !isExcludedFromPool(w.brand));
+    let list = wrestlers.filter((w) => includedRosters.has(normalizeRoster(w.brand)));
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -205,38 +227,47 @@ export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }
           (w.id ?? "").toLowerCase().includes(q)
       );
     }
-    if (showFilter !== "all") {
-      list = list.filter((w) => normalizeRoster(w.brand) === showFilter);
-    }
     list.sort((a, b) => {
       const cmp = compare(a, b, sortColumn, sortDir);
       return cmp !== 0 ? cmp : byName(a, b);
     });
     return list;
-  }, [wrestlers, sortColumn, sortDir, search, showFilter]);
+  }, [wrestlers, sortColumn, sortDir, search, includedRosters]);
 
   const flatList = filteredAndSorted;
-  const poolCount = wrestlers.filter((w) => !isExcludedFromPool(w.brand)).length;
+  const totalCount = wrestlers.length;
 
   const tableMinWidth = HEADER_CONFIG.reduce((sum, h) => sum + h.minW, 0);
 
   return (
     <>
-      {/* Toolbar: Filter, Show, Search, Reset */}
+      {/* Toolbar: Roster checkboxes, Search, Reset */}
       <div className="wrestler-list-toolbar">
-        <div className="wrestler-list-filter-row">
-          <label htmlFor="wrestler-show">Show</label>
-          <select
-            id="wrestler-show"
-            value={showFilter}
-            onChange={(e) => setShowFilter(e.target.value)}
-          >
-            {SHOW_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+        <div className="wrestler-list-roster-filters">
+          <span className="wrestler-list-roster-label">Include:</span>
+          <div className="wrestler-list-roster-checkboxes" role="group" aria-label="Filter by roster">
+            {ROSTER_CATEGORIES.map(({ value, label }) => (
+              <label key={value} className="wrestler-list-roster-check">
+                <input
+                  type="checkbox"
+                  checked={includedRosters.has(value)}
+                  onChange={() => toggleRoster(value)}
+                  aria-label={`Include ${label}`}
+                />
+                <span>{label}</span>
+              </label>
             ))}
-          </select>
+          </div>
+          <div className="wrestler-list-roster-actions">
+            <button type="button" className="wrestler-list-reset" onClick={selectAllRosters}>
+              All
+            </button>
+            <button type="button" className="wrestler-list-reset" onClick={clearAllRosters}>
+              None
+            </button>
+          </div>
+        </div>
+        <div className="wrestler-list-filter-row">
           <label htmlFor="wrestler-search">Search</label>
           <div className="wrestler-list-search-wrap">
             <span className="wrestler-list-search-icon" aria-hidden>⌕</span>
@@ -255,10 +286,10 @@ export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }
           className="wrestler-list-reset"
           onClick={() => {
             setSearch("");
-            setShowFilter("all");
+            selectAllRosters();
           }}
         >
-          Reset All
+          Reset filters
         </button>
       </div>
 
@@ -562,10 +593,10 @@ export default function WrestlerList({ wrestlers }: { wrestlers: WrestlerRow[] }
       )}
 
       <p className="wrestler-list-footer" style={{ marginTop: 24, color: "#666" }}>
-        {search || showFilter !== "all" ? (
-          <>Showing {flatList.length} of {poolCount} wrestlers.</>
+        {search || includedRosters.size < ALL_ROSTER_VALUES.length ? (
+          <>Showing {flatList.length} of {totalCount} wrestlers.</>
         ) : (
-          <>Total: {poolCount} wrestlers.</>
+          <>Total: {totalCount} wrestlers.</>
         )}{" "}
         Use this pool when building your draft. Images from Pro Wrestling Boxscore (Supabase).
       </p>

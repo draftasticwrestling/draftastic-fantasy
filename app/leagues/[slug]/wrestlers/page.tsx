@@ -1,15 +1,10 @@
-import UnderConstruction from "@/app/components/UnderConstruction";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Wrestlers — Draftastic Fantasy",
-  description: "Draft-eligible wrestlers for this league",
-};
-
-export default async function WrestlersPage({
+export default async function WrestlersIndexPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <UnderConstruction title="Wrestlers" leagueSlug={slug} />;
+  redirect(`/leagues/${slug}/wrestlers/league-leaders`);
 }

@@ -166,6 +166,11 @@ export default function Nav() {
         { href: `/leagues/${currentLeagueSlug}/pending-trades`, label: "Pending Trades" },
       ]
     : [];
+  const wrestlersSub = currentLeagueSlug
+    ? [
+        { href: `/leagues/${currentLeagueSlug}/wrestlers/league-leaders`, label: "League Leaders" },
+      ]
+    : [];
 
   const showLowerBar = user && leagues.length > 0;
 
@@ -287,7 +292,7 @@ export default function Nav() {
               </li>
               <li>
                 <Link
-                  href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers` : "#"}
+                  href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers/league-leaders` : "#"}
                   className={`nav-primary-link ${activePrimary === "wrestlers" ? "is-active" : ""}`}
                 >
                   Wrestlers
@@ -382,11 +387,17 @@ export default function Nav() {
                   <span className="nav-secondary-context">Matchups</span>
                 </li>
               )}
-              {activePrimary === "wrestlers" && (
-                <li>
-                  <span className="nav-secondary-context">Wrestlers</span>
-                </li>
-              )}
+              {activePrimary === "wrestlers" &&
+                wrestlersSub.map(({ href, label }) => {
+                  const isActive = pathname === href || pathname.startsWith(href + "/");
+                  return (
+                    <li key={href}>
+                      <Link href={href} className={`nav-secondary-link ${isActive ? "is-active" : ""}`}>
+                        {label}
+                      </Link>
+                    </li>
+                  );
+                })}
               {!activePrimary && showLowerBar && (
                 <li>
                   <span className="nav-secondary-context">League</span>

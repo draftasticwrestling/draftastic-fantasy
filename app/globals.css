@@ -578,13 +578,60 @@ body {
   border-bottom-color: var(--color-red);
 }
 
-/* Wrestler list filters (Filter dropdown, Search, Reset) */
+/* Wrestler list filters (Roster checkboxes, Search, Reset) */
 .wrestler-list-toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px 20px;
   margin-bottom: 16px;
+}
+
+.wrestler-list-roster-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.wrestler-list-roster-label {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.wrestler-list-roster-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.wrestler-list-roster-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wrestler-list-roster-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-blue);
+  cursor: pointer;
+}
+
+.wrestler-list-roster-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .wrestler-list-filter-row {
