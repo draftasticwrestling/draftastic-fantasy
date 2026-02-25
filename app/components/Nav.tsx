@@ -180,7 +180,7 @@ export default function Nav() {
       <header className="nav-header">
         <Link href="/" className="nav-header-brand-wrap">
           <img src="/draftastic_belt_logo.png" alt="" className="nav-header-logo" />
-          <span className="nav-header-brand nav-header-brand-full">Draftastic Pro Wrestling Fantasy</span>
+          <span className="nav-header-brand nav-header-brand-full">Draftastic Fantasy Pro Wrestling</span>
           <span className="nav-header-brand nav-header-brand-short" aria-hidden>Draftastic</span>
         </Link>
 
@@ -239,42 +239,49 @@ export default function Nav() {
         <>
           <nav className="nav-primary-wrap" aria-label="League">
             <ul className="nav-primary-list">
-              {leagues.length >= 2 && (
-                <li>
-                  <div className="nav-dropdown-wrap" ref={leagueSwitcherRef}>
-                    <button
-                      type="button"
-                      className="nav-primary-link"
-                      style={{ border: "none", background: "none", cursor: "pointer", font: "inherit" }}
-                      onClick={() => setLeagueSwitcherOpen((o) => !o)}
-                      aria-expanded={leagueSwitcherOpen}
-                    >
-                      {currentLeague?.name ?? currentLeagueSlug} ▾
-                    </button>
-                    {leagueSwitcherOpen && (
-                      <div className="nav-dropdown-panel">
-                        {leagues.map((l) => (
-                          <Link
-                            key={l.slug}
-                            href={`/leagues/${l.slug}`}
-                            onClick={() => {
-                              setLeagueSwitcherOpen(false);
-                              try {
-                                localStorage.setItem(LAST_LEAGUE_KEY, l.slug);
-                              } catch {
-                                /* ignore */
-                              }
-                            }}
-                          >
-                            {l.name}
-                            {l.role === "commissioner" ? " (GM)" : ""}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </li>
-              )}
+              <li>
+                <div className="nav-dropdown-wrap" ref={leagueSwitcherRef} style={{ position: "relative", zIndex: leagueSwitcherOpen ? 101 : undefined }}>
+                  <button
+                    type="button"
+                    className="nav-dropdown-trigger nav-primary-link"
+                    style={{ border: "none", background: "none", cursor: "pointer", font: "inherit", color: "inherit" }}
+                    onClick={() => setLeagueSwitcherOpen((o) => !o)}
+                    aria-expanded={leagueSwitcherOpen}
+                    aria-haspopup="true"
+                    aria-label="Switch league"
+                  >
+                    {currentLeague?.name ?? currentLeagueSlug} ▾
+                  </button>
+                  {leagueSwitcherOpen && (
+                    <div className="nav-dropdown-panel">
+                      {leagues.map((l) => (
+                        <Link
+                          key={l.slug}
+                          href={`/leagues/${l.slug}`}
+                          onClick={() => {
+                            setLeagueSwitcherOpen(false);
+                            try {
+                              localStorage.setItem(LAST_LEAGUE_KEY, l.slug);
+                            } catch {
+                              /* ignore */
+                            }
+                          }}
+                        >
+                          {l.name}
+                          {l.role === "commissioner" ? " (GM)" : ""}
+                        </Link>
+                      ))}
+                      <Link
+                        href="/leagues/new"
+                        className="nav-dropdown-panel-new"
+                        onClick={() => setLeagueSwitcherOpen(false)}
+                      >
+                        + Start Another League
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </li>
               <li>
                 <Link
                   href={rosterHref}

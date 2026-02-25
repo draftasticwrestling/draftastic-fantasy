@@ -405,6 +405,12 @@ body {
   color: var(--color-blue);
 }
 
+.nav-dropdown-panel-new {
+  border-top: 1px solid var(--color-border);
+  margin-top: 4px;
+  padding-top: 8px !important;
+}
+
 @media (max-width: 768px) {
   .nav-header-brand-full {
     display: none;
