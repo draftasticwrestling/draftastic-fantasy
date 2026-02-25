@@ -6,9 +6,17 @@ import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   computeEndOfMonthBeltPoints,
-  FIRST_END_OF_MONTH_POINTS_DATE,
   inferReignsFromEvents,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+
+/** First month-end eligible for belt points when using "since league start" (last day of the month that contains startDate). */
+function firstMonthEndOnOrAfter(startDate: string): string {
+  const d = new Date(startDate + "T12:00:00");
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const lastDay = new Date(year, month + 1, 0);
+  return lastDay.toISOString().slice(0, 10);
+}
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 
@@ -97,7 +105,9 @@ export default async function LeagueLeadersPage({
   const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart ?? []);
   const points2025BySlug = aggregateWrestlerPoints(events2025 ?? []);
   const points2026BySlug = aggregateWrestlerPoints(events2026 ?? []);
-  const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
+  // Only award end-of-month belt points for month-ends on or after league start (e.g. league started 2/20/26 → first eligible month-end is 2/28/26; current month excluded until passed).
+  const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
+  const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
 
   const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
   const rows = wrestlersFiltered.map((w) => {
