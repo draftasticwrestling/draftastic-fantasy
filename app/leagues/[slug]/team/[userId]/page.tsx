@@ -26,7 +26,10 @@ import { RosterTable } from "../../RosterTable";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ slug: string; userId: string }> };
+type Props = {
+  params: Promise<{ slug: string; userId: string }>;
+  searchParams?: Promise<{ proposeTradeTo?: string }>;
+};
 
 export async function generateMetadata({ params }: Props) {
   try {
@@ -45,8 +48,10 @@ export async function generateMetadata({ params }: Props) {
   }
 }
 
-export default async function TeamUserIdPage({ params }: Props) {
+export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const { slug, userId } = await params;
+  const sp = searchParams ? await searchParams : {};
+  const proposeTradeTo = typeof sp.proposeTradeTo === "string" ? sp.proposeTradeTo.trim() : undefined;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
@@ -247,7 +252,7 @@ export default async function TeamUserIdPage({ params }: Props) {
             myRosterWrestlers={rosterWrestlers}
             otherMembers={otherMembers.map((m) => ({
               id: m.user_id,
-              name: m.display_name?.trim() ?? "Unknown",
+              name: (m.team_name?.trim() || m.display_name?.trim()) ?? "Unknown",
             }))}
             otherRosters={Object.fromEntries(
               otherMembers.map((m) => [
@@ -256,6 +261,7 @@ export default async function TeamUserIdPage({ params }: Props) {
               ])
             )}
             wrestlerNames={wrestlerNamesMap}
+            initialToUserId={proposeTradeTo}
           />
         )}
       </section>

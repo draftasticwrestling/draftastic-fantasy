@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
@@ -72,6 +72,8 @@ export default async function LeagueLeadersPage({
     { data: eventsSinceStart },
     { data: events2025 },
     { data: events2026 },
+    rosters,
+    members,
   ] = await Promise.all([
     supabase
       .from("wrestlers")
@@ -97,7 +99,19 @@ export default async function LeagueLeadersPage({
       .gte("date", "2026-01-01")
       .lte("date", "2026-12-31")
       .order("date", { ascending: true }),
+    getRostersForLeague(league.id),
+    getLeagueMembers(league.id),
   ]);
+
+  const memberByUserId = Object.fromEntries((members ?? []).map((m) => [m.user_id, m]));
+  const rosterByWrestler: Record<string, { ownerName: string; ownerUserId: string }> = {};
+  for (const [uid, entries] of Object.entries(rosters ?? {})) {
+    const ownerName =
+      (memberByUserId[uid]?.team_name?.trim() || memberByUserId[uid]?.display_name?.trim()) || "Owner";
+    for (const e of entries) {
+      rosterByWrestler[e.wrestler_id] = { ownerName, ownerUserId: uid };
+    }
+  }
 
   const { data: rawReigns } = await supabase
     .from("championship_history")
@@ -177,6 +191,8 @@ export default async function LeagueLeadersPage({
           wrestlers={rows}
           defaultSortColumn="totalPoints"
           defaultSortDir="desc"
+          leagueSlug={slug}
+          rosterByWrestler={rosterByWrestler}
         />
       )}
     </main>

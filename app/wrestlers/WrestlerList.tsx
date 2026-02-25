@@ -227,15 +227,28 @@ const POINTS_PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
   { value: "2026", label: "2026" },
 ];
 
+/** When provided, Status column shows owner name + propose-trade for rostered wrestlers. */
+export type RosterOwnerInfo = { ownerName: string; ownerUserId: string };
+
 type WrestlerListProps = {
   wrestlers: WrestlerRow[];
   /** Default sort column (e.g. "totalPoints" for League Leaders view). */
   defaultSortColumn?: SortColumn;
   /** Default sort direction. */
   defaultSortDir?: SortDir;
+  /** League slug for "propose trade" links (e.g. League Leaders in a league context). */
+  leagueSlug?: string | null;
+  /** Wrestler id -> owner info. When set, Status shows owner name + propose trade for rostered; else FA + add/flag. */
+  rosterByWrestler?: Record<string, RosterOwnerInfo> | null;
 };
 
-export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", defaultSortDir = "asc" }: WrestlerListProps) {
+export default function WrestlerList({
+  wrestlers,
+  defaultSortColumn = "roster",
+  defaultSortDir = "asc",
+  leagueSlug,
+  rosterByWrestler,
+}: WrestlerListProps) {
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
   const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
   const [search, setSearch] = useState("");
@@ -580,50 +593,87 @@ export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", 
                     )}
                   </td>
                   <td style={{ minWidth: 96, padding: "8px", textAlign: "center", ...cellStyle }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>FA</div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                      <Link
-                        href={`/wrestlers/${encodeURIComponent(w.id)}`}
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
-                          background: "var(--color-blue)",
-                          color: "#fff",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          textDecoration: "none",
-                          fontWeight: 700,
-                          fontSize: 18,
-                          lineHeight: 1,
-                        }}
-                        title="View / Add wrestler"
-                        aria-label={`View ${w.name || w.id}`}
-                      >
-                        +
-                      </Link>
-                      <button
-                        type="button"
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
-                          background: "transparent",
-                          border: "1px solid " + BORDER_TABLE,
-                          color: "var(--color-text)",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 14,
-                        }}
-                        title="Add to watch list"
-                        aria-label="Add to watch list"
-                      >
-                        ⚑
-                      </button>
-                    </div>
+                    {rosterByWrestler?.[w.id] ? (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>
+                          {rosterByWrestler[w.id].ownerName}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                          {leagueSlug && (
+                            <Link
+                              href={`/leagues/${encodeURIComponent(leagueSlug)}/team?proposeTradeTo=${encodeURIComponent(rosterByWrestler[w.id].ownerUserId)}`}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: "50%",
+                                background: "transparent",
+                                border: "1px solid " + BORDER_TABLE,
+                                color: "var(--color-text)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                textDecoration: "none",
+                              }}
+                              title="Propose trade"
+                              aria-label={`Propose trade with ${rosterByWrestler[w.id].ownerName}`}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                <path d="M11 4L8 7L11 10" />
+                                <path d="M5 12L8 9L5 6" />
+                                <path d="M8 3v10" />
+                              </svg>
+                            </Link>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>FA</div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                          <Link
+                            href={`/wrestlers/${encodeURIComponent(w.id)}`}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              background: "var(--color-blue)",
+                              color: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              textDecoration: "none",
+                              fontWeight: 700,
+                              fontSize: 18,
+                              lineHeight: 1,
+                            }}
+                            title="View / Add wrestler"
+                            aria-label={`View ${w.name || w.id}`}
+                          >
+                            +
+                          </Link>
+                          <button
+                            type="button"
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              background: "transparent",
+                              border: "1px solid " + BORDER_TABLE,
+                              color: "var(--color-text)",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 14,
+                            }}
+                            title="Add to watch list"
+                            aria-label="Add to watch list"
+                          >
+                            ⚑
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </td>
                   <td style={{ minWidth: 68, padding: "10px 8px", textAlign: "center", ...cellStyle }}>
                     {normalizeGender(w.gender)}

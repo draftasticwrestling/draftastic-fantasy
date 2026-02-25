@@ -11,14 +11,17 @@ export function ProposeTradeForm({
   otherMembers,
   otherRosters,
   wrestlerNames,
+  initialToUserId,
 }: {
   leagueSlug: string;
   myRosterWrestlers: Wrestler[];
   otherMembers: { id: string; name: string }[];
   otherRosters: Record<string, string[]>;
   wrestlerNames: Record<string, string>;
+  /** Pre-select this owner (e.g. from League Leaders "Propose trade" link). */
+  initialToUserId?: string;
 }) {
-  const [toUserId, setToUserId] = useState("");
+  const [toUserId, setToUserId] = useState(initialToUserId ?? "");
   const [giveIds, setGiveIds] = useState<string[]>([]);
   const [receiveIds, setReceiveIds] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();

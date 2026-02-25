@@ -20,7 +20,15 @@ export async function generateMetadata({ params }: Props) {
   }
 }
 
-export default async function TeamPage({ params }: Props) {
+type SearchParams = Promise<{ proposeTradeTo?: string }>;
+
+export default async function TeamPage({
+  params,
+  searchParams,
+}: {
+  params: Props["params"];
+  searchParams?: SearchParams;
+}) {
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
@@ -33,5 +41,9 @@ export default async function TeamPage({ params }: Props) {
   const isMember = members.some((m) => m.user_id === user.id);
   if (!isMember) notFound();
 
-  redirect(`/leagues/${slug}/team/${encodeURIComponent(user.id)}`);
+  const sp = searchParams ? await searchParams : {};
+  const proposeTradeTo = typeof sp.proposeTradeTo === "string" ? sp.proposeTradeTo.trim() : undefined;
+  const base = `/leagues/${slug}/team/${encodeURIComponent(user.id)}`;
+  const url = proposeTradeTo ? `${base}?proposeTradeTo=${encodeURIComponent(proposeTradeTo)}` : base;
+  redirect(url);
 }
