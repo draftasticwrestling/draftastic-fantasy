@@ -606,9 +606,9 @@ export default function WrestlerList({
                                 width: 32,
                                 height: 32,
                                 borderRadius: "50%",
-                                background: "transparent",
-                                border: "1px solid " + BORDER_TABLE,
-                                color: "var(--color-text)",
+                                background: "#e5e5e5",
+                                border: "none",
+                                color: "#fff",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -618,9 +618,8 @@ export default function WrestlerList({
                               aria-label={`Propose trade with ${rosterByWrestler[w.id].ownerName}`}
                             >
                               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                <path d="M11 4L8 7L11 10" />
-                                <path d="M5 12L8 9L5 6" />
-                                <path d="M8 3v10" />
+                                <path d="M12 6L6 8l6 2" />
+                                <path d="M4 6l6 2-6 2" />
                               </svg>
                             </Link>
                           )}
