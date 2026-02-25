@@ -14,9 +14,21 @@ export type WrestlerRow = {
   plePoints?: number;
   beltPoints?: number;
   totalPoints?: number;
+  /** Points for 2025 only (when points period filter is used). */
+  rsPoints2025?: number;
+  plePoints2025?: number;
+  beltPoints2025?: number;
+  totalPoints2025?: number;
+  /** Points for 2026 only (when points period filter is used). */
+  rsPoints2026?: number;
+  plePoints2026?: number;
+  beltPoints2026?: number;
+  totalPoints2026?: number;
   /** Alter-ego persona text, e.g. "Also: El Grande Americano (from Jun 2025)" */
   personaDisplay?: string | null;
 };
+
+export type PointsPeriod = "sinceStart" | "2025" | "2026";
 
 /** Roster categories used for filter checkboxes. Order matches display. */
 const ROSTER_CATEGORIES = [
@@ -93,6 +105,32 @@ function byName(a: WrestlerRow, b: WrestlerRow) {
   return na.localeCompare(nb);
 }
 
+/** Get effective point values for display/sort based on selected period. */
+function getPointsForPeriod(w: WrestlerRow, period: PointsPeriod) {
+  if (period === "2025") {
+    return {
+      rsPoints: w.rsPoints2025 ?? 0,
+      plePoints: w.plePoints2025 ?? 0,
+      beltPoints: w.beltPoints2025 ?? 0,
+      totalPoints: w.totalPoints2025 ?? 0,
+    };
+  }
+  if (period === "2026") {
+    return {
+      rsPoints: w.rsPoints2026 ?? 0,
+      plePoints: w.plePoints2026 ?? 0,
+      beltPoints: w.beltPoints2026 ?? 0,
+      totalPoints: w.totalPoints2026 ?? 0,
+    };
+  }
+  return {
+    rsPoints: w.rsPoints ?? 0,
+    plePoints: w.plePoints ?? 0,
+    beltPoints: w.beltPoints ?? 0,
+    totalPoints: w.totalPoints ?? 0,
+  };
+}
+
 export type SortColumn =
   | "roster"
   | "name"
@@ -104,7 +142,9 @@ export type SortColumn =
   | "totalPoints";
 type SortDir = "asc" | "desc";
 
-function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir): number {
+function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, period: PointsPeriod = "sinceStart"): number {
+  const pa = getPointsForPeriod(a, period);
+  const pb = getPointsForPeriod(b, period);
   let out = 0;
   switch (col) {
     case "roster": {
@@ -132,16 +172,16 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir):
       break;
     }
     case "rsPoints":
-      out = (a.rsPoints ?? 0) - (b.rsPoints ?? 0);
+      out = pa.rsPoints - pb.rsPoints;
       break;
     case "plePoints":
-      out = (a.plePoints ?? 0) - (b.plePoints ?? 0);
+      out = pa.plePoints - pb.plePoints;
       break;
     case "beltPoints":
-      out = (a.beltPoints ?? 0) - (b.beltPoints ?? 0);
+      out = pa.beltPoints - pb.beltPoints;
       break;
     case "totalPoints":
-      out = (a.totalPoints ?? 0) - (b.totalPoints ?? 0);
+      out = pa.totalPoints - pb.totalPoints;
       break;
   }
   return dir === "asc" ? out : -out;
@@ -181,6 +221,12 @@ const thBase = {
 
 const ALL_ROSTER_VALUES = ROSTER_CATEGORIES.map((c) => c.value);
 
+const POINTS_PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
+  { value: "sinceStart", label: "Since League Start" },
+  { value: "2025", label: "2025" },
+  { value: "2026", label: "2026" },
+];
+
 type WrestlerListProps = {
   wrestlers: WrestlerRow[];
   /** Default sort column (e.g. "totalPoints" for League Leaders view). */
@@ -196,6 +242,8 @@ export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", 
   const [includedRosters, setIncludedRosters] = useState<Set<string>>(
     () => new Set(["Raw", "SmackDown"])
   );
+  const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("sinceStart");
+  const hasPointsPeriodFilter = wrestlers.length > 0 && "totalPoints2025" in wrestlers[0];
 
   const handleSort = (col: SortColumn) => {
     if (col === sortColumn) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -228,11 +276,11 @@ export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", 
       );
     }
     list.sort((a, b) => {
-      const cmp = compare(a, b, sortColumn, sortDir);
+      const cmp = compare(a, b, sortColumn, sortDir, pointsPeriod);
       return cmp !== 0 ? cmp : byName(a, b);
     });
     return list;
-  }, [wrestlers, sortColumn, sortDir, search, includedRosters]);
+  }, [wrestlers, sortColumn, sortDir, search, includedRosters, pointsPeriod]);
 
   const flatList = filteredAndSorted;
   const totalCount = wrestlers.length;
@@ -267,6 +315,23 @@ export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", 
             </button>
           </div>
         </div>
+        {hasPointsPeriodFilter && (
+          <div className="wrestler-list-filter-row">
+            <label htmlFor="wrestler-points-period">Points</label>
+            <select
+              id="wrestler-points-period"
+              value={pointsPeriod}
+              onChange={(e) => setPointsPeriod(e.target.value as PointsPeriod)}
+              aria-label="Points period"
+            >
+              {POINTS_PERIOD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="wrestler-list-filter-row">
           <label htmlFor="wrestler-search">Search</label>
           <div className="wrestler-list-search-wrap">
@@ -299,6 +364,7 @@ export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", 
           const roster = normalizeRoster(w.brand);
           const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
           const age = calculateAge(w.dob);
+          const pts = getPointsForPeriod(w, pointsPeriod);
           return (
             <Link
               key={w.id}
@@ -324,8 +390,8 @@ export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", 
                 <span className="wrestler-card-name">{w.name || w.id}</span>
                 <span className="wrestler-card-meta">
                   {normalizeGender(w.gender)} · {age != null ? age : "—"} yrs
-                  {(typeof w.totalPoints === "number" && w.totalPoints > 0) && (
-                    <> · {w.totalPoints} pts</>
+                  {pts.totalPoints > 0 && (
+                    <> · {pts.totalPoints} pts</>
                   )}
                 </span>
               </div>
@@ -407,6 +473,7 @@ export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", 
               const roster = normalizeRoster(w.brand);
               const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
               const age = calculateAge(w.dob);
+              const pts = getPointsForPeriod(w, pointsPeriod);
               const rowBg = rowIndex % 2 === 0 ? ROW_BG_MAIN : ROW_BG_ALT;
               const cellBorder = "1px solid " + BORDER_TABLE;
               const cellStyle = { borderBottom: cellBorder, borderRight: cellBorder, color: "#1a1a1a", background: rowBg };
@@ -565,16 +632,16 @@ export default function WrestlerList({ wrestlers, defaultSortColumn = "roster", 
                     {age != null ? age : "—"}
                   </td>
                   <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
-                    {typeof w.rsPoints === "number" ? w.rsPoints : "—"}
+                    {pts.rsPoints}
                   </td>
                   <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
-                    {typeof w.plePoints === "number" ? w.plePoints : "—"}
+                    {pts.plePoints}
                   </td>
                   <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
-                    {typeof w.beltPoints === "number" ? w.beltPoints : "—"}
+                    {pts.beltPoints}
                   </td>
                   <td style={{ minWidth: 80, padding: "10px 8px", textAlign: "center", fontWeight: 700, ...cellStyle }}>
-                    {typeof w.totalPoints === "number" ? w.totalPoints : "—"}
+                    {pts.totalPoints}
                   </td>
                   <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", ...cellStyle, borderRight: "none" }}>
                     —

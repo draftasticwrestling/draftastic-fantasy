@@ -54,7 +54,12 @@ export default async function LeagueLeadersPage({
 
   const startDate = league.start_date ?? FALLBACK_LEAGUE_START_DATE;
 
-  const [{ data: wrestlers, error }, { data: events }] = await Promise.all([
+  const [
+    { data: wrestlers, error },
+    { data: eventsSinceStart },
+    { data: events2025 },
+    { data: events2026 },
+  ] = await Promise.all([
     supabase
       .from("wrestlers")
       .select("id, name, gender, brand, image_url, dob")
@@ -65,6 +70,20 @@ export default async function LeagueLeadersPage({
       .eq("status", "completed")
       .gte("date", startDate)
       .order("date", { ascending: true }),
+    supabase
+      .from("events")
+      .select("id, name, date, matches")
+      .eq("status", "completed")
+      .gte("date", "2025-01-01")
+      .lte("date", "2025-12-31")
+      .order("date", { ascending: true }),
+    supabase
+      .from("events")
+      .select("id, name, date, matches")
+      .eq("status", "completed")
+      .gte("date", "2026-01-01")
+      .lte("date", "2026-12-31")
+      .order("date", { ascending: true }),
   ]);
 
   const { data: rawReigns } = await supabase
@@ -72,15 +91,19 @@ export default async function LeagueLeadersPage({
     .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
     .order("won_date", { ascending: true });
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
-  const inferredReigns = inferReignsFromEvents(events ?? []);
+  const inferredReigns = inferReignsFromEvents(eventsSinceStart ?? []);
   const reigns = tableReigns.length > 0 ? tableReigns : inferredReigns;
 
-  const pointsBySlug = aggregateWrestlerPoints(events ?? []);
+  const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart ?? []);
+  const points2025BySlug = aggregateWrestlerPoints(events2025 ?? []);
+  const points2026BySlug = aggregateWrestlerPoints(events2026 ?? []);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
 
   const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
   const rows = wrestlersFiltered.map((w) => {
     const points = pointsBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
+    const points2025 = points2025BySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
+    const points2026 = points2026BySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
     const extraBelt =
@@ -100,6 +123,14 @@ export default async function LeagueLeadersPage({
       plePoints: points.plePoints,
       beltPoints,
       totalPoints,
+      rsPoints2025: points2025.rsPoints,
+      plePoints2025: points2025.plePoints,
+      beltPoints2025: points2025.beltPoints,
+      totalPoints2025: points2025.rsPoints + points2025.plePoints + points2025.beltPoints,
+      rsPoints2026: points2026.rsPoints,
+      plePoints2026: points2026.plePoints,
+      beltPoints2026: points2026.beltPoints,
+      totalPoints2026: points2026.rsPoints + points2026.plePoints + points2026.beltPoints,
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
     };
   });
