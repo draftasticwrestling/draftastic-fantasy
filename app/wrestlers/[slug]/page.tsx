@@ -462,7 +462,7 @@ export default async function WrestlerProfilePage({
                   <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
                     <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{formatDate(row.date)}</td>
                     <td style={{ padding: "8px 12px" }}>
-                      <Link href={`/results/${row.eventId}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
+                      <Link href={`/event-results/${row.eventId}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
                         {row.eventName}
                       </Link>
                       {row.personaName && (

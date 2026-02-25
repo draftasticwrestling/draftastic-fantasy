@@ -150,7 +150,7 @@ export default function HowItWorksPage() {
       </section>
 
       <p style={{ marginTop: 24 }}>
-        <Link href="/score">Scored Events</Link> to see points in action, or open any <Link href="/">completed event</Link> from the list to view the full breakdown per wrestler.
+        <Link href="/event-results">Event Results</Link> to see points in action, or open any <Link href="/">completed event</Link> from the list to view the full breakdown per wrestler.
       </p>
     </main>
   );

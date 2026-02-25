@@ -92,7 +92,7 @@ export default async function LeaguesPage() {
                 {league.name}
               </Link>
               <span style={{ marginLeft: 8, fontSize: 14, color: "#666" }}>
-                {league.role === "commissioner" ? "(Commissioner)" : ""}
+                {league.role === "commissioner" ? "(GM)" : ""}
               </span>
               {(league.start_date || league.end_date) && (
                 <div style={{ fontSize: 14, color: "#666", marginTop: 4 }}>

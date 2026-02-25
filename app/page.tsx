@@ -59,10 +59,10 @@ export default async function HomePage() {
           <div className="home-panel">
             <h2>Quick links</h2>
             <ul className="home-quick-links">
-              <li><Link href="/wrestlers">Wrestlers</Link> — draft-eligible pool and roster rules</li>
-              <li><Link href="/score">Scored Events</Link> — fantasy scoring for completed events</li>
-              <li><Link href="/mvl">MVL Example</Link> — roadmap and rules for private leagues</li>
-              <li><Link href="/league/teams">Legacy League</Link> — original format with multi-year contracts</li>
+              <li><Link href="/event-results">Event Results</Link> — fantasy scoring for completed events</li>
+              <li><Link href="/how-it-works">How it works</Link> — scoring rules and event types</li>
+              <li><Link href="/about-us">About Us</Link> · <Link href="/contact-us">Contact Us</Link></li>
+              <li>Admin menu: <Link href="/league/teams">Legacy League</Link>, <Link href="/mvl">MVL Example</Link></li>
             </ul>
           </div>
           <p style={{ marginTop: 24, color: "var(--color-text-dim)", fontSize: 14 }}>
@@ -121,7 +121,7 @@ export default async function HomePage() {
                   {league.name}
                 </Link>
                 <span style={{ marginLeft: 8, fontSize: 14, color: "var(--color-text-dim)" }}>
-                  {league.role === "commissioner" ? "(Commissioner)" : ""}
+                  {league.role === "commissioner" ? "(GM)" : ""}
                 </span>
                 {(league.start_date || league.end_date) && (
                   <div style={{ fontSize: 14, color: "var(--color-text-muted)", marginTop: 4 }}>
@@ -161,8 +161,7 @@ export default async function HomePage() {
         <ul className="home-quick-links">
           <li><Link href="/leagues">Private Leagues</Link> — manage and view all your leagues</li>
           <li><Link href="/how-it-works">How it works</Link> — scoring rules and event types</li>
-          <li><Link href="/wrestlers">Wrestlers</Link> — draft pool and roster rules</li>
-          <li><Link href="/score">Scored Events</Link> — fantasy scoring for completed events</li>
+          <li><Link href="/event-results">Event Results</Link> — fantasy scoring for completed events</li>
           <li><Link href="/account">Account</Link> — profile and settings</li>
         </ul>
       </div>
