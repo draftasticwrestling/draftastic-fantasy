@@ -187,10 +187,15 @@ export default async function WrestlerProfilePage({
     .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
     .order("won_date", { ascending: true });
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
-  const inferredReigns = inferReignsFromEvents(events ?? []);
+  const eventsWithDate = (events ?? []).filter((e): e is typeof e & { date: string } => e.date != null);
+  const inferredReigns = inferReignsFromEvents(
+    eventsWithDate as { date: string; matches?: Array<{ title?: string; titleOutcome?: string; result?: string; participants?: string }> }[]
+  );
   const reigns = tableReigns.length > 0 ? tableReigns : inferredReigns;
 
-  const pointsBySlug = aggregateWrestlerPoints(events ?? []);
+  const pointsBySlug = aggregateWrestlerPoints(
+    (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
+  );
   const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, firstMonthEnd);
   const nameKey = wrestler.name ? normalizeWrestlerName(wrestler.name) : "";
   const extraBelt =
