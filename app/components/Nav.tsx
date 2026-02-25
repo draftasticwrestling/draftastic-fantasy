@@ -49,6 +49,8 @@ export default function Nav() {
   const adminRef = useRef<HTMLDivElement>(null);
   const leagueSwitcherRef = useRef<HTMLDivElement>(null);
   const leagueSwitcherButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [leaguePanelRect, setLeaguePanelRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   useEffect(() => {
@@ -118,6 +120,7 @@ export default function Nav() {
       const leaguePanel = document.getElementById("nav-league-switcher-panel");
       const clickedInsideLeague = leagueWrap?.contains(target) || leaguePanel?.contains(target);
       if (!clickedInsideLeague) setLeagueSwitcherOpen(false);
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(target)) setMobileMenuOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -203,16 +206,18 @@ export default function Nav() {
 
   const showLowerBar = user && leagues.length > 0;
 
+  const closeMobileMenu = () => setMobileMenuOpen(false);
+
   return (
     <>
-      <header className="nav-header">
-        <Link href="/" className="nav-header-brand-wrap">
+      <header className="nav-header" ref={mobileMenuRef}>
+        <Link href="/" className="nav-header-brand-wrap" onClick={closeMobileMenu}>
           <img src="/draftastic_belt_logo.png" alt="" className="nav-header-logo" />
           <span className="nav-header-brand nav-header-brand-full">Draftastic Fantasy Pro Wrestling</span>
           <span className="nav-header-brand nav-header-brand-short" aria-hidden>Draftastic</span>
         </Link>
 
-        <nav className="nav-top-links" aria-label="Site">
+        <nav className="nav-top-links nav-top-links-desk" aria-label="Site">
           <div className="nav-dropdown-wrap" ref={adminRef}>
             <button
               type="button"
@@ -243,7 +248,17 @@ export default function Nav() {
           <Link href="/contact-us" className="nav-top-link">Contact Us</Link>
         </nav>
 
-        <div className="nav-header-actions">
+        <button
+          type="button"
+          className="nav-mobile-menu-btn"
+          onClick={() => setMobileMenuOpen((o) => !o)}
+          aria-expanded={mobileMenuOpen}
+          aria-label="Open menu"
+        >
+          <span className="nav-mobile-menu-icon" aria-hidden />
+        </button>
+
+        <div className="nav-header-actions nav-header-actions-desk">
           {user ? (
             <>
               <Link href="/account" className="nav-header-link" title={user.email ?? undefined}>
@@ -261,6 +276,57 @@ export default function Nav() {
             </>
           )}
         </div>
+
+        {mobileMenuOpen && (
+          <div className="nav-mobile-panel" role="dialog" aria-label="Site menu">
+          <nav className="nav-mobile-panel-inner" aria-label="Site">
+            <Link href="/" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              Home
+            </Link>
+            {ADMIN_LINKS.map(({ href, label }) => (
+              <Link key={href} href={href} className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+                {label}
+              </Link>
+            ))}
+            <Link href="/leagues/new" className="nav-mobile-panel-cta" onClick={closeMobileMenu}>
+              +Create a League
+            </Link>
+            <Link href="/how-it-works" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              How It Works
+            </Link>
+            <Link href="/event-results" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              Event Results
+            </Link>
+            <Link href="/about-us" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              About Us
+            </Link>
+            <Link href="/contact-us" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              Contact Us
+            </Link>
+          </nav>
+          <div className="nav-mobile-panel-actions">
+            {user ? (
+              <>
+                <Link href="/account" className="nav-mobile-panel-link" onClick={closeMobileMenu} title={user.email ?? undefined}>
+                  {profile?.display_name?.trim() || user.email || "Signed in"}
+                </Link>
+                <button type="button" onClick={() => { handleSignOut(); closeMobileMenu(); }} className="nav-mobile-panel-btn">
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/auth/sign-in" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+                  Sign in
+                </Link>
+                <Link href="/auth/sign-up" className="nav-mobile-panel-cta" onClick={closeMobileMenu}>
+                  Sign up
+                </Link>
+              </>
+            )}
+          </div>
+          </div>
+        )}
       </header>
 
       {showLowerBar && currentLeagueSlug && (
