@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
 export type PointsPeriod = "allTime" | "2025" | "2026" | "sinceStart";
@@ -11,6 +12,8 @@ const PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
   { value: "sinceStart", label: "Since League Start" },
 ];
 
+const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
+
 type Props = {
   currentPeriod: PointsPeriod;
   leagueSlug: string | null;
@@ -19,12 +22,31 @@ type Props = {
 export function WrestlerPointsPeriodSelector({ currentPeriod, leagueSlug }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const didAutoLeague = useRef(false);
+
+  useEffect(() => {
+    if (currentPeriod !== "sinceStart" || leagueSlug || didAutoLeague.current) return;
+    try {
+      const last = typeof window !== "undefined" ? localStorage.getItem(LAST_LEAGUE_KEY) : null;
+      if (last && last.trim()) {
+        didAutoLeague.current = true;
+        const params = new URLSearchParams();
+        params.set("period", "sinceStart");
+        params.set("league", last.trim());
+        router.replace(`${pathname}?${params.toString()}`);
+      }
+    } catch {
+      // ignore
+    }
+  }, [currentPeriod, leagueSlug, pathname, router]);
 
   function handleChange(period: PointsPeriod) {
     const params = new URLSearchParams();
     params.set("period", period);
-    if (period === "sinceStart" && leagueSlug) params.set("league", leagueSlug);
-    if (period !== "sinceStart" && leagueSlug) params.set("league", leagueSlug); // keep league in URL when switching back
+    const leagueToUse = period === "sinceStart"
+      ? (leagueSlug || (typeof window !== "undefined" ? localStorage.getItem(LAST_LEAGUE_KEY) : null)?.trim() || null)
+      : leagueSlug;
+    if (leagueToUse) params.set("league", leagueToUse);
     const q = params.toString();
     router.push(q ? `${pathname}?${q}` : pathname);
   }
