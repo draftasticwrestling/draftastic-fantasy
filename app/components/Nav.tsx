@@ -120,7 +120,10 @@ export default function Nav() {
       const leaguePanel = document.getElementById("nav-league-switcher-panel");
       const clickedInsideLeague = leagueWrap?.contains(target) || leaguePanel?.contains(target);
       if (!clickedInsideLeague) setLeagueSwitcherOpen(false);
-      if (mobileMenuRef.current && !mobileMenuRef.current.contains(target)) setMobileMenuOpen(false);
+      const mobilePanel = document.getElementById("nav-mobile-panel");
+      const inMobilePanel = mobilePanel?.contains(target);
+      const inHeader = mobileMenuRef.current?.contains(target);
+      if (!inHeader && !inMobilePanel) setMobileMenuOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -211,7 +214,7 @@ export default function Nav() {
   return (
     <>
       <header className="nav-header" ref={mobileMenuRef}>
-        <Link href="/" className="nav-header-brand-wrap" onClick={closeMobileMenu}>
+        <Link href="/" className="nav-header-brand-wrap">
           <img src="/draftastic_belt_logo.png" alt="" className="nav-header-logo" />
           <span className="nav-header-brand nav-header-brand-full">Draftastic Fantasy Pro Wrestling</span>
           <span className="nav-header-brand nav-header-brand-short" aria-hidden>Draftastic</span>
@@ -253,9 +256,13 @@ export default function Nav() {
           className="nav-mobile-menu-btn"
           onClick={() => setMobileMenuOpen((o) => !o)}
           aria-expanded={mobileMenuOpen}
-          aria-label="Open menu"
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
         >
-          <span className="nav-mobile-menu-icon" aria-hidden />
+          <svg className="nav-mobile-menu-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
         </button>
 
         <div className="nav-header-actions nav-header-actions-desk">
@@ -277,8 +284,13 @@ export default function Nav() {
           )}
         </div>
 
-        {mobileMenuOpen && (
-          <div className="nav-mobile-panel" role="dialog" aria-label="Site menu">
+        {mobileMenuOpen && typeof document !== "undefined" && createPortal(
+          <div
+            id="nav-mobile-panel"
+            className="nav-mobile-panel"
+            role="dialog"
+            aria-label="Site menu"
+          >
           <nav className="nav-mobile-panel-inner" aria-label="Site">
             <Link href="/" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               Home
@@ -325,7 +337,8 @@ export default function Nav() {
               </>
             )}
           </div>
-          </div>
+          </div>,
+          document.body
         )}
       </header>
 
