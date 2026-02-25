@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getLeagueBySlug } from "@/lib/leagues";
 import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
 import type { ScoredEvent } from "@/lib/scoring/types";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
@@ -13,8 +14,49 @@ import {
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
+import { WrestlerPointsPeriodSelector, type PointsPeriod } from "./WrestlerPointsPeriodSelector";
 
-const LEAGUE_START_DATE = "2025-05-02";
+const EVENTS_FROM_DATE = "2020-01-01";
+
+function firstMonthEndOnOrAfter(startDate: string): string {
+  const d = new Date(startDate + "T12:00:00");
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const lastDay = new Date(year, month + 1, 0);
+  return lastDay.toISOString().slice(0, 10);
+}
+
+function getEffectiveLeagueStartDate(league: { start_date: string | null; created_at?: string }): string {
+  if (league.start_date) return league.start_date;
+  if (league.created_at) return league.created_at.slice(0, 10);
+  return "2025-05-02";
+}
+
+function filterEventsByPeriod(
+  events: { id: string; name: string | null; date: string | null; matches: unknown }[],
+  period: PointsPeriod,
+  leagueStartDate: string | null
+): { id: string; name: string | null; date: string | null; matches: unknown }[] {
+  if (period === "allTime") return events;
+  if (period === "2025") return events.filter((e) => e.date && e.date >= "2025-01-01" && e.date <= "2025-12-31");
+  if (period === "2026") return events.filter((e) => e.date && e.date >= "2026-01-01" && e.date <= "2026-12-31");
+  if (period === "sinceStart") return leagueStartDate ? events.filter((e) => e.date && e.date >= leagueStartDate) : [];
+  return events;
+}
+
+function getFirstMonthEndForPeriod(period: PointsPeriod, leagueStartDate: string | null): string {
+  if (period === "sinceStart" && leagueStartDate) return firstMonthEndOnOrAfter(leagueStartDate);
+  if (period === "2025") return "2025-01-31";
+  if (period === "2026") return "2026-01-31";
+  return FIRST_END_OF_MONTH_POINTS_DATE;
+}
+
+function getPeriodLabel(period: PointsPeriod): string {
+  if (period === "allTime") return "all-time";
+  if (period === "2025") return "2025";
+  if (period === "2026") return "2026";
+  return "since league start";
+}
 const BOXSCORE_WRESTLER_BASE = "https://prowrestlingboxscore.com/wrestlers";
 
 type ChampionshipReign = {
@@ -78,10 +120,24 @@ export async function generateMetadata({
 
 export default async function WrestlerProfilePage({
   params,
+  searchParams: searchParamsPromise,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ period?: string; league?: string }>;
 }) {
   const { slug } = await params;
+  const searchParams = searchParamsPromise ? await searchParamsPromise : {};
+  const periodParam = (searchParams.period ?? "").trim() as PointsPeriod | "";
+  const leagueSlugParam = (searchParams.league ?? "").trim() || null;
+
+  const league = leagueSlugParam ? await getLeagueBySlug(leagueSlugParam) : null;
+  const leagueStartDate = league ? getEffectiveLeagueStartDate(league) : null;
+  const currentPeriod: PointsPeriod =
+    periodParam && (periodParam === "allTime" || periodParam === "2025" || periodParam === "2026" || periodParam === "sinceStart")
+      ? periodParam
+      : leagueSlugParam
+        ? "sinceStart"
+        : "allTime";
 
   const { data: wrestler, error: wrestlerError } = await supabase
     .from("wrestlers")
@@ -95,7 +151,7 @@ export default async function WrestlerProfilePage({
     .from("events")
     .select("id, name, date, matches")
     .eq("status", "completed")
-    .gte("date", LEAGUE_START_DATE)
+    .gte("date", EVENTS_FROM_DATE)
     .order("date", { ascending: true });
 
   const knownEventIds = ["raw-20250714-1753144554675"];
@@ -120,9 +176,11 @@ export default async function WrestlerProfilePage({
       .in("id", toFetchKotr);
     kotrPriorEvents = (res.data ?? []) as typeof kotrPriorEvents;
   }
-  const events = [...(eventsBase ?? []), ...extra, ...kotrPriorEvents].sort(
+  const allEvents = [...(eventsBase ?? []), ...extra, ...kotrPriorEvents].sort(
     (a, b) => (a.date ?? "").localeCompare(b.date ?? "")
   );
+  const events = filterEventsByPeriod(allEvents, currentPeriod, leagueStartDate);
+  const firstMonthEnd = getFirstMonthEndForPeriod(currentPeriod, leagueStartDate);
 
   const { data: rawReigns } = await supabase
     .from("championship_history")
@@ -133,7 +191,7 @@ export default async function WrestlerProfilePage({
   const reigns = tableReigns.length > 0 ? tableReigns : inferredReigns;
 
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
-  const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
+  const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, firstMonthEnd);
   const nameKey = wrestler.name ? normalizeWrestlerName(wrestler.name) : "";
   const extraBelt =
     (typeof endOfMonthBySlug[slug] === "number" ? endOfMonthBySlug[slug] : null) ??
@@ -144,7 +202,7 @@ export default async function WrestlerProfilePage({
   const beltPoints = points.beltPoints + extraBelt;
   const totalPoints = points.rsPoints + points.plePoints + beltPoints;
 
-  const titleReigns = getTitleReignsForWrestler(reigns, FIRST_END_OF_MONTH_POINTS_DATE, slug);
+  const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEnd, slug);
 
   const { data: wrestlersList } = await supabase.from("wrestlers").select("id, name");
   const slugToCanonical = new Map<string, string>();
@@ -390,7 +448,10 @@ export default async function WrestlerProfilePage({
       </section>
 
       <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: 12 }}>Points (since league start)</h2>
+        <WrestlerPointsPeriodSelector currentPeriod={currentPeriod} leagueSlug={leagueSlugParam} />
+        <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: 12 }}>
+          Points ({getPeriodLabel(currentPeriod)})
+        </h2>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
           <div style={{ padding: "12px 20px", background: "#f5f5f5", borderRadius: 8 }}>
             <span style={{ color: "#666", fontSize: 14 }}>R/S Points</span>

@@ -381,7 +381,7 @@ export default function WrestlerList({
           return (
             <Link
               key={w.id}
-              href={`/wrestlers/${encodeURIComponent(w.id)}`}
+              href={`/wrestlers/${encodeURIComponent(w.id)}${leagueSlug ? `?league=${encodeURIComponent(leagueSlug)}` : ""}`}
               className="wrestler-card"
             >
               <span
@@ -581,7 +581,7 @@ export default function WrestlerList({
                     }}
                   >
                     <Link
-                      href={`/wrestlers/${encodeURIComponent(w.id)}`}
+                      href={`/wrestlers/${encodeURIComponent(w.id)}${leagueSlug ? `?league=${encodeURIComponent(leagueSlug)}` : ""}`}
                       style={{ color: "var(--color-blue)", textDecoration: "none" }}
                     >
                       {w.name || w.id}
@@ -631,7 +631,7 @@ export default function WrestlerList({
                         <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>FA</div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                           <Link
-                            href={`/wrestlers/${encodeURIComponent(w.id)}`}
+                            href={`/wrestlers/${encodeURIComponent(w.id)}${leagueSlug ? `?league=${encodeURIComponent(leagueSlug)}` : ""}`}
                             style={{
                               width: 32,
                               height: 32,
