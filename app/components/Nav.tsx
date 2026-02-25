@@ -133,7 +133,7 @@ export default function Nav() {
         { href: `/leagues/${currentLeagueSlug}/standings`, label: "Standings" },
         { href: `/leagues/${currentLeagueSlug}/team-stats`, label: "Team Stats" },
         { href: `/leagues/${currentLeagueSlug}/transactions`, label: "Transactions" },
-        { href: `/leagues/${currentLeagueSlug}/free-agents`, label: "Free Agents" },
+        { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
         { href: `/leagues/${currentLeagueSlug}/watchlist`, label: "Watchlist" },
         { href: `/leagues/${currentLeagueSlug}/team-log`, label: "Team Log" },
         { href: `/leagues/${currentLeagueSlug}/edit-team-info`, label: "Edit Team Info" },
@@ -169,6 +169,7 @@ export default function Nav() {
   const wrestlersSub = currentLeagueSlug
     ? [
         { href: `/leagues/${currentLeagueSlug}/wrestlers/league-leaders`, label: "League Leaders" },
+        { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
       ]
     : [];
 
