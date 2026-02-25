@@ -177,19 +177,22 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   )}
                 </div>
 
-                {/* Roster breakdown table */}
+                {/* Roster breakdown table (horizontal scroll on mobile so columns aren't squished) */}
                 <div
                   className="matchup-roster-table-wrap"
                   style={{
                     overflowX: "auto",
+                    WebkitOverflowScrolling: "touch",
                     padding: 16,
                   }}
                 >
                   <table
+                    className="matchup-roster-table"
                     style={{
                       width: "100%",
                       borderCollapse: "collapse",
                       fontSize: 14,
+                      minWidth: 48 + 120 * teamData.length,
                     }}
                   >
                     <thead>
@@ -202,6 +205,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                             color: "var(--color-text-muted)",
                             background: "#f0f2f5",
                             width: 48,
+                            minWidth: 48,
                           }}
                         >
                           #
@@ -209,6 +213,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                         {teamData.map((t) => (
                           <th
                             key={t.userId}
+                            className="matchup-roster-th-team"
                             style={{
                               padding: "8px 12px",
                               textAlign: "left",
@@ -216,6 +221,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                               color: "var(--color-text)",
                               background: "#f0f2f5",
                               borderLeft: "1px solid var(--color-border)",
+                              minWidth: 120,
                             }}
                           >
                             {t.label}
@@ -245,11 +251,13 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                             return (
                               <td
                                 key={t.userId}
+                                className="matchup-roster-td-team"
                                 style={{
                                   padding: "8px 12px",
                                   borderLeft: "1px solid var(--color-border)",
                                   borderBottom: "1px solid var(--color-border)",
                                   color: row?.wrestlerId ? "var(--color-text)" : "var(--color-text-muted)",
+                                  minWidth: 120,
                                 }}
                               >
                                 <span style={{ display: "block" }}>{row?.name ?? "—"}</span>

@@ -11,6 +11,8 @@ type Props = {
   leagueSlug?: string;
   /** Optional points per wrestler_id for PTS column */
   pointsByWrestlerId?: Record<string, number>;
+  /** Optional image URL per wrestler_id (shows avatar in PLAYER column when set) */
+  wrestlerImageUrl?: Record<string, string | null | undefined>;
   /** Commissioner: show Remove button */
   showRemove?: boolean;
   leagueId?: string;
@@ -25,6 +27,7 @@ export function RosterTable({
   wrestlerName,
   leagueSlug,
   pointsByWrestlerId,
+  wrestlerImageUrl,
   showRemove,
   leagueId,
   userId,
@@ -55,13 +58,24 @@ export function RosterTable({
               <td className="roster-td roster-td-slot">{index + 1}</td>
               <td className="roster-td roster-td-player">
                 {entry ? (
-                  leagueSlug ? (
-                    <Link href={`/wrestlers/${encodeURIComponent(entry.wrestler_id)}`} className="roster-player-link">
-                      {wrestlerName(entry.wrestler_id)}
-                    </Link>
-                  ) : (
-                    wrestlerName(entry.wrestler_id)
-                  )
+                  <span className="roster-player-cell">
+                    {wrestlerImageUrl?.[entry.wrestler_id] ? (
+                      <img
+                        src={wrestlerImageUrl[entry.wrestler_id]!}
+                        alt=""
+                        className="roster-player-avatar"
+                        width={32}
+                        height={32}
+                      />
+                    ) : null}
+                    {leagueSlug ? (
+                      <Link href={`/wrestlers/${encodeURIComponent(entry.wrestler_id)}`} className="roster-player-link">
+                        {wrestlerName(entry.wrestler_id)}
+                      </Link>
+                    ) : (
+                      wrestlerName(entry.wrestler_id)
+                    )}
+                  </span>
                 ) : (
                   <span className="roster-empty">Empty</span>
                 )}

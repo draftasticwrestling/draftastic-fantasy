@@ -653,6 +653,13 @@ body {
   color: var(--color-text-muted);
 }
 
+.wrestler-card-pts {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-dim);
+  margin-top: 4px;
+}
+
 @media (max-width: 768px) {
   .wrestler-list-cards {
     display: flex;
@@ -1420,6 +1427,18 @@ body {
 .roster-table .roster-td-action {
   width: 80px;
   min-width: 80px;
+}
+.roster-table .roster-player-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.roster-table .roster-player-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 .roster-table .roster-player-link {
   color: var(--color-blue);

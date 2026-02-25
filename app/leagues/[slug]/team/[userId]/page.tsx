@@ -81,9 +81,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const totalPoints = pointsWithBonuses[userId] ?? 0;
 
   const wrestlers =
-    (await supabase.from("wrestlers").select("id, name").order("name", { ascending: true })).data ??
+    (await supabase.from("wrestlers").select("id, name, image_url").order("name", { ascending: true })).data ??
     [];
   const wrestlerNamesMap = Object.fromEntries(wrestlers.map((w) => [w.id, w.name ?? w.id]));
+  const wrestlerImageUrl: Record<string, string | null> = Object.fromEntries(
+    wrestlers.map((w) => [w.id, w.image_url ?? null])
+  );
   const ownerWrestlerPts = pointsByOwnerByWrestler[userId];
   const rosterWithPoints = rosterEntries.map((e) => {
     const p = pointsBySlug[e.wrestler_id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
@@ -124,6 +127,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             wrestlerName={(id) => wrestlerNamesMap[id] ?? id}
             leagueSlug={slug}
             pointsByWrestlerId={Object.fromEntries(rosterWithPoints.map((w) => [w.wrestler_id, w.points]))}
+            wrestlerImageUrl={wrestlerImageUrl}
           />
         </section>
       </main>
@@ -209,6 +213,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           wrestlerName={(id) => wrestlerNamesMap[id] ?? id}
           leagueSlug={slug}
           pointsByWrestlerId={Object.fromEntries(rosterWithPoints.map((w) => [w.wrestler_id, w.points]))}
+          wrestlerImageUrl={wrestlerImageUrl}
           maxSlots={rosterRules?.rosterSize}
         />
       </section>

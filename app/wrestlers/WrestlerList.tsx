@@ -407,6 +407,12 @@ export default function WrestlerList({
                     <> · {pts.totalPoints} pts</>
                   )}
                 </span>
+                <span className="wrestler-card-pts">
+                  R/S {pts.rsPoints} · PLE {pts.plePoints} · Belt {pts.beltPoints}
+                  {pts.totalPoints > 0 && (
+                    <> → {pts.totalPoints}</>
+                  )}
+                </span>
               </div>
             </Link>
           );
