@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getLeagueBySlug } from "@/lib/leagues";
+import { getLeagueBySlug, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
 import type { ScoredEvent } from "@/lib/scoring/types";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
@@ -24,12 +24,6 @@ function firstMonthEndOnOrAfter(startDate: string): string {
   const month = d.getMonth();
   const lastDay = new Date(year, month + 1, 0);
   return lastDay.toISOString().slice(0, 10);
-}
-
-function getEffectiveLeagueStartDate(league: { start_date: string | null; created_at?: string }): string {
-  if (league.start_date) return league.start_date;
-  if (league.created_at) return league.created_at.slice(0, 10);
-  return "2025-05-02";
 }
 
 function filterEventsByPeriod(

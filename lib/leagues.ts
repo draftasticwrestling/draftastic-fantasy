@@ -33,6 +33,23 @@ export type LeagueMember = {
 
 export type LeagueWithRole = League & { role: "commissioner" | "owner" };
 
+/**
+ * Date (YYYY-MM-DD) from which the league counts points. Uses start_date, then draft_date
+ * (first event on or after draft), then created_at, so "Since League Start" matches matchup logic.
+ */
+export function getEffectiveLeagueStartDate(league: {
+  start_date: string | null;
+  draft_date?: string | null;
+  created_at?: string;
+}): string {
+  const raw =
+    league.start_date ??
+    league.draft_date ??
+    (league.created_at ? league.created_at.slice(0, 10) : null) ??
+    "2025-05-02";
+  return typeof raw === "string" ? raw.slice(0, 10) : "2025-05-02";
+}
+
 function slugify(name: string): string {
   return name
     .trim()

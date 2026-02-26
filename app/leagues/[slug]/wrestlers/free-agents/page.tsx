@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug, getRostersForLeague } from "@/lib/leagues";
+import { getLeagueBySlug, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
@@ -17,12 +17,6 @@ function firstMonthEndOnOrAfter(startDate: string): string {
   const month = d.getMonth();
   const lastDay = new Date(year, month + 1, 0);
   return lastDay.toISOString().slice(0, 10);
-}
-
-function getEffectiveLeagueStartDate(league: { start_date: string | null; created_at?: string }): string {
-  if (league.start_date) return league.start_date;
-  if (league.created_at) return league.created_at.slice(0, 10);
-  return "2025-05-02";
 }
 
 type ChampionshipReign = {

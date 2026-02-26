@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
@@ -19,13 +19,6 @@ function firstMonthEndOnOrAfter(startDate: string): string {
 }
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
-
-/** When league has no start_date, use created_at date so we don't pull in old season events (e.g. May 2025). */
-function getEffectiveLeagueStartDate(league: { start_date: string | null; created_at?: string }): string {
-  if (league.start_date) return league.start_date;
-  if (league.created_at) return league.created_at.slice(0, 10);
-  return "2025-05-02";
-}
 
 type ChampionshipReign = {
   champion_slug?: string | null;
