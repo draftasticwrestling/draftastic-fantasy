@@ -103,6 +103,7 @@ export async function updateTeamNameAction(
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}/edit-team-info`);
   if (user) revalidatePath(`/leagues/${leagueSlug}/team/${user.id}`);
   return {};
 }
