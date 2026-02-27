@@ -16,6 +16,9 @@ export default function HowItWorksPage() {
       <p style={{ color: "#555", marginBottom: 32 }}>
         Fantasy points are calculated from <strong>Pro Wrestling Boxscore</strong> event data. Your wrestlers earn points for appearing, winning, main eventing, and title matches — with bonuses for premium live events (PLEs) and special match types.
       </p>
+      <p style={{ marginBottom: 32 }}>
+        <strong><Link href="/points">Full Points System →</Link></strong> — Raw/SmackDown, every PLE (WrestleMania to minor events), title points, and general rules.
+      </p>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Point categories</h2>
@@ -150,7 +153,7 @@ export default function HowItWorksPage() {
       </section>
 
       <p style={{ marginTop: 24 }}>
-        <Link href="/event-results">Event Results</Link> to see points in action, or open any <Link href="/">completed event</Link> from the list to view the full breakdown per wrestler.
+        <Link href="/points">Points System</Link> for the complete breakdown. <Link href="/event-results">Event Results</Link> to see points in action, or open any <Link href="/">completed event</Link> from the list to view the full breakdown per wrestler.
       </p>
     </main>
   );

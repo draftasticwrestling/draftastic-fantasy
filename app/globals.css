@@ -1845,3 +1845,15 @@ body {
     padding-right: var(--page-padding-x-mobile);
   }
 }
+
+/* Points System page — 2-col grid stacks on small screens */
+.points-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 640px) {
+  .points-grid {
+    grid-template-columns: 1fr;
+  }
+}
