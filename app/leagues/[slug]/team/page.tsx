@@ -45,10 +45,10 @@ export default async function TeamPage({
   const proposeTradeTo = typeof sp.proposeTradeTo === "string" ? sp.proposeTradeTo.trim() : undefined;
   const addFa = typeof sp.addFa === "string" ? sp.addFa.trim() : undefined;
   const base = `/leagues/${slug}/team/${encodeURIComponent(user.id)}`;
-  const params = new URLSearchParams();
-  if (proposeTradeTo) params.set("proposeTradeTo", proposeTradeTo);
-  if (addFa) params.set("addFa", addFa);
-  const qs = params.toString();
+  const queryParams = new URLSearchParams();
+  if (proposeTradeTo) queryParams.set("proposeTradeTo", proposeTradeTo);
+  if (addFa) queryParams.set("addFa", addFa);
+  const qs = queryParams.toString();
   const url = qs ? `${base}?${qs}` : base;
   redirect(url);
 }
