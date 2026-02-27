@@ -74,27 +74,33 @@ export default function PointsPage() {
       {/* Raw & SmackDown */}
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Raw / SmackDown points</h2>
-        <div className="points-grid">
-          <EventTable
-            title="RAW"
-            rows={[
+        <p style={{ marginBottom: 8 }}>All actions below apply to both Raw and SmackDown.</p>
+        <table style={tableBase}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Action</th>
+              <th style={thStyle}>Points</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
               ["Main Eventing", 3],
               ["Successful Title Defense", 4],
               ["Being on the Match Card (non-main event)", 1],
               ["Entering the Andre the Giant Battle Royal", 1],
-            ]}
-          />
-          <EventTable
-            title="SMACKDOWN"
-            rows={[
               ["Winning the Main Event", 4],
               ["Title Changes Hands", 5],
               ["Winning Your Match", 2],
               ["Eliminating a BR Participant", 2],
               ["Winning the Battle Royal", 8],
-            ]}
-          />
-        </div>
+            ].map(([action, pts], i) => (
+              <tr key={i} style={{ borderBottom: "1px solid #ddd" }}>
+                <td style={tdStyle}>{action}</td>
+                <td style={tdStyle}>{pts}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       {/* Title points (end of month) */}
@@ -132,7 +138,7 @@ export default function PointsPage() {
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Major premium live events — The Big Four</h2>
         <div className="points-grid">
           <EventTable
-            title="WrestleMania Vegas"
+            title="WrestleMania"
             rows={[
               ["Winning Main Event Night Two at WrestleMania", 40],
               ["Main Eventing Night Two at WrestleMania", 30],
@@ -143,17 +149,17 @@ export default function PointsPage() {
             ]}
           />
           <EventTable
-            title="Summer Slam New Jersey"
+            title="SummerSlam"
             rows={[
-              ["Winning the Main Event at Summer Slam (either night)", 20],
-              ["Main Eventing Night Two of Summer Slam", 15],
-              ["Main Eventing Night One of Summer Slam", 10],
+              ["Winning the Main Event at SummerSlam (either night)", 20],
+              ["Main Eventing Night Two of SummerSlam", 15],
+              ["Main Eventing Night One of SummerSlam", 10],
               ["Winning Your Match", 10],
               ["Being on the Non-ME Card", 5],
             ]}
           />
           <EventTable
-            title="Survivor Series War Games San Diego"
+            title="Survivor Series War Games"
             rows={[
               ["Winning the Main Event", 15],
               ["Main Eventing", 12],
@@ -166,7 +172,7 @@ export default function PointsPage() {
             ]}
           />
           <EventTable
-            title="Royal Rumble Riyadh"
+            title="Royal Rumble"
             rows={[
               ["Winning the Royal Rumble", 30],
               ["Winning the Main Event", 15],
@@ -187,7 +193,7 @@ export default function PointsPage() {
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Medium premium live event points</h2>
         <div className="points-grid">
           <EventTable
-            title="Elimination Chamber Chicago"
+            title="Elimination Chamber"
             rows={[
               ["Winning the Elimination Chamber", 30],
               ["Qualifying for the Elimination Chamber", 10],
@@ -200,7 +206,7 @@ export default function PointsPage() {
             ]}
           />
           <EventTable
-            title="Night of Champions Riyadh"
+            title="Night of Champions"
             rows={[
               ["Winning the Main Event", 15],
               ["Main Eventing", 9],
@@ -218,7 +224,7 @@ export default function PointsPage() {
             ]}
           />
           <EventTable
-            title="Money in the Bank Los Angeles"
+            title="Money in the Bank"
             rows={[
               ["Money in the Bank Winner", 25],
               ["Earning a Spot in the Ladder Match", 12],
@@ -229,7 +235,7 @@ export default function PointsPage() {
             ]}
           />
           <EventTable
-            title="Crown Jewel Perth"
+            title="Crown Jewel"
             rows={[
               ["Winning the Crown Jewel Championship", 20],
               ["Crown Jewel Championship (participating)", 10],
@@ -246,7 +252,7 @@ export default function PointsPage() {
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Minor premium live event points</h2>
         <p style={{ marginBottom: 16 }}>
-          Same base values for: Saturday Night’s Main Event, Backlash St. Louis, Clash in Paris France, WrestlePalooza Indianapolis. Evolution also includes Battle Royal points below.
+          Same base values for: Saturday Night’s Main Event, Backlash, Clash in Paris, WrestlePalooza. Evolution also includes Battle Royal points below.
         </p>
         <div className="points-grid">
           <EventTable
