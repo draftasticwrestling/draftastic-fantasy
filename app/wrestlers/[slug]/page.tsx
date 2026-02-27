@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getLeagueBySlug, getEffectiveLeagueStartDate } from "@/lib/leagues";
+import { getLeagueBySlug, getEffectiveLeagueStartDate, getRostersForLeague, getLeagueMembers } from "@/lib/leagues";
 import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
 import type { ScoredEvent } from "@/lib/scoring/types";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
@@ -126,6 +126,22 @@ export default async function WrestlerProfilePage({
 
   const league = leagueSlugParam ? await getLeagueBySlug(leagueSlugParam) : null;
   const leagueStartDate = league ? getEffectiveLeagueStartDate(league) : null;
+
+  let rosterOwner: { userId: string; label: string } | null = null;
+  if (league) {
+    const [rosters, members] = await Promise.all([getRostersForLeague(league.id), getLeagueMembers(league.id)]);
+    for (const [uid, entries] of Object.entries(rosters ?? {})) {
+      const hasWrestler = (entries ?? []).some((e) => String(e.wrestler_id).toLowerCase() === String(slug).toLowerCase());
+      if (hasWrestler) {
+        const m = members?.find((x) => x.user_id === uid);
+        rosterOwner = {
+          userId: uid,
+          label: (m?.team_name?.trim() || m?.display_name?.trim() || "Unknown").trim() || "Unknown",
+        };
+        break;
+      }
+    }
+  }
   const currentPeriod: PointsPeriod =
     periodParam && (periodParam === "allTime" || periodParam === "2025" || periodParam === "2026" || periodParam === "sinceStart")
       ? periodParam
@@ -433,7 +449,75 @@ export default async function WrestlerProfilePage({
             {wrestler.brand ?? "—"} · {wrestler.gender ? (String(wrestler.gender).toLowerCase() === "male" || wrestler.gender === "M" ? "Male" : "Female") : "—"}
             {age != null ? ` · ${age} years old` : ""}
           </p>
-          <p style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 12 }}>
+            {rosterOwner && leagueSlugParam ? (
+              <Link
+                href={`/leagues/${encodeURIComponent(leagueSlugParam)}/team?proposeTradeTo=${encodeURIComponent(rosterOwner.userId)}#propose-trade`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#1a1a1a",
+                  background: "#e5e5e5",
+                  border: "1px solid #ccc",
+                  borderRadius: 6,
+                  textDecoration: "none",
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M13 5H4M4 5L6 3M4 5l2 2" />
+                  <path d="M3 11h9M12 11l-2-2M12 11l-2 2" />
+                </svg>
+                Trade with {rosterOwner.label}
+              </Link>
+            ) : (
+              <>
+                {leagueSlugParam && (
+                  <Link
+                    href={`/leagues/${encodeURIComponent(leagueSlugParam)}/team?addFa=${encodeURIComponent(slug)}#sign-free-agent`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "8px 14px",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "#fff",
+                      background: "var(--color-blue)",
+                      border: "none",
+                      borderRadius: 6,
+                      textDecoration: "none",
+                    }}
+                  >
+                    + Add
+                  </Link>
+                )}
+                <Link
+                  href={leagueSlugParam ? `/leagues/${encodeURIComponent(leagueSlugParam)}/watchlist?add=${encodeURIComponent(slug)}` : `/wrestlers/watch?add=${encodeURIComponent(slug)}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "8px 14px",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "var(--color-text)",
+                    background: "transparent",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 6,
+                    textDecoration: "none",
+                  }}
+                >
+                  ⚑ Watchlist
+                </Link>
+              </>
+            )}
+          </div>
+          <p style={{ marginTop: 16 }}>
             <a
               href={boxscoreUrl}
               target="_blank"

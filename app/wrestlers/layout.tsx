@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { WrestlersSubNav } from "./WrestlersSubNav";
 
 export default function WrestlersLayout({
   children,
@@ -39,8 +38,6 @@ export default function WrestlersLayout({
           Draft pool and free agents. Add wrestlers to your roster from your league page.
         </p>
       </div>
-
-      <WrestlersSubNav />
 
       {children}
     </main>

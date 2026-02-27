@@ -28,7 +28,7 @@ function getActivePrimary(pathname: string, slug: string): string | null {
   if (!slug || !pathname.startsWith(`/leagues/${slug}/`)) return null;
   const rest = pathname.slice(`/leagues/${slug}/`.length).split("/")[0];
   if (rest === "standings" || rest === "roster-changes") return "league";
-  if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "edit-team-info" || rest === "wrestler-updates") return "my-team";
+  if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info" || rest === "wrestler-updates") return "my-team";
   if (rest === "") return "league";
   if (rest === "wrestlers" || rest === "league-leaders" || rest === "injury-report" || rest === "stat-corrections") return "wrestlers";
   if (rest === "matchups") return "matchups";
@@ -166,6 +166,7 @@ export default function Nav() {
     ? [
         { href: rosterHref, label: "Roster" },
         { href: `/leagues/${currentLeagueSlug}/transactions`, label: "Team Log" },
+        { href: `/leagues/${currentLeagueSlug}/watchlist`, label: "Watchlist" },
         { href: `/leagues/${currentLeagueSlug}/edit-team-info`, label: "Edit Team Info" },
         { href: `/leagues/${currentLeagueSlug}/wrestler-updates`, label: "Wrestler Updates" },
       ]
@@ -217,27 +218,6 @@ export default function Nav() {
         </Link>
 
         <nav className="nav-top-links nav-top-links-desk" aria-label="Site">
-          <div className="nav-dropdown-wrap" ref={adminRef}>
-            <button
-              type="button"
-              className="nav-dropdown-trigger"
-              onClick={() => setAdminOpen((o) => !o)}
-              aria-expanded={adminOpen}
-              aria-haspopup="true"
-            >
-              Admin Menu
-              <span aria-hidden>▾</span>
-            </button>
-            {adminOpen && (
-              <div className="nav-dropdown-panel">
-                {ADMIN_LINKS.map(({ href, label }) => (
-                  <Link key={href} href={href} onClick={() => setAdminOpen(false)}>
-                    {label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
           <Link href="/leagues/new" className="nav-top-cta">
             +Create a League
           </Link>
@@ -263,14 +243,42 @@ export default function Nav() {
 
         <div className="nav-header-actions nav-header-actions-desk">
           {user ? (
-            <>
-              <Link href="/account" className="nav-header-link" title={user.email ?? undefined}>
-                {profile?.display_name?.trim() || user.email || "Signed in"}
-              </Link>
-              <button type="button" onClick={handleSignOut} className="nav-header-btn">
-                Sign out
-              </button>
-            </>
+            <div className="nav-header-actions-inner">
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div className="nav-dropdown-wrap" ref={adminRef}>
+                  <button
+                    type="button"
+                    className="nav-dropdown-trigger nav-header-admin-trigger"
+                    onClick={() => setAdminOpen((o) => !o)}
+                    aria-expanded={adminOpen}
+                    aria-haspopup="true"
+                  >
+                    Admin Menu
+                    <span aria-hidden>▾</span>
+                  </button>
+                  {adminOpen && (
+                    <div className="nav-dropdown-panel">
+                      {ADMIN_LINKS.map(({ href, label }) => (
+                        <Link key={href} href={href} onClick={() => setAdminOpen(false)}>
+                          {label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <Link href="/account" className="nav-header-link" title={user.email ?? undefined}>
+                  {profile?.display_name?.trim() || user.email || "Signed in"}
+                </Link>
+                <button type="button" onClick={handleSignOut} className="nav-header-btn">
+                  Sign out
+                </button>
+              </div>
+              {showLowerBar && (
+                <Link href="/leagues/new" className="nav-header-start-another">
+                  +Start Another League
+                </Link>
+              )}
+            </div>
           ) : (
             <>
               <Link href="/" className="nav-header-link">Home</Link>
@@ -456,11 +464,6 @@ export default function Nav() {
                   </Link>
                 </li>
               )}
-              <li>
-                <Link href="/leagues/new" className="nav-primary-link">
-                  +Start Another League
-                </Link>
-              </li>
             </ul>
           </nav>
 
