@@ -18,6 +18,10 @@ type Props = {
   leagueId?: string;
   userId?: string;
   removeAction?: (formData: FormData) => void;
+  /** When viewing another team's roster: show Trade button (links to propose trade with this owner) */
+  showTradeButton?: boolean;
+  /** User ID of the roster owner (for trade link proposeTradeTo) */
+  tradeTargetUserId?: string;
   /** Max slots to show (empty rows if roster smaller) */
   maxSlots?: number;
 };
@@ -32,6 +36,8 @@ export function RosterTable({
   leagueId,
   userId,
   removeAction,
+  showTradeButton,
+  tradeTargetUserId,
   maxSlots,
 }: Props) {
   const size = maxSlots ?? Math.max(entries.length, 1);
@@ -50,6 +56,9 @@ export function RosterTable({
             <th className="roster-th roster-th-acq">ACQ</th>
             {pointsByWrestlerId && <th className="roster-th roster-th-pts">PTS</th>}
             {showRemove && removeAction && <th className="roster-th roster-th-action">ACTION</th>}
+            {showTradeButton && leagueSlug && tradeTargetUserId && (
+              <th className="roster-th roster-th-trade">TRADE</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -102,6 +111,21 @@ export function RosterTable({
                         Remove
                       </button>
                     </form>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+              )}
+              {showTradeButton && leagueSlug && tradeTargetUserId && (
+                <td className="roster-td roster-td-trade">
+                  {entry ? (
+                    <Link
+                      href={`/leagues/${encodeURIComponent(leagueSlug)}/team?proposeTradeTo=${encodeURIComponent(tradeTargetUserId)}`}
+                      className="roster-trade-link"
+                      title="Propose trade with this team"
+                    >
+                      Trade
+                    </Link>
                   ) : (
                     "—"
                   )}

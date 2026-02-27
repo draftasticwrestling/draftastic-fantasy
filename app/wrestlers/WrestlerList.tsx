@@ -661,7 +661,11 @@ export default function WrestlerList({
                             +
                           </Link>
                           <Link
-                            href={leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}/watchlist` : "/wrestlers/watch"}
+                            href={
+                              leagueSlug
+                                ? `/leagues/${encodeURIComponent(leagueSlug)}/watchlist?add=${encodeURIComponent(w.id)}`
+                                : `/wrestlers/watch?add=${encodeURIComponent(w.id)}`
+                            }
                             style={{
                               width: 32,
                               height: 32,

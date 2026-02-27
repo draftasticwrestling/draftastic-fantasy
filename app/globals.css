@@ -1462,6 +1462,19 @@ body {
 .roster-table .roster-remove-btn:hover {
   background: var(--color-red-bg);
 }
+.roster-table .roster-trade-link {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-blue);
+  text-decoration: none;
+  border: 1px solid var(--color-blue);
+  border-radius: var(--radius-sm);
+}
+.roster-table .roster-trade-link:hover {
+  background: var(--color-blue-bg);
+}
 
 .roster-cards-grid {
   display: grid;

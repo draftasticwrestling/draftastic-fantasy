@@ -50,5 +50,6 @@ export default async function TeamPage({
   if (addFa) queryParams.set("addFa", addFa);
   const qs = queryParams.toString();
   const url = qs ? `${base}?${qs}` : base;
-  redirect(url);
+  const hash = proposeTradeTo ? "#propose-trade" : addFa ? "#sign-free-agent" : "";
+  redirect(url + hash);
 }

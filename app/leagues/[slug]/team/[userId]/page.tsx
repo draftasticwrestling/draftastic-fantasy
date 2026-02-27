@@ -129,6 +129,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             leagueSlug={slug}
             pointsByWrestlerId={Object.fromEntries(rosterWithPoints.map((w) => [w.wrestler_id, w.points]))}
             wrestlerImageUrl={wrestlerImageUrl}
+            showTradeButton
+            tradeTargetUserId={userId}
           />
         </section>
       </main>
@@ -245,8 +247,18 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         </p>
       )}
 
-      <section style={{ marginBottom: 32 }}>
+      <section id="propose-trade" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Propose trade</h2>
+        {proposeTradeTo && (() => {
+          const target = otherMembers.find((m) => m.user_id === proposeTradeTo);
+          if (!target) return null;
+          const name = target.team_name?.trim() || target.display_name?.trim() || "this manager";
+          return (
+            <p style={{ fontSize: 14, color: "var(--color-blue)", fontWeight: 600, marginBottom: 12 }}>
+              Propose a trade with {name} (selected below).
+            </p>
+          );
+        })()}
         <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
           Offer wrestlers to another owner and request wrestlers in return. They can accept or reject.
         </p>
@@ -290,7 +302,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         )}
       </section>
 
-      <section style={{ marginBottom: 32 }}>
+      <section id="sign-free-agent" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Sign free agent</h2>
         <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
           Request to add a wrestler who isn’t on any roster. Optionally drop one to make room. Commissioner must approve.
