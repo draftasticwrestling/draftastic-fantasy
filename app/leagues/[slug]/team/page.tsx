@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props) {
   }
 }
 
-type SearchParams = Promise<{ proposeTradeTo?: string }>;
+type SearchParams = Promise<{ proposeTradeTo?: string; addFa?: string }>;
 
 export default async function TeamPage({
   params,
@@ -43,7 +43,12 @@ export default async function TeamPage({
 
   const sp = searchParams ? await searchParams : {};
   const proposeTradeTo = typeof sp.proposeTradeTo === "string" ? sp.proposeTradeTo.trim() : undefined;
+  const addFa = typeof sp.addFa === "string" ? sp.addFa.trim() : undefined;
   const base = `/leagues/${slug}/team/${encodeURIComponent(user.id)}`;
-  const url = proposeTradeTo ? `${base}?proposeTradeTo=${encodeURIComponent(proposeTradeTo)}` : base;
+  const params = new URLSearchParams();
+  if (proposeTradeTo) params.set("proposeTradeTo", proposeTradeTo);
+  if (addFa) params.set("addFa", addFa);
+  const qs = params.toString();
+  const url = qs ? `${base}?${qs}` : base;
   redirect(url);
 }

@@ -636,7 +636,11 @@ export default function WrestlerList({
                         <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>FA</div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                           <Link
-                            href={`/wrestlers/${encodeURIComponent(w.id)}${leagueSlug ? `?league=${encodeURIComponent(leagueSlug)}` : ""}`}
+                            href={
+                              leagueSlug
+                                ? `/leagues/${encodeURIComponent(leagueSlug)}/team?addFa=${encodeURIComponent(w.id)}`
+                                : `/wrestlers/${encodeURIComponent(w.id)}`
+                            }
                             style={{
                               width: 32,
                               height: 32,
@@ -651,13 +655,13 @@ export default function WrestlerList({
                               fontSize: 18,
                               lineHeight: 1,
                             }}
-                            title="View / Add wrestler"
-                            aria-label={`View ${w.name || w.id}`}
+                            title={leagueSlug ? "Sign free agent (go to My Team)" : "View wrestler"}
+                            aria-label={leagueSlug ? `Sign ${w.name || w.id} as free agent` : `View ${w.name || w.id}`}
                           >
                             +
                           </Link>
-                          <button
-                            type="button"
+                          <Link
+                            href={leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}/watchlist` : "/wrestlers/watch"}
                             style={{
                               width: 32,
                               height: 32,
@@ -665,17 +669,17 @@ export default function WrestlerList({
                               background: "transparent",
                               border: "1px solid " + BORDER_TABLE,
                               color: "var(--color-text)",
-                              cursor: "pointer",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
+                              textDecoration: "none",
                               fontSize: 14,
                             }}
-                            title="Add to watch list"
+                            title="Watchlist"
                             aria-label="Add to watch list"
                           >
                             ⚑
-                          </button>
+                          </Link>
                         </div>
                       </>
                     )}

@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ slug: string; userId: string }>;
-  searchParams?: Promise<{ proposeTradeTo?: string }>;
+  searchParams?: Promise<{ proposeTradeTo?: string; addFa?: string }>;
 };
 
 export async function generateMetadata({ params }: Props) {
@@ -52,6 +52,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const { slug, userId } = await params;
   const sp = searchParams ? await searchParams : {};
   const proposeTradeTo = typeof sp.proposeTradeTo === "string" ? sp.proposeTradeTo.trim() : undefined;
+  const addFa = typeof sp.addFa === "string" ? sp.addFa.trim() : undefined;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
@@ -305,6 +306,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             pendingFaIds={faProposals
               .filter((p) => p.status === "pending" && p.user_id === currentUser.id)
               .map((p) => p.wrestler_id)}
+            initialWrestlerId={addFa}
           />
         )}
       </section>

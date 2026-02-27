@@ -11,15 +11,18 @@ export function ProposeFreeAgentForm({
   myRosterWrestlers,
   rosterSize,
   pendingFaIds,
+  initialWrestlerId,
 }: {
   leagueSlug: string;
   freeAgents: Wrestler[];
   myRosterWrestlers: Wrestler[];
   rosterSize: number;
   pendingFaIds: string[];
+  /** Pre-select this wrestler (e.g. from League Leaders / Free Agents "Add" link). */
+  initialWrestlerId?: string | null;
 }) {
   const pendingSet = new Set(pendingFaIds);
-  const [wrestlerId, setWrestlerId] = useState("");
+  const [wrestlerId, setWrestlerId] = useState(initialWrestlerId ?? "");
   const [dropWrestlerId, setDropWrestlerId] = useState("");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
