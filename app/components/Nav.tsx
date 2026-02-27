@@ -27,9 +27,10 @@ function getLeagueSlugFromPath(pathname: string): string | null {
 function getActivePrimary(pathname: string, slug: string): string | null {
   if (!slug || !pathname.startsWith(`/leagues/${slug}/`)) return null;
   const rest = pathname.slice(`/leagues/${slug}/`.length).split("/")[0];
-  if (rest === "standings" || rest === "team-stats" || rest === "transactions" || rest === "free-agents" || rest === "watchlist" || rest === "team-log" || rest === "edit-team-info" || rest === "wrestler-updates" || rest === "team") return "my-team";
-  if (rest === "league-leaders" || rest === "injury-report" || rest === "roster-changes" || rest === "stat-corrections" || rest === "") return "league";
-  if (rest === "wrestlers") return "wrestlers";
+  if (rest === "standings" || rest === "roster-changes") return "league";
+  if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "edit-team-info" || rest === "wrestler-updates") return "my-team";
+  if (rest === "") return "league";
+  if (rest === "wrestlers" || rest === "league-leaders" || rest === "injury-report" || rest === "stat-corrections") return "wrestlers";
   if (rest === "matchups") return "matchups";
   if (rest === "draft" || rest === "draft-history" || rest === "mock-draft" || rest === "draft-settings" || rest === "draft-order") return "draft";
   if (rest === "notify-league" || rest === "manage-rosters" || rest === "league-settings" || rest === "pending-trades") return "gm-tools";
@@ -164,23 +165,16 @@ export default function Nav() {
   const myTeamSub = currentLeagueSlug
     ? [
         { href: rosterHref, label: "Roster" },
-        { href: `/leagues/${currentLeagueSlug}/standings`, label: "Standings" },
-        { href: `/leagues/${currentLeagueSlug}/team-stats`, label: "Team Stats" },
-        { href: `/leagues/${currentLeagueSlug}/transactions`, label: "Transactions" },
-        { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
-        { href: `/leagues/${currentLeagueSlug}/watchlist`, label: "Watchlist" },
-        { href: `/leagues/${currentLeagueSlug}/team-log`, label: "Team Log" },
+        { href: `/leagues/${currentLeagueSlug}/transactions`, label: "Team Log" },
         { href: `/leagues/${currentLeagueSlug}/edit-team-info`, label: "Edit Team Info" },
         { href: `/leagues/${currentLeagueSlug}/wrestler-updates`, label: "Wrestler Updates" },
       ]
     : [];
   const leagueSub = currentLeagueSlug
     ? [
-        { href: `/leagues/${currentLeagueSlug}`, label: "League" },
-        { href: `/leagues/${currentLeagueSlug}/league-leaders`, label: "League Leaders" },
-        { href: `/leagues/${currentLeagueSlug}/injury-report`, label: "Injury Report" },
-        { href: `/leagues/${currentLeagueSlug}/roster-changes`, label: "Roster Changes" },
-        { href: `/leagues/${currentLeagueSlug}/stat-corrections`, label: "Stat Corrections" },
+        { href: `/leagues/${currentLeagueSlug}/standings`, label: "Standings" },
+        { href: `/leagues/${currentLeagueSlug}/roster-changes`, label: "Transactions" },
+        { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
       ]
     : [];
   const draftSub = currentLeagueSlug
@@ -204,6 +198,8 @@ export default function Nav() {
     ? [
         { href: `/leagues/${currentLeagueSlug}/wrestlers/league-leaders`, label: "League Leaders" },
         { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
+        { href: `/leagues/${currentLeagueSlug}/injury-report`, label: "Injury Report" },
+        { href: `/leagues/${currentLeagueSlug}/stat-corrections`, label: "Stat Corrections" },
       ]
     : [];
 
@@ -410,20 +406,20 @@ export default function Nav() {
                     )}
                 </div>
               </li>
-              <li onMouseEnter={() => setHoverPrimary("my-team")}>
-                <Link
-                  href={rosterHref}
-                  className={`nav-primary-link ${activePrimary === "my-team" ? "is-active" : ""}`}
-                >
-                  My Team
-                </Link>
-              </li>
               <li onMouseEnter={() => setHoverPrimary("league")}>
                 <Link
                   href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "#"}
                   className={`nav-primary-link ${activePrimary === "league" ? "is-active" : ""}`}
                 >
                   League
+                </Link>
+              </li>
+              <li onMouseEnter={() => setHoverPrimary("my-team")}>
+                <Link
+                  href={rosterHref}
+                  className={`nav-primary-link ${activePrimary === "my-team" ? "is-active" : ""}`}
+                >
+                  My Team
                 </Link>
               </li>
               <li onMouseEnter={() => setHoverPrimary("wrestlers")}>
