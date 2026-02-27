@@ -25,8 +25,12 @@ export async function createLeagueAction(
   if (!season_slug) {
     return { error: "Select a season." };
   }
-  if (team_count < 3 || team_count > 12) {
-    return { error: "Number of teams must be between 3 and 12." };
+  if (league_type === "head_to_head") {
+    if (team_count < 4 || team_count > 16) {
+      return { error: "Head-to-Head leagues require between 4 and 16 teams." };
+    }
+  } else if (team_count < 3 || team_count > 16) {
+    return { error: "Number of teams must be between 3 and 16." };
   }
   if (!VALID_LEAGUE_TYPES.includes(league_type as (typeof VALID_LEAGUE_TYPES)[number])) {
     return { error: "Select a league format." };

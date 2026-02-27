@@ -1079,6 +1079,13 @@ body {
   color: var(--color-text-inverse);
 }
 
+.create-league-teams-option.disabled,
+.create-league-teams-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .create-league-type-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -1115,10 +1122,36 @@ body {
   font-size: 1rem;
 }
 
-.create-league-type-option span {
+.create-league-type-option span.create-league-type-desc {
+  display: block;
+  margin-top: 6px;
   font-size: 0.875rem;
   color: var(--color-text-muted);
   line-height: 1.4;
+}
+
+.create-league-type-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+  background: var(--color-bg-surface);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.create-league-type-option.coming-soon {
+  opacity: 0.85;
+  cursor: default;
+}
+
+.create-league-type-option.coming-soon:hover {
+  border-color: var(--color-border);
+  background: var(--color-bg-input);
 }
 
 .create-league-form select {

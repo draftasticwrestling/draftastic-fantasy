@@ -121,7 +121,7 @@ export async function createLeague(params: {
   const league_type = params.league_type?.trim() || null;
   const max_teams =
     params.max_teams != null && Number.isFinite(Number(params.max_teams))
-      ? Math.min(12, Math.max(3, Math.floor(Number(params.max_teams))))
+      ? Math.min(16, Math.max(3, Math.floor(Number(params.max_teams))))
       : null;
 
   const { data: league, error } = await admin

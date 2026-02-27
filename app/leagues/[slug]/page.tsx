@@ -13,6 +13,7 @@ function formatLeagueType(type: string | null | undefined): string {
   switch (type) {
     case "season_overall": return "Season Overall";
     case "head_to_head": return "Head-to-Head";
+    case "combo": return "Combo (H2H + Overall)";
     case "legacy": return "Legacy";
     default: return type;
   }
