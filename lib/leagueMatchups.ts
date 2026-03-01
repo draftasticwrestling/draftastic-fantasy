@@ -232,7 +232,7 @@ export async function getLeagueWeeklyMatchups(
         .order("date", { ascending: true }),
     ]);
     const inferredReigns = inferReignsFromEvents(eventsInRange ?? []);
-    reigns = (inferredReigns.length > 0 ? inferredReigns : (tableReigns ?? [])) as typeof reigns;
+    reigns = ((tableReigns?.length ?? 0) > 0 ? tableReigns : inferredReigns) as typeof reigns;
   }
 
   const weeks = getWeeksInRange(start, end);
@@ -363,7 +363,7 @@ export async function getMonthlyBeltBySlugForWeek(
       .order("date", { ascending: true }),
   ]);
   const inferredReigns = inferReignsFromEvents(eventsInRange ?? []);
-  const reigns = (inferredReigns.length > 0 ? inferredReigns : (tableReigns ?? [])) as Array<{
+  const reigns = ((tableReigns?.length ?? 0) > 0 ? tableReigns : inferredReigns) as Array<{
     champion_slug?: string | null;
     champion_id?: string | null;
     champion?: string | null;

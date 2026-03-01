@@ -66,6 +66,20 @@ The live site (prowrestlingboxscore.com) is a Vite + React app that loads events
 
 - **Columns (relevant):** `id` (slug, e.g. `sami-zayn`), `name`, and any you use for gender/brand. Fantasy draft pool can be built from this table (filter by promotion/brand as needed).
 
+### Monthly championship data (end-of-month belt points)
+
+**Canonical display:** [prowrestlingboxscore.com/championships](https://prowrestlingboxscore.com/championships) — the Boxscore site’s championships page is the intended source of truth for who held which title when.
+
+**How the fantasy app gets it today:** We do **not** pull from that URL. We use two sources in Supabase:
+
+1. **`championship_history` table (primary)**  
+   If the Supabase project has a **`championship_history`** table (one row per reign, with fields like `champion_slug`/`champion_id`, `title`/`title_name`, `won_date`/`start_date`, `lost_date`/`end_date`) and it has rows, we use it for monthly belt points. That table can be populated by the Boxscore app (e.g. from prowrestlingboxscore.com/championships) or by a separate sync job; the fantasy app only reads it. This is the most stable and reliable source.
+
+2. **Inferred from events (fallback)**  
+   When `championship_history` is empty or missing, we build title reigns from the **`events`** table: for each completed event we look at `matches` for title changes, parse winners (and expand teams into individuals), and derive who held which title on which date.
+
+To use prowrestlingboxscore.com/championships as the source of truth, sync that page (or its backing API) into **`championship_history`**; the fantasy app will then use it automatically.
+
 ---
 
 ## Event type (Major / Medium / Minor PLE, Raw, SmackDown)
