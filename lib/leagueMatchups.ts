@@ -26,12 +26,10 @@ export function getSundayOfWeek(weekStart: string): string {
 
 /** Last day of month that falls within [weekStart, weekEnd], or null. */
 function getMonthEndInWeek(weekStart: string, weekEnd: string): string | null {
-  const d = new Date(weekEnd + "T12:00:00Z");
-  const year = d.getUTCFullYear();
-  const month = d.getUTCMonth();
-  const lastDay = new Date(Date.UTC(year, month + 1, 0));
-  const lastStr = lastDay.toISOString().slice(0, 10);
-  if (lastStr >= weekStart && lastStr <= weekEnd) return lastStr;
+  const fromStart = getLastDayOfMonthContaining(weekStart);
+  if (fromStart >= weekStart && fromStart <= weekEnd) return fromStart;
+  const fromEnd = getLastDayOfMonthContaining(weekEnd);
+  if (fromEnd >= weekStart && fromEnd <= weekEnd) return fromEnd;
   return null;
 }
 
