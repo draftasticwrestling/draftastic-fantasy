@@ -286,10 +286,17 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
             });
             const isWinner = (uid: string) => matchupForWeek?.winnerUserId === uid;
 
-            const rosterByTeam = teamData.map((t) => {
+            type ScoreboardRosterRow = {
+              wrestlerId?: string;
+              name: string;
+              points: number;
+              eventPts: number;
+              monthlyPts: number;
+            };
+            const rosterByTeam: ScoreboardRosterRow[][] = teamData.map((t) => {
               const entries = (rosters[t.userId] ?? []).slice(0, maxSlots);
               const byWrestler = pointsByOwnerByWrestler[t.userId] ?? {};
-              return entries.map((e, i) => {
+              return entries.map((e, i): ScoreboardRosterRow => {
                 const eventPts = byWrestler[e.wrestler_id] ?? 0;
                 const monthlyPts = monthlyBeltBySlug[e.wrestler_id] ?? 0;
                 return {
