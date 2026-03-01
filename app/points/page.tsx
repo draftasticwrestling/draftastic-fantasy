@@ -195,6 +195,7 @@ export default function PointsPage() {
           <EventTable
             title="Elimination Chamber"
             rows={[
+              ["Participant (being in the match)", 10],
               ["Winning the Elimination Chamber", 30],
               ["Qualifying for the Elimination Chamber", 10],
               ["Eliminating an Opponent in the Chamber", 10],

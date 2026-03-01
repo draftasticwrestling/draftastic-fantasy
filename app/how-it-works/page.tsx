@@ -157,7 +157,7 @@ export default function HowItWorksPage() {
           <li><strong>Battle royal</strong> — Entry: +1; Winner: +8</li>
           <li><strong>Royal Rumble match</strong> — Participant: +2; +3 per elimination; Iron Man / Iron Woman: +12; Most eliminations: +12; Winner: +30</li>
           <li><strong>War Games</strong> (Survivor Series) — Team: +8; Winning team: +14</li>
-          <li><strong>Elimination Chamber</strong> — Qualifier: +10; Winner: +30</li>
+          <li><strong>Elimination Chamber</strong> — Participant: +10; Winner: +30; Per elimination: +10; Longest lasting (ironman/ironwoman): +15. Qualifier matches: +10.</li>
           <li><strong>Money in the Bank ladder match</strong> — Participant: +12; Winner: +25</li>
           <li><strong>Crown Jewel Championship match</strong> — Participant: +10; Winner: +20</li>
         </ul>
