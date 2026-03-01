@@ -364,7 +364,14 @@ export async function joinLeagueWithToken(token: string): Promise<{
 
 // --- Commissioner manual rosters (league_rosters) ---
 
-export type LeagueRosterEntry = { wrestler_id: string; contract: string | null };
+export type LeagueRosterEntry = {
+  wrestler_id: string;
+  contract: string | null;
+  /** YYYY-MM-DD when added (for matchup display). */
+  acquired_at?: string;
+  /** YYYY-MM-DD when dropped (for matchup display). */
+  released_at?: string | null;
+};
 
 /** Stint for scoring: points count when event_date >= acquired_at and (released_at is null or event_date <= released_at). */
 export type LeagueRosterStint = {
@@ -437,9 +444,12 @@ function getSundayOfWeek(weekStart: string): string {
 }
 
 /**
- * Roster as of a specific week (Monday–Sunday). Used for matchup/scoreboard so we show
- * who was on each team that week, not current roster. Wrestler counts if acquired_at <= weekEnd
- * and (released_at is null or released_at >= weekStart). Ordered by acquired_at per user.
+ * Roster for the week: everyone who was on the team at any time during the week.
+ * acquired_at <= weekEnd and (released_at is null or released_at >= weekStart).
+ * So mid-week adds (e.g. Nia Jax Friday) and mid-week drops (e.g. Maxxine Dupri Friday) both appear;
+ * points are still per-event (each wrestler only gets points for events while on roster).
+ * Returns acquired_at and released_at on each entry for matchup display (add date / drop date).
+ * Ordered by acquired_at per user.
  */
 export async function getRostersForLeagueForWeek(
   leagueId: string,
@@ -454,7 +464,15 @@ export async function getRostersForLeagueForWeek(
     if (acquired > weekEndSunday) continue;
     if (released != null && released < weekStartMonday) continue;
     if (!byUser[s.user_id]) byUser[s.user_id] = [];
-    byUser[s.user_id].push({ wrestler_id: s.wrestler_id, contract: s.contract });
+    byUser[s.user_id].push({
+      wrestler_id: s.wrestler_id,
+      contract: s.contract,
+      acquired_at: acquired,
+      released_at: released ?? undefined,
+    });
+  }
+  for (const arr of Object.values(byUser)) {
+    arr.sort((a, b) => (a.acquired_at ?? "").localeCompare(b.acquired_at ?? "") || a.wrestler_id.localeCompare(b.wrestler_id));
   }
   return byUser;
 }

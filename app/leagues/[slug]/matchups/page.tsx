@@ -152,7 +152,6 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   }));
 
   const rosterRules = getRosterRulesForLeague(members.length);
-  const maxSlots = rosterRules?.rosterSize ?? 12;
 
   let pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let wrestlerNames: Record<string, string> = {};
@@ -171,6 +170,9 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   } else {
     rosters = await getRostersForLeague(league.id);
   }
+
+  const maxRosterLen = Math.max(0, ...Object.values(rosters).map((a) => a.length));
+  const maxSlots = Math.max(rosterRules?.rosterSize ?? 12, maxRosterLen);
 
   const matchupForWeek = selectedWeekStart
     ? matchups.find((m) => m.weekStart === selectedWeekStart)

@@ -22,6 +22,15 @@ function formatWeekRange(weekStart: string, weekEnd: string): string {
   return `${fmt(weekStart)} – ${fmt(weekEnd)}`;
 }
 
+/** M/D for add/drop dates in matchup roster. */
+function formatShortDate(ymd: string): string {
+  const [y, m, d] = ymd.split("-");
+  if (!m || !d) return ymd;
+  const month = Number(m);
+  const day = Number(d);
+  return `${month}/${day}`;
+}
+
 export default async function LeagueMatchupDetailPage({ params }: Props) {
   const { slug, weekStart } = await params;
   const weekStartDecoded = decodeURIComponent(weekStart);
@@ -51,7 +60,8 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
     (wrestlersRows.data ?? []).map((w) => [w.id, w.name ?? w.id])
   );
   const rosterRules = getRosterRulesForLeague(members.length);
-  const maxSlots = rosterRules?.rosterSize ?? 12;
+  const maxRosterLen = Math.max(0, ...Object.values(rosters).map((a) => a.length));
+  const maxSlots = Math.max(rosterRules?.rosterSize ?? 12, maxRosterLen);
 
   const weekMatchups = getMatchupsForWeek(
     members.map((m) => m.user_id),
@@ -104,18 +114,26 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
               const member = memberByUserId[uid];
               const entries = (rosters[uid] ?? []).slice(0, maxSlots);
               const byWrestler = pointsByOwnerByWrestler[uid] ?? {};
-              const rosterRows = entries.map((e, i) => ({
-                slot: i + 1,
-                wrestlerId: e.wrestler_id,
-                name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
-                points: byWrestler[e.wrestler_id] ?? 0,
-              }));
+              const rosterRows = entries.map((e, i) => {
+                const acq = e.acquired_at && e.acquired_at >= weekStartDecoded && e.acquired_at <= weekEnd ? formatShortDate(e.acquired_at) : null;
+                const drop = e.released_at && e.released_at >= weekStartDecoded && e.released_at <= weekEnd ? formatShortDate(e.released_at) : null;
+                return {
+                  slot: i + 1,
+                  wrestlerId: e.wrestler_id,
+                  name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
+                  points: byWrestler[e.wrestler_id] ?? 0,
+                  acquiredAt: acq,
+                  releasedAt: drop,
+                };
+              });
               while (rosterRows.length < maxSlots) {
                 rosterRows.push({
                   slot: rosterRows.length + 1,
                   wrestlerId: "",
                   name: "—",
                   points: 0,
+                  acquiredAt: null,
+                  releasedAt: null,
                 });
               }
               return {
@@ -262,6 +280,13 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                                 }}
                               >
                                 <span style={{ display: "block" }}>{row?.name ?? "—"}</span>
+                                {row?.wrestlerId && (row.acquiredAt != null || row.releasedAt != null) && (
+                                  <span style={{ fontSize: 11, color: "var(--color-text-muted)", display: "block", marginTop: 2 }}>
+                                    {row.acquiredAt != null && `Added ${row.acquiredAt}`}
+                                    {row.acquiredAt != null && row.releasedAt != null && " · "}
+                                    {row.releasedAt != null && `Dropped ${row.releasedAt}`}
+                                  </span>
+                                )}
                                 {row?.wrestlerId && (
                                   <span
                                     style={{
