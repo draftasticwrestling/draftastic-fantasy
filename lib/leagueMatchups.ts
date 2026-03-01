@@ -2,6 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getRosterStintsForLeague, getLeagueScoring } from "@/lib/leagues";
 import { getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { getWeeklyMatchupStructure } from "@/lib/publicLeagueMatchups";
+import {
+  computeEndOfMonthBeltPointsForSingleMonth,
+  inferReignsFromEvents,
+  FIRST_END_OF_MONTH_POINTS_DATE,
+} from "@/lib/scoring/endOfMonthBeltPoints.js";
 
 /** Monday of the week containing the given date (YYYY-MM-DD). Weeks are Monday–Sunday. */
 export function getMondayOfWeek(dateStr: string): string {
@@ -17,6 +22,26 @@ export function getSundayOfWeek(weekStart: string): string {
   const d = new Date(weekStart + "T12:00:00Z");
   d.setUTCDate(d.getUTCDate() + 6);
   return d.toISOString().slice(0, 10);
+}
+
+/** Last day of month that falls within [weekStart, weekEnd], or null. */
+function getMonthEndInWeek(weekStart: string, weekEnd: string): string | null {
+  const d = new Date(weekEnd + "T12:00:00Z");
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth();
+  const lastDay = new Date(Date.UTC(year, month + 1, 0));
+  const lastStr = lastDay.toISOString().slice(0, 10);
+  if (lastStr >= weekStart && lastStr <= weekEnd) return lastStr;
+  return null;
+}
+
+/** Last day (YYYY-MM-DD) of the month that contains the given date. */
+function getLastDayOfMonthContaining(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00Z");
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth();
+  const lastDay = new Date(Date.UTC(year, month + 1, 0));
+  return lastDay.toISOString().slice(0, 10);
 }
 
 /** List of week-start (Monday) dates from league start through end. */
@@ -154,6 +179,7 @@ const BELT_RETAIN_POINTS = 4;
 /**
  * All weekly matchups for a league. Winner = most event points that week (tie = no winner).
  * Draftastic Championship: first week winner gets +5; same holder next week +4 retain; new winner +5.
+ * For combo/head_to_head leagues, end-of-month title (belt) points are included in the week that contains the last day of each month.
  */
 export async function getLeagueWeeklyMatchups(
   leagueId: string
@@ -161,7 +187,7 @@ export async function getLeagueWeeklyMatchups(
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date")
+    .select("id, start_date, end_date, draft_date, league_type")
     .eq("id", leagueId)
     .single();
   if (!league) return [];
@@ -170,14 +196,79 @@ export async function getLeagueWeeklyMatchups(
   const end = league.end_date ?? "";
   if (!start || !end) return [];
 
+  const leagueType = (league as { league_type?: string | null }).league_type ?? null;
+  const includeMonthlyBeltInMatchup =
+    leagueType === "head_to_head" || leagueType === "combo";
+
+  let reigns: Array<{
+    champion_slug?: string | null;
+    champion_id?: string | null;
+    champion?: string | null;
+    champion_name?: string | null;
+    title?: string | null;
+    title_name?: string | null;
+    won_date?: string | null;
+    start_date?: string | null;
+    lost_date?: string | null;
+    end_date?: string | null;
+  }> = [];
+  let firstEligibleMonthEnd = FIRST_END_OF_MONTH_POINTS_DATE;
+
+  if (includeMonthlyBeltInMatchup) {
+    const lastDayOfStartMonth = getLastDayOfMonthContaining(start);
+    firstEligibleMonthEnd =
+      lastDayOfStartMonth >= FIRST_END_OF_MONTH_POINTS_DATE
+        ? lastDayOfStartMonth
+        : FIRST_END_OF_MONTH_POINTS_DATE;
+
+    const [{ data: tableReigns }, { data: eventsInRange }] = await Promise.all([
+      supabase.from("championship_history").select("*"),
+      supabase
+        .from("events")
+        .select("id, name, date, matches")
+        .eq("status", "completed")
+        .gte("date", start)
+        .lte("date", end)
+        .order("date", { ascending: true }),
+    ]);
+    const inferredReigns = inferReignsFromEvents(eventsInRange ?? []);
+    reigns = (tableReigns?.length ? tableReigns : inferredReigns) as typeof reigns;
+  }
+
   const weeks = getWeeksInRange(start, end);
   const results: WeeklyMatchupResult[] = [];
   let beltHolder: string | null = null;
   const today = new Date().toISOString().slice(0, 10);
+  const stints = includeMonthlyBeltInMatchup ? await getRosterStintsForLeague(leagueId) : [];
 
   for (const weekStart of weeks) {
     const weekEnd = getSundayOfWeek(weekStart);
-    const pointsByUserId = await getPointsByOwnerForLeagueForWeek(leagueId, weekStart);
+    let pointsByUserId = await getPointsByOwnerForLeagueForWeek(leagueId, weekStart);
+
+    if (includeMonthlyBeltInMatchup && reigns.length > 0) {
+      const monthEndInWeek = getMonthEndInWeek(weekStart, weekEnd);
+      if (
+        monthEndInWeek &&
+        monthEndInWeek >= firstEligibleMonthEnd &&
+        monthEndInWeek <= today
+      ) {
+        const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(
+          reigns,
+          monthEndInWeek,
+          firstEligibleMonthEnd
+        );
+        for (const s of stints) {
+          if (s.acquired_at > monthEndInWeek) continue;
+          if (s.released_at != null && s.released_at < monthEndInWeek) continue;
+          const pts = beltBySlug[s.wrestler_id] ?? 0;
+          if (pts > 0) {
+            pointsByUserId[s.user_id] =
+              (pointsByUserId[s.user_id] ?? 0) + pts;
+          }
+        }
+      }
+    }
+
     const weekNotOver = today <= weekEnd;
 
     let winnerUserId: string | null = null;

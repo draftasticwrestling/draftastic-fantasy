@@ -91,6 +91,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
         </h1>
         <div style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
           Week runs Monday–Sunday. Event points + weekly win (+15) and belt (+5/+4) bonuses.
+          {(league.league_type === "head_to_head" || league.league_type === "combo") && " End-of-month title points are included in the week that contains the last day of the month."}
         </div>
       </div>
 
