@@ -303,7 +303,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
             });
             while (rosterByTeam.some((r) => r.length < maxSlots)) {
               rosterByTeam.forEach((r) => {
-                if (r.length < maxSlots) r.push({ name: "—", points: 0, eventPts: 0, monthlyPts: 0, wrestlerId: undefined });
+                if (r.length < maxSlots) r.push({ name: "—", points: 0, eventPts: 0, monthlyPts: 0 });
               });
             }
 
