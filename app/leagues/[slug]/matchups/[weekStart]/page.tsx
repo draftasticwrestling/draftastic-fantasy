@@ -287,7 +287,19 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                                   minWidth: 120,
                                 }}
                               >
-                                <span style={{ display: "block" }}>{row?.name ?? "—"}</span>
+                                <span style={{ display: "block" }}>
+                                  {row?.wrestlerId ? (
+                                    <Link
+                                      href={`/wrestlers/${encodeURIComponent(row.wrestlerId)}?league=${encodeURIComponent(slug)}`}
+                                      className="app-link"
+                                      style={{ fontWeight: 500 }}
+                                    >
+                                      {row.name ?? row.wrestlerId}
+                                    </Link>
+                                  ) : (
+                                    (row?.name ?? "—")
+                                  )}
+                                </span>
                                 {row?.wrestlerId && (row.acquiredAt != null || row.releasedAt != null) && (
                                   <span style={{ fontSize: 11, color: "var(--color-text-muted)", display: "block", marginTop: 2 }}>
                                     {row.acquiredAt != null && `Added ${row.acquiredAt}`}

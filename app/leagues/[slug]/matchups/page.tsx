@@ -89,11 +89,14 @@ function ScoreHeaderCell({
 function RosterCell({
   row,
   borderLeft,
+  leagueSlug,
 }: {
-  row?: { name: string; points: number; eventPts?: number; monthlyPts?: number } | undefined;
+  row?: { name: string; points: number; eventPts?: number; monthlyPts?: number; wrestlerId?: string } | undefined;
   borderLeft?: boolean;
+  leagueSlug?: string;
 }) {
   const name = row?.name ?? "—";
+  const wrestlerId = row?.wrestlerId;
   const pts = row?.points ?? 0;
   const monthlyPts = row?.monthlyPts ?? 0;
   const eventPts = row?.eventPts ?? (pts - monthlyPts);
@@ -103,6 +106,17 @@ function RosterCell({
         ? `+${eventPts} + ${monthlyPts} monthly`
         : `+${pts}`
       : null;
+  const nameNode = wrestlerId && leagueSlug ? (
+    <Link
+      href={`/wrestlers/${encodeURIComponent(wrestlerId)}?league=${encodeURIComponent(leagueSlug)}`}
+      className="app-link"
+      style={{ whiteSpace: "nowrap", fontWeight: 500 }}
+    >
+      {name}
+    </Link>
+  ) : (
+    <span style={{ whiteSpace: "nowrap" }}>{name}</span>
+  );
   return (
     <td
       style={{
@@ -111,8 +125,8 @@ function RosterCell({
         color: row?.name && row.name !== "—" ? "var(--color-text)" : "var(--color-text-muted)",
       }}
     >
-      <span style={{ whiteSpace: "nowrap" }}>
-        {name}
+      <span>
+        {nameNode}
         {ptsLabel != null && (
           <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>{ptsLabel}</span>
         )}
@@ -279,6 +293,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                 const eventPts = byWrestler[e.wrestler_id] ?? 0;
                 const monthlyPts = monthlyBeltBySlug[e.wrestler_id] ?? 0;
                 return {
+                  wrestlerId: e.wrestler_id,
                   name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
                   points: eventPts + monthlyPts,
                   eventPts,
@@ -288,7 +303,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
             });
             while (rosterByTeam.some((r) => r.length < maxSlots)) {
               rosterByTeam.forEach((r) => {
-                if (r.length < maxSlots) r.push({ name: "—", points: 0, eventPts: 0, monthlyPts: 0 });
+                if (r.length < maxSlots) r.push({ name: "—", points: 0, eventPts: 0, monthlyPts: 0, wrestlerId: undefined });
               });
             }
 
@@ -408,9 +423,9 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                             </td>
                             {mu.type === "h2h" ? (
                               <>
-                                <RosterCell row={rosterByTeam[0]?.[rowIdx]} borderLeft />
+                                <RosterCell row={rosterByTeam[0]?.[rowIdx]} borderLeft leagueSlug={slug} />
                                 <td style={{ borderLeft: "1px solid var(--color-border)", borderRight: "1px solid var(--color-border)" }} />
-                                <RosterCell row={rosterByTeam[1]?.[rowIdx]} borderLeft />
+                                <RosterCell row={rosterByTeam[1]?.[rowIdx]} borderLeft leagueSlug={slug} />
                               </>
                             ) : (
                               teamData.map((t, colIdx) => (
@@ -418,6 +433,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                                   key={t.userId}
                                   row={rosterByTeam[colIdx]?.[rowIdx]}
                                   borderLeft
+                                  leagueSlug={slug}
                                 />
                               ))
                             )}
