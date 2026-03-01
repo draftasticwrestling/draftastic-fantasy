@@ -196,7 +196,9 @@ export async function getLeagueWeeklyMatchups(
 
   const leagueType = (league as { league_type?: string | null }).league_type ?? null;
   const includeMonthlyBeltInMatchup =
-    leagueType === "head_to_head" || leagueType === "combo";
+    leagueType === "head_to_head" ||
+    leagueType === "combo" ||
+    leagueType === null;
 
   let reigns: Array<{
     champion_slug?: string | null;
@@ -257,7 +259,7 @@ export async function getLeagueWeeklyMatchups(
         );
         for (const s of stints) {
           if (s.acquired_at > monthEndInWeek) continue;
-          if (s.released_at != null && s.released_at < monthEndInWeek) continue;
+          if (s.released_at != null && s.released_at <= monthEndInWeek) continue;
           const pts = beltBySlug[s.wrestler_id] ?? 0;
           if (pts > 0) {
             pointsByUserId[s.user_id] =
@@ -312,6 +314,74 @@ export async function getLeagueWeeklyMatchups(
   }
 
   return results;
+}
+
+/**
+ * Monthly (end-of-month) belt points by wrestler slug for the given week, when the week
+ * contains a month-end. Used so the matchup roster can show event + monthly per wrestler.
+ * Returns empty object when not a month-end week or league doesn't use monthly belt.
+ */
+export async function getMonthlyBeltBySlugForWeek(
+  leagueId: string,
+  weekStartMonday: string
+): Promise<Record<string, number>> {
+  const weekEndSunday = getSundayOfWeek(weekStartMonday);
+  const today = new Date().toISOString().slice(0, 10);
+  const monthEndInWeek = getMonthEndInWeek(weekStartMonday, weekEndSunday);
+  if (!monthEndInWeek || monthEndInWeek > today) return {};
+
+  const supabase = await createClient();
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("id, start_date, end_date, draft_date, league_type")
+    .eq("id", leagueId)
+    .single();
+  if (!league) return {};
+
+  const leagueType = (league as { league_type?: string | null }).league_type ?? null;
+  const include =
+    leagueType === "head_to_head" || leagueType === "combo" || leagueType === null;
+  if (!include) return {};
+
+  const start = (league.draft_date || league.start_date) ?? "";
+  const end = league.end_date ?? "";
+  const lastDayOfStartMonth = getLastDayOfMonthContaining(start);
+  const firstEligibleMonthEnd =
+    lastDayOfStartMonth >= FIRST_END_OF_MONTH_POINTS_DATE
+      ? lastDayOfStartMonth
+      : FIRST_END_OF_MONTH_POINTS_DATE;
+  if (monthEndInWeek < firstEligibleMonthEnd) return {};
+
+  const [{ data: tableReigns }, { data: eventsInRange }] = await Promise.all([
+    supabase.from("championship_history").select("*"),
+    supabase
+      .from("events")
+      .select("id, name, date, matches")
+      .eq("status", "completed")
+      .gte("date", start)
+      .lte("date", end)
+      .order("date", { ascending: true }),
+  ]);
+  const inferredReigns = inferReignsFromEvents(eventsInRange ?? []);
+  const reigns = (tableReigns?.length ? tableReigns : inferredReigns) as Array<{
+    champion_slug?: string | null;
+    champion_id?: string | null;
+    champion?: string | null;
+    champion_name?: string | null;
+    title?: string | null;
+    title_name?: string | null;
+    won_date?: string | null;
+    start_date?: string | null;
+    lost_date?: string | null;
+    end_date?: string | null;
+  }>;
+  if (!reigns.length) return {};
+
+  return computeEndOfMonthBeltPointsForSingleMonth(
+    reigns,
+    monthEndInWeek,
+    firstEligibleMonthEnd
+  );
 }
 
 /** Total bonus points per owner (weekly win +15 and belt +5/+4) for standings. */

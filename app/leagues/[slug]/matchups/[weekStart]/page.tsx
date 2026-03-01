@@ -8,6 +8,7 @@ import {
   getMatchupsForWeek,
   getSundayOfWeek,
   getPointsByOwnerByWrestlerForWeek,
+  getMonthlyBeltBySlugForWeek,
 } from "@/lib/leagueMatchups";
 
 type Props = { params: Promise<{ slug: string; weekStart: string }> };
@@ -39,11 +40,12 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const [members, matchups, rosters, pointsByOwnerByWrestler, wrestlersRows] = await Promise.all([
+  const [members, matchups, rosters, pointsByOwnerByWrestler, monthlyBeltBySlug, wrestlersRows] = await Promise.all([
     getLeagueMembers(league.id),
     getLeagueWeeklyMatchups(league.id),
     getRostersForLeagueForWeek(league.id, weekStartDecoded),
     getPointsByOwnerByWrestlerForWeek(league.id, weekStartDecoded),
+    getMonthlyBeltBySlugForWeek(league.id, weekStartDecoded),
     supabase.from("wrestlers").select("id, name").order("name", { ascending: true }),
   ]);
   const isMember = user && members.some((m) => m.user_id === user.id);
@@ -101,7 +103,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
         </h1>
         <div style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
           Week runs Monday–Sunday. Event points + weekly win (+15) and belt (+5/+4) bonuses.
-          {(league.league_type === "head_to_head" || league.league_type === "combo") && " End-of-month title points are included in the week that contains the last day of the month."}
+          {(league.league_type === "head_to_head" || league.league_type === "combo" || league.league_type == null) && " End-of-month title points are included in the week that contains the last day of the month."}
         </div>
       </div>
 
@@ -117,11 +119,15 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
               const rosterRows = entries.map((e, i) => {
                 const acq = e.acquired_at && e.acquired_at >= weekStartDecoded && e.acquired_at <= weekEnd ? formatShortDate(e.acquired_at) : null;
                 const drop = e.released_at && e.released_at >= weekStartDecoded && e.released_at <= weekEnd ? formatShortDate(e.released_at) : null;
+                const eventPts = byWrestler[e.wrestler_id] ?? 0;
+                const monthlyPts = monthlyBeltBySlug[e.wrestler_id] ?? 0;
                 return {
                   slot: i + 1,
                   wrestlerId: e.wrestler_id,
                   name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
-                  points: byWrestler[e.wrestler_id] ?? 0,
+                  points: eventPts + monthlyPts,
+                  eventPts,
+                  monthlyPts,
                   acquiredAt: acq,
                   releasedAt: drop,
                 };
@@ -132,6 +138,8 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   wrestlerId: "",
                   name: "—",
                   points: 0,
+                  eventPts: 0,
+                  monthlyPts: 0,
                   acquiredAt: null,
                   releasedAt: null,
                 });
@@ -295,7 +303,11 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                                       color: "var(--color-red)",
                                     }}
                                   >
-                                    {row.points > 0 ? `+${row.points}` : "0"}
+                                    {row.points > 0
+                                      ? row.monthlyPts != null && row.monthlyPts > 0
+                                        ? `+${row.eventPts ?? 0} + ${row.monthlyPts} monthly`
+                                        : `+${row.points}`
+                                      : "0"}
                                   </span>
                                 )}
                               </td>

@@ -10,6 +10,7 @@ import {
   getCurrentWeekStart,
   getSundayOfWeek,
   getPointsByOwnerByWrestlerForWeek,
+  getMonthlyBeltBySlugForWeek,
 } from "@/lib/leagueMatchups";
 import { MatchupWeekSelector } from "./MatchupWeekSelector";
 
@@ -89,11 +90,19 @@ function RosterCell({
   row,
   borderLeft,
 }: {
-  row?: { name: string; points: number } | undefined;
+  row?: { name: string; points: number; eventPts?: number; monthlyPts?: number } | undefined;
   borderLeft?: boolean;
 }) {
   const name = row?.name ?? "—";
   const pts = row?.points ?? 0;
+  const monthlyPts = row?.monthlyPts ?? 0;
+  const eventPts = row?.eventPts ?? (pts - monthlyPts);
+  const ptsLabel =
+    pts > 0
+      ? monthlyPts > 0
+        ? `+${eventPts} + ${monthlyPts} monthly`
+        : `+${pts}`
+      : null;
   return (
     <td
       style={{
@@ -104,8 +113,8 @@ function RosterCell({
     >
       <span style={{ whiteSpace: "nowrap" }}>
         {name}
-        {pts > 0 && (
-          <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>+{pts}</span>
+        {ptsLabel != null && (
+          <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>{ptsLabel}</span>
         )}
       </span>
     </td>
@@ -156,13 +165,16 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   let pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let wrestlerNames: Record<string, string> = {};
   let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
+  let monthlyBeltBySlug: Record<string, number> = {};
   if (selectedWeekStart) {
-    const [pts, wr, weekRosters] = await Promise.all([
+    const [pts, wr, weekRosters, monthlyBelt] = await Promise.all([
       getPointsByOwnerByWrestlerForWeek(league.id, selectedWeekStart),
       supabase.from("wrestlers").select("id, name").order("name", { ascending: true }),
       getRostersForLeagueForWeek(league.id, selectedWeekStart),
+      getMonthlyBeltBySlugForWeek(league.id, selectedWeekStart),
     ]);
     pointsByOwnerByWrestler = pts;
+    monthlyBeltBySlug = monthlyBelt;
     wrestlerNames = Object.fromEntries(
       ((wr.data ?? []) as { id: string; name: string | null }[]).map((w) => [w.id, w.name ?? w.id])
     );
@@ -263,14 +275,20 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
             const rosterByTeam = teamData.map((t) => {
               const entries = (rosters[t.userId] ?? []).slice(0, maxSlots);
               const byWrestler = pointsByOwnerByWrestler[t.userId] ?? {};
-              return entries.map((e, i) => ({
-                name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
-                points: byWrestler[e.wrestler_id] ?? 0,
-              }));
+              return entries.map((e, i) => {
+                const eventPts = byWrestler[e.wrestler_id] ?? 0;
+                const monthlyPts = monthlyBeltBySlug[e.wrestler_id] ?? 0;
+                return {
+                  name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
+                  points: eventPts + monthlyPts,
+                  eventPts,
+                  monthlyPts,
+                };
+              });
             });
             while (rosterByTeam.some((r) => r.length < maxSlots)) {
               rosterByTeam.forEach((r) => {
-                if (r.length < maxSlots) r.push({ name: "—", points: 0 });
+                if (r.length < maxSlots) r.push({ name: "—", points: 0, eventPts: 0, monthlyPts: 0 });
               });
             }
 
