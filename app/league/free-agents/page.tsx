@@ -13,6 +13,13 @@ import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaR
 
 const LEAGUE_START_DATE = "2025-05-02";
 
+function read2kRating(row: Record<string, unknown>, key: string): number | null {
+  const v = row[key];
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
+
 type ChampionshipReign = {
   champion_slug?: string | null;
   champion_id?: string | null;
@@ -33,15 +40,25 @@ export const metadata = {
 
 export default async function LeagueFreeAgentsPage() {
   const [
-    { data: wrestlers },
+    wrestlersResult,
     { data: assignments },
     { data: events },
     { data: rawReigns },
   ] = await Promise.all([
-    supabase
-      .from("wrestlers")
-      .select("id, name, gender, brand, image_url, dob")
-      .order("name", { ascending: true }),
+    (async () => {
+      let r = await supabase
+        .from("wrestlers")
+        .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
+        .or("status.is.null,status.neq.Inactive")
+        .order("name", { ascending: true });
+      if (r.error) {
+        r = await supabase
+          .from("wrestlers")
+          .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
+          .order("name", { ascending: true });
+      }
+      return r;
+    })(),
     supabase
       .from("roster_assignments")
       .select("wrestler_id")
@@ -67,6 +84,7 @@ export default async function LeagueFreeAgentsPage() {
   const assignedIds = new Set(
     (assignments ?? []).map((r: { wrestler_id: string }) => r.wrestler_id.toLowerCase())
   );
+  const wrestlers = wrestlersResult.data ?? [];
   const freeAgentsRaw = (
     (wrestlers ?? [])
       .filter((w: { id: string }) => !assignedIds.has((w.id as string).toLowerCase()))
@@ -89,6 +107,8 @@ export default async function LeagueFreeAgentsPage() {
       brand: w.brand ?? null,
       image_url: w.image_url ?? null,
       dob: w.dob ?? null,
+      rating_2k26: read2kRating(w as Record<string, unknown>, "2K26 rating"),
+      rating_2k25: read2kRating(w as Record<string, unknown>, "2K25 rating"),
       rsPoints: points.rsPoints,
       plePoints: points.plePoints,
       beltPoints,

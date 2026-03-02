@@ -10,6 +10,9 @@ export type WrestlerRow = {
   brand: string | null;
   image_url?: string | null;
   dob?: string | null;
+  /** 2K26 rating if available, else 2K25 (from Pro Wrestling Boxscore). */
+  rating_2k26?: number | null;
+  rating_2k25?: number | null;
   rsPoints?: number;
   plePoints?: number;
   beltPoints?: number;
@@ -136,6 +139,7 @@ export type SortColumn =
   | "name"
   | "gender"
   | "age"
+  | "rating2k"
   | "rsPoints"
   | "plePoints"
   | "beltPoints"
@@ -171,6 +175,12 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, 
       out = ageA - ageB;
       break;
     }
+    case "rating2k": {
+      const ra = a.rating_2k26 ?? a.rating_2k25 ?? -1;
+      const rb = b.rating_2k26 ?? b.rating_2k25 ?? -1;
+      out = ra - rb;
+      break;
+    }
     case "rsPoints":
       out = pa.rsPoints - pb.rsPoints;
       break;
@@ -194,6 +204,7 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: null, label: "STATUS", minW: 96, align: "center", section: "STATUS" },
   { key: "gender", label: "Gender", minW: 68, align: "center", section: "INFO" },
   { key: "age", label: "Age", minW: 52, align: "center", section: "INFO" },
+  { key: "rating2k", label: "2K", minW: 48, align: "center", section: "INFO" },
   { key: "rsPoints", label: "R/S", minW: 72, align: "center", section: "SEASON PTS" },
   { key: "plePoints", label: "PLE", minW: 72, align: "center", section: "SEASON PTS" },
   { key: "beltPoints", label: "Belt", minW: 72, align: "center", section: "SEASON PTS" },
@@ -403,6 +414,9 @@ export default function WrestlerList({
                 <span className="wrestler-card-name">{w.name || w.id}</span>
                 <span className="wrestler-card-meta">
                   {normalizeGender(w.gender)} · {age != null ? age : "—"} yrs
+                  {(w.rating_2k26 != null || w.rating_2k25 != null) && (
+                    <> · 2K {(w.rating_2k26 ?? w.rating_2k25) ?? ""}</>
+                  )}
                   {pts.totalPoints > 0 && (
                     <> · {pts.totalPoints} pts</>
                   )}
@@ -693,6 +707,9 @@ export default function WrestlerList({
                   </td>
                   <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", ...cellStyle }}>
                     {age != null ? age : "—"}
+                  </td>
+                  <td style={{ minWidth: 48, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                    {w.rating_2k26 != null ? w.rating_2k26 : w.rating_2k25 != null ? w.rating_2k25 : "—"}
                   </td>
                   <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
                     {pts.rsPoints}

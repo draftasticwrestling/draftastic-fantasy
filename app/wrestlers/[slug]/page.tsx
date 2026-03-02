@@ -151,7 +151,7 @@ export default async function WrestlerProfilePage({
 
   const { data: wrestler, error: wrestlerError } = await supabase
     .from("wrestlers")
-    .select("id, name, gender, brand, image_url, dob")
+    .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
     .eq("id", slug)
     .single();
 
@@ -448,6 +448,15 @@ export default async function WrestlerProfilePage({
           <p style={{ margin: "0 0 4px", color: "#555" }}>
             {wrestler.brand ?? "—"} · {wrestler.gender ? (String(wrestler.gender).toLowerCase() === "male" || wrestler.gender === "M" ? "Male" : "Female") : "—"}
             {age != null ? ` · ${age} years old` : ""}
+            {(() => {
+              const r26 = (wrestler as Record<string, unknown>)["2K26 rating"];
+              const r25 = (wrestler as Record<string, unknown>)["2K25 rating"];
+              const n26 = r26 != null && r26 !== "" ? Number(r26) : null;
+              const n25 = r25 != null && r25 !== "" ? Number(r25) : null;
+              const val = n26 ?? n25;
+              if (val == null || Number.isNaN(val)) return null;
+              return ` · 2K Rating: ${val}${n26 != null ? " (2K26)" : " (2K25)"}`;
+            })()}
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 12 }}>
             {rosterOwner && leagueSlugParam ? (

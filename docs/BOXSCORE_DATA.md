@@ -65,6 +65,8 @@ The live site (prowrestlingboxscore.com) is a Vite + React app that loads events
 ### `wrestlers`
 
 - **Columns (relevant):** `id` (slug, e.g. `sami-zayn`), `name`, and any you use for gender/brand. Fantasy draft pool can be built from this table (filter by promotion/brand as needed).
+- **Status / Inactive:** When the Boxscore app marks wrestlers as released or retired, set `status` to `Inactive`. The fantasy app excludes `status = 'Inactive'` from all wrestler pool tables (League Leaders, Free Agents, Wrestlers page, Draft available list, Draft Testing). Wrestlers with `status` null or any other value are shown. Use `.or("status.is.null,status.neq.Inactive")` on wrestler queries for pool views.
+- **2K ratings:** When available, the Boxscore app stores WWE 2K game ratings on wrestler profiles. The fantasy app reads columns **"2K26 rating"** and **"2K25 rating"** (numeric, nullable; names include a space) from this table and displays them (2K26 if present, else 2K25) on wrestler profiles, draft testing, and wrestler lists. Ensure the Boxscore app writes these columns when 2K rating data is added to profiles on prowrestlingboxscore.com.
 
 ### Monthly championship data (end-of-month belt points)
 

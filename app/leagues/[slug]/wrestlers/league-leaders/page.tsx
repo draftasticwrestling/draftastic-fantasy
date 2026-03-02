@@ -20,6 +20,13 @@ function firstMonthEndOnOrAfter(startDate: string): string {
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 
+function read2kRating(row: Record<string, unknown>, key: string): number | null {
+  const v = row[key];
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
+
 type ChampionshipReign = {
   champion_slug?: string | null;
   champion_id?: string | null;
@@ -61,17 +68,27 @@ export default async function LeagueLeadersPage({
   const startDate = getEffectiveLeagueStartDate(league);
 
   const [
-    { data: wrestlers, error },
+    wrestlersResult,
     { data: eventsSinceStart },
     { data: events2025 },
     { data: events2026 },
     rosters,
     members,
   ] = await Promise.all([
-    supabase
-      .from("wrestlers")
-      .select("id, name, gender, brand, image_url, dob")
-      .order("name", { ascending: true }),
+    (async () => {
+      let r = await supabase
+        .from("wrestlers")
+        .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
+        .or("status.is.null,status.neq.Inactive")
+        .order("name", { ascending: true });
+      if (r.error) {
+        r = await supabase
+          .from("wrestlers")
+          .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
+          .order("name", { ascending: true });
+      }
+      return r;
+    })(),
     supabase
       .from("events")
       .select("id, name, date, matches")
@@ -121,6 +138,8 @@ export default async function LeagueLeadersPage({
   const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
 
+  const wrestlers = wrestlersResult.data ?? [];
+  const error = wrestlersResult.error;
   const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
   const rows = wrestlersFiltered.map((w) => {
     const points = pointsBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
@@ -141,6 +160,8 @@ export default async function LeagueLeadersPage({
       brand: w.brand ?? null,
       image_url: (w as { image_url?: string }).image_url ?? null,
       dob: (w as { dob?: string }).dob ?? null,
+      rating_2k26: read2kRating(w as Record<string, unknown>, "2K26 rating"),
+      rating_2k25: read2kRating(w as Record<string, unknown>, "2K25 rating"),
       rsPoints: points.rsPoints,
       plePoints: points.plePoints,
       beltPoints,

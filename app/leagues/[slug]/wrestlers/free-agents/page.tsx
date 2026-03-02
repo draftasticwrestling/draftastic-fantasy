@@ -19,6 +19,13 @@ function firstMonthEndOnOrAfter(startDate: string): string {
   return lastDay.toISOString().slice(0, 10);
 }
 
+function read2kRating(row: Record<string, unknown>, key: string): number | null {
+  const v = row[key];
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
+
 type ChampionshipReign = {
   champion_slug?: string | null;
   champion_id?: string | null;
@@ -60,16 +67,26 @@ export default async function WrestlersFreeAgentsPage({
   const startDate = getEffectiveLeagueStartDate(league);
 
   const [
-    { data: wrestlers, error },
+    wrestlersResult,
     { data: eventsSinceStart },
     { data: events2025 },
     { data: events2026 },
     rosters,
   ] = await Promise.all([
-    supabase
-      .from("wrestlers")
-      .select("id, name, gender, brand, image_url, dob")
-      .order("name", { ascending: true }),
+    (async () => {
+      let r = await supabase
+        .from("wrestlers")
+        .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
+        .or("status.is.null,status.neq.Inactive")
+        .order("name", { ascending: true });
+      if (r.error) {
+        r = await supabase
+          .from("wrestlers")
+          .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
+          .order("name", { ascending: true });
+      }
+      return r;
+    })(),
     supabase
       .from("events")
       .select("id, name, date, matches")
@@ -93,6 +110,8 @@ export default async function WrestlersFreeAgentsPage({
     getRostersForLeague(league.id),
   ]);
 
+  const wrestlers = wrestlersResult.data ?? [];
+  const error = wrestlersResult.error;
   const onRosterIds = new Set<string>();
   for (const entries of Object.values(rosters ?? {})) {
     for (const e of entries) {
@@ -136,6 +155,8 @@ export default async function WrestlersFreeAgentsPage({
       brand: w.brand ?? null,
       image_url: (w as { image_url?: string }).image_url ?? null,
       dob: (w as { dob?: string }).dob ?? null,
+      rating_2k26: read2kRating(w as Record<string, unknown>, "2K26 rating"),
+      rating_2k25: read2kRating(w as Record<string, unknown>, "2K25 rating"),
       rsPoints: points.rsPoints,
       plePoints: points.plePoints,
       beltPoints,

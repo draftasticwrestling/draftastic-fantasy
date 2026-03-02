@@ -90,11 +90,18 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       getRostersForLeague(league.id),
       (async () => {
         const supabase = await createClient();
-        const { data } = await supabase
+        let result = await supabase
           .from("wrestlers")
           .select("id, name, gender")
+          .or("status.is.null,status.neq.Inactive")
           .order("name", { ascending: true });
-        return (data ?? []) as { id: string; name: string | null; gender: string | null }[];
+        if (result.error) {
+          result = await supabase
+            .from("wrestlers")
+            .select("id, name, gender")
+            .order("name", { ascending: true });
+        }
+        return (result.data ?? []) as { id: string; name: string | null; gender: string | null }[];
       })(),
       getPointsByOwnerForLeagueWithBonuses(league.id),
     ]);
