@@ -13,9 +13,7 @@ export default function ComingSoonLayout({
   return (
     <div className="coming-soon-root">
       <header className="coming-soon-header">
-        <Link href="/coming-soon" className="coming-soon-logo">
-          Draftastic Pro Wrestling
-        </Link>
+        <span className="coming-soon-logo">Draftastic Pro Wrestling</span>
       </header>
       <main className="coming-soon-main">{children}</main>
       <footer className="coming-soon-footer">

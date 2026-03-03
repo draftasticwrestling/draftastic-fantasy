@@ -6,10 +6,16 @@ const LANDING_DOMAIN = "draftasticprowrestling.com";
 export async function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const pathname = request.nextUrl.pathname;
+  const isLandingDomain = host.toLowerCase().includes(LANDING_DOMAIN);
 
-  // Serve coming-soon landing at / when the request is for the landing domain
-  if (host.toLowerCase().includes(LANDING_DOMAIN) && pathname === "/") {
-    return NextResponse.rewrite(new URL("/coming-soon", request.url));
+  if (isLandingDomain) {
+    // Only allow / and /coming-soon (rewritten from /). Redirect everything else to /
+    if (pathname !== "/" && pathname !== "/coming-soon") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+    if (pathname === "/") {
+      return NextResponse.rewrite(new URL("/coming-soon", request.url));
+    }
   }
 
   return await updateSession(request);
