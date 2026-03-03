@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug, getEffectiveLeagueStartDate, getRostersForLeague, getLeagueMembers } from "@/lib/leagues";
@@ -15,6 +15,8 @@ import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.j
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { WrestlerPointsPeriodSelector, type PointsPeriod } from "./WrestlerPointsPeriodSelector";
+
+export const dynamic = "force-dynamic";
 
 const EVENTS_FROM_DATE = "2020-01-01";
 
@@ -103,7 +105,10 @@ function slugLike(s: string): string {
     .replace(/-+/g, "-");
 }
 
-async function findWrestlerIdBySlug(slug: string): Promise<string | null> {
+async function findWrestlerIdBySlug(
+  slug: string,
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<string | null> {
   const { data: row } = await supabase
     .from("wrestlers")
     .select("id")
@@ -128,7 +133,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const wrestlerId = await findWrestlerIdBySlug(slug);
+  const supabase = await createClient();
+  const wrestlerId = await findWrestlerIdBySlug(slug, supabase);
   let name: string;
   if (wrestlerId) {
     const { data: w } = await supabase.from("wrestlers").select("name").eq("id", wrestlerId).single();
@@ -179,7 +185,8 @@ export default async function WrestlerProfilePage({
         ? "sinceStart"
         : "allTime";
 
-  const wrestlerId = await findWrestlerIdBySlug(slug);
+  const supabase = await createClient();
+  const wrestlerId = await findWrestlerIdBySlug(slug, supabase);
   if (!wrestlerId) notFound();
 
   const { data: wrestler, error: wrestlerError } = await supabase
