@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
       { source: "/results/:eventId", destination: "/event-results/:eventId", permanent: true },
     ];
   },
+  async headers() {
+    return [
+      {
+        source: "/_next/static/chunks/:path(.+\\.css)",
+        headers: [{ key: "Content-Type", value: "text/css" }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
