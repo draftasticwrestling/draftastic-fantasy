@@ -7,6 +7,7 @@ import {
   FIRST_END_OF_MONTH_POINTS_DATE,
   getCurrentChampionsBySlug,
   inferReignsFromEvents,
+  mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
@@ -63,7 +64,7 @@ export default async function WrestlersPage() {
     .order("won_date", { ascending: true });
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
   const inferredReigns = inferReignsFromEvents(events ?? []);
-  const reigns = tableReigns.length > 0 ? tableReigns : inferredReigns;
+  const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
 
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);

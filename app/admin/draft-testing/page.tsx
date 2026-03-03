@@ -2,8 +2,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
+  computeEndOfMonthBeltPoints,
   getCurrentChampionsBySlug,
   inferReignsFromEvents,
+  mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isDraftableWrestler, isDraftableWrestlerForDraftTesting, normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
@@ -169,8 +171,12 @@ export default async function DraftTestingPage() {
     lost_date?: string | null;
     end_date?: string | null;
   }>;
-  const reigns = tableReigns.length > 0 ? tableReigns : inferReignsFromEvents(eventsAll ?? []);
+  const inferredReigns = inferReignsFromEvents(eventsAll ?? []);
+  const reigns = mergeReigns(tableReigns, inferredReigns) as typeof tableReigns;
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
+  const endOfMonthBeltPointsAll = computeEndOfMonthBeltPoints(reigns, "2020-01-31");
+  const endOfMonthBeltPoints2025 = computeEndOfMonthBeltPoints(reigns, "2025-01-31", "2025-12-31");
+  const endOfMonthBeltPoints2026 = computeEndOfMonthBeltPoints(reigns, "2026-01-31");
 
   const normalizedRows = (wrestlersRows ?? []).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r as Record<string, unknown>) }));
   // Use isDraftableWrestlerForDraftTesting so injured wrestlers appear in the table with injury badge
@@ -228,9 +234,34 @@ export default async function DraftTestingPage() {
     };
   });
 
-  const points2025 = aggregateWrestlerPoints(events2025 ?? []) as PointsBySlug;
-  const points2026 = aggregateWrestlerPoints(events2026 ?? []) as PointsBySlug;
-  const pointsAll = aggregateWrestlerPoints(eventsAll ?? []) as PointsBySlug;
+  const points2025Raw = aggregateWrestlerPoints(events2025 ?? []) as PointsBySlug;
+  const points2026Raw = aggregateWrestlerPoints(events2026 ?? []) as PointsBySlug;
+  const pointsAllRaw = aggregateWrestlerPoints(eventsAll ?? []) as PointsBySlug;
+
+  // Add monthly hold points to belt points so table shows combined (match + monthly) like profile
+  function addMonthlyToPoints(
+    points: PointsBySlug,
+    monthlyBySlug: Record<string, number>
+  ): PointsBySlug {
+    const out = { ...points };
+    for (const slug of Object.keys(out)) {
+      const extra = monthlyBySlug[slug] ?? 0;
+      out[slug] = { ...out[slug], beltPoints: out[slug].beltPoints + extra };
+    }
+    for (const slug of Object.keys(monthlyBySlug)) {
+      if (!(slug in out)) {
+        out[slug] = {
+          rsPoints: 0,
+          plePoints: 0,
+          beltPoints: monthlyBySlug[slug] ?? 0,
+        };
+      }
+    }
+    return out;
+  }
+  const points2025 = addMonthlyToPoints(points2025Raw, endOfMonthBeltPoints2025);
+  const points2026 = addMonthlyToPoints(points2026Raw, endOfMonthBeltPoints2026);
+  const pointsAll = addMonthlyToPoints(pointsAllRaw, endOfMonthBeltPointsAll);
 
   const pointsByPeriod = {
     "2026": points2026,

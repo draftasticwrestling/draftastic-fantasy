@@ -6,6 +6,7 @@ import {
   computeEndOfMonthBeltPoints,
   getCurrentChampionsBySlug,
   inferReignsFromEvents,
+  mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
@@ -93,7 +94,7 @@ export default async function AdminWrestlersPage() {
 
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
   const inferredReigns = inferReignsFromEvents(eventsSinceStart ?? []);
-  const reigns = tableReigns.length > 0 ? tableReigns : inferredReigns;
+  const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
 
   const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart ?? []);
   const points2025BySlug = aggregateWrestlerPoints(events2025 ?? []);
@@ -103,6 +104,8 @@ export default async function AdminWrestlersPage() {
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
   const firstEligibleMonthEndAllTime = "2020-01-31";
   const endOfMonthBeltPointsAllTime = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEndAllTime);
+  const endOfMonthBeltPoints2025 = computeEndOfMonthBeltPoints(reigns, "2025-01-31", "2025-12-31");
+  const endOfMonthBeltPoints2026 = computeEndOfMonthBeltPoints(reigns, "2026-01-31");
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
   const wrestlers = wrestlersResult.data ?? [];
@@ -123,11 +126,21 @@ export default async function AdminWrestlersPage() {
       (typeof endOfMonthBeltPointsAllTime[slugKey] === "number" ? endOfMonthBeltPointsAllTime[slugKey] : null) ??
       (nameKey && typeof endOfMonthBeltPointsAllTime[nameKey] === "number" ? endOfMonthBeltPointsAllTime[nameKey] : null) ??
       0;
+    const extraBelt2025 =
+      (typeof endOfMonthBeltPoints2025[slugKey] === "number" ? endOfMonthBeltPoints2025[slugKey] : null) ??
+      (nameKey && typeof endOfMonthBeltPoints2025[nameKey] === "number" ? endOfMonthBeltPoints2025[nameKey] : null) ??
+      0;
+    const extraBelt2026 =
+      (typeof endOfMonthBeltPoints2026[slugKey] === "number" ? endOfMonthBeltPoints2026[slugKey] : null) ??
+      (nameKey && typeof endOfMonthBeltPoints2026[nameKey] === "number" ? endOfMonthBeltPoints2026[nameKey] : null) ??
+      0;
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const beltPointsAllTime = pointsAllTime.beltPoints + extraBeltAllTime;
     const totalPointsAllTime =
       pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
+    const beltPoints2025 = points2025.beltPoints + extraBelt2025;
+    const beltPoints2026 = points2026.beltPoints + extraBelt2026;
     const titles =
       currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
     return {
@@ -145,12 +158,12 @@ export default async function AdminWrestlersPage() {
       totalPoints,
       rsPoints2025: points2025.rsPoints,
       plePoints2025: points2025.plePoints,
-      beltPoints2025: points2025.beltPoints,
-      totalPoints2025: points2025.rsPoints + points2025.plePoints + points2025.beltPoints,
+      beltPoints2025,
+      totalPoints2025: points2025.rsPoints + points2025.plePoints + beltPoints2025,
       rsPoints2026: points2026.rsPoints,
       plePoints2026: points2026.plePoints,
-      beltPoints2026: points2026.beltPoints,
-      totalPoints2026: points2026.rsPoints + points2026.plePoints + points2026.beltPoints,
+      beltPoints2026,
+      totalPoints2026: points2026.rsPoints + points2026.plePoints + beltPoints2026,
       rsPointsAllTime: pointsAllTime.rsPoints,
       plePointsAllTime: pointsAllTime.plePoints,
       beltPointsAllTime,

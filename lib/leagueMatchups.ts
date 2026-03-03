@@ -5,6 +5,7 @@ import { getWeeklyMatchupStructure } from "@/lib/publicLeagueMatchups";
 import {
   computeEndOfMonthBeltPointsForSingleMonth,
   inferReignsFromEvents,
+  mergeReigns,
   FIRST_END_OF_MONTH_POINTS_DATE,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 
@@ -232,7 +233,7 @@ export async function getLeagueWeeklyMatchups(
         .order("date", { ascending: true }),
     ]);
     const inferredReigns = inferReignsFromEvents(eventsInRange ?? []);
-    reigns = ((tableReigns?.length ?? 0) > 0 ? tableReigns : inferredReigns) as typeof reigns;
+    reigns = mergeReigns(tableReigns ?? [], inferredReigns) as typeof reigns;
   }
 
   const weeks = getWeeksInRange(start, end);
@@ -363,7 +364,7 @@ export async function getMonthlyBeltBySlugForWeek(
       .order("date", { ascending: true }),
   ]);
   const inferredReigns = inferReignsFromEvents(eventsInRange ?? []);
-  const reigns = ((tableReigns?.length ?? 0) > 0 ? tableReigns : inferredReigns) as Array<{
+  const reigns = mergeReigns(tableReigns ?? [], inferredReigns) as Array<{
     champion_slug?: string | null;
     champion_id?: string | null;
     champion?: string | null;

@@ -23,6 +23,7 @@ import {
   FIRST_END_OF_MONTH_POINTS_DATE,
   inferReignsFromEvents,
   getTitleReignsForWrestler,
+  mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
@@ -239,7 +240,7 @@ export default async function WrestlerProfilePage({
   const inferredReigns = inferReignsFromEvents(
     eventsWithDate as { date: string; matches?: Array<{ title?: string; titleOutcome?: string; result?: string; participants?: string }> }[]
   );
-  const reigns = tableReigns.length > 0 ? tableReigns : inferredReigns;
+  const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
 
   const pointsBySlug = aggregateWrestlerPoints(
     (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
