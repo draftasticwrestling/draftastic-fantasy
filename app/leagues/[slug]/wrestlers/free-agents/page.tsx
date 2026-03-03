@@ -224,6 +224,7 @@ export default async function WrestlersFreeAgentsPage({
           wrestlers={rows}
           defaultSortColumn="totalPoints"
           defaultSortDir="desc"
+          defaultPointsPeriod="allTime"
         />
       )}
     </main>

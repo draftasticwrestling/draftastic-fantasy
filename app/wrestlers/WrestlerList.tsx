@@ -160,6 +160,7 @@ function getPointsForPeriod(w: WrestlerRow, period: PointsPeriod) {
 
 export type SortColumn =
   | "roster"
+  | "rank"
   | "name"
   | "gender"
   | "age"
@@ -183,6 +184,9 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, 
       out = ia - ib;
       break;
     }
+    case "rank":
+      out = pa.totalPoints - pb.totalPoints;
+      break;
     case "name":
       out = byName(a, b);
       break;
@@ -223,6 +227,7 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, 
 
 const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; align: "left" | "center"; section?: string }[] = [
   { key: "roster", label: "Roster", minW: 52, align: "center", section: "PLAYER" },
+  { key: "rank", label: "Rank", minW: 48, align: "center", section: "PLAYER" },
   { key: null, label: "", minW: 76, align: "center", section: "PLAYER" },
   { key: "name", label: "Name", minW: 160, align: "left", section: "PLAYER" },
   { key: null, label: "STATUS", minW: 96, align: "center", section: "STATUS" },
@@ -236,8 +241,8 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: null, label: "—", minW: 52, align: "center", section: "FANTASY PTS" },
 ];
 
-const STICKY_COLUMN_COUNT = 3;
-const stickyLefts = [0, 52, 128]; // cumulative: 0, 52, 52+76
+const STICKY_COLUMN_COUNT = 4;
+const stickyLefts = [0, 52, 100, 176]; // cumulative: Roster 52, Rank 48, Image 76, Name 160
 
 const ROW_BG_ALT = "#f8f9fa";
 const ROW_BG_MAIN = "#ffffff";
@@ -297,6 +302,8 @@ type WrestlerListProps = {
   defaultSortColumn?: SortColumn;
   /** Default sort direction. */
   defaultSortDir?: SortDir;
+  /** Default points period when the period filter is shown (e.g. "allTime" for League Leaders / Free Agents). */
+  defaultPointsPeriod?: PointsPeriod;
   /** League slug for "propose trade" links (e.g. League Leaders in a league context). */
   leagueSlug?: string | null;
   /** Wrestler id -> owner info. When set, Status shows owner name + propose trade for rostered; else FA + add/flag. */
@@ -307,6 +314,7 @@ export default function WrestlerList({
   wrestlers,
   defaultSortColumn = "roster",
   defaultSortDir = "asc",
+  defaultPointsPeriod,
   leagueSlug,
   rosterByWrestler,
 }: WrestlerListProps) {
@@ -316,7 +324,9 @@ export default function WrestlerList({
   const [includedRosters, setIncludedRosters] = useState<Set<string>>(
     () => new Set(["Raw", "SmackDown"])
   );
-  const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("sinceStart");
+  const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>(
+    defaultPointsPeriod ?? "sinceStart"
+  );
   const hasPointsPeriodFilter =
     wrestlers.length > 0 &&
     ("totalPoints2025" in wrestlers[0] || "totalPointsAllTime" in wrestlers[0]);
@@ -357,6 +367,25 @@ export default function WrestlerList({
     });
     return list;
   }, [wrestlers, sortColumn, sortDir, search, includedRosters, pointsPeriod]);
+
+  /** Rank by total points (selected period) among filtered wrestlers; 1 = highest. */
+  const rankByWrestlerId = useMemo(() => {
+    let list = wrestlers.filter((w) => includedRosters.has(normalizeRoster(w.brand)));
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (w) =>
+          (w.name ?? "").toLowerCase().includes(q) ||
+          (w.id ?? "").toLowerCase().includes(q)
+      );
+    }
+    const sorted = [...list].sort(
+      (a, b) => compare(a, b, "totalPoints", "desc", pointsPeriod) || byName(a, b)
+    );
+    const map = new Map<string, number>();
+    sorted.forEach((w, i) => map.set(w.id, i + 1));
+    return map;
+  }, [wrestlers, includedRosters, search, pointsPeriod]);
 
   const flatList = filteredAndSorted;
   const totalCount = wrestlers.length;
@@ -482,6 +511,9 @@ export default function WrestlerList({
                   </span>
                 )}
                 <span className="wrestler-card-meta">
+                  {rankByWrestlerId.get(w.id) != null && (
+                    <>Rank {rankByWrestlerId.get(w.id)} · </>
+                  )}
                   {normalizeGender(w.gender)} · {age != null ? age : "—"} yrs
                   {(w.rating_2k26 != null || w.rating_2k25 != null) && (
                     <> · 2K {(w.rating_2k26 ?? w.rating_2k25) ?? ""}</>
@@ -616,11 +648,26 @@ export default function WrestlerList({
                   </td>
                   <td
                     style={{
+                      minWidth: 48,
+                      padding: "10px 6px",
+                      textAlign: "center",
+                      fontWeight: 600,
+                      ...cellStyle,
+                      position: "sticky",
+                      left: 52,
+                      zIndex: 1,
+                      boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
+                    }}
+                  >
+                    {rankByWrestlerId.get(w.id) ?? "—"}
+                  </td>
+                  <td
+                    style={{
                       minWidth: 76,
                       padding: 6,
                       ...cellStyle,
                       position: "sticky",
-                      left: 52,
+                      left: 100,
                       zIndex: 1,
                       boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
                     }}
@@ -663,7 +710,7 @@ export default function WrestlerList({
                       padding: "10px 12px",
                       fontWeight: 600,
                       position: "sticky",
-                      left: 128,
+                      left: 176,
                       zIndex: 1,
                       boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
                       ...cellStyle,

@@ -94,18 +94,36 @@ function calculateAge(dob: string | null | undefined): number | null {
   return age >= 0 ? age : null;
 }
 
+async function findWrestlerIdBySlug(slug: string): Promise<string | null> {
+  const { data: row } = await supabase
+    .from("wrestlers")
+    .select("id")
+    .eq("id", slug)
+    .single();
+  if (row?.id) return row.id as string;
+  const slugLower = slug.trim().toLowerCase();
+  if (!slugLower) return null;
+  const { data: allIds } = await supabase.from("wrestlers").select("id");
+  const match = (allIds ?? []).find(
+    (r: { id: string }) => String(r.id).trim().toLowerCase() === slugLower
+  );
+  return match?.id ?? null;
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const { data: wrestler } = await supabase
-    .from("wrestlers")
-    .select("name")
-    .eq("id", slug)
-    .single();
-  const name = wrestler?.name ?? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  const wrestlerId = await findWrestlerIdBySlug(slug);
+  let name: string;
+  if (wrestlerId) {
+    const { data: w } = await supabase.from("wrestlers").select("name").eq("id", wrestlerId).single();
+    name = (w as { name?: string } | null)?.name ?? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  } else {
+    name = slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
   return {
     title: `${name} — Wrestler — Draftastic Fantasy`,
     description: `Fantasy stats and match history for ${name}.`,
@@ -149,10 +167,13 @@ export default async function WrestlerProfilePage({
         ? "sinceStart"
         : "allTime";
 
+  const wrestlerId = await findWrestlerIdBySlug(slug);
+  if (!wrestlerId) notFound();
+
   const { data: wrestler, error: wrestlerError } = await supabase
     .from("wrestlers")
     .select('id, name, gender, brand, image_url, dob, status, "Status", "2K26 rating", "2K25 rating"')
-    .eq("id", slug)
+    .eq("id", wrestlerId)
     .single();
 
   if (wrestlerError || !wrestler) notFound();
@@ -209,15 +230,16 @@ export default async function WrestlerProfilePage({
   const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, firstMonthEnd);
   const nameKey = wrestler.name ? normalizeWrestlerName(wrestler.name) : "";
   const extraBelt =
+    (typeof endOfMonthBySlug[wrestler.id] === "number" ? endOfMonthBySlug[wrestler.id] : null) ??
     (typeof endOfMonthBySlug[slug] === "number" ? endOfMonthBySlug[slug] : null) ??
     (nameKey && typeof endOfMonthBySlug[nameKey] === "number" ? endOfMonthBySlug[nameKey] : null) ??
     0;
 
-  const points = pointsBySlug[slug] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
+  const points = pointsBySlug[wrestler.id] ?? pointsBySlug[slug] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
   const beltPoints = points.beltPoints + extraBelt;
   const totalPoints = points.rsPoints + points.plePoints + beltPoints;
 
-  const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEnd, slug);
+  const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEnd, wrestler.id) || getTitleReignsForWrestler(reigns, firstMonthEnd, slug);
 
   const { data: wrestlersList } = await supabase.from("wrestlers").select("id, name");
   const slugToCanonical = new Map<string, string>();
@@ -517,7 +539,7 @@ export default async function WrestlerProfilePage({
               <>
                 {leagueSlugParam && (
                   <Link
-                    href={`/leagues/${encodeURIComponent(leagueSlugParam)}/team?addFa=${encodeURIComponent(slug)}#sign-free-agent`}
+                    href={`/leagues/${encodeURIComponent(leagueSlugParam)}/team?addFa=${encodeURIComponent(wrestler.id)}#sign-free-agent`}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -536,7 +558,7 @@ export default async function WrestlerProfilePage({
                   </Link>
                 )}
                 <Link
-                  href={leagueSlugParam ? `/leagues/${encodeURIComponent(leagueSlugParam)}/watchlist?add=${encodeURIComponent(slug)}` : `/wrestlers/watch?add=${encodeURIComponent(slug)}`}
+                  href={leagueSlugParam ? `/leagues/${encodeURIComponent(leagueSlugParam)}/watchlist?add=${encodeURIComponent(wrestler.id)}` : `/wrestlers/watch?add=${encodeURIComponent(wrestler.id)}`}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",

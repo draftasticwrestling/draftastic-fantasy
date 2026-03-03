@@ -172,9 +172,9 @@ export type AutoDraftWrestlerStrategy =
   | "high_females";
 
 const FOCUS_OPTIONS: { value: AutoDraftFocus; label: string }[] = [
+  { value: "all", label: "All-time points" },
   { value: "2026", label: "2026 points" },
   { value: "2025", label: "2025 points" },
-  { value: "all", label: "All-time points" },
 ];
 const POINT_STRATEGY_OPTIONS: { value: AutoDraftPointStrategy; label: string }[] = [
   { value: "total", label: "Total Points" },
