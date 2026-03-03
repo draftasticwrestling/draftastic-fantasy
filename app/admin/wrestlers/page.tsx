@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import WrestlerList from "@/app/wrestlers/WrestlerList";
+import WrestlerList, { type WrestlerRow } from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   computeEndOfMonthBeltPoints,
@@ -131,12 +131,12 @@ export default async function AdminWrestlersPage() {
     const titles =
       currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
     return {
-      id: w.id,
-      name: w.name ?? null,
-      gender: w.gender ?? null,
-      brand: w.brand ?? null,
-      image_url: w.image_url ?? null,
-      dob: w.dob ?? null,
+      id: String(w.id ?? ""),
+      name: (w.name != null ? String(w.name) : null) as string | null,
+      gender: (w.gender != null ? String(w.gender) : null) as string | null,
+      brand: (w.brand != null ? String(w.brand) : null) as string | null,
+      image_url: (w.image_url != null ? String(w.image_url) : null) as string | null,
+      dob: (w.dob != null ? String(w.dob) : null) as string | null,
       rating_2k26: read2kRating(w, "2K26 rating"),
       rating_2k25: read2kRating(w, "2K25 rating"),
       rsPoints: points.rsPoints,
@@ -155,10 +155,10 @@ export default async function AdminWrestlersPage() {
       plePointsAllTime: pointsAllTime.plePoints,
       beltPointsAllTime,
       totalPointsAllTime,
-      personaDisplay: getPersonasForDisplay(w.id as string) ?? null,
+      personaDisplay: getPersonasForDisplay(String(w.id)) ?? null,
       status: (w.Status ?? w.status) != null ? String(w.Status ?? w.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
-    };
+    } satisfies WrestlerRow;
   });
 
   return (
