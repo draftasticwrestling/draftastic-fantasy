@@ -6,3 +6,9 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Force correct MIME type for Next.js CSS (avoids "text/plain" / strict MIME refusal)
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Content-Type = "text/css"
