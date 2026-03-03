@@ -209,6 +209,8 @@ export default function Nav() {
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
+  if (pathname === "/coming-soon") return null;
+
   return (
     <>
       <header className="nav-header" ref={mobileMenuRef}>
