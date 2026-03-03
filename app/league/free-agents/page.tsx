@@ -6,6 +6,7 @@ import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.j
 import {
   computeEndOfMonthBeltPoints,
   FIRST_END_OF_MONTH_POINTS_DATE,
+  getCurrentChampionsBySlug,
   inferReignsFromEvents,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
@@ -72,6 +73,7 @@ export default async function LeagueFreeAgentsPage() {
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
   const inferredReigns = inferReignsFromEvents(events ?? []);
   const reigns = tableReigns.length > 0 ? tableReigns : inferredReigns;
+  const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
   const endOfMonthBeltBySlug = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
 
@@ -94,6 +96,8 @@ export default async function LeagueFreeAgentsPage() {
       0;
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
+    const titles =
+      currentChampionsBySlug[w.id] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
     return {
       id: w.id,
       name: w.name ?? null,
@@ -108,6 +112,7 @@ export default async function LeagueFreeAgentsPage() {
       beltPoints,
       totalPoints,
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
+      currentChampionship: titles.length > 0 ? titles.join(", ") : null,
     };
   });
 

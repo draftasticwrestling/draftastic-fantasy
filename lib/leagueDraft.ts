@@ -448,6 +448,7 @@ function normalizeBrand(b: string | null | undefined): string {
   const l = b.trim().toLowerCase();
   if (l === "raw") return "Raw";
   if (l === "smackdown" || l === "smack down") return "SmackDown";
+  if (l === "nxt" || l.includes("nxt")) return "NXT";
   return "Unassigned";
 }
 
@@ -457,7 +458,7 @@ function rosterCategory(brand: string | null | undefined): string {
   const l = brand.trim().toLowerCase();
   if (l === "raw") return "Raw";
   if (l === "smackdown" || l === "smack down") return "SmackDown";
-  if (l === "nxt") return "NXT";
+  if (l === "nxt" || l.includes("nxt")) return "NXT";
   if (l === "celebrity guests" || l === "celebrity" || l === "celebrity guest" || l === "celebrity guests") return "Celebrity Guests";
   if (l === "alumni" || l === "legend" || l === "legends" || l === "hall of fame") return "Alumni";
   if (
@@ -494,6 +495,9 @@ export function normalizeWrestlerRowFromApi(row: Record<string, unknown>): Draft
   };
 }
 
+/** Statuses that exclude from draft pool (injured included so they don't appear in real drafts). */
+const NON_DRAFTABLE_STATUSES_EXCLUDING_INJURED = ["inactive", "retired", "released", "suspended", "part-time", "part time"];
+
 /**
  * Draftable if: not explicitly non-Active (exclude Alumni, Non-wrestlers when classification is set),
  * not injured/inactive/retired/part-time, not non-wrestler/alumni/celebrity (brand). Blocklist is backup.
@@ -504,6 +508,21 @@ export function isDraftableWrestler(row: DraftPoolRow): boolean {
   if (classification && NON_DRAFTABLE_CLASSIFICATIONS.includes(classification)) return false;
   const status = row.status != null ? String(row.status).trim().toLowerCase() : "";
   if (status && NON_DRAFTABLE_STATUSES.includes(status)) return false;
+  const category = rosterCategory(row.brand);
+  if (NON_DRAFTABLE_CATEGORIES.includes(category)) return false;
+  if (isBlocklistedSlug(row.id)) return false;
+  return true;
+}
+
+/**
+ * Like isDraftableWrestler but allows injured/inj so they appear in Draft Testing table with injury badge.
+ * Use only on the admin Draft Testing page.
+ */
+export function isDraftableWrestlerForDraftTesting(row: DraftPoolRow): boolean {
+  const classification = row.classification != null ? String(row.classification).trim().toLowerCase() : "";
+  if (classification && NON_DRAFTABLE_CLASSIFICATIONS.includes(classification)) return false;
+  const status = row.status != null ? String(row.status).trim().toLowerCase() : "";
+  if (status && NON_DRAFTABLE_STATUSES_EXCLUDING_INJURED.includes(status)) return false;
   const category = rosterCategory(row.brand);
   if (NON_DRAFTABLE_CATEGORIES.includes(category)) return false;
   if (isBlocklistedSlug(row.id)) return false;

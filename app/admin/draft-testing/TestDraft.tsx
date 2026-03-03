@@ -13,6 +13,10 @@ export type WrestlerDraftRow = {
   image_url: string | null;
   rating_2k26: number | null;
   rating_2k25: number | null;
+  /** Status from API (e.g. Injured, INJ). Used to show injury badge. */
+  status?: string | null;
+  /** Current championship(s) held, e.g. "WWE Championship". Shown under name. */
+  currentChampionship?: string | null;
 };
 
 export type PointsBySlug = Record<string, { rsPoints: number; plePoints: number; beltPoints: number }>;
@@ -38,8 +42,46 @@ function normalizeBrand(brand: string | null | undefined): string {
   const lower = brand.trim().toLowerCase();
   if (lower === "raw") return "Raw";
   if (lower === "smackdown" || lower === "smack down") return "SmackDown";
+  if (lower === "nxt" || lower.includes("nxt")) return "NXT";
   return "Unassigned";
 }
+
+/** Map brand to roster category for filters (match WrestlerList). */
+function rosterCategory(brand: string | null | undefined): string {
+  if (!brand?.trim()) return "Unassigned";
+  const lower = brand.trim().toLowerCase();
+  if (lower === "raw") return "Raw";
+  if (lower === "smackdown" || lower === "smack down") return "SmackDown";
+  if (lower === "nxt" || lower.includes("nxt")) return "NXT";
+  if (lower === "celebrity guests" || lower === "celebrity" || lower === "celebrity guest") return "Celebrity Guests";
+  if (lower === "alumni") return "Alumni";
+  if (lower === "managers" || lower === "manager" || lower === "gm" || lower === "gms" || lower === "head of creative" || lower === "announcers" || lower === "announcer") return "Front Office";
+  return "Other";
+}
+
+/** Roster filter options (match WrestlerList order). */
+const ROSTER_FILTER_OPTIONS = [
+  { value: "Raw", label: "Raw" },
+  { value: "SmackDown", label: "SmackDown" },
+  { value: "NXT", label: "NXT" },
+  { value: "Front Office", label: "Front Office" },
+  { value: "Celebrity Guests", label: "Celebrity Guests" },
+  { value: "Alumni", label: "Alumni" },
+  { value: "Unassigned", label: "Unassigned" },
+  { value: "Other", label: "Other" },
+] as const;
+
+/** Match WrestlerList: Roster/Brand as first column with colored cell. */
+const BRAND_STYLES: Record<string, { showBg: string; label: string }> = {
+  Raw: { showBg: "#6B0F2A", label: "RAW" },
+  SmackDown: { showBg: "#071A4A", label: "SD" },
+  NXT: { showBg: "#1a1a1a", label: "NXT" },
+  "Front Office": { showBg: "#3a3a3a", label: "FRONT OFFICE" },
+  "Celebrity Guests": { showBg: "#2d2d2d", label: "CELEBRITY" },
+  Alumni: { showBg: "#2d2d2d", label: "ALUMNI" },
+  Unassigned: { showBg: "#4c4c4c", label: "UNASSIGNED" },
+  Other: { showBg: "#2d2d2d", label: "OTHER" },
+};
 
 function normalizeGender(g: string | null | undefined): string {
   if (!g) return "—";
@@ -47,6 +89,43 @@ function normalizeGender(g: string | null | undefined): string {
   if (lower === "male" || lower === "m") return "M";
   if (lower === "female" || lower === "f") return "F";
   return "—";
+}
+
+/** Treat Injured, INJ, or any status containing "injured" (e.g. Injured Reserve) as injured. */
+function isInjured(status: string | null | undefined): boolean {
+  if (status == null || status === "") return false;
+  const s = String(status).trim().toLowerCase();
+  return s === "injured" || s === "inj" || s.includes("injured");
+}
+
+function getWrestlerStatus(w: WrestlerDraftRow): string | null {
+  const raw = w as Record<string, unknown>;
+  const v = raw.status ?? raw.Status ?? (raw as Record<string, unknown>).STATUS;
+  return v != null && v !== "" ? String(v) : null;
+}
+
+/** Medical plus (injury badge) — matches WrestlerList. */
+function InjuryBadge({ size = 16 }: { size?: number }) {
+  return (
+    <span
+      role="img"
+      aria-label="Injured"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: "#fff",
+        flexShrink: 0,
+      }}
+    >
+      <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 12 12" fill="none" stroke="#c00" strokeWidth="1.8" strokeLinecap="butt" aria-hidden>
+        <path d="M6 2v8M2 6h8" />
+      </svg>
+    </span>
+  );
 }
 
 function shuffle<T>(array: T[]): T[] {
@@ -142,6 +221,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [tableSortColumn, setTableSortColumn] = useState<DraftTableSortColumn>("rank");
   const [tableSortDir, setTableSortDir] = useState<SortDir>("asc");
+  const [includedRosters, setIncludedRosters] = useState<Set<string>>(() => new Set(["Raw", "SmackDown"]));
   /** Per-team auto-draft preferences. Used when clock hits 0. */
   const [teamPreferences, setTeamPreferences] = useState<
     Record<number, { focus: AutoDraftFocus; pointStrategy: AutoDraftPointStrategy; wrestlerStrategy: AutoDraftWrestlerStrategy }>
@@ -173,6 +253,18 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
     return withStats.map((row, i) => ({ ...row, rank: i + 1 }));
   }, [available, pointsForPeriod]);
 
+  /** Prefer Raw/SmackDown over NXT/Unassigned/Other within the top tier when auto-picking. */
+  function preferMainRoster<T extends { wrestler: WrestlerDraftRow; total: number }>(sorted: T[]): string | null {
+    if (sorted.length === 0) return null;
+    const tierSize = Math.max(1, Math.min(15, Math.ceil(sorted.length * 0.3)));
+    const topTier = sorted.slice(0, tierSize);
+    const main = topTier.find((r) => {
+      const b = normalizeBrand(r.wrestler.brand);
+      return b === "Raw" || b === "SmackDown";
+    });
+    return (main ?? sorted[0])?.wrestler.id ?? null;
+  }
+
   /** Pick best available wrestler for a team using their preferences (for auto-pick when clock hits 0). */
   const getAutoPickWrestlerId = useCallback(
     (teamIndex: number): string | null => {
@@ -181,7 +273,9 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
       const pointStrategy = prefs.pointStrategy ?? "total";
       const wrestlerStrategy = prefs.wrestlerStrategy ?? "best_available";
       const pts = pointsByPeriod[focus];
-      const draftableAvailable = available.filter((w) => !isBlocklistedSlug(w.id));
+      const draftableAvailable = available.filter(
+        (w) => !isBlocklistedSlug(w.id) && !isInjured(getWrestlerStatus(w))
+      );
       if (!pts) return draftableAvailable[0]?.id ?? null;
       const list = draftableAvailable.map((w) => {
         const p = pts[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
@@ -243,7 +337,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
       else if (pointStrategy === "rs") sorted.sort((a, b) => b.rs - a.rs);
       else if (pointStrategy === "ple") sorted.sort((a, b) => b.ple - a.ple);
       else if (pointStrategy === "belt") sorted.sort((a, b) => b.belt - a.belt);
-      if (wrestlerStrategy === "best_available") return sorted[0]?.wrestler.id ?? null;
+      if (wrestlerStrategy === "best_available") return preferMainRoster(sorted);
       if (wrestlerStrategy === "balanced_gender") {
         sorted.sort((a, b) => {
           const gA = normalizeGender(a.wrestler.gender);
@@ -253,7 +347,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
           if (cA !== cB) return cA - cB;
           return b.total - a.total;
         });
-        return sorted[0]?.wrestler.id ?? null;
+        return preferMainRoster(sorted);
       }
       if (wrestlerStrategy === "balanced_brands") {
         sorted.sort((a, b) => {
@@ -264,34 +358,38 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
           if (countA !== countB) return countA - countB;
           return b.total - a.total;
         });
-        return sorted[0]?.wrestler.id ?? null;
+        return preferMainRoster(sorted);
       }
       if (wrestlerStrategy === "high_males") {
         const male = sorted.filter((r) => normalizeGender(r.wrestler.gender) === "M");
         const pool = male.length > 0 ? male : sorted;
         pool.sort((a, b) => b.total * 1.2 - a.total * 1.2);
-        return pool[0]?.wrestler.id ?? null;
+        return preferMainRoster(pool);
       }
       if (wrestlerStrategy === "high_females") {
         const female = sorted.filter((r) => normalizeGender(r.wrestler.gender) === "F");
         const pool = female.length > 0 ? female : sorted;
         pool.sort((a, b) => b.total * 1.2 - a.total * 1.2);
-        return pool[0]?.wrestler.id ?? null;
+        return preferMainRoster(pool);
       }
-      return sorted[0]?.wrestler.id ?? null;
+      return preferMainRoster(sorted);
     },
     [teamPreferences, available, pointsByPeriod, picksByTeam, wrestlers, rules]
   );
 
-  /** Filter by search (name starts with query), then sort by selected column. */
+  /** Filter by roster (Include checkboxes), then search, then sort by selected column. */
   const rankedAvailable = useMemo(() => {
+    let list =
+      includedRosters.size === 0
+        ? []
+        : availableWithStats.filter((row) => includedRosters.has(rosterCategory(row.wrestler.brand)));
     const q = searchQuery.trim().toLowerCase();
-    let list = q
-      ? availableWithStats.filter((row) => {
-          const name = (row.wrestler.name ?? row.wrestler.id).toLowerCase();
-          return name.startsWith(q) || name.includes(q);
-        })
-      : [...availableWithStats];
+    if (q) {
+      list = list.filter((row) => {
+        const name = (row.wrestler.name ?? row.wrestler.id).toLowerCase();
+        return name.startsWith(q) || name.includes(q);
+      });
+    }
 
     const dir = tableSortDir === "asc" ? 1 : -1;
     list.sort((a, b) => {
@@ -333,7 +431,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
           out = a.total - b.total;
           break;
         case "brand":
-          out = normalizeBrand(wA.brand).localeCompare(normalizeBrand(wB.brand));
+          out = rosterCategory(wA.brand).localeCompare(rosterCategory(wB.brand));
           break;
         default:
           out = a.rank - b.rank;
@@ -341,7 +439,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
       return out * dir;
     });
     return list;
-  }, [availableWithStats, searchQuery, tableSortColumn, tableSortDir]);
+  }, [availableWithStats, includedRosters, searchQuery, tableSortColumn, tableSortDir]);
 
   const handleSort = useCallback(
     (col: DraftTableSortColumn) => {
@@ -651,6 +749,58 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
                 </select>
                 <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>Rank = Total + (2K26 × 1.5)</span>
               </div>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 14, color: "var(--color-text)" }}>Include:</span>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }} role="group" aria-label="Filter by roster">
+                  {ROSTER_FILTER_OPTIONS.map(({ value, label }) => (
+                    <label key={value} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        checked={includedRosters.has(value)}
+                        onChange={() => {
+                          setIncludedRosters((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(value)) next.delete(value);
+                            else next.add(value);
+                            return next;
+                          });
+                        }}
+                        aria-label={`Include ${label}`}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIncludedRosters(new Set(ROSTER_FILTER_OPTIONS.map((o) => o.value)))}
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: 12,
+                    color: "var(--color-primary)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIncludedRosters(new Set())}
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: 12,
+                    color: "var(--color-text)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  None
+                </button>
+              </div>
               <div style={{ marginBottom: 10 }}>
                 <input
                   type="search"
@@ -684,6 +834,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
                     <thead style={{ position: "sticky", top: 0, background: "var(--color-bg-elevated)", zIndex: 1 }}>
                       <tr>
                         {([
+                          { key: "brand" as const, label: "Roster", align: "center" as const },
                           { key: "rank" as const, label: "Rank", align: "left" as const },
                           { key: "name" as const, label: "Name", align: "left" as const },
                           { key: "gender" as const, label: "Gender", align: "center" as const },
@@ -693,7 +844,6 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
                           { key: "ple" as const, label: "PLE", align: "right" as const },
                           { key: "belt" as const, label: "Belt", align: "right" as const },
                           { key: "total" as const, label: "Total", align: "right" as const },
-                          { key: "brand" as const, label: "Brand", align: "left" as const },
                         ] as { key: DraftTableSortColumn; label: string; align: "left" | "center" | "right"; title?: string }[]).map(({ key, label, align, title }) => (
                           <th key={key} style={{ padding: "8px 6px", textAlign: align, borderBottom: "1px solid var(--color-border)" }}>
                             <button
@@ -727,10 +877,43 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
                     <tbody>
                       {rankedAvailable.map(({ wrestler: w, rank, rs, ple, belt, total }) => {
                         const display2k = w.rating_2k26 ?? w.rating_2k25 ?? null;
+                        const roster = rosterCategory(w.brand);
+                        const brandStyle = BRAND_STYLES[roster] ?? BRAND_STYLES.Unassigned;
                         return (
                           <tr key={w.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                            <td
+                              style={{
+                                padding: 0,
+                                verticalAlign: "middle",
+                                textAlign: "center",
+                                background: brandStyle.showBg,
+                                width: 36,
+                                minWidth: 36,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  writingMode: "vertical-rl",
+                                  textOrientation: "mixed",
+                                  transform: "rotate(-180deg)",
+                                  height: 72,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  letterSpacing: 0.5,
+                                  color: "#fff",
+                                }}
+                              >
+                                {brandStyle.label}
+                              </div>
+                            </td>
                             <td style={{ padding: "6px", fontWeight: 600 }}>{rank}</td>
-                            <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
+                            <td
+                              style={{ padding: "6px", whiteSpace: "nowrap" }}
+                              aria-label={isInjured(getWrestlerStatus(w)) ? `${w.name ?? w.id}, Injured` : undefined}
+                            >
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                                 {w.image_url ? (
                                   <img
@@ -763,7 +946,18 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
                                   </span>
                                 )}
                                 <span>{w.name ?? w.id}</span>
+                                {isInjured(getWrestlerStatus(w)) && (
+                                  <>
+                                    <InjuryBadge size={16} />
+                                    <span style={{ color: "#c00", fontWeight: 600, fontSize: 11 }}>INJ</span>
+                                  </>
+                                )}
                               </span>
+                              {w.currentChampionship && (
+                                <div style={{ fontSize: 11, fontWeight: 500, color: "#b8860b", marginTop: 2 }}>
+                                  {w.currentChampionship}
+                                </div>
+                              )}
                             </td>
                             <td style={{ padding: "6px", textAlign: "center" }}>{normalizeGender(w.gender)}</td>
                             <td style={{ padding: "6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{calculateAge(w.dob) ?? "—"}</td>
@@ -772,7 +966,6 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
                             <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{ple}</td>
                             <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{belt}</td>
                             <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{total}</td>
-                            <td style={{ padding: "6px" }}>{normalizeBrand(w.brand)}</td>
                             <td style={{ padding: "6px" }}>
                               <button
                                 type="button"

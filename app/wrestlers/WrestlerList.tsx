@@ -27,10 +27,17 @@ export type WrestlerRow = {
   plePoints2026?: number;
   beltPoints2026?: number;
   totalPoints2026?: number;
+  /** Points across all completed events (when points period filter is used). */
+  rsPointsAllTime?: number;
+  plePointsAllTime?: number;
+  beltPointsAllTime?: number;
+  totalPointsAllTime?: number;
   /** Alter-ego persona text, e.g. "Also: El Grande Americano (from Jun 2025)" */
   personaDisplay?: string | null;
   /** Status from API (e.g. Injured, INJ). Used to show injury badge. */
   status?: string | null;
+  /** Current championship(s) held, e.g. "WWE Championship" or "Raw Tag Team, US Championship". Shown under name. */
+  currentChampionship?: string | null;
 };
 
 /** True when status indicates injured (Injured, INJ, etc.). */
@@ -40,7 +47,7 @@ function isInjured(status: string | null | undefined): boolean {
   return s === "injured" || s === "inj";
 }
 
-export type PointsPeriod = "sinceStart" | "2025" | "2026";
+export type PointsPeriod = "sinceStart" | "2025" | "2026" | "allTime";
 
 /** Roster categories used for filter checkboxes. Order matches display. */
 const ROSTER_CATEGORIES = [
@@ -82,7 +89,7 @@ function normalizeRoster(brand: string | null): string {
   const lower = brand.trim().toLowerCase();
   if (lower === "raw") return "Raw";
   if (lower === "smackdown" || lower === "smack down") return "SmackDown";
-  if (lower === "nxt") return "NXT";
+  if (lower === "nxt" || lower.includes("nxt")) return "NXT";
   if (lower === "celebrity guests" || lower === "celebrity" || lower === "celebrity guest") return "Celebrity Guests";
   if (lower === "alumni") return "Alumni";
   if (lower === "managers" || lower === "manager") return "Front Office";
@@ -133,6 +140,14 @@ function getPointsForPeriod(w: WrestlerRow, period: PointsPeriod) {
       plePoints: w.plePoints2026 ?? 0,
       beltPoints: w.beltPoints2026 ?? 0,
       totalPoints: w.totalPoints2026 ?? 0,
+    };
+  }
+  if (period === "allTime") {
+    return {
+      rsPoints: w.rsPointsAllTime ?? 0,
+      plePoints: w.plePointsAllTime ?? 0,
+      beltPoints: w.beltPointsAllTime ?? 0,
+      totalPoints: w.totalPointsAllTime ?? 0,
     };
   }
   return {
@@ -227,7 +242,7 @@ const stickyLefts = [0, 52, 128]; // cumulative: 0, 52, 52+76
 const ROW_BG_ALT = "#f8f9fa";
 const ROW_BG_MAIN = "#ffffff";
 
-/** Small medical cross in a circle (injury badge). */
+/** Medical plus (injury badge) — equal horizontal and vertical bars, not a Latin cross. */
 function InjuryBadge({ size = 20, className }: { size?: number; className?: string }) {
   return (
     <span
@@ -245,8 +260,8 @@ function InjuryBadge({ size = 20, className }: { size?: number; className?: stri
         flexShrink: 0,
       }}
     >
-      <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 12 12" fill="none" stroke="#c00" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-        <path d="M6 2v8M3 5h6" />
+      <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 12 12" fill="none" stroke="#c00" strokeWidth="1.8" strokeLinecap="butt" aria-hidden>
+        <path d="M6 2v8M2 6h8" />
       </svg>
     </span>
   );
@@ -270,6 +285,7 @@ const POINTS_PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
   { value: "sinceStart", label: "Since League Start" },
   { value: "2025", label: "2025" },
   { value: "2026", label: "2026" },
+  { value: "allTime", label: "All-time" },
 ];
 
 /** When provided, Status column shows owner name + propose-trade for rostered wrestlers. */
@@ -301,7 +317,9 @@ export default function WrestlerList({
     () => new Set(["Raw", "SmackDown"])
   );
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("sinceStart");
-  const hasPointsPeriodFilter = wrestlers.length > 0 && "totalPoints2025" in wrestlers[0];
+  const hasPointsPeriodFilter =
+    wrestlers.length > 0 &&
+    ("totalPoints2025" in wrestlers[0] || "totalPointsAllTime" in wrestlers[0]);
 
   const handleSort = (col: SortColumn) => {
     if (col === sortColumn) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -458,6 +476,11 @@ export default function WrestlerList({
                     <span className="wrestler-card-inj" aria-label="Injured"> INJ</span>
                   )}
                 </span>
+                {w.currentChampionship && (
+                  <span className="wrestler-card-meta" style={{ display: "block", marginTop: 2, fontWeight: 500, color: "#b8860b" }}>
+                    {w.currentChampionship}
+                  </span>
+                )}
                 <span className="wrestler-card-meta">
                   {normalizeGender(w.gender)} · {age != null ? age : "—"} yrs
                   {(w.rating_2k26 != null || w.rating_2k25 != null) && (
@@ -660,6 +683,11 @@ export default function WrestlerList({
                         </>
                       )}
                     </span>
+                    {w.currentChampionship && (
+                      <div style={{ fontSize: 11, fontWeight: 500, color: "#b8860b", marginTop: 2 }}>
+                        {w.currentChampionship}
+                      </div>
+                    )}
                     {w.personaDisplay && (
                       <div style={{ fontSize: 11, fontWeight: 400, color: "var(--color-text-muted)", fontStyle: "italic", marginTop: 2 }}>
                         {w.personaDisplay}

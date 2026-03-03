@@ -5,6 +5,7 @@ import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.j
 import {
   computeEndOfMonthBeltPoints,
   FIRST_END_OF_MONTH_POINTS_DATE,
+  getCurrentChampionsBySlug,
   inferReignsFromEvents,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
@@ -66,6 +67,7 @@ export default async function WrestlersPage() {
 
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
+  const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
   const wrestlers = wrestlersResult.data ?? [];
   const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
@@ -79,6 +81,8 @@ export default async function WrestlersPage() {
       0;
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
+    const titles =
+      currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
     const raw = w as Record<string, unknown>;
     return {
       id: w.id,
@@ -95,6 +99,7 @@ export default async function WrestlersPage() {
       totalPoints,
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
+      currentChampionship: titles.length > 0 ? titles.join(", ") : null,
     };
   });
 

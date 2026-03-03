@@ -6,6 +6,7 @@ import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   computeEndOfMonthBeltPoints,
+  getCurrentChampionsBySlug,
   inferReignsFromEvents,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
@@ -71,6 +72,7 @@ export default async function WrestlersFreeAgentsPage({
     { data: eventsSinceStart },
     { data: events2025 },
     { data: events2026 },
+    { data: eventsAll },
     rosters,
   ] = await Promise.all([
     (async () => {
@@ -101,6 +103,11 @@ export default async function WrestlersFreeAgentsPage({
       .gte("date", "2026-01-01")
       .lte("date", "2026-12-31")
       .order("date", { ascending: true }),
+    supabase
+      .from("events")
+      .select("id, name, date, matches")
+      .eq("status", "completed")
+      .order("date", { ascending: true }),
     getRostersForLeague(league.id),
   ]);
 
@@ -124,8 +131,12 @@ export default async function WrestlersFreeAgentsPage({
   const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart ?? []);
   const points2025BySlug = aggregateWrestlerPoints(events2025 ?? []);
   const points2026BySlug = aggregateWrestlerPoints(events2026 ?? []);
+  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll ?? []);
   const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
+  const firstEligibleMonthEndAllTime = "2020-01-31";
+  const endOfMonthBeltPointsAllTime = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEndAllTime);
+  const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
   const wrestlersFiltered = (wrestlers ?? []).filter(
     (w) => !isPersonaOnlySlug(w.id) && !onRosterIds.has(String(w.id).toLowerCase())
@@ -134,14 +145,24 @@ export default async function WrestlersFreeAgentsPage({
     const points = pointsBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
     const points2025 = points2025BySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
     const points2026 = points2026BySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
+    const pointsAllTime = pointsAllTimeBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
     const extraBelt =
       (typeof endOfMonthBeltPoints[slugKey] === "number" ? endOfMonthBeltPoints[slugKey] : null) ??
       (nameKey && typeof endOfMonthBeltPoints[nameKey] === "number" ? endOfMonthBeltPoints[nameKey] : null) ??
       0;
+    const extraBeltAllTime =
+      (typeof endOfMonthBeltPointsAllTime[slugKey] === "number" ? endOfMonthBeltPointsAllTime[slugKey] : null) ??
+      (nameKey && typeof endOfMonthBeltPointsAllTime[nameKey] === "number" ? endOfMonthBeltPointsAllTime[nameKey] : null) ??
+      0;
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
+    const beltPointsAllTime = pointsAllTime.beltPoints + extraBeltAllTime;
+    const totalPointsAllTime =
+      pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
+    const titles =
+      currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
     const raw = w as Record<string, unknown>;
     return {
       id: w.id,
@@ -164,8 +185,13 @@ export default async function WrestlersFreeAgentsPage({
       plePoints2026: points2026.plePoints,
       beltPoints2026: points2026.beltPoints,
       totalPoints2026: points2026.rsPoints + points2026.plePoints + points2026.beltPoints,
+      rsPointsAllTime: pointsAllTime.rsPoints,
+      plePointsAllTime: pointsAllTime.plePoints,
+      beltPointsAllTime,
+      totalPointsAllTime,
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
+      currentChampionship: titles.length > 0 ? titles.join(", ") : null,
     };
   });
 
