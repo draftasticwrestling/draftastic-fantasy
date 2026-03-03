@@ -1,6 +1,19 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+/** Supabase client created with env read at request time (avoids module-load singleton issues). */
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  if (!url || !key) return supabase;
+  return createClient(url, key);
+}
+
+function slugNorm(s: string): string {
+  return (s ?? "").trim().toLowerCase().replace(/\s+/g, "-").replace(/-+/g, "-");
+}
 import { getLeagueBySlug, getEffectiveLeagueStartDate, getRostersForLeague, getLeagueMembers } from "@/lib/leagues";
 import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
 import type { ScoredEvent } from "@/lib/scoring/types";
@@ -96,52 +109,24 @@ function calculateAge(dob: string | null | undefined): number | null {
   return age >= 0 ? age : null;
 }
 
-/** Normalize id/slug for comparison: lowercase, collapse spaces to single hyphen. */
-function slugLike(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-}
-
-async function findWrestlerIdBySlug(
-  slug: string,
-  supabase: Awaited<ReturnType<typeof createClient>>
-): Promise<string | null> {
-  const { data: row } = await supabase
-    .from("wrestlers")
-    .select("id")
-    .eq("id", slug)
-    .single();
-  if (row?.id) return row.id as string;
-  const slugNorm = slugLike(slug);
-  if (!slugNorm) return null;
-  const { data: allIds } = await supabase.from("wrestlers").select("id");
-  const match = (allIds ?? []).find((r: { id: string }) => {
-    const idStr = String(r.id).trim();
-    if (idStr.toLowerCase() === slugNorm) return true;
-    if (slugLike(idStr) === slugNorm) return true;
-    return false;
-  });
-  return match?.id ?? null;
-}
-
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = await createClient();
-  const wrestlerId = await findWrestlerIdBySlug(slug, supabase);
-  let name: string;
-  if (wrestlerId) {
-    const { data: w } = await supabase.from("wrestlers").select("name").eq("id", wrestlerId).single();
-    name = (w as { name?: string } | null)?.name ?? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  } else {
-    name = slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  }
+  const db = getSupabase();
+  const { data: wrestler } = await db.from("wrestlers").select("name").eq("id", slug).single();
+  const name =
+    wrestler?.name ??
+    (await (async () => {
+      const { data: rows } = await db.from("wrestlers").select("id, name");
+      const n = slugNorm(slug);
+      const match = (rows ?? []).find(
+        (r) => slugNorm(String(r.id)) === n || (r.name && slugNorm(String(r.name)) === n)
+      );
+      return match?.name ?? slug.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(" ");
+    })());
   return {
     title: `${name} — Wrestler — Draftastic Fantasy`,
     description: `Fantasy stats and match history for ${name}.`,
@@ -185,19 +170,32 @@ export default async function WrestlerProfilePage({
         ? "sinceStart"
         : "allTime";
 
-  const supabase = await createClient();
-  const wrestlerId = await findWrestlerIdBySlug(slug, supabase);
-  if (!wrestlerId) notFound();
-
-  const { data: wrestler, error: wrestlerError } = await supabase
+  const db = getSupabase();
+  let wrestler: { id: string; name: string | null; gender: string | null; brand: string | null; image_url: string | null; dob: string | null; status?: string | null; Status?: string | null; "2K26 rating"?: unknown; "2K25 rating"?: unknown } | null = null;
+  const { data: direct, error: directError } = await db
     .from("wrestlers")
-    .select('id, name, gender, brand, image_url, dob, status, "Status", "2K26 rating", "2K25 rating"')
-    .eq("id", wrestlerId)
-    .single();
+    .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+    .eq("id", slug)
+    .maybeSingle();
+  if (direct && !directError) wrestler = direct;
+  if (!wrestler) {
+    const { data: rows } = await db.from("wrestlers").select("id, name");
+    const n = slugNorm(slug);
+    const match = (rows ?? []).find(
+      (r) => slugNorm(String(r.id)) === n || (r.name && slugNorm(String(r.name)) === n)
+    );
+    if (match) {
+      const { data: full } = await db
+        .from("wrestlers")
+        .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+        .eq("id", match.id)
+        .single();
+      if (full) wrestler = full;
+    }
+  }
+  if (!wrestler) notFound();
 
-  if (wrestlerError || !wrestler) notFound();
-
-  const { data: eventsBase } = await supabase
+  const { data: eventsBase } = await db
     .from("events")
     .select("id, name, date, matches")
     .eq("status", "completed")
@@ -211,7 +209,7 @@ export default async function WrestlerProfilePage({
   const toFetchKotr = knownKotrPriorIds.filter((id) => !existingIds.has(id));
   let extra: { id: string; name: string | null; date: string | null; matches: unknown }[] = [];
   if (toFetch.length > 0) {
-    const res = await supabase
+    const res = await db
       .from("events")
       .select("id, name, date, matches")
       .in("id", toFetch)
@@ -220,7 +218,7 @@ export default async function WrestlerProfilePage({
   }
   let kotrPriorEvents: { id: string; name: string | null; date: string | null; matches: unknown }[] = [];
   if (toFetchKotr.length > 0) {
-    const res = await supabase
+    const res = await db
       .from("events")
       .select("id, name, date, matches")
       .in("id", toFetchKotr);
@@ -232,7 +230,7 @@ export default async function WrestlerProfilePage({
   const events = filterEventsByPeriod(allEvents, currentPeriod, leagueStartDate);
   const firstMonthEnd = getFirstMonthEndForPeriod(currentPeriod, leagueStartDate);
 
-  const { data: rawReigns } = await supabase
+  const { data: rawReigns } = await db
     .from("championship_history")
     .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
     .order("won_date", { ascending: true });
@@ -260,7 +258,7 @@ export default async function WrestlerProfilePage({
 
   const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEnd, wrestler.id) || getTitleReignsForWrestler(reigns, firstMonthEnd, slug);
 
-  const { data: wrestlersList } = await supabase.from("wrestlers").select("id, name");
+  const { data: wrestlersList } = await db.from("wrestlers").select("id, name");
   const slugToCanonical = new Map<string, string>();
   for (const w of wrestlersList ?? []) {
     const id = (w.id ?? "").toString().trim();

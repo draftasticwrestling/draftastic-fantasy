@@ -62,7 +62,7 @@ export default async function HomePage() {
               <li><Link href="/event-results">Event Results</Link> — fantasy scoring for completed events</li>
               <li><Link href="/how-it-works">How it works</Link> — scoring rules and event types</li>
               <li><Link href="/about-us">About Us</Link> · <Link href="/contact-us">Contact Us</Link></li>
-              <li>Admin menu: <Link href="/league/teams">Legacy League</Link>, <Link href="/mvl">MVL Example</Link>, <Link href="/admin/draft-testing">Draft Testing</Link></li>
+              <li>Admin menu: <Link href="/league/teams">Legacy League</Link>, <Link href="/mvl">MVL Example</Link>, <Link href="/admin/draft-testing">Draft Testing</Link>, <Link href="/admin/wrestlers">Wrestlers</Link></li>
             </ul>
           </div>
           <p style={{ marginTop: 24, color: "var(--color-text-dim)", fontSize: 14 }}>

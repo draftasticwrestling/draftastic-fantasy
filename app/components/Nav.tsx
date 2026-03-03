@@ -16,6 +16,7 @@ const ADMIN_LINKS = [
   { href: "/league/teams", label: "Legacy League" },
   { href: "/mvl", label: "MVL Example" },
   { href: "/admin/draft-testing", label: "Draft Testing" },
+  { href: "/admin/wrestlers", label: "Wrestlers" },
 ] as const;
 
 function getLeagueSlugFromPath(pathname: string): string | null {
