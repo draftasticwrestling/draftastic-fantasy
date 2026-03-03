@@ -7,6 +7,7 @@ import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.j
 import {
   computeEndOfMonthBeltPoints,
   getCurrentChampionsBySlug,
+  getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
@@ -156,22 +157,10 @@ export default async function LeagueLeadersPage({
     const pointsAllTime = pointsAllTimeBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
-    const extraBelt =
-      (typeof endOfMonthBeltPoints[slugKey] === "number" ? endOfMonthBeltPoints[slugKey] : null) ??
-      (nameKey && typeof endOfMonthBeltPoints[nameKey] === "number" ? endOfMonthBeltPoints[nameKey] : null) ??
-      0;
-    const extraBeltAllTime =
-      (typeof endOfMonthBeltPointsAllTime[slugKey] === "number" ? endOfMonthBeltPointsAllTime[slugKey] : null) ??
-      (nameKey && typeof endOfMonthBeltPointsAllTime[nameKey] === "number" ? endOfMonthBeltPointsAllTime[nameKey] : null) ??
-      0;
-    const extraBelt2025 =
-      (typeof endOfMonthBeltPoints2025[slugKey] === "number" ? endOfMonthBeltPoints2025[slugKey] : null) ??
-      (nameKey && typeof endOfMonthBeltPoints2025[nameKey] === "number" ? endOfMonthBeltPoints2025[nameKey] : null) ??
-      0;
-    const extraBelt2026 =
-      (typeof endOfMonthBeltPoints2026[slugKey] === "number" ? endOfMonthBeltPoints2026[slugKey] : null) ??
-      (nameKey && typeof endOfMonthBeltPoints2026[nameKey] === "number" ? endOfMonthBeltPoints2026[nameKey] : null) ??
-      0;
+    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
+    const extraBeltAllTime = getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey);
+    const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
+    const extraBelt2026 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2026, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const beltPointsAllTime = pointsAllTime.beltPoints + extraBeltAllTime;

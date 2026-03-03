@@ -6,6 +6,7 @@ import {
   computeEndOfMonthBeltPoints,
   FIRST_END_OF_MONTH_POINTS_DATE,
   getCurrentChampionsBySlug,
+  getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
@@ -76,10 +77,7 @@ export default async function WrestlersPage() {
     const points = pointsBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
-    const extraBelt =
-      (typeof endOfMonthBeltPoints[slugKey] === "number" ? endOfMonthBeltPoints[slugKey] : null) ??
-      (nameKey && typeof endOfMonthBeltPoints[nameKey] === "number" ? endOfMonthBeltPoints[nameKey] : null) ??
-      0;
+    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const titles =
