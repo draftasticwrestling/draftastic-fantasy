@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug, getEffectiveLeagueStartDate, getRostersForLeague, getLeagueMembers } from "@/lib/leagues";
@@ -94,19 +94,33 @@ function calculateAge(dob: string | null | undefined): number | null {
   return age >= 0 ? age : null;
 }
 
-async function findWrestlerIdBySlug(slug: string): Promise<string | null> {
+/** Normalize id/slug for comparison: lowercase, collapse spaces to single hyphen. */
+function slugLike(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+async function findWrestlerIdBySlug(slug: string, supabase: SupabaseClient): Promise<string | null> {
   const { data: row } = await supabase
     .from("wrestlers")
     .select("id")
     .eq("id", slug)
     .single();
   if (row?.id) return row.id as string;
-  const slugLower = slug.trim().toLowerCase();
-  if (!slugLower) return null;
+  const slugNorm = slugLike(slug);
+  if (!slugNorm) return null;
   const { data: allIds } = await supabase.from("wrestlers").select("id");
-  const match = (allIds ?? []).find(
-    (r: { id: string }) => String(r.id).trim().toLowerCase() === slugLower
-  );
+  const match = (allIds ?? []).find((r: { id: string }) => {
+    const idStr = String(r.id).trim();
+    if (idStr.toLowerCase() === slugNorm) return true;
+    if (slugLike(idStr) === slugNorm) return true;
+    return false;
+  });
   return match?.id ?? null;
 }
 
@@ -116,7 +130,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const wrestlerId = await findWrestlerIdBySlug(slug);
+  const supabase = await createClient();
+  const wrestlerId = await findWrestlerIdBySlug(slug, supabase);
   let name: string;
   if (wrestlerId) {
     const { data: w } = await supabase.from("wrestlers").select("name").eq("id", wrestlerId).single();
@@ -167,7 +182,8 @@ export default async function WrestlerProfilePage({
         ? "sinceStart"
         : "allTime";
 
-  const wrestlerId = await findWrestlerIdBySlug(slug);
+  const supabase = await createClient();
+  const wrestlerId = await findWrestlerIdBySlug(slug, supabase);
   if (!wrestlerId) notFound();
 
   const { data: wrestler, error: wrestlerError } = await supabase
