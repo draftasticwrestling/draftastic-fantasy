@@ -46,17 +46,11 @@ export default async function LeagueFreeAgentsPage() {
     { data: rawReigns },
   ] = await Promise.all([
     (async () => {
-      let r = await supabase
+      // Column is "Status" (capital S) in DB; avoid .or("status...")
+      const r = await supabase
         .from("wrestlers")
         .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
-        .or("status.is.null,status.neq.Inactive")
         .order("name", { ascending: true });
-      if (r.error) {
-        r = await supabase
-          .from("wrestlers")
-          .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
-          .order("name", { ascending: true });
-      }
       return r;
     })(),
     supabase

@@ -56,9 +56,10 @@ export default async function DraftTestingPage() {
       .order("date", { ascending: true }),
   ]);
 
-  // If status column is missing or rating columns are missing, retry without status filter or with fewer columns
+  // If status column is missing or rating columns are missing, retry without status filter or with fewer columns.
+  // Use Record<string, unknown>[] so fallback queries (e.g. only 2K26 or only 2K25) are assignable.
   type WrestlerRow = Record<string, unknown>;
-  let wrestlersRows: WrestlerRow[] | null = wrestlersResult.data ?? null;
+  let wrestlersRows: WrestlerRow[] | null = (wrestlersResult.data ?? null) as WrestlerRow[] | null;
   let has2k26 = !wrestlersResult.error && wrestlersRows != null && wrestlersRows.length > 0;
   let has2k25 = has2k26;
 
