@@ -3,7 +3,7 @@ import Link from "next/link";
 import "./layout.css";
 
 export const metadata: Metadata = {
-  title: "Coming Soon — Draftastic Pro Wrestling",
+  title: "Coming Soon — Draftastic Fantasy Pro Wrestling",
   description: "The #1 fantasy pro wrestling game is coming. Join the list for launch updates.",
 };
 
@@ -13,7 +13,7 @@ export default function ComingSoonLayout({
   return (
     <div className="coming-soon-root">
       <header className="coming-soon-header">
-        <span className="coming-soon-logo">Draftastic Pro Wrestling</span>
+        <span className="coming-soon-logo">Draftastic Fantasy Pro Wrestling</span>
       </header>
       <main className="coming-soon-main">{children}</main>
       <footer className="coming-soon-footer">

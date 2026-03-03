@@ -1,28 +1,28 @@
-/* Coming Soon landing — full-viewport, minimal chrome */
+/* Coming Soon landing — blue/purple gradient, white text */
 
 .coming-soon-root {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(160deg, #0d1117 0%, #161b22 40%, #21262d 100%);
-  color: #e6edf3;
+  background: linear-gradient(180deg, #1565c0 0%, #0d47a1 45%, #283593 100%);
+  color: #fff;
 }
 
 .coming-soon-header {
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .coming-soon-logo {
   font-size: 1.125rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: #e6edf3;
+  color: #fff;
   text-decoration: none;
 }
 
 .coming-soon-logo:hover {
-  color: #58a6ff;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .coming-soon-main {
@@ -36,17 +36,18 @@
 .coming-soon-footer {
   padding: 1rem 1.5rem;
   text-align: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
   font-size: 0.875rem;
 }
 
 .coming-soon-footer a {
-  color: #8b949e;
+  color: rgba(255, 255, 255, 0.9);
   text-decoration: none;
 }
 
 .coming-soon-footer a:hover {
-  color: #58a6ff;
+  color: #fff;
+  text-decoration: underline;
 }
 
 /* Hero and form */
@@ -62,18 +63,19 @@
   line-height: 1.25;
   margin: 0 0 0.75rem;
   letter-spacing: -0.02em;
+  color: #fff;
 }
 
 .coming-soon-tagline {
   font-size: 1.125rem;
-  color: #8b949e;
+  color: rgba(255, 255, 255, 0.95);
   margin: 0 0 1.5rem;
   line-height: 1.5;
 }
 
 .coming-soon-sub {
   font-size: 0.9375rem;
-  color: #6e7681;
+  color: rgba(255, 255, 255, 0.85);
   margin: 0 0 1.75rem;
 }
 
@@ -88,61 +90,58 @@
 .coming-soon-form-input {
   padding: 0.75rem 1rem;
   font-size: 1rem;
-  border: 1px solid #30363d;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
-  background: #0d1117;
-  color: #e6edf3;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
   min-width: 260px;
   outline: none;
 }
 
 .coming-soon-form-input::placeholder {
-  color: #6e7681;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .coming-soon-form-input:focus {
-  border-color: #58a6ff;
-  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
 }
 
 .coming-soon-form-btn {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   font-weight: 600;
-  color: #fff;
-  background: #238636;
-  border: none;
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
-}
-
-.coming-soon-form-btn:hover {
-  background: #2ea043;
 }
 
 .coming-soon-form-btn-link {
   display: inline-block;
   text-decoration: none;
   text-align: center;
+  background: #fff;
+  color: #0d47a1;
+  border: 2px solid #0d47a1;
 }
 
 .coming-soon-form-btn-link:hover {
-  color: #fff;
+  background: rgba(255, 255, 255, 0.95);
+  color: #0d47a1;
 }
 
 .coming-soon-form-error {
   width: 100%;
   margin: 0.5rem 0 0;
   font-size: 0.875rem;
-  color: #f85149;
+  color: #ffcdd2;
 }
 
 .coming-soon-form-success,
 .coming-soon-form-placeholder {
   padding: 1rem;
   font-size: 1rem;
-  color: #8b949e;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 /* Signup CTA (Constant Contact page opens in new tab) */
@@ -156,5 +155,5 @@
 .coming-soon-signup-note {
   margin: 0;
   font-size: 0.8125rem;
-  color: #6e7681;
+  color: rgba(255, 255, 255, 0.75);
 }
