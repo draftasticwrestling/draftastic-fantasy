@@ -151,7 +151,7 @@ export default async function WrestlerProfilePage({
 
   const { data: wrestler, error: wrestlerError } = await supabase
     .from("wrestlers")
-    .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
+    .select('id, name, gender, brand, image_url, dob, status, "Status", "2K26 rating", "2K25 rating"')
     .eq("id", slug)
     .single();
 
@@ -406,6 +406,10 @@ export default async function WrestlerProfilePage({
   const displayName = wrestler.name ?? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
   const age = calculateAge(wrestler.dob);
   const boxscoreUrl = `${BOXSCORE_WRESTLER_BASE}/${slug}`;
+  const rawStatus = (wrestler as Record<string, unknown>).Status ?? (wrestler as Record<string, unknown>).status;
+  const isInjured =
+    rawStatus != null &&
+    (String(rawStatus).trim().toLowerCase() === "injured" || String(rawStatus).trim().toLowerCase() === "inj");
 
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 900, margin: "0 auto", fontSize: 16, lineHeight: 1.5 }}>
@@ -416,7 +420,7 @@ export default async function WrestlerProfilePage({
       </p>
 
       <section style={{ display: "flex", gap: 24, alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap" }}>
-        <div>
+        <div style={{ position: "relative", flexShrink: 0 }}>
           {wrestler.image_url ? (
             <img
               src={wrestler.image_url}
@@ -440,10 +444,36 @@ export default async function WrestlerProfilePage({
               —
             </div>
           )}
+          {isInjured && (
+            <span
+              title="Injured"
+              style={{
+                position: "absolute",
+                top: -4,
+                right: -4,
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+              }}
+              aria-label="Injured"
+            >
+              <svg width={16} height={16} viewBox="0 0 12 12" fill="none" stroke="#c00" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                <path d="M6 2v8M3 5h6" />
+              </svg>
+            </span>
+          )}
         </div>
         <div style={{ flex: "1 1 300px" }}>
-          <h1 style={{ margin: "0 0 8px", fontSize: "1.75rem", fontWeight: 700 }}>
+          <h1 style={{ margin: "0 0 8px", fontSize: "1.75rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
             {displayName}
+            {isInjured && (
+              <span style={{ color: "#c00", fontWeight: 600, fontSize: "0.85em" }}>INJ</span>
+            )}
           </h1>
           <p style={{ margin: "0 0 4px", color: "#555" }}>
             {wrestler.brand ?? "—"} · {wrestler.gender ? (String(wrestler.gender).toLowerCase() === "male" || wrestler.gender === "M" ? "Male" : "Female") : "—"}

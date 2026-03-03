@@ -647,6 +647,22 @@ body {
   border-radius: 4px;
 }
 
+.wrestler-card-img-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.wrestler-card-injury-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+}
+
 .wrestler-card-img {
   width: 52px;
   height: 52px;
@@ -654,6 +670,13 @@ body {
   object-fit: cover;
   flex-shrink: 0;
   background: var(--color-bg-surface);
+}
+
+.wrestler-card-inj {
+  color: #c00;
+  font-weight: 600;
+  font-size: 0.85em;
+  margin-left: 4px;
 }
 
 .wrestler-card-img-placeholder {

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { generateDraftOrder, makeDraftPick, restartDraft, clearLastPick, startDraft } from "@/lib/leagueDraft";
+import { generateDraftOrder, makeDraftPick, restartDraft, clearLastPick, startDraft, setDraftPreferences } from "@/lib/leagueDraft";
 
 export async function generateDraftOrderAction(
   leagueSlug: string,
@@ -136,4 +136,37 @@ export async function clearLastPickFromFormAction(formData: FormData): Promise<v
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return;
   await clearLastPickAction(leagueSlug);
+}
+
+/** Save a user's auto-draft preferences (strategy_options: focus, pointStrategy, wrestlerStrategy). */
+export async function saveDraftPreferencesAction(
+  leagueSlug: string,
+  strategyOptions: { focus: string; pointStrategy: string; wrestlerStrategy: string }
+): Promise<{ error?: string }> {
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+  const { data: member } = await supabase
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", league.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!member) return { error: "You are not a member of this league." };
+  const result = await setDraftPreferences(league.id, user.id, {
+    priority_list: [],
+    strategy: [],
+    strategy_options: {
+      focus: strategyOptions.focus as "2026" | "2025" | "all",
+      pointStrategy: strategyOptions.pointStrategy as "total" | "rs" | "ple" | "belt",
+      wrestlerStrategy: strategyOptions.wrestlerStrategy as "best_available" | "balanced_gender" | "balanced_brands" | "high_males" | "high_females",
+    },
+  });
+  if (result.error) return result;
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
+  revalidatePath(`/leagues/${leagueSlug}/draft/preferences`);
+  return {};
 }

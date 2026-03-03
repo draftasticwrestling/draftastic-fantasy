@@ -8,6 +8,8 @@ import {
   getCurrentPick,
   getDraftPicksHistory,
   runAutoPickIfExpired,
+  isDraftableWrestler,
+  normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
 import { generateDraftOrderFromFormAction, startDraftFromFormAction } from "./actions";
 import { updateDraftDateFromFormAction } from "../actions";
@@ -41,7 +43,7 @@ export default async function LeagueDraftPage({ params }: Props) {
   let state: Awaited<ReturnType<typeof getLeagueDraftState>> = null;
   let currentPick: Awaited<ReturnType<typeof getCurrentPick>> = null;
   let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
-  let wrestlersRows: { id: string; name: string | null; gender: string | null }[] = [];
+  let wrestlersRows: { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null }[] = [];
   let memberByUserId: Record<string, { display_name?: string | null }> = {};
   let availableWrestlers: { id: string; name: string | null }[] = [];
   let isCommissioner = false;
@@ -64,18 +66,21 @@ export default async function LeagueDraftPage({ params }: Props) {
       getRostersForLeague(league.id),
       (async () => {
         const supabase = await createClient();
+        type Row = { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null };
         let result = await supabase
           .from("wrestlers")
-          .select("id, name, gender")
-          .or("status.is.null,status.neq.Inactive")
+          .select('id, name, gender, status, "Status", brand, classification, "Classification"')
           .order("name", { ascending: true });
         if (result.error) {
-          result = await supabase
-            .from("wrestlers")
-            .select("id, name, gender")
-            .order("name", { ascending: true });
+          result = await supabase.from("wrestlers").select('id, name, gender, status, "Status", brand, classification, "Classification"').order("name", { ascending: true });
         }
-        return (result.data ?? []) as { id: string; name: string | null; gender: string | null }[];
+        let rawRows = (result.data ?? []) as Record<string, unknown>[];
+        if (result.error && !rawRows.length) {
+          const fallback = await supabase.from("wrestlers").select('id, name, gender, status, "Status", brand, classification, "Classification"').order("name", { ascending: true });
+          rawRows = (fallback.data ?? []) as Record<string, unknown>[];
+        }
+        const rows = rawRows.map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as Row[];
+        return rows.filter((w) => isDraftableWrestler(w));
       })(),
       getDraftPicksHistory(league.id),
     ]);
@@ -93,7 +98,9 @@ export default async function LeagueDraftPage({ params }: Props) {
     for (const entries of Object.values(rosters)) {
       for (const e of entries) draftedIds.add(e.wrestler_id);
     }
-    availableWrestlers = wrestlersRows.map((w) => ({ id: w.id, name: w.name })).filter((w) => !draftedIds.has(w.id));
+    availableWrestlers = wrestlersRows
+      .filter((w) => !draftedIds.has(w.id))
+      .map((w) => ({ id: w.id, name: w.name }));
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -210,6 +217,13 @@ export default async function LeagueDraftPage({ params }: Props) {
           <p style={{ marginBottom: 16 }}>
             No draft order yet. The commissioner can set the draft style and generate a randomized order.
           </p>
+          <p style={{ marginBottom: 16, fontSize: 14 }}>
+            <Link href={`/leagues/${slug}/draft/preferences`} className="app-link">
+              Set your auto-draft preferences
+            </Link>
+            {" "}
+            before the draft starts (priority list + strategy for auto-picks).
+          </p>
           {isCommissioner && (
             <form
               action={generateDraftOrderFromFormAction}
@@ -265,6 +279,13 @@ export default async function LeagueDraftPage({ params }: Props) {
         <>
           <p style={{ marginBottom: 16, color: "#555" }}>
             Draft order is set. When all owners are ready, the commissioner can start the draft.
+          </p>
+          <p style={{ marginBottom: 16, fontSize: 14 }}>
+            <Link href={`/leagues/${slug}/draft/preferences`} className="app-link">
+              Set your auto-draft preferences
+            </Link>
+            {" "}
+            — choose a priority list (10–50 wrestlers) and fallback strategy for when the pick clock runs out.
           </p>
           {isCommissioner && (
             <form action={startDraftFromFormAction} style={{ marginBottom: 24 }}>

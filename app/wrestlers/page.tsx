@@ -43,13 +43,13 @@ export default async function WrestlersPage() {
     (async () => {
       let r = await supabase
         .from("wrestlers")
-        .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
+        .select('id, name, gender, brand, image_url, dob, status, "Status", "2K26 rating", "2K25 rating"')
         .or("status.is.null,status.neq.Inactive")
         .order("name", { ascending: true });
       if (r.error) {
         r = await supabase
           .from("wrestlers")
-          .select('id, name, gender, brand, image_url, dob, "2K26 rating", "2K25 rating"')
+          .select('id, name, gender, brand, image_url, dob, status, "Status", "2K26 rating", "2K25 rating"')
           .order("name", { ascending: true });
       }
       return r;
@@ -85,6 +85,7 @@ export default async function WrestlersPage() {
       0;
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
+    const raw = w as Record<string, unknown>;
     return {
       id: w.id,
       name: w.name ?? null,
@@ -99,6 +100,7 @@ export default async function WrestlersPage() {
       beltPoints,
       totalPoints,
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
+      status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
     };
   });
 

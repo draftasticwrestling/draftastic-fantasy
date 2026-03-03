@@ -29,7 +29,16 @@ export type WrestlerRow = {
   totalPoints2026?: number;
   /** Alter-ego persona text, e.g. "Also: El Grande Americano (from Jun 2025)" */
   personaDisplay?: string | null;
+  /** Status from API (e.g. Injured, INJ). Used to show injury badge. */
+  status?: string | null;
 };
+
+/** True when status indicates injured (Injured, INJ, etc.). */
+function isInjured(status: string | null | undefined): boolean {
+  if (status == null || status === "") return false;
+  const s = String(status).trim().toLowerCase();
+  return s === "injured" || s === "inj";
+}
 
 export type PointsPeriod = "sinceStart" | "2025" | "2026";
 
@@ -217,6 +226,31 @@ const stickyLefts = [0, 52, 128]; // cumulative: 0, 52, 52+76
 
 const ROW_BG_ALT = "#f8f9fa";
 const ROW_BG_MAIN = "#ffffff";
+
+/** Small medical cross in a circle (injury badge). */
+function InjuryBadge({ size = 20, className }: { size?: number; className?: string }) {
+  return (
+    <span
+      className={className}
+      role="img"
+      aria-label="Injured"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: "#fff",
+        flexShrink: 0,
+      }}
+    >
+      <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 12 12" fill="none" stroke="#c00" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+        <path d="M6 2v8M3 5h6" />
+      </svg>
+    </span>
+  );
+}
 const BORDER_TABLE = "#e0e0e0";
 const HEADER_BG = "#f0f2f5";
 
@@ -401,17 +435,29 @@ export default function WrestlerList({
               >
                 {style.label}
               </span>
-              {w.image_url ? (
-                <img
-                  src={w.image_url}
-                  alt=""
-                  className="wrestler-card-img"
-                />
-              ) : (
-                <div className="wrestler-card-img wrestler-card-img-placeholder" aria-hidden>—</div>
-              )}
+              <div className="wrestler-card-img-wrap">
+                {w.image_url ? (
+                  <img
+                    src={w.image_url}
+                    alt=""
+                    className="wrestler-card-img"
+                  />
+                ) : (
+                  <div className="wrestler-card-img wrestler-card-img-placeholder" aria-hidden>—</div>
+                )}
+                {isInjured(w.status) && (
+                  <span className="wrestler-card-injury-badge" title="Injured">
+                    <InjuryBadge size={22} />
+                  </span>
+                )}
+              </div>
               <div className="wrestler-card-body">
-                <span className="wrestler-card-name">{w.name || w.id}</span>
+                <span className="wrestler-card-name">
+                  {w.name || w.id}
+                  {isInjured(w.status) && (
+                    <span className="wrestler-card-inj" aria-label="Injured"> INJ</span>
+                  )}
+                </span>
                 <span className="wrestler-card-meta">
                   {normalizeGender(w.gender)} · {age != null ? age : "—"} yrs
                   {(w.rating_2k26 != null || w.rating_2k25 != null) && (
@@ -600,12 +646,20 @@ export default function WrestlerList({
                       ...cellStyle,
                     }}
                   >
-                    <Link
-                      href={`/wrestlers/${encodeURIComponent(w.id)}${leagueSlug ? `?league=${encodeURIComponent(leagueSlug)}` : ""}`}
-                      style={{ color: "var(--color-blue)", textDecoration: "none" }}
-                    >
-                      {w.name || w.id}
-                    </Link>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <Link
+                        href={`/wrestlers/${encodeURIComponent(w.id)}${leagueSlug ? `?league=${encodeURIComponent(leagueSlug)}` : ""}`}
+                        style={{ color: "var(--color-blue)", textDecoration: "none" }}
+                      >
+                        {w.name || w.id}
+                      </Link>
+                      {isInjured(w.status) && (
+                        <>
+                          <InjuryBadge size={18} />
+                          <span style={{ color: "#c00", fontWeight: 600, fontSize: 11 }}>INJ</span>
+                        </>
+                      )}
+                    </span>
                     {w.personaDisplay && (
                       <div style={{ fontSize: 11, fontWeight: 400, color: "var(--color-text-muted)", fontStyle: "italic", marginTop: 2 }}>
                         {w.personaDisplay}

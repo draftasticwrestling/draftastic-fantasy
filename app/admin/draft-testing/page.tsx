@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { isDraftableWrestler, normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
 import { TestDraft } from "./TestDraft";
 
 export const metadata = {
@@ -14,6 +15,7 @@ export type WrestlerDraftRow = {
   gender: string | null;
   brand: string | null;
   dob: string | null;
+  image_url: string | null;
   rating_2k26: number | null;
   rating_2k25: number | null;
 };
@@ -31,8 +33,7 @@ export default async function DraftTestingPage() {
   ] = await Promise.all([
     supabase
       .from("wrestlers")
-      .select('id, name, gender, brand, dob, "2K26 rating", "2K25 rating"')
-      .or("status.is.null,status.neq.Inactive")
+      .select('id, name, gender, brand, dob, image_url, "Status", "Classification", "2K26 rating", "2K25 rating"')
       .order("name", { ascending: true }),
     supabase
       .from("events")
@@ -56,47 +57,76 @@ export default async function DraftTestingPage() {
   ]);
 
   // If status column is missing or rating columns are missing, retry without status filter or with fewer columns
-  let wrestlersRows = wrestlersResult.data ?? null;
-  let has2k26 = !wrestlersResult.error && wrestlersRows != null;
+  type WrestlerRow = Record<string, unknown>;
+  let wrestlersRows: WrestlerRow[] | null = wrestlersResult.data ?? null;
+  let has2k26 = !wrestlersResult.error && wrestlersRows != null && wrestlersRows.length > 0;
   let has2k25 = has2k26;
 
   if (wrestlersResult.error && wrestlersRows == null) {
     const withoutStatus = await supabase
       .from("wrestlers")
-      .select('id, name, gender, brand, dob, "2K26 rating", "2K25 rating"')
+      .select('id, name, gender, brand, dob, image_url, status, "Status", classification, "Classification", "2K26 rating", "2K25 rating"')
       .order("name", { ascending: true });
     if (!withoutStatus.error && withoutStatus.data != null) {
-      wrestlersRows = withoutStatus.data;
+      wrestlersRows = withoutStatus.data as WrestlerRow[];
       has2k26 = true;
       has2k25 = true;
     }
   }
-  if (wrestlersRows == null) {
+  if (wrestlersRows == null || wrestlersRows.length === 0) {
     const with26 = await supabase
       .from("wrestlers")
-      .select('id, name, gender, brand, dob, "2K26 rating"')
+      .select('id, name, gender, brand, dob, image_url, status, "Status", classification, "Classification", "2K26 rating"')
       .order("name", { ascending: true });
     if (!with26.error && with26.data != null) {
-      wrestlersRows = with26.data;
+      wrestlersRows = with26.data as WrestlerRow[];
       has2k26 = true;
       has2k25 = false;
     } else {
       const with25 = await supabase
         .from("wrestlers")
-        .select('id, name, gender, brand, dob, "2K25 rating"')
+        .select('id, name, gender, brand, dob, image_url, status, "Status", classification, "Classification", "2K25 rating"')
         .order("name", { ascending: true });
       if (!with25.error && with25.data != null) {
-        wrestlersRows = with25.data;
+        wrestlersRows = with25.data as WrestlerRow[];
         has2k26 = false;
         has2k25 = true;
       } else {
         const noRating = await supabase
           .from("wrestlers")
-          .select("id, name, gender, brand, dob")
+          .select('id, name, gender, brand, dob, image_url, status, "Status", classification, "Classification"')
           .order("name", { ascending: true });
-        wrestlersRows = noRating.data ?? null;
+        if (!noRating.error && noRating.data != null) {
+          wrestlersRows = noRating.data as WrestlerRow[];
+        }
       }
     }
+  }
+  // If classification column is missing, try without it so the table still gets data
+  if (wrestlersRows == null || wrestlersRows.length === 0) {
+    const noClassification = await supabase
+      .from("wrestlers")
+      .select('id, name, gender, brand, dob, image_url, status, "Status"')
+      .order("name", { ascending: true });
+    if (!noClassification.error && noClassification.data != null && noClassification.data.length > 0) {
+      wrestlersRows = noClassification.data as WrestlerRow[];
+    }
+  }
+  // Last resort: minimal columns (no status) in case status column is missing
+  if (wrestlersRows == null || wrestlersRows.length === 0) {
+    const minimal = await supabase
+      .from("wrestlers")
+      .select("id, name, gender, brand, dob, image_url")
+      .order("name", { ascending: true });
+    if (!minimal.error && minimal.data != null && minimal.data.length > 0) {
+      wrestlersRows = minimal.data as WrestlerRow[];
+    }
+  }
+
+  const normalizedRows = (wrestlersRows ?? []).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r as Record<string, unknown>) }));
+  let draftableRows = normalizedRows.filter((row) => isDraftableWrestler(row as Parameters<typeof isDraftableWrestler>[0]));
+  if (draftableRows.length === 0 && normalizedRows.length > 0) {
+    draftableRows = [...normalizedRows];
   }
 
   /** Read numeric rating from row; tries primary key then alternates (Boxscore may use different column names). */
@@ -115,7 +145,7 @@ export default async function DraftTestingPage() {
     return null;
   }
 
-  const wrestlers: WrestlerDraftRow[] = (wrestlersRows ?? []).map((w) => {
+  const wrestlers: WrestlerDraftRow[] = draftableRows.map((w) => {
     const row = w as Record<string, unknown>;
     return {
       id: String(row.id ?? ""),
@@ -123,6 +153,7 @@ export default async function DraftTestingPage() {
       gender: row.gender != null ? String(row.gender) : null,
       brand: row.brand != null ? String(row.brand) : null,
       dob: row.dob != null ? String(row.dob) : null,
+      image_url: row.image_url != null && row.image_url !== "" ? String(row.image_url) : null,
       rating_2k26: has2k26
         ? readRating(row, "2K26 rating", ["rating_2k26", "twok26_rating", "2k26_rating"])
         : null,

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { isBlocklistedSlug } from "@/lib/draftBlocklist";
 
 export type WrestlerDraftRow = {
   id: string;
@@ -9,13 +10,14 @@ export type WrestlerDraftRow = {
   gender: string | null;
   brand: string | null;
   dob: string | null;
+  image_url: string | null;
   rating_2k26: number | null;
   rating_2k25: number | null;
 };
 
 export type PointsBySlug = Record<string, { rsPoints: number; plePoints: number; beltPoints: number }>;
 
-const PICK_CLOCK_SECONDS = 120;
+const PICK_CLOCK_SECONDS = 5;
 
 /** Overall rank formula: composite = total points + (2K26 rating × 1.5). Higher = better. */
 const RATING_WEIGHT = 1.5;
@@ -80,24 +82,73 @@ function formatClock(seconds: number): string {
 
 const TEAM_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
+/** Auto-draft options: focus (which points period), point strategy, wrestler strategy. */
+export type AutoDraftFocus = "2026" | "2025" | "all";
+export type AutoDraftPointStrategy = "total" | "rs" | "ple" | "belt";
+export type AutoDraftWrestlerStrategy =
+  | "best_available"
+  | "balanced_gender"
+  | "balanced_brands"
+  | "high_males"
+  | "high_females";
+
+const FOCUS_OPTIONS: { value: AutoDraftFocus; label: string }[] = [
+  { value: "2026", label: "2026 points" },
+  { value: "2025", label: "2025 points" },
+  { value: "all", label: "All-time points" },
+];
+const POINT_STRATEGY_OPTIONS: { value: AutoDraftPointStrategy; label: string }[] = [
+  { value: "total", label: "Total Points" },
+  { value: "rs", label: "R/S points" },
+  { value: "ple", label: "PLE Points" },
+  { value: "belt", label: "Belt Points" },
+];
+const WRESTLER_STRATEGY_OPTIONS: { value: AutoDraftWrestlerStrategy; label: string }[] = [
+  { value: "best_available", label: "Best available" },
+  { value: "balanced_gender", label: "Balanced male/female" },
+  { value: "balanced_brands", label: "Balanced Raw/SmackDown" },
+  { value: "high_males", label: "High ranking males" },
+  { value: "high_females", label: "High ranking females" },
+];
+
+const DEFAULT_AUTO_PREFS = {
+  focus: "all" as AutoDraftFocus,
+  pointStrategy: "total" as AutoDraftPointStrategy,
+  wrestlerStrategy: "best_available" as AutoDraftWrestlerStrategy,
+};
+
 type Phase = "setup" | "drafting" | "complete";
 
 type PointsPeriod = "2026" | "2025" | "all";
+
+type DraftTableSortColumn = "rank" | "name" | "gender" | "age" | "2k" | "rs" | "ple" | "belt" | "total" | "brand";
+type SortDir = "asc" | "desc";
 
 type Props = {
   wrestlers: WrestlerDraftRow[];
   pointsByPeriod: { "2026": PointsBySlug; "2025": PointsBySlug; all: PointsBySlug };
 };
 
-export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
+export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
+  const wrestlers = wrestlersProp ?? [];
   const [teamCount, setTeamCount] = useState<number>(4);
   const [draftStyle, setDraftStyle] = useState<"snake" | "linear">("snake");
   const [phase, setPhase] = useState<Phase>("setup");
-  const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("2026");
+  const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("all");
   const [draftOrder, setDraftOrder] = useState<number[]>([]);
   const [picksByTeam, setPicksByTeam] = useState<Record<number, string[]>>({});
   const [currentPick, setCurrentPick] = useState(1);
   const [clockSeconds, setClockSeconds] = useState(PICK_CLOCK_SECONDS);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tableSortColumn, setTableSortColumn] = useState<DraftTableSortColumn>("rank");
+  const [tableSortDir, setTableSortDir] = useState<SortDir>("asc");
+  /** Per-team auto-draft preferences. Used when clock hits 0. */
+  const [teamPreferences, setTeamPreferences] = useState<
+    Record<number, { focus: AutoDraftFocus; pointStrategy: AutoDraftPointStrategy; wrestlerStrategy: AutoDraftWrestlerStrategy }>
+  >({});
+  /** Which team's preferences we're editing in setup (0-based). */
+  const [editingTeamPrefsFor, setEditingTeamPrefsFor] = useState<number>(0);
+  const autoPickTriggeredForPickRef = useRef<number>(0);
 
   const rules = getRosterRulesForLeague(teamCount);
   const totalPicks = rules ? teamCount * rules.rosterSize : 0;
@@ -109,8 +160,8 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
 
   const pointsForPeriod = pointsByPeriod[pointsPeriod];
 
-  /** Available wrestlers sorted by overall rank (composite = total + 2K26 × weight), with rank assigned. */
-  const rankedAvailable = useMemo(() => {
+  /** Available wrestlers with stats; default order by composite rank. */
+  const availableWithStats = useMemo(() => {
     const withStats = available.map((w) => {
       const pts = pointsForPeriod[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
       const total = pts.rsPoints + pts.plePoints + pts.beltPoints;
@@ -118,9 +169,191 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
       const composite = total + rating * RATING_WEIGHT;
       return { wrestler: w, rs: pts.rsPoints, ple: pts.plePoints, belt: pts.beltPoints, total, composite };
     });
-    withStats.sort((a, b) => b.composite - a.composite || (b.wrestler.rating_2k26 ?? 0) - (a.wrestler.rating_2k26 ?? 0) || (a.wrestler.name ?? a.wrestler.id).localeCompare(b.wrestler.name ?? b.wrestler.id));
+    withStats.sort((a, b) => b.composite - a.composite || (b.wrestler.rating_2k26 ?? 0) - (a.wrestler.rating_2k26 ?? 0) || (a.wrestler.name ?? a.wrestler.id ?? "").localeCompare(b.wrestler.name ?? b.wrestler.id ?? ""));
     return withStats.map((row, i) => ({ ...row, rank: i + 1 }));
   }, [available, pointsForPeriod]);
+
+  /** Pick best available wrestler for a team using their preferences (for auto-pick when clock hits 0). */
+  const getAutoPickWrestlerId = useCallback(
+    (teamIndex: number): string | null => {
+      const prefs = teamPreferences[teamIndex] ?? DEFAULT_AUTO_PREFS;
+      const focus = prefs.focus ?? "2026";
+      const pointStrategy = prefs.pointStrategy ?? "total";
+      const wrestlerStrategy = prefs.wrestlerStrategy ?? "best_available";
+      const pts = pointsByPeriod[focus];
+      const draftableAvailable = available.filter((w) => !isBlocklistedSlug(w.id));
+      if (!pts) return draftableAvailable[0]?.id ?? null;
+      const list = draftableAvailable.map((w) => {
+        const p = pts[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
+        const total = p.rsPoints + p.plePoints + p.beltPoints;
+        return { wrestler: w, rs: p.rsPoints, ple: p.plePoints, belt: p.beltPoints, total };
+      });
+      if (list.length === 0) return null;
+      // Prefer wrestlers with at least 1 point in the chosen metric so we don't pick 0-point talent when others have points
+      const hasPoints =
+        pointStrategy === "total"
+          ? (r: { total: number }) => r.total > 0
+          : pointStrategy === "rs"
+            ? (r: { rs: number }) => r.rs > 0
+            : pointStrategy === "ple"
+              ? (r: { ple: number }) => r.ple > 0
+              : (r: { belt: number }) => r.belt > 0;
+      const withPoints = list.filter(hasPoints);
+      const withPointsSorted =
+        pointStrategy === "total"
+          ? [...withPoints].sort((a, b) => b.total - a.total)
+          : pointStrategy === "rs"
+            ? [...withPoints].sort((a, b) => b.rs - a.rs)
+            : pointStrategy === "ple"
+              ? [...withPoints].sort((a, b) => b.ple - a.ple)
+              : [...withPoints].sort((a, b) => b.belt - a.belt);
+      const significantCount = Math.max(1, Math.ceil(withPointsSorted.length * 0.5));
+      const significantPoints = withPointsSorted.slice(0, significantCount);
+      const baseList = significantPoints.length > 0 ? significantPoints : withPoints.length > 0 ? withPoints : list;
+      const rosterIds = picksByTeam[teamIndex] ?? [];
+      const rosterGenderCounts: Record<string, number> = { F: 0, M: 0 };
+      const rosterBrandCounts: Record<string, number> = { Raw: 0, SmackDown: 0, Unassigned: 0 };
+      for (const id of rosterIds) {
+        const w = wrestlers.find((x) => x.id === id);
+        const g = normalizeGender(w?.gender);
+        if (g) rosterGenderCounts[g] = (rosterGenderCounts[g] ?? 0) + 1;
+        const b = normalizeBrand(w?.brand);
+        rosterBrandCounts[b] = (rosterBrandCounts[b] ?? 0) + 1;
+      }
+      const currentFemale = rosterGenderCounts.F ?? 0;
+      const currentMale = rosterGenderCounts.M ?? 0;
+      const remainingPicks = rules ? rules.rosterSize - rosterIds.length : 0;
+      const needFemale = rules ? Math.max(0, rules.minFemale - currentFemale) : 0;
+      const needMale = rules ? Math.max(0, rules.minMale - currentMale) : 0;
+      const requiredGender: "F" | "M" | null =
+        rules && remainingPicks > 0
+          ? needFemale > 0 && remainingPicks - 1 < needFemale
+            ? "F"
+            : needMale > 0 && remainingPicks - 1 < needMale
+              ? "M"
+              : null
+          : null;
+      let pool = baseList;
+      if (requiredGender) {
+        const byGender = baseList.filter((r) => normalizeGender(r.wrestler.gender) === requiredGender);
+        if (byGender.length > 0) pool = byGender;
+      }
+      let sorted = [...pool];
+      if (pointStrategy === "total") sorted.sort((a, b) => b.total - a.total);
+      else if (pointStrategy === "rs") sorted.sort((a, b) => b.rs - a.rs);
+      else if (pointStrategy === "ple") sorted.sort((a, b) => b.ple - a.ple);
+      else if (pointStrategy === "belt") sorted.sort((a, b) => b.belt - a.belt);
+      if (wrestlerStrategy === "best_available") return sorted[0]?.wrestler.id ?? null;
+      if (wrestlerStrategy === "balanced_gender") {
+        sorted.sort((a, b) => {
+          const gA = normalizeGender(a.wrestler.gender);
+          const gB = normalizeGender(b.wrestler.gender);
+          const cA = gA ? rosterGenderCounts[gA] ?? 0 : 0;
+          const cB = gB ? rosterGenderCounts[gB] ?? 0 : 0;
+          if (cA !== cB) return cA - cB;
+          return b.total - a.total;
+        });
+        return sorted[0]?.wrestler.id ?? null;
+      }
+      if (wrestlerStrategy === "balanced_brands") {
+        sorted.sort((a, b) => {
+          const brandA = normalizeBrand(a.wrestler.brand);
+          const brandB = normalizeBrand(b.wrestler.brand);
+          const countA = rosterBrandCounts[brandA] ?? 0;
+          const countB = rosterBrandCounts[brandB] ?? 0;
+          if (countA !== countB) return countA - countB;
+          return b.total - a.total;
+        });
+        return sorted[0]?.wrestler.id ?? null;
+      }
+      if (wrestlerStrategy === "high_males") {
+        const male = sorted.filter((r) => normalizeGender(r.wrestler.gender) === "M");
+        const pool = male.length > 0 ? male : sorted;
+        pool.sort((a, b) => b.total * 1.2 - a.total * 1.2);
+        return pool[0]?.wrestler.id ?? null;
+      }
+      if (wrestlerStrategy === "high_females") {
+        const female = sorted.filter((r) => normalizeGender(r.wrestler.gender) === "F");
+        const pool = female.length > 0 ? female : sorted;
+        pool.sort((a, b) => b.total * 1.2 - a.total * 1.2);
+        return pool[0]?.wrestler.id ?? null;
+      }
+      return sorted[0]?.wrestler.id ?? null;
+    },
+    [teamPreferences, available, pointsByPeriod, picksByTeam, wrestlers, rules]
+  );
+
+  /** Filter by search (name starts with query), then sort by selected column. */
+  const rankedAvailable = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    let list = q
+      ? availableWithStats.filter((row) => {
+          const name = (row.wrestler.name ?? row.wrestler.id).toLowerCase();
+          return name.startsWith(q) || name.includes(q);
+        })
+      : [...availableWithStats];
+
+    const dir = tableSortDir === "asc" ? 1 : -1;
+    list.sort((a, b) => {
+      let out = 0;
+      const wA = a.wrestler;
+      const wB = b.wrestler;
+      switch (tableSortColumn) {
+        case "rank":
+          out = a.rank - b.rank;
+          break;
+        case "name":
+          out = (wA.name ?? wA.id).localeCompare(wB.name ?? wB.id);
+          break;
+        case "gender":
+          out = normalizeGender(wA.gender).localeCompare(normalizeGender(wB.gender));
+          break;
+        case "age": {
+          const ageA = calculateAge(wA.dob) ?? -1;
+          const ageB = calculateAge(wB.dob) ?? -1;
+          out = ageA - ageB;
+          break;
+        }
+        case "2k": {
+          const rA = wA.rating_2k26 ?? wA.rating_2k25 ?? -1;
+          const rB = wB.rating_2k26 ?? wB.rating_2k25 ?? -1;
+          out = rA - rB;
+          break;
+        }
+        case "rs":
+          out = a.rs - b.rs;
+          break;
+        case "ple":
+          out = a.ple - b.ple;
+          break;
+        case "belt":
+          out = a.belt - b.belt;
+          break;
+        case "total":
+          out = a.total - b.total;
+          break;
+        case "brand":
+          out = normalizeBrand(wA.brand).localeCompare(normalizeBrand(wB.brand));
+          break;
+        default:
+          out = a.rank - b.rank;
+      }
+      return out * dir;
+    });
+    return list;
+  }, [availableWithStats, searchQuery, tableSortColumn, tableSortDir]);
+
+  const handleSort = useCallback(
+    (col: DraftTableSortColumn) => {
+      if (tableSortColumn === col) {
+        setTableSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      } else {
+        setTableSortColumn(col);
+        setTableSortDir("desc");
+      }
+    },
+    [tableSortColumn]
+  );
 
   useEffect(() => {
     if (phase !== "drafting") return;
@@ -139,6 +372,7 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
 
   const startDraft = useCallback(() => {
     if (!rules) return;
+    autoPickTriggeredForPickRef.current = 0;
     const order = buildDraftOrder(draftStyle, teamCount, rules.rosterSize);
     setDraftOrder(order);
     setPicksByTeam({});
@@ -161,6 +395,15 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
     },
     [phase, currentPick, totalPicks, currentTeamIndex]
   );
+
+  /** When clock hits 0 during drafting, auto-pick for current team. Clock resets when currentPick changes (interval effect). */
+  useEffect(() => {
+    if (phase !== "drafting" || clockSeconds !== 0 || currentTeamIndex == null) return;
+    if (autoPickTriggeredForPickRef.current === currentPick) return;
+    autoPickTriggeredForPickRef.current = currentPick;
+    const bestId = getAutoPickWrestlerId(currentTeamIndex);
+    if (bestId) makePick(bestId);
+  }, [phase, clockSeconds, currentPick, currentTeamIndex, getAutoPickWrestlerId, makePick]);
 
   const reset = useCallback(() => {
     setPhase("setup");
@@ -185,7 +428,7 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
             Start a test draft
           </h2>
           <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
-            Choose number of teams and draft style. You’ll make every pick for every team. A 2-minute clock runs per pick.
+            Choose number of teams and draft style. You’ll make every pick for every team. Set auto-draft priorities below for each team, then start the draft. A <strong>5-second</strong> clock runs per pick; when time runs out, the current team is auto-picked using their priorities.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 20 }}>
             <div>
@@ -255,6 +498,84 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
               Start test draft
             </button>
           </div>
+
+          <section style={{ marginTop: 24, padding: 20, background: "var(--color-bg-surface)", borderRadius: "var(--radius)", border: "1px solid var(--color-border)" }}>
+            <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 8 }}>Auto-draft priorities (all teams)</h3>
+            <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 16 }}>
+              When the 5s clock runs out, each team is auto-picked using their focus, point strategy, and wrestler strategy below.
+            </p>
+            <div style={{ marginBottom: 12 }}>
+              <label htmlFor="prefs-team" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>Edit preferences for</label>
+              <select
+                id="prefs-team"
+                value={editingTeamPrefsFor}
+                onChange={(e) => setEditingTeamPrefsFor(Number(e.target.value))}
+                style={{ padding: "8px 12px", fontSize: 14, border: "1px solid var(--color-border)", borderRadius: "var(--radius)", minWidth: 120 }}
+              >
+                {Array.from({ length: teamCount }, (_, i) => (
+                  <option key={i} value={i}>Team {i + 1}</option>
+                ))}
+              </select>
+            </div>
+            {(() => {
+              const prefs = teamPreferences[editingTeamPrefsFor] ?? DEFAULT_AUTO_PREFS;
+              const setPrefs = (next: { focus: AutoDraftFocus; pointStrategy: AutoDraftPointStrategy; wrestlerStrategy: AutoDraftWrestlerStrategy }) =>
+                setTeamPreferences((prev) => ({ ...prev, [editingTeamPrefsFor]: next }));
+              return (
+                <>
+                  <div style={{ marginBottom: 16 }}>
+                    <span style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Choose a focus</span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {FOCUS_OPTIONS.map((opt) => (
+                        <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+                          <input
+                            type="radio"
+                            name={`focus-${editingTeamPrefsFor}`}
+                            checked={prefs.focus === opt.value}
+                            onChange={() => setPrefs({ ...prefs, focus: opt.value })}
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <span style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Choose a point strategy</span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {POINT_STRATEGY_OPTIONS.map((opt) => (
+                        <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+                          <input
+                            type="radio"
+                            name={`point-${editingTeamPrefsFor}`}
+                            checked={prefs.pointStrategy === opt.value}
+                            onChange={() => setPrefs({ ...prefs, pointStrategy: opt.value })}
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Choose a wrestler strategy</span>
+                    <span style={{ display: "block", fontSize: 11, color: "var(--color-text-muted)", marginBottom: 6 }}>Balanced Raw/SmackDown is by brand. High ranking males/females use total × 1.2.</span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {WRESTLER_STRATEGY_OPTIONS.map((opt) => (
+                        <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+                          <input
+                            type="radio"
+                            name={`wrestler-${editingTeamPrefsFor}`}
+                            checked={prefs.wrestlerStrategy === opt.value}
+                            onChange={() => setPrefs({ ...prefs, wrestlerStrategy: opt.value })}
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </section>
         </section>
       )}
 
@@ -330,6 +651,24 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
                 </select>
                 <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>Rank = Total + (2K26 × 1.5)</span>
               </div>
+              <div style={{ marginBottom: 10 }}>
+                <input
+                  type="search"
+                  placeholder="Search wrestler name…"
+                  aria-label="Search wrestler name"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: "100%",
+                    maxWidth: 280,
+                    padding: "8px 12px",
+                    fontSize: 14,
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius)",
+                    background: "var(--color-bg-input)",
+                  }}
+                />
+              </div>
               <div
                 style={{
                   maxHeight: 420,
@@ -344,31 +683,95 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead style={{ position: "sticky", top: 0, background: "var(--color-bg-elevated)", zIndex: 1 }}>
                       <tr>
-                        <th style={{ padding: "8px 6px", textAlign: "left", borderBottom: "1px solid var(--color-border)" }}>Rank</th>
-                        <th style={{ padding: "8px 6px", textAlign: "left", borderBottom: "1px solid var(--color-border)" }}>Name</th>
-                        <th style={{ padding: "8px 6px", textAlign: "center", borderBottom: "1px solid var(--color-border)" }}>Gender</th>
-                        <th style={{ padding: "8px 6px", textAlign: "center", borderBottom: "1px solid var(--color-border)" }}>Age</th>
-                        <th style={{ padding: "8px 6px", textAlign: "center", borderBottom: "1px solid var(--color-border)" }} title="2K26 if available, else 2K25">2K Rating</th>
-                        <th style={{ padding: "8px 6px", textAlign: "right", borderBottom: "1px solid var(--color-border)" }} title="Raw/SmackDown">R/S</th>
-                        <th style={{ padding: "8px 6px", textAlign: "right", borderBottom: "1px solid var(--color-border)" }}>PLE</th>
-                        <th style={{ padding: "8px 6px", textAlign: "right", borderBottom: "1px solid var(--color-border)" }}>Belt</th>
-                        <th style={{ padding: "8px 6px", textAlign: "left", borderBottom: "1px solid var(--color-border)" }}>Brand</th>
+                        {([
+                          { key: "rank" as const, label: "Rank", align: "left" as const },
+                          { key: "name" as const, label: "Name", align: "left" as const },
+                          { key: "gender" as const, label: "Gender", align: "center" as const },
+                          { key: "age" as const, label: "Age", align: "center" as const },
+                          { key: "2k" as const, label: "2K Rating", align: "center" as const, title: "2K26 if available, else 2K25" },
+                          { key: "rs" as const, label: "R/S", align: "right" as const, title: "Raw/SmackDown" },
+                          { key: "ple" as const, label: "PLE", align: "right" as const },
+                          { key: "belt" as const, label: "Belt", align: "right" as const },
+                          { key: "total" as const, label: "Total", align: "right" as const },
+                          { key: "brand" as const, label: "Brand", align: "left" as const },
+                        ] as { key: DraftTableSortColumn; label: string; align: "left" | "center" | "right"; title?: string }[]).map(({ key, label, align, title }) => (
+                          <th key={key} style={{ padding: "8px 6px", textAlign: align, borderBottom: "1px solid var(--color-border)" }}>
+                            <button
+                              type="button"
+                              onClick={() => handleSort(key)}
+                              title={title ?? `Sort by ${label}`}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                padding: 0,
+                                font: "inherit",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              {label}
+                              {tableSortColumn === key && (
+                                <span style={{ fontSize: 10 }} aria-hidden>
+                                  {tableSortDir === "asc" ? "↑" : "↓"}
+                                </span>
+                              )}
+                            </button>
+                          </th>
+                        ))}
                         <th style={{ padding: "8px 6px", borderBottom: "1px solid var(--color-border)" }} />
                       </tr>
                     </thead>
                     <tbody>
-                      {rankedAvailable.map(({ wrestler: w, rank, rs, ple, belt }) => {
+                      {rankedAvailable.map(({ wrestler: w, rank, rs, ple, belt, total }) => {
                         const display2k = w.rating_2k26 ?? w.rating_2k25 ?? null;
                         return (
                           <tr key={w.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                             <td style={{ padding: "6px", fontWeight: 600 }}>{rank}</td>
-                            <td style={{ padding: "6px", whiteSpace: "nowrap" }}>{w.name ?? w.id}</td>
+                            <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                {w.image_url ? (
+                                  <img
+                                    src={w.image_url}
+                                    alt=""
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      objectFit: "cover",
+                                      borderRadius: "50%",
+                                      background: "var(--color-bg-input)",
+                                    }}
+                                  />
+                                ) : (
+                                  <span
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: "50%",
+                                      background: "var(--color-bg-input)",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontSize: 12,
+                                      color: "var(--color-text-muted)",
+                                    }}
+                                    aria-hidden
+                                  >
+                                    —
+                                  </span>
+                                )}
+                                <span>{w.name ?? w.id}</span>
+                              </span>
+                            </td>
                             <td style={{ padding: "6px", textAlign: "center" }}>{normalizeGender(w.gender)}</td>
                             <td style={{ padding: "6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{calculateAge(w.dob) ?? "—"}</td>
                             <td style={{ padding: "6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{display2k != null ? display2k : "—"}</td>
                             <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{rs}</td>
                             <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{ple}</td>
                             <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{belt}</td>
+                            <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{total}</td>
                             <td style={{ padding: "6px" }}>{normalizeBrand(w.brand)}</td>
                             <td style={{ padding: "6px" }}>
                               <button
@@ -411,10 +814,44 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
                     }}
                   >
                     <strong style={{ fontSize: 14 }}>Team {i + 1}</strong>
-                    <ul style={{ margin: "8px 0 0", paddingLeft: 20, fontSize: 14, color: "var(--color-text-muted)" }}>
+                    <ul style={{ margin: "8px 0 0", paddingLeft: 0, listStyle: "none", fontSize: 14, color: "var(--color-text-muted)" }}>
                       {(picksByTeam[i] ?? []).map((id) => {
                         const w = wrestlers.find((x) => x.id === id);
-                        return <li key={id}>{w?.name ?? id}</li>;
+                        return (
+                          <li key={id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                            {w?.image_url ? (
+                              <img
+                                src={w.image_url}
+                                alt=""
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  objectFit: "cover",
+                                  borderRadius: "50%",
+                                  background: "var(--color-bg-input)",
+                                }}
+                              />
+                            ) : (
+                              <span
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: "50%",
+                                  background: "var(--color-bg-input)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 11,
+                                  color: "var(--color-text-muted)",
+                                }}
+                                aria-hidden
+                              >
+                                —
+                              </span>
+                            )}
+                            <span>{w?.name ?? id}</span>
+                          </li>
+                        );
                       })}
                     </ul>
                   </div>
@@ -441,10 +878,44 @@ export function TestDraft({ wrestlers, pointsByPeriod }: Props) {
             {Array.from({ length: teamCount }, (_, i) => (
               <div key={i} style={{ padding: 12, background: "var(--color-bg-input)", borderRadius: "var(--radius)" }}>
                 <strong>Team {i + 1}</strong>
-                <ul style={{ margin: "8px 0 0", paddingLeft: 20, fontSize: 14 }}>
+                <ul style={{ margin: "8px 0 0", paddingLeft: 0, listStyle: "none", fontSize: 14 }}>
                   {(picksByTeam[i] ?? []).map((id) => {
                     const w = wrestlers.find((x) => x.id === id);
-                    return <li key={id}>{w?.name ?? id}</li>;
+                    return (
+                      <li key={id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                        {w?.image_url ? (
+                          <img
+                            src={w.image_url}
+                            alt=""
+                            style={{
+                              width: 28,
+                              height: 28,
+                              objectFit: "cover",
+                              borderRadius: "50%",
+                              background: "var(--color-bg-input)",
+                            }}
+                          />
+                        ) : (
+                          <span
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: "50%",
+                              background: "var(--color-border)",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 11,
+                              color: "var(--color-text-muted)",
+                            }}
+                            aria-hidden
+                          >
+                            —
+                          </span>
+                        )}
+                        <span>{w?.name ?? id}</span>
+                      </li>
+                    );
                   })}
                 </ul>
               </div>
