@@ -4,12 +4,16 @@ const CONSTANT_CONTACT_SIGNUP_URL = "https://lp.constantcontactpages.com/sl/Qe4D
 
 export function EmailSignupForm() {
   return (
-    <div className="coming-soon-embed-wrap">
-      <iframe
-        src={CONSTANT_CONTACT_SIGNUP_URL}
-        title="Email signup — Constant Contact"
-        className="coming-soon-embed-iframe"
-      />
+    <div className="coming-soon-signup">
+      <a
+        href={CONSTANT_CONTACT_SIGNUP_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="coming-soon-form-btn coming-soon-form-btn-link"
+      >
+        Join the list — get notified at launch
+      </a>
+      <p className="coming-soon-signup-note">Opens our signup form in a new tab.</p>
     </div>
   );
 }

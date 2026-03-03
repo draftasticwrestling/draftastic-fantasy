@@ -15,7 +15,7 @@ The app includes a **standalone** coming soon landing for **draftasticprowrestli
 
 ## Constant Contact
 
-The signup form is **embedded** in the page via an iframe:
+A **“Join the list”** button links to the Constant Contact signup page (opens in a new tab). Constant Contact’s page does not allow iframe embedding, so we use a direct link instead.
 
 **https://lp.constantcontactpages.com/sl/Qe4DAFj**
 
