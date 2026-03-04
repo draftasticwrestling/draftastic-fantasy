@@ -469,6 +469,8 @@ export async function makeDraftPick(
   return {};
 }
 
+type DraftPickRow = { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string; is_auto_pick?: boolean };
+
 /** Draft pick history for display (who picked which wrestler at each slot). */
 export async function getDraftPicksHistory(
   leagueId: string
@@ -476,20 +478,29 @@ export async function getDraftPicksHistory(
   { overall_pick: number; user_id: string; wrestler_id: string; wrestler_name: string | null; picked_at: string; is_auto_pick?: boolean }[]
 > {
   const supabase = await createClient();
-  let result = await supabase
+  let rows: DraftPickRow[] | null = null;
+  let err: { code?: string; message?: string } | null = null;
+
+  const withAuto = await supabase
     .from("league_draft_picks")
     .select("overall_pick, user_id, wrestler_id, picked_at, is_auto_pick")
     .eq("league_id", leagueId)
     .order("overall_pick", { ascending: true });
-  if (result.error && (result.error.code === "42703" || result.error.message?.includes("is_auto_pick"))) {
-    result = await supabase
+
+  if (withAuto.error && (withAuto.error.code === "42703" || withAuto.error.message?.includes("is_auto_pick"))) {
+    const withoutAuto = await supabase
       .from("league_draft_picks")
       .select("overall_pick, user_id, wrestler_id, picked_at")
       .eq("league_id", leagueId)
       .order("overall_pick", { ascending: true });
+    err = withoutAuto.error;
+    rows = (withoutAuto.data ?? []).map((r) => ({ ...r, is_auto_pick: false }));
+  } else {
+    err = withAuto.error;
+    rows = (withAuto.data ?? []) as DraftPickRow[];
   }
-  const rows = result.data;
-  if (result.error || !rows?.length) return [];
+
+  if (err || !rows?.length) return [];
 
   const wrestlerIds = [...new Set(rows.map((r) => r.wrestler_id))];
   const { data: wrestlers } = await supabase
@@ -499,16 +510,14 @@ export async function getDraftPicksHistory(
   const nameById: Record<string, string | null> = {};
   for (const w of wrestlers ?? []) nameById[w.id] = w.name ?? null;
 
-  return (rows as { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string; is_auto_pick?: boolean }[]).map(
-    (r) => ({
-      overall_pick: r.overall_pick,
-      user_id: r.user_id,
-      wrestler_id: r.wrestler_id,
-      wrestler_name: nameById[r.wrestler_id] ?? null,
-      picked_at: r.picked_at,
-      is_auto_pick: r.is_auto_pick ?? false,
-    })
-  );
+  return rows.map((r) => ({
+    overall_pick: r.overall_pick,
+    user_id: r.user_id,
+    wrestler_id: r.wrestler_id,
+    wrestler_name: nameById[r.wrestler_id] ?? null,
+    picked_at: r.picked_at,
+    is_auto_pick: r.is_auto_pick ?? false,
+  }));
 }
 
 function normalizeGender(g: string | null | undefined): "F" | "M" | null {
