@@ -312,7 +312,17 @@ export async function updateLeagueMemberTeamName(
     .eq("league_id", leagueId)
     .eq("user_id", user.id);
 
-  return error ? { error: error.message } : {};
+  if (error) {
+    const msg = error.message ?? "";
+    if (msg.includes("team_name") && (msg.includes("schema cache") || msg.includes("column"))) {
+      return {
+        error:
+          "Team name could not be saved. The database may be missing the team_name column. Run the SQL in supabase/league_members_team_name.sql in your Supabase project (SQL Editor).",
+      };
+    }
+    return { error: msg };
+  }
+  return {};
 }
 
 /**

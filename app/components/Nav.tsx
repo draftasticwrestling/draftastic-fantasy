@@ -53,8 +53,38 @@ export default function Nav() {
   const leagueSwitcherRef = useRef<HTMLDivElement>(null);
   const leagueSwitcherButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const secondaryWrapRef = useRef<HTMLElement>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [leaguePanelRect, setLeaguePanelRect] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const setHoverPrimaryStable = (value: typeof hoverPrimary) => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setHoverPrimary(value);
+  };
+
+  const handlePrimaryEnter = (primary: typeof hoverPrimary, e: React.MouseEvent) => {
+    const from = e.relatedTarget as Node | null;
+    if (from && secondaryWrapRef.current?.contains(from)) return;
+    setHoverPrimaryStable(primary);
+  };
+
+  const handleLowerBarLeave = (e: React.MouseEvent) => {
+    const to = e.relatedTarget as Node | null;
+    if (to && secondaryWrapRef.current?.contains(to)) return;
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    closeTimeoutRef.current = setTimeout(() => setHoverPrimary(null), 150);
+  };
+
+  const handleLowerBarEnter = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -114,6 +144,12 @@ export default function Nav() {
   const currentLeague = leagues.find((l) => l.slug === currentLeagueSlug);
   const isCommissioner = currentLeague?.role === "commissioner";
   const activePrimary = currentLeagueSlug ? getActivePrimary(pathname, currentLeagueSlug) : null;
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -352,7 +388,8 @@ export default function Nav() {
       {showLowerBar && currentLeagueSlug && (
         <div
           className="nav-lower-bar"
-          onMouseLeave={() => setHoverPrimary(null)}
+          onMouseLeave={handleLowerBarLeave}
+          onMouseEnter={handleLowerBarEnter}
         >
           <nav className="nav-primary-wrap" aria-label="League">
             <ul className="nav-primary-list">
@@ -417,7 +454,7 @@ export default function Nav() {
                     )}
                 </div>
               </li>
-              <li onMouseEnter={() => setHoverPrimary("league")}>
+              <li onMouseEnter={(e) => handlePrimaryEnter("league", e)}>
                 <Link
                   href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "#"}
                   className={`nav-primary-link ${activePrimary === "league" ? "is-active" : ""}`}
@@ -425,7 +462,7 @@ export default function Nav() {
                   League
                 </Link>
               </li>
-              <li onMouseEnter={() => setHoverPrimary("my-team")}>
+              <li onMouseEnter={(e) => handlePrimaryEnter("my-team", e)}>
                 <Link
                   href={rosterHref}
                   className={`nav-primary-link ${activePrimary === "my-team" ? "is-active" : ""}`}
@@ -433,7 +470,7 @@ export default function Nav() {
                   My Team
                 </Link>
               </li>
-              <li onMouseEnter={() => setHoverPrimary("wrestlers")}>
+              <li onMouseEnter={(e) => handlePrimaryEnter("wrestlers", e)}>
                 <Link
                   href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers/league-leaders` : "#"}
                   className={`nav-primary-link ${activePrimary === "wrestlers" ? "is-active" : ""}`}
@@ -458,7 +495,7 @@ export default function Nav() {
                 </Link>
               </li>
               {isCommissioner && (
-                <li onMouseEnter={() => setHoverPrimary("gm-tools")}>
+                <li onMouseEnter={(e) => handlePrimaryEnter("gm-tools", e)}>
                   <Link
                     href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/notify-league` : "#"}
                     className={`nav-primary-link ${activePrimary === "gm-tools" ? "is-active" : ""}`}
@@ -470,7 +507,7 @@ export default function Nav() {
             </ul>
           </nav>
 
-          <nav className="nav-secondary-wrap" aria-label="Section">
+          <nav className="nav-secondary-wrap" aria-label="Section" ref={secondaryWrapRef}>
             <ul className="nav-secondary-list">
               {(hoverPrimary ?? activePrimary) === "my-team" &&
                 myTeamSub.map(({ href, label }) => {

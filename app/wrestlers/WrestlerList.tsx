@@ -238,7 +238,6 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: "plePoints", label: "PLE", minW: 72, align: "center", section: "SEASON PTS" },
   { key: "beltPoints", label: "Belt", minW: 72, align: "center", section: "SEASON PTS" },
   { key: "totalPoints", label: "TOT", minW: 80, align: "center", section: "FANTASY PTS" },
-  { key: null, label: "—", minW: 52, align: "center", section: "FANTASY PTS" },
 ];
 
 const STICKY_COLUMN_COUNT = 4;
@@ -849,11 +848,8 @@ export default function WrestlerList({
                   <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
                     {pts.beltPoints}
                   </td>
-                  <td style={{ minWidth: 80, padding: "10px 8px", textAlign: "center", fontWeight: 700, ...cellStyle }}>
+                  <td style={{ minWidth: 80, padding: "10px 8px", textAlign: "center", fontWeight: 700, ...cellStyle, borderRight: "none" }}>
                     {pts.totalPoints}
-                  </td>
-                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", ...cellStyle, borderRight: "none" }}>
-                    —
                   </td>
                 </tr>
               );
