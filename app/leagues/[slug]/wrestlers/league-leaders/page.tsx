@@ -43,6 +43,10 @@ type ChampionshipReign = {
   end_date?: string | null;
 };
 
+/** Match profile: all-time uses events from this date; high limit so we don't hit Supabase 1k default. */
+const ALL_TIME_EVENTS_FROM = "2020-01-01";
+const ALL_TIME_EVENTS_LIMIT = 10000;
+
 export async function generateMetadata({
   params,
 }: {
@@ -111,7 +115,9 @@ export default async function LeagueLeadersPage({
       .from("events")
       .select("id, name, date, matches")
       .eq("status", "completed")
-      .order("date", { ascending: true }),
+      .gte("date", ALL_TIME_EVENTS_FROM)
+      .order("date", { ascending: true })
+      .limit(ALL_TIME_EVENTS_LIMIT),
     getRostersForLeague(league.id),
     getLeagueMembers(league.id),
   ]);
@@ -131,7 +137,7 @@ export default async function LeagueLeadersPage({
     .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
     .order("won_date", { ascending: true });
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
-  const inferredReigns = inferReignsFromEvents(eventsSinceStart ?? []);
+  const inferredReigns = inferReignsFromEvents(eventsAll ?? []);
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
 
   const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart ?? []);
@@ -153,14 +159,15 @@ export default async function LeagueLeadersPage({
   const rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
-    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
-    const points2025 = getPointsForWrestler(points2025BySlug, slugKey, nameKey);
-    const points2026 = getPointsForWrestler(points2026BySlug, slugKey, nameKey);
-    const pointsAllTime = getPointsForWrestler(pointsAllTimeBySlug, slugKey, nameKey);
-    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
-    const extraBeltAllTime = getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey);
-    const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
-    const extraBelt2026 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2026, slugKey, nameKey);
+    const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
+    const points = getPointsForWrestler(pointsBySlug, canonicalKey, canonicalKey);
+    const points2025 = getPointsForWrestler(points2025BySlug, canonicalKey, canonicalKey);
+    const points2026 = getPointsForWrestler(points2026BySlug, canonicalKey, canonicalKey);
+    const pointsAllTime = getPointsForWrestler(pointsAllTimeBySlug, canonicalKey, canonicalKey);
+    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, canonicalKey, canonicalKey);
+    const extraBeltAllTime = getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, canonicalKey, canonicalKey);
+    const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, canonicalKey, canonicalKey);
+    const extraBelt2026 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2026, canonicalKey, canonicalKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const beltPointsAllTime = pointsAllTime.beltPoints + extraBeltAllTime;
@@ -169,7 +176,7 @@ export default async function LeagueLeadersPage({
     const beltPoints2025 = points2025.beltPoints + extraBelt2025;
     const beltPoints2026 = points2026.beltPoints + extraBelt2026;
     const titles =
-      currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
+      currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
     const raw = w as Record<string, unknown>;
     return {
       id: w.id,

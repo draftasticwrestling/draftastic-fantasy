@@ -76,12 +76,13 @@ export default async function WrestlersPage() {
   const rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
-    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
-    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
+    const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
+    const points = getPointsForWrestler(pointsBySlug, canonicalKey, canonicalKey);
+    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, canonicalKey, canonicalKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const titles =
-      currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
+      currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
     const raw = w as Record<string, unknown>;
     return {
       id: w.id,

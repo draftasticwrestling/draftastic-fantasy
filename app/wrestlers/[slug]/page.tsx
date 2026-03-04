@@ -203,7 +203,8 @@ export default async function WrestlerProfilePage({
     .select("id, name, date, matches")
     .eq("status", "completed")
     .gte("date", EVENTS_FROM_DATE)
-    .order("date", { ascending: true });
+    .order("date", { ascending: true })
+    .limit(10000);
 
   const knownEventIds = ["raw-20250714-1753144554675"];
   const knownKotrPriorIds = ["smackdown-20250620", "raw-20250623"];
