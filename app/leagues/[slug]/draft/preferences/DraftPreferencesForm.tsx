@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { saveDraftPreferencesAction } from "../actions";
 
 const MIN_PRIORITY = 10;
 const MAX_PRIORITY = 50;
+
+function normalizeSearch(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
 
 const FOCUS_OPTIONS = [
   { value: "all", label: "All-time points" },
@@ -49,23 +56,53 @@ export function DraftPreferencesForm({
   disabled = false,
 }: Props) {
   const [priorityList, setPriorityList] = useState<string[]>(initialPriorityList);
-  const [addWrestlerId, setAddWrestlerId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [focus, setFocus] = useState(initialFocus);
   const [pointStrategy, setPointStrategy] = useState(initialPointStrategy);
   const [wrestlerStrategy, setWrestlerStrategy] = useState(initialWrestlerStrategy);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const optionById = useMemo(() => new Map(wrestlerOptions.map((w) => [w.id, w])), [wrestlerOptions]);
   const availableToAdd = useMemo(
     () => wrestlerOptions.filter((w) => !priorityList.includes(w.id)),
     [wrestlerOptions, priorityList]
   );
+  const searchNorm = normalizeSearch(searchQuery);
+  const searchResults = useMemo(() => {
+    if (!searchNorm) return availableToAdd.slice(0, 50);
+    const q = searchNorm;
+    return availableToAdd.filter((w) => {
+      const name = (w.name || "").toLowerCase();
+      const id = (w.id || "").toLowerCase();
+      return name.includes(q) || id.includes(q) || name.replace(/-/g, " ").includes(q);
+    }).slice(0, 50);
+  }, [availableToAdd, searchNorm]);
 
-  const addWrestler = () => {
-    if (!addWrestlerId || priorityList.includes(addWrestlerId) || priorityList.length >= MAX_PRIORITY) return;
-    setPriorityList((prev) => [...prev, addWrestlerId]);
-    setAddWrestlerId("");
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (highlightedIndex >= searchResults.length) setHighlightedIndex(Math.max(0, searchResults.length - 1));
+  }, [searchResults.length, highlightedIndex]);
+
+  const addWrestlerById = (id: string) => {
+    if (!id || priorityList.includes(id) || priorityList.length >= MAX_PRIORITY) return;
+    setPriorityList((prev) => [...prev, id]);
+    setSearchQuery("");
+    setSearchOpen(false);
+    setHighlightedIndex(0);
   };
 
   const removeWrestler = (index: number) => {
@@ -88,6 +125,62 @@ export function DraftPreferencesForm({
       [next[index], next[index + 1]] = [next[index + 1], next[index]];
       return next;
     });
+  };
+
+  const handleDragStart = (index: number) => (e: React.DragEvent) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(index));
+    e.dataTransfer.setData("application/json", JSON.stringify({ index }));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (dropIndex: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    setDraggedIndex(null);
+    const dragIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
+    if (Number.isNaN(dragIndex) || dragIndex === dropIndex) return;
+    setPriorityList((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(dragIndex, 1);
+      const insertAt = dragIndex < dropIndex ? dropIndex - 1 : dropIndex;
+      next.splice(insertAt, 0, removed);
+      return next;
+    });
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!searchOpen || searchResults.length === 0) {
+      if (e.key === "Enter") e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((i) => (i + 1) % searchResults.length);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => (i - 1 + searchResults.length) % searchResults.length);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const w = searchResults[highlightedIndex];
+      if (w) addWrestlerById(w.id);
+      return;
+    }
+    if (e.key === "Escape") {
+      setSearchOpen(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,41 +215,93 @@ export function DraftPreferencesForm({
           You can list 10–50 wrestlers in ranked order of preference. Auto-pick will choose the highest-ranked available wrestler from this list. Once none from your list are available, your focus and strategies below take over. Leave empty to use only the strategies below.
         </p>
         {!disabled && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
-            <select
-              value={addWrestlerId}
-              onChange={(e) => setAddWrestlerId(e.target.value)}
+          <div ref={searchContainerRef} style={{ position: "relative", marginBottom: 12, maxWidth: 400 }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchOpen(true);
+                setHighlightedIndex(0);
+              }}
+              onFocus={() => setSearchOpen(true)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Type to search wrestlers…"
               className="app-input"
-              style={{ minWidth: 200, maxWidth: 320 }}
-              aria-label="Add wrestler to list"
-            >
-              <option value="">Select a wrestler…</option>
-              {availableToAdd.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name || w.id}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={addWrestler}
-              disabled={!addWrestlerId || priorityList.length >= MAX_PRIORITY}
-              className="app-btn-primary"
-              style={{ padding: "8px 16px" }}
-            >
-              Add
-            </button>
+              style={{ width: "100%", boxSizing: "border-box" }}
+              aria-label="Search wrestlers to add"
+              aria-autocomplete="list"
+              aria-expanded={searchOpen && searchResults.length > 0}
+              aria-controls="wrestler-search-list"
+              id="wrestler-search-input"
+            />
+            {searchOpen && (
+              <ul
+                id="wrestler-search-list"
+                role="listbox"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: "100%",
+                  margin: 0,
+                  marginTop: 4,
+                  padding: 0,
+                  listStyle: "none",
+                  maxHeight: 280,
+                  overflowY: "auto",
+                  background: "var(--color-bg-elevated)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius)",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  zIndex: 10,
+                }}
+              >
+                {searchResults.length === 0 ? (
+                  <li style={{ padding: "12px 14px", fontSize: 14, color: "var(--color-text-muted)" }}>
+                    {availableToAdd.length === 0 ? "All wrestlers added." : searchNorm ? "No matches." : "Type to search."}
+                  </li>
+                ) : (
+                  searchResults.map((w, i) => (
+                    <li
+                      key={w.id}
+                      role="option"
+                      aria-selected={i === highlightedIndex}
+                      style={{
+                        padding: "10px 14px",
+                        fontSize: 14,
+                        cursor: "pointer",
+                        background: i === highlightedIndex ? "var(--color-blue-bg, #e8f0fe)" : "transparent",
+                      }}
+                      onClick={() => addWrestlerById(w.id)}
+                      onMouseEnter={() => setHighlightedIndex(i)}
+                    >
+                      {w.name || w.id}
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
           </div>
         )}
         {priorityList.length > 0 && (
           <div style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius)", overflow: "hidden", background: "var(--color-bg-surface)" }}>
+            <p style={{ padding: "8px 12px", fontSize: 12, color: "var(--color-text-muted)", margin: 0, borderBottom: "1px solid var(--color-border)" }}>
+              Drag to reorder. First in list is highest preference.
+            </p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, maxHeight: 320, overflowY: "auto" }}>
               {priorityList.map((id, index) => {
                 const w = optionById.get(id);
                 const name = w?.name || id;
+                const isDragging = draggedIndex === index;
                 return (
                   <li
                     key={`${id}-${index}`}
+                    draggable={!disabled}
+                    onDragStart={handleDragStart(index)}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop(index)}
+                    onDragEnd={handleDragEnd}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -164,8 +309,13 @@ export function DraftPreferencesForm({
                       padding: "8px 12px",
                       borderBottom: index < priorityList.length - 1 ? "1px solid var(--color-border)" : "none",
                       fontSize: 14,
+                      opacity: isDragging ? 0.5 : 1,
+                      cursor: disabled ? "default" : "grab",
                     }}
                   >
+                    {!disabled && (
+                      <span style={{ color: "var(--color-text-muted)", cursor: "grab", paddingRight: 4 }} aria-hidden="true">⋮⋮</span>
+                    )}
                     <span style={{ color: "var(--color-text-muted)", fontWeight: 600, minWidth: 28 }}>#{index + 1}</span>
                     <span style={{ flex: 1 }}>{name}</span>
                     {!disabled && (
