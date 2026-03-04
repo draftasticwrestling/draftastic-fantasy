@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useFormState } from "react-dom";
 import { updateBasicSettingsFormAction } from "../actions";
 
@@ -15,7 +17,15 @@ type Props = {
 export function BasicSettingsSection(props: Props) {
   const { leagueSlug, leagueName, maxTeams, autoReactivate } = props;
   const effectiveMaxTeams = maxTeams ?? 6;
+  const router = useRouter();
   const [state, formAction] = useFormState(updateBasicSettingsFormAction, null as { error?: string } | null);
+
+  // After a successful save, refresh so the page gets updated league data and the key/props update
+  useEffect(() => {
+    if (state != null && !state.error) {
+      router.refresh();
+    }
+  }, [state, router]);
 
   return (
     <section aria-labelledby="basic-settings-heading" style={{ marginBottom: 32 }}>

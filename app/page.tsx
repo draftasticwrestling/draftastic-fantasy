@@ -37,7 +37,7 @@ export default async function HomePage() {
                 </div>
               </div>
               <p className="home-hero-signin">
-                Want some practice? <Link href="/how-it-works" style={{ color: "rgba(255,255,255,0.95)", textDecoration: "underline", fontWeight: 600 }}>Try a Mock Draft</Link>
+                Want to learn more? <Link href="/how-it-works" style={{ color: "rgba(255,255,255,0.95)", textDecoration: "underline", fontWeight: 600 }}>See how it works</Link>
                 {" · "}
                 Already have an account? <Link href="/auth/sign-in" style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>Sign in</Link>
               </p>

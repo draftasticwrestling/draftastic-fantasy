@@ -46,6 +46,7 @@ export default async function LeagueSettingsPage({
       {isCommissioner ? (
         <>
           <BasicSettingsSection
+            key={`basic-${slug}-${maxTeams ?? ""}-${league.name}-${autoReactivate}`}
             leagueSlug={slug}
             leagueName={league.name}
             maxTeams={maxTeams}

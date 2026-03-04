@@ -7,6 +7,7 @@ import {
   getLeagueDraftState,
   getCurrentPick,
   getDraftPicksHistory,
+  getDraftPreferences,
   runAutoPickIfExpired,
   isDraftableWrestler,
   normalizeWrestlerRowFromApi,
@@ -50,6 +51,7 @@ export default async function LeagueDraftPage({ params }: Props) {
   let isCurrentPicker = false;
   let picksHistory: Awaited<ReturnType<typeof getDraftPicksHistory>> = [];
   let rosterRules: ReturnType<typeof getRosterRulesForLeague> = null;
+  let userDraftPrefs: Awaited<ReturnType<typeof getDraftPreferences>> = null;
 
   try {
     league = await getLeagueBySlug(slug);
@@ -104,6 +106,7 @@ export default async function LeagueDraftPage({ params }: Props) {
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
+    userDraftPrefs = user ? await getDraftPreferences(league.id, user.id) : null;
     isCommissioner = league.role === "commissioner";
     isCurrentPicker =
       !!currentPick &&
@@ -116,6 +119,30 @@ export default async function LeagueDraftPage({ params }: Props) {
     const draftCurrentPick = state?.draft_current_pick ?? null;
     const orderReady = order.length > 0;
     const picksBySlot = Object.fromEntries(picksHistory.map((p) => [p.overall_pick, p]));
+
+    const leagueDraftType = league.draft_type ?? (league.draft_style === "linear" ? "linear" : "snake");
+    const timePerPickLabel =
+      league.time_per_pick_seconds != null
+        ? league.time_per_pick_seconds === 60
+          ? "1 minute"
+          : league.time_per_pick_seconds === 90
+            ? "90 seconds"
+            : league.time_per_pick_seconds === 150
+              ? "2 mins 30 seconds"
+              : league.time_per_pick_seconds === 180
+                ? "3 minutes"
+                : league.time_per_pick_seconds === 30
+                  ? "30 seconds"
+                  : `${league.time_per_pick_seconds} seconds`
+        : null;
+    const draftOrderLabel =
+      league.draft_order_method === "manual_by_gm"
+        ? "Manually set by General Manager"
+        : league.draft_order_method === "random_one_hour_before"
+          ? "Randomized one hour before draft"
+          : null;
+    const hasLeagueDraftDetails =
+      leagueDraftType || league.draft_date || timePerPickLabel || draftOrderLabel;
 
     function normGender(g: string | null | undefined): "F" | "M" | null {
       if (g == null || typeof g !== "string") return null;
@@ -162,6 +189,86 @@ export default async function LeagueDraftPage({ params }: Props) {
         </Link>
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem", color: "var(--color-text)" }}>Draft</h1>
+
+      {hasLeagueDraftDetails && (
+        <section
+          aria-labelledby="league-draft-details-heading"
+          style={{
+            marginBottom: 24,
+            padding: "16px 18px",
+            background: "var(--color-bg-elevated)",
+            borderRadius: "var(--radius)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <h2 id="league-draft-details-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12, color: "var(--color-text)" }}>
+            League draft details
+          </h2>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
+            {leagueDraftType && (
+              <li>
+                <strong style={{ color: "var(--color-text)" }}>Draft type:</strong>{" "}
+                {leagueDraftType === "snake" ? "Snake" : leagueDraftType === "linear" ? "Linear" : leagueDraftType === "offline" ? "Offline" : leagueDraftType === "autopick" ? "Autopick" : leagueDraftType}
+              </li>
+            )}
+            {league.draft_date && (
+              <li>
+                <strong style={{ color: "var(--color-text)" }}>Draft date:</strong> {league.draft_date}
+              </li>
+            )}
+            {timePerPickLabel && (
+              <li>
+                <strong style={{ color: "var(--color-text)" }}>Time per pick:</strong> {timePerPickLabel}
+              </li>
+            )}
+            {draftOrderLabel && (
+              <li>
+                <strong style={{ color: "var(--color-text)" }}>Draft order:</strong> {draftOrderLabel}
+              </li>
+            )}
+          </ul>
+          {isCommissioner && (
+            <p style={{ marginTop: 12, marginBottom: 0, fontSize: 13 }}>
+              <Link href={`/leagues/${slug}/league-settings#draft-settings-heading`} className="app-link">
+                Edit in League Settings →
+              </Link>
+            </p>
+          )}
+        </section>
+      )}
+
+      {!hasLeagueDraftDetails && isCommissioner && (
+        <p style={{ marginBottom: 24, fontSize: 14, color: "var(--color-text-muted)" }}>
+          <Link href={`/leagues/${slug}/league-settings#draft-settings-heading`} className="app-link">
+            Set draft details in League Settings
+          </Link>
+        </p>
+      )}
+
+      <section
+        aria-labelledby="auto-draft-settings-heading"
+        style={{
+          marginBottom: 24,
+          padding: "16px 18px",
+          background: "var(--color-bg-elevated)",
+          borderRadius: "var(--radius)",
+          border: "1px solid var(--color-border)",
+        }}
+      >
+        <h2 id="auto-draft-settings-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 8, color: "var(--color-text)" }}>
+          Your auto-draft settings
+        </h2>
+        <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
+          If the pick clock runs out, your pick is made automatically using your priority list and strategy.
+        </p>
+        <Link
+          href={`/leagues/${slug}/draft/preferences`}
+          className="app-link"
+          style={{ fontWeight: 600 }}
+        >
+          {userDraftPrefs ? "Edit your auto-draft preferences" : "Set your auto-draft preferences"} →
+        </Link>
+      </section>
 
       {draftStatus === "completed" ? (
         <p style={{ color: "#0d7d0d", fontWeight: 600, marginBottom: 24 }}>Draft completed.</p>
@@ -216,13 +323,6 @@ export default async function LeagueDraftPage({ params }: Props) {
         <>
           <p style={{ marginBottom: 16 }}>
             No draft order yet. The commissioner can set the draft style and generate a randomized order.
-          </p>
-          <p style={{ marginBottom: 16, fontSize: 14 }}>
-            <Link href={`/leagues/${slug}/draft/preferences`} className="app-link">
-              Set your auto-draft preferences
-            </Link>
-            {" "}
-            before the draft starts (priority list + strategy for auto-picks).
           </p>
           {isCommissioner && (
             <form
@@ -279,13 +379,6 @@ export default async function LeagueDraftPage({ params }: Props) {
         <>
           <p style={{ marginBottom: 16, color: "#555" }}>
             Draft order is set. When all owners are ready, the commissioner can start the draft.
-          </p>
-          <p style={{ marginBottom: 16, fontSize: 14 }}>
-            <Link href={`/leagues/${slug}/draft/preferences`} className="app-link">
-              Set your auto-draft preferences
-            </Link>
-            {" "}
-            — choose a priority list (10–50 wrestlers) and fallback strategy for when the pick clock runs out.
           </p>
           {isCommissioner && (
             <form action={startDraftFromFormAction} style={{ marginBottom: 24 }}>

@@ -1,4 +1,4 @@
-import UnderConstruction from "@/app/components/UnderConstruction";
+import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Draft Settings — Draftastic Fantasy",
@@ -11,5 +11,5 @@ export default async function DraftSettingsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <UnderConstruction title="Draft Settings" leagueSlug={slug} />;
+  redirect(`/leagues/${encodeURIComponent(slug)}/league-settings#draft-settings-heading`);
 }

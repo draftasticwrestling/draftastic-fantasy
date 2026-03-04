@@ -34,7 +34,7 @@ function getActivePrimary(pathname: string, slug: string): string | null {
   if (rest === "") return "league";
   if (rest === "wrestlers" || rest === "league-leaders" || rest === "injury-report" || rest === "stat-corrections") return "wrestlers";
   if (rest === "matchups") return "matchups";
-  if (rest === "draft" || rest === "draft-history" || rest === "mock-draft" || rest === "draft-settings" || rest === "draft-order") return "draft";
+  if (rest === "draft" || rest === "draft-history" || rest === "draft-settings" || rest === "draft-order") return "draft";
   if (rest === "notify-league" || rest === "manage-rosters" || rest === "league-settings" || rest === "pending-trades") return "gm-tools";
   return null;
 }
@@ -184,17 +184,16 @@ export default function Nav() {
     ? [
         { href: `/leagues/${currentLeagueSlug}/draft`, label: "Draft" },
         { href: `/leagues/${currentLeagueSlug}/draft-history`, label: "Draft History" },
-        { href: `/leagues/${currentLeagueSlug}/mock-draft`, label: "Mock Draft" },
-        { href: `/leagues/${currentLeagueSlug}/draft-settings`, label: "Draft Settings" },
+        { href: `/leagues/${currentLeagueSlug}/league-settings#draft-settings-heading`, label: "Draft Settings" },
         { href: `/leagues/${currentLeagueSlug}/draft-order`, label: "Draft Order" },
       ]
     : [];
   const gmSub = currentLeagueSlug
     ? [
-        { href: `/leagues/${currentLeagueSlug}/notify-league`, label: "Notify League" },
-        { href: `/leagues/${currentLeagueSlug}/manage-rosters`, label: "Manage Rosters" },
         { href: `/leagues/${currentLeagueSlug}/league-settings`, label: "League Settings" },
-        { href: `/leagues/${currentLeagueSlug}/pending-trades`, label: "Pending Trades" },
+        { href: `/leagues/${currentLeagueSlug}/pending-trades`, label: "Pending Transactions" },
+        { href: `/leagues/${currentLeagueSlug}/manage-rosters`, label: "Manage Rosters" },
+        { href: `/leagues/${currentLeagueSlug}/notify-league`, label: "Notify League" },
       ]
     : [];
   const wrestlersSub = currentLeagueSlug
