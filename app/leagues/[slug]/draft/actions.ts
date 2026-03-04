@@ -138,10 +138,15 @@ export async function clearLastPickFromFormAction(formData: FormData): Promise<v
   await clearLastPickAction(leagueSlug);
 }
 
-/** Save a user's auto-draft preferences (strategy_options: focus, pointStrategy, wrestlerStrategy). */
+/** Save a user's auto-draft preferences (optional priority_list 10-50, strategy_options: focus, pointStrategy, wrestlerStrategy). */
 export async function saveDraftPreferencesAction(
   leagueSlug: string,
-  strategyOptions: { focus: string; pointStrategy: string; wrestlerStrategy: string }
+  payload: {
+    priority_list?: string[];
+    focus: string;
+    pointStrategy: string;
+    wrestlerStrategy: string;
+  }
 ): Promise<{ error?: string }> {
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
@@ -156,13 +161,14 @@ export async function saveDraftPreferencesAction(
     .eq("user_id", user.id)
     .maybeSingle();
   if (!member) return { error: "You are not a member of this league." };
+  const priority_list = Array.isArray(payload.priority_list) ? payload.priority_list : [];
   const result = await setDraftPreferences(league.id, user.id, {
-    priority_list: [],
+    priority_list,
     strategy: [],
     strategy_options: {
-      focus: strategyOptions.focus as "2026" | "2025" | "all",
-      pointStrategy: strategyOptions.pointStrategy as "total" | "rs" | "ple" | "belt",
-      wrestlerStrategy: strategyOptions.wrestlerStrategy as "best_available" | "balanced_gender" | "balanced_brands" | "high_males" | "high_females",
+      focus: payload.focus as "2026" | "2025" | "all",
+      pointStrategy: payload.pointStrategy as "total" | "rs" | "ple" | "belt",
+      wrestlerStrategy: payload.wrestlerStrategy as "best_available" | "balanced_gender" | "balanced_brands" | "high_males" | "high_females",
     },
   });
   if (result.error) return result;

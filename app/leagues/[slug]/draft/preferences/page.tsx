@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug } from "@/lib/leagues";
-import { getLeagueDraftState, getDraftPreferences } from "@/lib/leagueDraft";
+import { getLeagueDraftState, getDraftPreferences, isDraftableWrestler, normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
 import { DraftPreferencesForm } from "./DraftPreferencesForm";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -29,9 +29,26 @@ export default async function DraftPreferencesPage({ params }: Props) {
     .maybeSingle();
   if (!member) notFound();
 
-  const [state, prefs] = await Promise.all([
+  const [state, prefs, wrestlersData] = await Promise.all([
     getLeagueDraftState(league.id),
     getDraftPreferences(league.id, user.id),
+    (async () => {
+      type Row = { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null };
+      let result = await supabase
+        .from("wrestlers")
+        .select('id, name, gender, status, "Status", brand, classification, "Classification"')
+        .order("name", { ascending: true });
+      if (result.error) {
+        result = await supabase.from("wrestlers").select('id, name, gender, status, "Status", brand, classification, "Classification"').order("name", { ascending: true });
+      }
+      let rawRows = (result.data ?? []) as Record<string, unknown>[];
+      if (result.error && !rawRows.length) {
+        const fallback = await supabase.from("wrestlers").select('id, name, gender, status, "Status", brand, classification, "Classification"').order("name", { ascending: true });
+        rawRows = (fallback.data ?? []) as Record<string, unknown>[];
+      }
+      const rows = rawRows.map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as Row[];
+      return rows.filter((w) => isDraftableWrestler(w)).map((w) => ({ id: w.id, name: w.name ?? w.id }));
+    })(),
   ]);
 
   const draftStatus = state?.draft_status ?? "not_started";
@@ -40,6 +57,8 @@ export default async function DraftPreferencesPage({ params }: Props) {
   const initialFocus = prefs?.strategy_options?.focus ?? "all";
   const initialPointStrategy = prefs?.strategy_options?.pointStrategy ?? "total";
   const initialWrestlerStrategy = prefs?.strategy_options?.wrestlerStrategy ?? "best_available";
+  const initialPriorityList = prefs?.priority_list ?? [];
+  const wrestlerOptions = wrestlersData;
 
   return (
     <main className="app-page" style={{ maxWidth: 640, margin: "0 auto", padding: "2rem 1rem", fontSize: 16, lineHeight: 1.5 }}>
@@ -52,7 +71,7 @@ export default async function DraftPreferencesPage({ params }: Props) {
         Auto-draft preferences
       </h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
-        If the draft clock runs out, your pick is made automatically. Choose a focus (which points period), point strategy, and wrestler strategy below.
+        If the draft clock runs out, your pick is made automatically. Optionally set a ranked list of 10–50 preferred wrestlers; when none from your list are available, your focus and strategies below take over.
       </p>
 
       {!canEdit && (
@@ -63,6 +82,8 @@ export default async function DraftPreferencesPage({ params }: Props) {
 
       <DraftPreferencesForm
         leagueSlug={slug}
+        wrestlerOptions={wrestlerOptions}
+        initialPriorityList={initialPriorityList}
         initialFocus={initialFocus}
         initialPointStrategy={initialPointStrategy}
         initialWrestlerStrategy={initialWrestlerStrategy}

@@ -125,14 +125,8 @@ export async function setDraftPreferences(
 
   const list = prefs.priority_list ?? [];
   const strategyOpts = prefs.strategy_options;
-  if (strategyOpts) {
-    if (list.length > MAX_PRIORITY_LIST) {
-      return { error: `Priority list cannot exceed ${MAX_PRIORITY_LIST} wrestlers.` };
-    }
-  } else {
-    if (list.length < MIN_PRIORITY_LIST || list.length > MAX_PRIORITY_LIST) {
-      return { error: `Priority list must have between ${MIN_PRIORITY_LIST} and ${MAX_PRIORITY_LIST} wrestlers.` };
-    }
+  if (list.length > 0 && (list.length < MIN_PRIORITY_LIST || list.length > MAX_PRIORITY_LIST)) {
+    return { error: `Preferred wrestlers list must have between ${MIN_PRIORITY_LIST} and ${MAX_PRIORITY_LIST} wrestlers when set.` };
   }
 
   const strategy = (prefs.strategy ?? []).filter((s) => DRAFT_STRATEGY_KEYS.includes(s as DraftStrategyKey));
