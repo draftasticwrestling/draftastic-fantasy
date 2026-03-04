@@ -33,7 +33,7 @@ export default async function DraftPreferencesPage({ params }: Props) {
     getLeagueDraftState(league.id),
     getDraftPreferences(league.id, user.id),
     (async () => {
-      type Row = { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null };
+      type Row = { id: string; name: string | null; gender?: string | null; status?: string | null; brand?: string | null; classification?: string | null };
       let result = await supabase
         .from("wrestlers")
         .select('id, name, gender, status, "Status", brand, classification, "Classification"')
@@ -46,10 +46,19 @@ export default async function DraftPreferencesPage({ params }: Props) {
         const fallback = await supabase.from("wrestlers").select('id, name, gender, status, "Status", brand, classification, "Classification"').order("name", { ascending: true });
         rawRows = (fallback.data ?? []) as Record<string, unknown>[];
       }
-      const rows = rawRows.map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as Row[];
+      if (rawRows.length === 0) {
+        const minimal = await supabase.from("wrestlers").select("id, name").order("name", { ascending: true });
+        rawRows = (minimal.data ?? []) as Record<string, unknown>[];
+      }
+      const toId = (r: Record<string, unknown>) => String(r.id ?? r.Id ?? "");
+      const toName = (r: Record<string, unknown>) => {
+        const n = r.name ?? r.Name ?? r.id ?? r.Id;
+        return n != null ? String(n) : "";
+      };
+      const rows = rawRows.map((r) => ({ ...r, id: toId(r), name: toName(r), ...normalizeWrestlerRowFromApi(r) })) as Row[];
       let draftable = rows.filter((w) => isDraftableWrestler(w)).map((w) => ({ id: w.id, name: w.name ?? w.id }));
       if (draftable.length === 0 && rawRows.length > 0) {
-        draftable = rawRows.map((r) => ({ id: String(r.id ?? ""), name: (r.name != null ? String(r.name) : String(r.id ?? "")) })).filter((w) => w.id);
+        draftable = rawRows.map((r) => ({ id: toId(r), name: toName(r) })).filter((w) => w.id);
       }
       return draftable;
     })(),
