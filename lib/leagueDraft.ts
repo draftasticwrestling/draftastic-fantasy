@@ -140,18 +140,32 @@ export async function setDraftPreferences(
   }
 
   const strategy = (prefs.strategy ?? []).filter((s) => DRAFT_STRATEGY_KEYS.includes(s as DraftStrategyKey));
+  // Send priority_list as JSON string so jsonb column gets exact value (avoids client serialization quirks)
   const payload: Record<string, unknown> = {
     league_id: leagueId,
     user_id: userId,
-    priority_list: list,
+    priority_list: JSON.stringify(list),
     strategy,
     updated_at: new Date().toISOString(),
   };
   if (strategyOpts) payload.strategy_options = strategyOpts;
-  const { error } = await supabase.from("league_draft_preferences").upsert(payload as object, {
-    onConflict: "league_id,user_id",
-  });
-  return error ? { error: error.message } : {};
+  const { data: rows, error } = await supabase
+    .from("league_draft_preferences")
+    .upsert(payload as object, {
+      onConflict: "league_id,user_id",
+      returning: "representation",
+    });
+  if (error) return { error: error.message };
+  // Verify the row was written: expect one row back with matching priority_list length
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  if (row && list.length > 0) {
+    const stored = row.priority_list;
+    const storedList = Array.isArray(stored) ? stored : (typeof stored === "string" ? (() => { try { const p = JSON.parse(stored); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
+    if (storedList.length !== list.length) {
+      return { error: "Preferences may not have saved correctly. Please try again." };
+    }
+  }
+  return {};
 }
 
 /**

@@ -91,7 +91,14 @@ export function DraftPreferencesForm({
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const router = useRouter();
+  const priorityListInputRef = useRef<HTMLInputElement>(null);
   const [formState, formAction] = useFormState(saveDraftPreferencesFormAction, null as { error?: string } | null);
+
+  useEffect(() => {
+    if (priorityListInputRef.current) {
+      priorityListInputRef.current.value = JSON.stringify(priorityList);
+    }
+  }, [priorityList]);
 
   useEffect(() => {
     if (formState != null && !formState.error) {
@@ -230,7 +237,7 @@ export function DraftPreferencesForm({
   return (
     <form action={formAction} onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <input type="hidden" name="league_slug" value={leagueSlug} />
-      <input type="hidden" name="priority_list" value={JSON.stringify(priorityList)} />
+      <input ref={priorityListInputRef} type="hidden" name="priority_list" defaultValue={JSON.stringify(priorityList)} />
       <section>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
           Preferred wrestlers (optional)
