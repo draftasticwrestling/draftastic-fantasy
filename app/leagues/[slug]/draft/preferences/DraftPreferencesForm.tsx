@@ -2,10 +2,34 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { saveDraftPreferencesAction } from "../actions";
+import { useFormState, useFormStatus } from "react-dom";
+import { saveDraftPreferencesFormAction } from "../actions";
 
 const MIN_PRIORITY = 10;
 const MAX_PRIORITY = 50;
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      style={{
+        padding: "12px 24px",
+        background: "var(--color-blue, #1a73e8)",
+        color: "#fff",
+        border: "none",
+        borderRadius: "var(--radius)",
+        fontSize: 16,
+        fontWeight: 600,
+        cursor: pending ? "default" : "pointer",
+        alignSelf: "flex-start",
+      }}
+    >
+      {pending ? "Saving…" : "Save preferences"}
+    </button>
+  );
+}
 
 function normalizeSearch(s: string): string {
   return s
@@ -65,9 +89,18 @@ export function DraftPreferencesForm({
   const [pointStrategy, setPointStrategy] = useState(initialPointStrategy);
   const [wrestlerStrategy, setWrestlerStrategy] = useState(initialWrestlerStrategy);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [saving, setSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const router = useRouter();
+  const [formState, formAction] = useFormState(saveDraftPreferencesFormAction, null as { error?: string } | null);
+
+  useEffect(() => {
+    if (formState != null && !formState.error) {
+      setMessage({ type: "success", text: "Preferences saved." });
+      router.refresh();
+    } else if (formState?.error) {
+      setMessage({ type: "error", text: formState.error });
+    }
+  }, [formState, router]);
 
   const optionById = useMemo(() => new Map(wrestlerOptions.map((w) => [w.id, w])), [wrestlerOptions]);
   const availableToAdd = useMemo(
@@ -185,31 +218,19 @@ export function DraftPreferencesForm({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e: React.FormEvent) => {
     setMessage(null);
     if (priorityList.length > 0 && (priorityList.length < MIN_PRIORITY || priorityList.length > MAX_PRIORITY)) {
+      e.preventDefault();
       setMessage({ type: "error", text: `Preferred wrestlers list must have between ${MIN_PRIORITY} and ${MAX_PRIORITY} wrestlers when set.` });
       return;
     }
-    setSaving(true);
-    const result = await saveDraftPreferencesAction(leagueSlug, {
-      priority_list: JSON.stringify(priorityList),
-      focus,
-      pointStrategy,
-      wrestlerStrategy,
-    });
-    setSaving(false);
-    if (result.error) {
-      setMessage({ type: "error", text: result.error });
-      return;
-    }
-    setMessage({ type: "success", text: "Preferences saved." });
-    router.refresh();
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <form action={formAction} onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <input type="hidden" name="league_slug" value={leagueSlug} />
+      <input type="hidden" name="priority_list" value={JSON.stringify(priorityList)} />
       <section>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
           Preferred wrestlers (optional)
@@ -425,25 +446,7 @@ export function DraftPreferencesForm({
         </p>
       )}
 
-      {!disabled && (
-        <button
-          type="submit"
-          disabled={saving}
-          style={{
-            padding: "12px 24px",
-            background: "var(--color-blue, #1a73e8)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "var(--radius)",
-            fontSize: 16,
-            fontWeight: 600,
-            cursor: saving ? "default" : "pointer",
-            alignSelf: "flex-start",
-          }}
-        >
-          {saving ? "Saving…" : "Save preferences"}
-        </button>
-      )}
+      {!disabled && <SubmitButton />}
     </form>
   );
 }

@@ -186,3 +186,33 @@ export async function saveDraftPreferencesAction(
   revalidatePath(`/leagues/${leagueSlug}/draft/preferences`);
   return {};
 }
+
+/** Form action for draft preferences: receives FormData from form submit (avoids client action reference 404). */
+export async function saveDraftPreferencesFormAction(
+  _prevState: { error?: string } | null,
+  formData: FormData
+): Promise<{ error?: string } | null> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return { error: "League slug is required." };
+  const priorityListRaw = formData.get("priority_list");
+  let priority_list: string[] = [];
+  if (typeof priorityListRaw === "string") {
+    try {
+      const parsed = JSON.parse(priorityListRaw) as unknown;
+      priority_list = Array.isArray(parsed) ? (parsed as string[]) : [];
+    } catch {
+      priority_list = [];
+    }
+  }
+  const focus = (formData.get("focus") as string)?.trim() || "all";
+  const pointStrategy = (formData.get("pointStrategy") as string)?.trim() || "total";
+  const wrestlerStrategy = (formData.get("wrestlerStrategy") as string)?.trim() || "best_available";
+  const result = await saveDraftPreferencesAction(leagueSlug, {
+    priority_list,
+    focus,
+    pointStrategy,
+    wrestlerStrategy,
+  });
+  if (result.error) return { error: result.error };
+  return null;
+}
