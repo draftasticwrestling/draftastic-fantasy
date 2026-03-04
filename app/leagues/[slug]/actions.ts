@@ -117,7 +117,7 @@ export async function updateDraftSettingsAction(
   if (draft_type && DRAFT_TYPES.includes(draft_type)) payload.draft_type = draft_type;
   if (time_per_pick_seconds != null) {
     const sec = Number(time_per_pick_seconds);
-    if (TIME_PER_PICK_VALUES.includes(sec)) payload.time_per_pick_seconds = sec;
+    if ((TIME_PER_PICK_VALUES as readonly number[]).includes(sec)) payload.time_per_pick_seconds = sec;
   }
   if (draft_order_method && DRAFT_ORDER_METHODS.includes(draft_order_method)) {
     payload.draft_order_method = draft_order_method;
