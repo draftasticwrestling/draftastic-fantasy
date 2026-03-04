@@ -4,6 +4,9 @@ import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getDefaultStartEndForSeason } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 
+export type DraftType = "offline" | "linear" | "snake" | "autopick";
+export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
+
 export type League = {
   id: string;
   name: string;
@@ -15,7 +18,11 @@ export type League = {
   draft_date?: string | null;
   league_type?: string | null;
   max_teams?: number | null;
+  auto_reactivate?: boolean | null;
   draft_style?: "snake" | "linear";
+  draft_type?: DraftType | null;
+  time_per_pick_seconds?: number | null;
+  draft_order_method?: DraftOrderMethod | null;
   draft_status?: "not_started" | "in_progress" | "completed";
   draft_current_pick?: number | null;
   created_at: string;
@@ -161,7 +168,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_style, draft_status, draft_current_pick, created_at";
+  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, created_at";
   let result = await supabase
     .from("leagues")
     .select(fullSelect)
@@ -183,8 +190,12 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
       league = {
         ...minimalResult.data,
         draft_style: "snake",
+        draft_type: "snake",
+        time_per_pick_seconds: 120,
+        draft_order_method: "random_one_hour_before",
         draft_status: "not_started",
         draft_current_pick: null,
+        auto_reactivate: false,
       } as typeof league;
     } else {
       league = minimalResult.data;
