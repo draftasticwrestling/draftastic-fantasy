@@ -53,6 +53,31 @@ export default async function EditTeamInfoPage({
         Choose a team name for this league. It will appear in standings, matchups, and on your roster.
       </p>
       <EditTeamNameForm leagueSlug={slug} initialTeamName={currentTeamName} />
+
+      <section
+        aria-labelledby="edit-team-auto-draft-heading"
+        style={{
+          marginTop: 24,
+          padding: "16px 18px",
+          background: "var(--color-bg-elevated)",
+          borderRadius: "var(--radius)",
+          border: "1px solid var(--color-border)",
+        }}
+      >
+        <h2 id="edit-team-auto-draft-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 8, color: "var(--color-text)" }}>
+          Auto-draft settings
+        </h2>
+        <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
+          If the pick clock runs out, your pick is made automatically using your priority list and strategy.
+        </p>
+        <Link
+          href={`/leagues/${slug}/draft/preferences`}
+          className="app-link"
+          style={{ fontWeight: 600 }}
+        >
+          Set or edit your auto-draft preferences →
+        </Link>
+      </section>
     </main>
   );
 }

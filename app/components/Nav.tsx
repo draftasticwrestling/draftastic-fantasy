@@ -30,7 +30,7 @@ function getActivePrimary(pathname: string, slug: string): string | null {
   if (!slug || !pathname.startsWith(`/leagues/${slug}/`)) return null;
   const rest = pathname.slice(`/leagues/${slug}/`.length).split("/")[0];
   if (rest === "standings" || rest === "roster-changes") return "league";
-  if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info" || rest === "wrestler-updates") return "my-team";
+  if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info") return "my-team";
   if (rest === "") return "league";
   if (rest === "wrestlers" || rest === "league-leaders" || rest === "injury-report" || rest === "stat-corrections") return "wrestlers";
   if (rest === "matchups") return "matchups";
@@ -206,7 +206,6 @@ export default function Nav() {
         { href: `/leagues/${currentLeagueSlug}/transactions`, label: "Team Log" },
         { href: `/leagues/${currentLeagueSlug}/watchlist`, label: "Watchlist" },
         { href: `/leagues/${currentLeagueSlug}/edit-team-info`, label: "Edit Team Info" },
-        { href: `/leagues/${currentLeagueSlug}/wrestler-updates`, label: "Wrestler Updates" },
       ]
     : [];
   const leagueSub = currentLeagueSlug
