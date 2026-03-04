@@ -158,22 +158,10 @@ export async function setDraftPreferences(
     updated_at: new Date().toISOString(),
   };
   if (strategyOpts) payload.strategy_options = strategyOpts;
-  const { data: rows, error } = await supabase
+  const { error } = await supabase
     .from("league_draft_preferences")
-    .upsert(payload as object, {
-      onConflict: "league_id,user_id",
-      returning: "representation",
-    });
+    .upsert(payload as object, { onConflict: "league_id,user_id" });
   if (error) return { error: error.message };
-  // Verify the row was written: expect one row back with matching priority_list length
-  const row = Array.isArray(rows) ? rows[0] : rows;
-  if (row && list.length > 0) {
-    const stored = row.priority_list;
-    const storedList = Array.isArray(stored) ? stored : (typeof stored === "string" ? (() => { try { const p = JSON.parse(stored); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
-    if (storedList.length !== list.length) {
-      return { error: "Preferences may not have saved correctly. Please try again." };
-    }
-  }
   return {};
 }
 
