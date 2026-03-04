@@ -10,7 +10,7 @@ import type { Profile } from "@/lib/profiles";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
-type LeagueItem = { slug: string; name: string; role: "commissioner" | "owner" };
+type LeagueItem = { slug: string; name: string; role: "commissioner" | "owner"; league_type?: string | null };
 
 const ADMIN_LINKS = [
   { href: "/league/teams", label: "Legacy League" },
@@ -455,7 +455,7 @@ export default function Nav() {
               </li>
               <li onMouseEnter={(e) => handlePrimaryEnter("league", e)}>
                 <Link
-                  href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "#"}
+                  href={leagueSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "#")}
                   className={`nav-primary-link ${activePrimary === "league" ? "is-active" : ""}`}
                 >
                   League
@@ -463,7 +463,7 @@ export default function Nav() {
               </li>
               <li onMouseEnter={(e) => handlePrimaryEnter("my-team", e)}>
                 <Link
-                  href={rosterHref}
+                  href={myTeamSub[0]?.href ?? rosterHref}
                   className={`nav-primary-link ${activePrimary === "my-team" ? "is-active" : ""}`}
                 >
                   My Team
@@ -471,23 +471,25 @@ export default function Nav() {
               </li>
               <li onMouseEnter={(e) => handlePrimaryEnter("wrestlers", e)}>
                 <Link
-                  href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers/league-leaders` : "#"}
+                  href={wrestlersSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers/league-leaders` : "#")}
                   className={`nav-primary-link ${activePrimary === "wrestlers" ? "is-active" : ""}`}
                 >
                   Wrestlers
                 </Link>
               </li>
-              <li>
+              {currentLeague?.league_type !== "season_overall" && (
+                <li>
+                  <Link
+                    href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/matchups` : "#"}
+                    className={`nav-primary-link ${activePrimary === "matchups" ? "is-active" : ""}`}
+                  >
+                    Matchups
+                  </Link>
+                </li>
+              )}
+              <li onMouseEnter={(e) => handlePrimaryEnter("draft", e)}>
                 <Link
-                  href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/matchups` : "#"}
-                  className={`nav-primary-link ${activePrimary === "matchups" ? "is-active" : ""}`}
-                >
-                  Matchups
-                </Link>
-              </li>
-              <li onMouseEnter={() => setHoverPrimary("draft")}>
-                <Link
-                  href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/draft` : "#"}
+                  href={draftSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/draft` : "#")}
                   className={`nav-primary-link ${activePrimary === "draft" ? "is-active" : ""}`}
                 >
                   Draft
@@ -496,7 +498,7 @@ export default function Nav() {
               {isCommissioner && (
                 <li onMouseEnter={(e) => handlePrimaryEnter("gm-tools", e)}>
                   <Link
-                    href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/notify-league` : "#"}
+                    href={gmSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/league-settings` : "#")}
                     className={`nav-primary-link ${activePrimary === "gm-tools" ? "is-active" : ""}`}
                   >
                     GM Tools
@@ -556,7 +558,7 @@ export default function Nav() {
                     </li>
                   );
                 })}
-              {(hoverPrimary ?? activePrimary) === "matchups" && (
+              {(hoverPrimary ?? activePrimary) === "matchups" && currentLeague?.league_type !== "season_overall" && (
                 <li>
                   <span className="nav-secondary-context">Matchups</span>
                 </li>

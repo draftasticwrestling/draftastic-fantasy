@@ -234,7 +234,7 @@ export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
   const leagueIds = members.map((m) => m.league_id);
   const { data: leagues, error: leagueError } = await supabase
     .from("leagues")
-    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, created_at")
+    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, league_type, created_at")
     .in("id", leagueIds);
 
   if (leagueError || !leagues?.length) return [];

@@ -11,9 +11,9 @@ import { RostersSection } from "./RostersSection";
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
   switch (type) {
-    case "season_overall": return "Season Overall";
+    case "season_overall": return "Total Season Points";
     case "head_to_head": return "Head-to-Head";
-    case "combo": return "Combo (H2H + Overall)";
+    case "combo": return "Combo League (H2H+Total Season Points)";
     case "legacy": return "Legacy";
     default: return type;
   }

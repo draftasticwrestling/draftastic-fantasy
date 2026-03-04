@@ -12,6 +12,7 @@ export async function GET() {
     slug: l.slug,
     name: l.name,
     role: l.role,
+    league_type: (l as { league_type?: string | null }).league_type ?? null,
   }));
   return NextResponse.json({ leagues: payload });
 }

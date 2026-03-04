@@ -23,7 +23,7 @@ const LEAGUE_TYPES: Array<{
   },
   {
     value: "combo",
-    label: "Combo (H2H + Overall)",
+    label: "Combo League (H2H+Total Season Points)",
     description:
       "Earn extra season points for winning your weekly matchup, but the final winner is determined by your roster's cumulative overall points.",
     disabled: true,

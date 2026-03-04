@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "How it Works — Draftastic Fantasy",
-  description: "League types (Season Overall, Head-to-Head, Combo, Legacy), fantasy scoring, event points, titles, and special matches.",
+  description: "League types (Total Season Points, Head-to-Head, Combo League, Legacy), fantasy scoring, event points, titles, and special matches.",
 };
 
 export default function HowItWorksPage() {
@@ -27,13 +27,13 @@ export default function HowItWorksPage() {
         </p>
         <ul style={{ listStyle: "none", paddingLeft: 0 }}>
           <li style={{ marginBottom: 20, paddingLeft: 0 }}>
-            <strong>Season Overall</strong> — Compete against your whole league all season. The team with the most overall points wins!
+            <strong>Total Season Points</strong> — Compete against your whole league all season. The team with the most overall points wins!
           </li>
           <li style={{ marginBottom: 20, paddingLeft: 0 }}>
             <strong>Head-to-Head</strong> — Minimum 4 teams, maximum 16. During the Road to SummerSlam period, teams play head-to-head against an opponent each week. Points only matter for that week’s matchup (season overall is not tracked). The team with the best win-loss-draw record at the end of the season wins the league and earns the Draftastic Championship Belt. A short seeded playoff determines the champion, with the final taking place the week of WrestleMania. Teams that don’t make the final compete in consolation matchups so full league placement can be determined.
           </li>
           <li style={{ marginBottom: 20, paddingLeft: 0 }}>
-            <strong>Combo (H2H + Overall)</strong> — Earn extra season points for winning your weekly matchup, but the final winner is determined by your roster’s cumulative overall points—not your win-loss record. <em>Coming soon.</em>
+            <strong>Combo League (H2H+Total Season Points)</strong> — Earn extra season points for winning your weekly matchup, but the final winner is determined by your roster’s cumulative overall points—not your win-loss record. <em>Coming soon.</em>
           </li>
           <li style={{ marginBottom: 0, paddingLeft: 0 }}>
             <strong>Legacy</strong> — Draft your wrestlers and sign them to long-term contracts. Then go to work building your dynasty! This one is for die hard fans that want to play the long game. <em>Coming soon.</em>

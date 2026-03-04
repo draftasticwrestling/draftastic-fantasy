@@ -17,7 +17,7 @@ const LEAGUE_TYPES: Array<{
 }> = [
   {
     id: "season_overall",
-    title: "Season Overall",
+    title: "Total Season Points",
     description:
       "Compete against your whole league all season. The team with the most overall points wins!",
   },
@@ -29,7 +29,7 @@ const LEAGUE_TYPES: Array<{
   },
   {
     id: "combo",
-    title: "Combo (H2H + Overall)",
+    title: "Combo League (H2H+Total Season Points)",
     description:
       "Earn extra season points for winning your weekly matchup, but the final winner is determined by your roster's cumulative overall points—not your win-loss record.",
     comingSoon: true,
