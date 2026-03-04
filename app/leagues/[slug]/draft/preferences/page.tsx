@@ -96,7 +96,7 @@ export default async function DraftPreferencesPage({ params }: Props) {
       )}
 
       <DraftPreferencesForm
-        key={JSON.stringify(initialPriorityList)}
+        key={JSON.stringify({ priorityList: initialPriorityList, focus: initialFocus, pointStrategy: initialPointStrategy, wrestlerStrategy: initialWrestlerStrategy })}
         leagueSlug={slug}
         wrestlerOptions={wrestlerOptions}
         initialPriorityList={initialPriorityList}

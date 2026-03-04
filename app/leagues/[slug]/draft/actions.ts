@@ -12,18 +12,6 @@ export async function generateDraftOrderAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
 
-  const style = (formData.get("draft_style") as string)?.trim();
-  if (style === "snake" || style === "linear") {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user && league.commissioner_id === user.id) {
-      await supabase
-        .from("leagues")
-        .update({ draft_style: style })
-        .eq("id", league.id);
-    }
-  }
-
   const result = await generateDraftOrder(league.id);
   if (result.error) return result;
 

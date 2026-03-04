@@ -94,6 +94,13 @@ export function DraftPreferencesForm({
   const priorityListInputRef = useRef<HTMLInputElement>(null);
   const [formState, formAction] = useFormState(saveDraftPreferencesFormAction, null as { error?: string } | null);
 
+  // Sync radio state when server sends updated initial values (e.g. after save + refresh)
+  useEffect(() => {
+    setFocus(initialFocus);
+    setPointStrategy(initialPointStrategy);
+    setWrestlerStrategy(initialWrestlerStrategy);
+  }, [initialFocus, initialPointStrategy, initialWrestlerStrategy]);
+
   useEffect(() => {
     if (priorityListInputRef.current) {
       priorityListInputRef.current.value = JSON.stringify(priorityList);

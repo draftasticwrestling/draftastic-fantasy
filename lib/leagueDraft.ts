@@ -11,7 +11,8 @@ import { addWrestlerToRoster } from "@/lib/leagues";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 
 const LEAGUE_START_DATE = "2025-05-02";
-const AUTO_PICK_DEADLINE_SECONDS = 2 * 60;
+const DEFAULT_TIME_PER_PICK_SECONDS = 2 * 60;
+const CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER = 3;
 
 /** Strategy keys for auto-draft when priority list does not apply (legacy). */
 export const DRAFT_STRATEGY_KEYS = [
@@ -109,7 +110,15 @@ export async function getDraftPreferences(
     }
   }
   const strategy = Array.isArray(data.strategy) ? data.strategy : [];
-  const strategy_options = data.strategy_options as DraftStrategyOptions | null | undefined;
+  let strategy_options: DraftStrategyOptions | null | undefined = data.strategy_options as DraftStrategyOptions | null | undefined;
+  if (typeof strategy_options === "string") {
+    try {
+      const parsed = JSON.parse(strategy_options) as unknown;
+      strategy_options = (parsed && typeof parsed === "object" && "focus" in parsed) ? (parsed as DraftStrategyOptions) : null;
+    } catch {
+      strategy_options = null;
+    }
+  }
   return {
     priority_list: list as string[],
     strategy: strategy as string[],
@@ -246,6 +255,56 @@ export async function getCurrentPick(
   return row as { overall_pick: number; user_id: string };
 }
 
+type AdminClient = NonNullable<ReturnType<typeof getAdminClient>>;
+
+/** Get per-user draft state (consecutive auto-picks, takeover). Uses admin client. */
+async function getDraftUserState(
+  admin: AdminClient,
+  leagueId: string,
+  userId: string
+): Promise<{ consecutive_auto_picks: number; auto_pick_rest_of_draft: boolean }> {
+  const { data: row } = await admin
+    .from("league_draft_user_state")
+    .select("consecutive_auto_picks, auto_pick_rest_of_draft")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const r = row as { consecutive_auto_picks?: number; auto_pick_rest_of_draft?: boolean } | null;
+  return {
+    consecutive_auto_picks: r?.consecutive_auto_picks ?? 0,
+    auto_pick_rest_of_draft: r?.auto_pick_rest_of_draft ?? false,
+  };
+}
+
+/** After an auto-pick: increment consecutive_auto_picks and set auto_pick_rest_of_draft if >= 3. Uses admin. */
+async function afterAutoPickIncrementState(admin: AdminClient, leagueId: string, userId: string): Promise<void> {
+  const { data: existing } = await admin
+    .from("league_draft_user_state")
+    .select("consecutive_auto_picks")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const prev = (existing as { consecutive_auto_picks?: number } | null)?.consecutive_auto_picks ?? 0;
+  const next = prev + 1;
+  await admin.from("league_draft_user_state").upsert(
+    {
+      league_id: leagueId,
+      user_id: userId,
+      consecutive_auto_picks: next,
+      auto_pick_rest_of_draft: next >= CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER,
+    },
+    { onConflict: "league_id,user_id" }
+  );
+}
+
+/** After a manual pick: reset consecutive_auto_picks for this user. Uses admin. */
+async function afterManualPickResetState(admin: AdminClient, leagueId: string, userId: string): Promise<void> {
+  await admin.from("league_draft_user_state").upsert(
+    { league_id: leagueId, user_id: userId, consecutive_auto_picks: 0, auto_pick_rest_of_draft: false },
+    { onConflict: "league_id,user_id" }
+  );
+}
+
 /**
  * Fisher-Yates shuffle.
  */
@@ -259,7 +318,7 @@ function shuffle<T>(array: T[]): T[] {
 }
 
 /**
- * Generate draft order (commissioner only). Uses league members and roster size; snake or linear from league.draft_style.
+ * Generate draft order (commissioner only). Uses league members and roster size; snake or linear from league draft_type/draft_style (League Settings).
  */
 export async function generateDraftOrder(leagueId: string): Promise<{ error?: string }> {
   const supabase = await createClient();
@@ -268,7 +327,7 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, commissioner_id, draft_style")
+    .select("id, commissioner_id, draft_style, draft_type")
     .eq("id", leagueId)
     .single();
 
@@ -282,7 +341,8 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
 
   const numRounds = rules.rosterSize;
   const memberIds = members.map((m) => m.user_id);
-  const snake = (league.draft_style ?? "snake") === "snake";
+  const draftType = (league as { draft_type?: string }).draft_type ?? league.draft_style;
+  const snake = draftType !== "linear";
 
   // Round 1 order is randomized; snake reverses every even round.
   const round1Order = shuffle(memberIds);
@@ -398,8 +458,11 @@ export async function makeDraftPick(
     overall_pick: current.overall_pick,
     user_id: current.user_id,
     wrestler_id: wrestlerId,
+    is_auto_pick: false,
   });
   if (pickErr) return { error: pickErr.message };
+
+  await afterManualPickResetState(admin, leagueId, current.user_id);
 
   const updates: {
     draft_current_pick: number | null;
@@ -849,32 +912,21 @@ export async function getTopAvailableWrestlerForUser(
 }
 
 /**
- * If the current pick has exceeded the 2-minute limit, perform an auto-pick (highest points available) and advance.
- * Uses service role. Returns { didAutoPick: true } if an auto-pick was made (caller should revalidate/redirect).
+ * Perform one auto-pick for the current slot and advance. Returns next pick number and total for chaining.
+ * Uses priority list first, then draft preferences. Records is_auto_pick and increments consecutive_auto_picks (sets takeover at 3).
  */
-export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoPick: boolean; error?: string }> {
-  const state = await getLeagueDraftState(leagueId);
-  if (!state || state.draft_status !== "in_progress" || state.draft_current_pick == null) {
-    return { didAutoPick: false };
-  }
-  const startedAt = state.draft_current_pick_started_at;
-  if (!startedAt) return { didAutoPick: false };
-
-  const deadline = new Date(startedAt).getTime() + AUTO_PICK_DEADLINE_SECONDS * 1000;
-  if (Date.now() < deadline) return { didAutoPick: false };
-
-  const current = await getCurrentPick(leagueId);
-  if (!current) return { didAutoPick: false };
-
+async function performOneAutoPick(
+  admin: AdminClient,
+  leagueId: string,
+  current: { overall_pick: number; user_id: string },
+  state: { draft_current_pick: number; total_picks: number }
+): Promise<{ error?: string; nextPick?: number; totalPicks?: number }> {
   const wrestlerId = await getTopAvailableWrestlerForUser(leagueId, current.user_id);
-  if (!wrestlerId) return { didAutoPick: false, error: "No available wrestler for auto-pick." };
-
-  const admin = getAdminClient();
-  if (!admin) return { didAutoPick: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+  if (!wrestlerId) return { error: "No available wrestler for auto-pick." };
 
   const members = await getLeagueMembers(leagueId);
   const rules = getRosterRulesForLeague(members.length);
-  if (!rules) return { didAutoPick: false, error: "Invalid league size." };
+  if (!rules) return { error: "Invalid league size." };
 
   const { data: currentRows } = await admin
     .from("league_rosters")
@@ -883,8 +935,8 @@ export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoP
     .eq("user_id", current.user_id)
     .is("released_at", null);
   const currentIds = (currentRows ?? []).map((r: { wrestler_id: string }) => r.wrestler_id);
-  if (currentIds.includes(wrestlerId)) return { didAutoPick: false, error: "Wrestler already on roster." };
-  if (currentIds.length >= rules.rosterSize) return { didAutoPick: false, error: "Roster full." };
+  if (currentIds.includes(wrestlerId)) return { error: "Wrestler already on roster." };
+  if (currentIds.length >= rules.rosterSize) return { error: "Roster full." };
 
   const draftDate = new Date().toISOString().slice(0, 10);
   const { error: rosterErr } = await admin.from("league_rosters").insert({
@@ -895,10 +947,22 @@ export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoP
     acquired_at: draftDate,
     released_at: null,
   });
-  if (rosterErr) return { didAutoPick: false, error: rosterErr.message };
+  if (rosterErr) return { error: rosterErr.message };
 
   const nextPick = (state.draft_current_pick ?? 0) + 1;
   const totalPicks = state.total_picks ?? 0;
+
+  const { error: pickErr } = await admin.from("league_draft_picks").insert({
+    league_id: leagueId,
+    overall_pick: current.overall_pick,
+    user_id: current.user_id,
+    wrestler_id: wrestlerId,
+    is_auto_pick: true,
+  });
+  if (pickErr) return { error: pickErr.message };
+
+  await afterAutoPickIncrementState(admin, leagueId, current.user_id);
+
   const updates: {
     draft_current_pick: number | null;
     draft_status: string;
@@ -912,17 +976,78 @@ export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoP
           draft_current_pick_started_at: new Date().toISOString(),
         };
 
-  const { error: pickErr } = await admin.from("league_draft_picks").insert({
-    league_id: leagueId,
-    overall_pick: current.overall_pick,
-    user_id: current.user_id,
-    wrestler_id: wrestlerId,
-  });
-  if (pickErr) return { didAutoPick: false, error: pickErr.message };
-
   const { error: updateError } = await admin.from("leagues").update(updates).eq("id", leagueId);
-  if (updateError) return { didAutoPick: false, error: updateError.message };
-  return { didAutoPick: true };
+  if (updateError) return { error: updateError.message };
+  return { nextPick, totalPicks };
+}
+
+/**
+ * If the current pick has exceeded the allotted time (or user is in "takeover" after 3 missed picks), perform auto-pick(s).
+ * Uses priority list first, then draft preferences. If a user has missed 3 times in a row, system takes over and auto-picks
+ * for them immediately for the rest of the draft (no timer wait). Uses service role.
+ */
+export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoPick: boolean; error?: string }> {
+  const admin = getAdminClient();
+  if (!admin) return { didAutoPick: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+
+  const state = await getLeagueDraftState(leagueId);
+  if (!state || state.draft_status !== "in_progress" || state.draft_current_pick == null) {
+    return { didAutoPick: false };
+  }
+
+  const current = await getCurrentPick(leagueId);
+  if (!current) return { didAutoPick: false };
+
+  const userState = await getDraftUserState(admin, leagueId, current.user_id);
+  const timePerPickSeconds =
+    (await (async () => {
+      const supabase = await createClient();
+      const { data: row } = await supabase.from("leagues").select("time_per_pick_seconds").eq("id", leagueId).maybeSingle();
+      const sec = (row as { time_per_pick_seconds?: number } | null)?.time_per_pick_seconds;
+      return sec != null && [30, 60, 90, 120, 150, 180].includes(sec) ? sec : DEFAULT_TIME_PER_PICK_SECONDS;
+    })());
+
+  const startedAt = state.draft_current_pick_started_at;
+  const skipTimer = userState.auto_pick_rest_of_draft;
+  if (!skipTimer) {
+    if (!startedAt) return { didAutoPick: false };
+    const deadline = new Date(startedAt).getTime() + timePerPickSeconds * 1000;
+    if (Date.now() < deadline) return { didAutoPick: false };
+  }
+
+  let didAny = false;
+  let cursor: { overall_pick: number; user_id: string } = current;
+  let currentPickNum = state.draft_current_pick;
+  let totalPicks = state.total_picks ?? 0;
+
+  while (true) {
+    const result = await performOneAutoPick(admin, leagueId, cursor, {
+      draft_current_pick: currentPickNum,
+      total_picks: totalPicks,
+    });
+    if (result.error) return { didAutoPick: didAny, error: result.error };
+    didAny = true;
+
+    const nextPick = result.nextPick ?? currentPickNum + 1;
+    if (nextPick > totalPicks) return { didAutoPick: true };
+
+    const { data: nextOrderRow } = await admin
+      .from("league_draft_order")
+      .select("overall_pick, user_id")
+      .eq("league_id", leagueId)
+      .eq("overall_pick", nextPick)
+      .maybeSingle();
+    if (!nextOrderRow) return { didAutoPick: true };
+    const nextUserState = await getDraftUserState(
+      admin,
+      leagueId,
+      (nextOrderRow as { user_id: string }).user_id
+    );
+    if (!nextUserState.auto_pick_rest_of_draft) return { didAutoPick: true };
+
+    cursor = nextOrderRow as { overall_pick: number; user_id: string };
+    currentPickNum = nextPick;
+  }
 }
 
 /**
@@ -939,6 +1064,7 @@ export async function restartDraft(leagueId: string): Promise<{ error?: string }
   if (rostersErr) return { error: rostersErr.message };
   const { error: orderErr } = await admin.from("league_draft_order").delete().eq("league_id", leagueId);
   if (orderErr) return { error: orderErr.message };
+  await admin.from("league_draft_user_state").delete().eq("league_id", leagueId);
   const { error: updateErr } = await admin
     .from("leagues")
     .update({

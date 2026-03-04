@@ -2,33 +2,19 @@
 
 import { useFormState } from "react-dom";
 import { updateDraftSettingsFormAction } from "../actions";
-import type { DraftOrderMethod, DraftType } from "@/lib/leagues";
+import type { DraftOrderMethod } from "@/lib/leagues";
 
-const DRAFT_TYPES: { value: DraftType; label: string; description: string }[] = [
-  {
-    value: "offline",
-    label: "Offline",
-    description:
-      "Your league conducts its own offline draft. You submit the results manually.",
-  },
-  {
-    value: "linear",
-    label: "Linear",
-    description:
-      "Each round uses the same pick order. The team that picks first in round one picks first in every round.",
-  },
-  {
-    value: "snake",
-    label: "Snake",
-    description:
-      "Your league will participate in a live online draft. Based on a predetermined draft order, each team takes a turn selecting a player in a set amount of time. This type of draft is sometimes called a Snake Draft, as the draft order reverses each round.",
-  },
-  {
-    value: "autopick",
-    label: "Autopick",
-    description:
-      "Your league's rosters are automatically drafted based on each team's pre-draft rankings list. Each team owner will receive an email upon the draft's completion.",
-  },
+/** Draft Type: how the draft runs. Stored as draft_type (offline | live→linear/snake | autopick). */
+const DRAFT_TYPE_OPTIONS: { value: "offline" | "live" | "autopick"; label: string; description: string }[] = [
+  { value: "offline", label: "Offline", description: "Your league conducts its own offline draft. You submit the results manually." },
+  { value: "live", label: "Live", description: "Schedule a day and time and host your draft live on the site." },
+  { value: "autopick", label: "Autopick", description: "Your league's rosters are automatically drafted based on each team's pre-draft rankings list. Each team owner will receive an email upon the draft's completion." },
+];
+
+/** Draft Style: only when type is Live. Stored as draft_type (linear/snake) + draft_style. */
+const DRAFT_STYLE_OPTIONS: { value: "linear" | "snake"; label: string }[] = [
+  { value: "linear", label: "Linear" },
+  { value: "snake", label: "Snake" },
 ];
 
 const TIME_PER_PICK_OPTIONS: { value: number; label: string }[] = [
@@ -47,20 +33,31 @@ const DRAFT_ORDER_OPTIONS: { value: DraftOrderMethod; label: string }[] = [
 
 type Props = {
   leagueSlug: string;
-  draftType: DraftType | null | undefined;
+  /** Stored draft_type: offline | linear | snake | autopick */
+  draftType: string | null | undefined;
+  /** Stored draft_style: linear | snake (used when type is live) */
+  draftStyle: "linear" | "snake" | null | undefined;
   timePerPickSeconds: number | null | undefined;
   draftOrderMethod: DraftOrderMethod | null | undefined;
   draftDate: string | null | undefined;
 };
 
+/** Map stored draft_type to UI type (offline | live | autopick). */
+function toUiType(stored: string | null | undefined): "offline" | "live" | "autopick" {
+  if (stored === "offline" || stored === "autopick") return stored;
+  return "live"; // linear or snake → live
+}
+
 export function DraftSettingsSection({
   leagueSlug,
   draftType,
+  draftStyle,
   timePerPickSeconds,
   draftOrderMethod,
   draftDate,
 }: Props) {
-  const effectiveDraftType = draftType ?? "snake";
+  const uiType = toUiType(draftType);
+  const effectiveStyle = draftStyle ?? (draftType === "linear" ? "linear" : "snake");
   const effectiveTime = timePerPickSeconds ?? 120;
   const effectiveOrder = draftOrderMethod ?? "random_one_hour_before";
 
@@ -82,7 +79,7 @@ export function DraftSettingsSection({
         <div style={{ marginBottom: 28 }}>
           <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>Draft Type</h3>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {DRAFT_TYPES.map((opt) => (
+            {DRAFT_TYPE_OPTIONS.map((opt) => (
               <li key={opt.value} style={{ marginBottom: 16 }}>
                 <label
                   style={{
@@ -94,15 +91,40 @@ export function DraftSettingsSection({
                 >
                   <input
                     type="radio"
-                    name="draft_type"
+                    name="draft_type_ui"
                     value={opt.value}
-                    defaultChecked={effectiveDraftType === opt.value}
+                    defaultChecked={uiType === opt.value}
                     style={{ marginTop: 4, flexShrink: 0 }}
                   />
                   <span>
-                    <span style={{ fontWeight: 600 }}>{opt.label}:</span>{" "}
-                    <span style={{ color: "var(--color-text-muted)" }}>{opt.description}</span>
+                    <span style={{ fontWeight: 600 }}>{opt.label}</span>
+                    {opt.description && (
+                      <>: <span style={{ color: "var(--color-text-muted)" }}>{opt.description}</span></>
+                    )}
                   </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div style={{ marginBottom: 28 }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>Draft Style</h3>
+          <p style={{ color: "var(--color-text-muted)", fontSize: 14, marginBottom: 12 }}>
+            Applies when draft type is Live. Linear: same pick order every round. Snake: order reverses each round.
+          </p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            {DRAFT_STYLE_OPTIONS.map((opt) => (
+              <li key={opt.value}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="draft_style"
+                    value={opt.value}
+                    defaultChecked={effectiveStyle === opt.value}
+                    style={{ width: 18, height: 18 }}
+                  />
+                  <span style={{ fontWeight: 500 }}>{opt.label}</span>
                 </label>
               </li>
             ))}

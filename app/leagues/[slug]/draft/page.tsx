@@ -13,7 +13,6 @@ import {
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
 import { generateDraftOrderFromFormAction, startDraftFromFormAction } from "./actions";
-import { updateDraftDateFromFormAction } from "../actions";
 import { MakePickForm } from "./MakePickForm";
 import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
@@ -208,7 +207,15 @@ export default async function LeagueDraftPage({ params }: Props) {
             {leagueDraftType && (
               <li>
                 <strong style={{ color: "var(--color-text)" }}>Draft type:</strong>{" "}
-                {leagueDraftType === "snake" ? "Snake" : leagueDraftType === "linear" ? "Linear" : leagueDraftType === "offline" ? "Offline" : leagueDraftType === "autopick" ? "Autopick" : leagueDraftType}
+                {leagueDraftType === "offline"
+                  ? "Offline"
+                  : leagueDraftType === "autopick"
+                    ? "Autopick"
+                    : leagueDraftType === "linear"
+                      ? "Live (Linear)"
+                      : leagueDraftType === "snake"
+                        ? "Live (Snake)"
+                        : leagueDraftType}
               </li>
             )}
             {league.draft_date && (
@@ -272,89 +279,22 @@ export default async function LeagueDraftPage({ params }: Props) {
 
       {draftStatus === "completed" ? (
         <p style={{ color: "#0d7d0d", fontWeight: 600, marginBottom: 24 }}>Draft completed.</p>
-      ) : (
-        <>
-          <p style={{ color: "var(--color-text-muted)", marginBottom: 8 }}>
-            {draftStyle === "linear" ? "Linear" : "Snake"} order · {totalPicks} total picks
-          </p>
-          {league.draft_date && (
-            <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 16 }}>
-              Draft date: <strong>{league.draft_date}</strong> (points from first event after this date)
-            </p>
-          )}
-          {isCommissioner && draftStatus === "not_started" && (
-            <form
-              action={updateDraftDateFromFormAction}
-              style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 24 }}
-            >
-              <input type="hidden" name="league_slug" value={slug} />
-              <div>
-                <label htmlFor="draft-date" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
-                  Draft date
-                </label>
-                <input
-                  id="draft-date"
-                  type="date"
-                  name="draft_date"
-                  defaultValue={league.draft_date ?? ""}
-                  style={{ padding: "8px 12px", fontSize: 14, border: "1px solid #ccc", borderRadius: 6 }}
-                />
-              </div>
-              <button
-                type="submit"
-                style={{
-                  padding: "8px 16px",
-                  background: "#333",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  fontSize: 14,
-                  cursor: "pointer",
-                }}
-              >
-                Save draft date
-              </button>
-            </form>
-          )}
-        </>
+      ) : null}
+
+      {draftStatus !== "completed" && (
+        <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
+          {draftStyle === "linear" ? "Linear" : "Snake"} order · {totalPicks} total picks
+        </p>
       )}
 
       {draftStatus === "not_started" && !orderReady && (
         <>
           <p style={{ marginBottom: 16 }}>
-            No draft order yet. The commissioner can set the draft style and generate a randomized order.
+            No draft order yet. The commissioner can generate a randomized order (uses draft type from League Settings).
           </p>
           {isCommissioner && (
-            <form
-              action={generateDraftOrderFromFormAction}
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 12,
-                alignItems: "flex-end",
-              }}
-            >
+            <form action={generateDraftOrderFromFormAction} style={{ marginBottom: 24 }}>
               <input type="hidden" name="league_slug" value={slug} />
-              <div>
-                <label htmlFor="draft-style" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
-                  Draft style
-                </label>
-                <select
-                  id="draft-style"
-                  name="draft_style"
-                  defaultValue={draftStyle}
-                  style={{
-                    padding: "10px 12px",
-                    fontSize: 16,
-                    border: "1px solid #ccc",
-                    borderRadius: 6,
-                    minWidth: 140,
-                  }}
-                >
-                  <option value="snake">Snake</option>
-                  <option value="linear">Linear</option>
-                </select>
-              </div>
               <button
                 type="submit"
                 style={{

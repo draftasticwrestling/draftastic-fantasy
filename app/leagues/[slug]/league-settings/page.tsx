@@ -23,6 +23,7 @@ export default async function LeagueSettingsPage({
   if (!league) notFound();
 
   const draftType = league.draft_type ?? (league.draft_style as "snake" | "linear" | undefined) ?? "snake";
+  const draftStyle = league.draft_style ?? (draftType === "linear" ? "linear" : "snake");
   const timePerPickSeconds = league.time_per_pick_seconds ?? 120;
   const draftOrderMethod = league.draft_order_method ?? "random_one_hour_before";
   const draftDate = league.draft_date ?? null;
@@ -56,6 +57,7 @@ export default async function LeagueSettingsPage({
           <DraftSettingsSection
             leagueSlug={slug}
             draftType={draftType}
+            draftStyle={draftStyle}
             timePerPickSeconds={timePerPickSeconds}
             draftOrderMethod={draftOrderMethod}
             draftDate={draftDate}

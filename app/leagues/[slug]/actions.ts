@@ -92,6 +92,7 @@ export async function updateDraftDateFromFormAction(formData: FormData): Promise
 }
 
 const DRAFT_TYPES: DraftType[] = ["offline", "linear", "snake", "autopick"];
+const DRAFT_STYLES = ["linear", "snake"] as const;
 const TIME_PER_PICK_VALUES = [30, 60, 90, 120, 150, 180] as const;
 const DRAFT_ORDER_METHODS: DraftOrderMethod[] = ["random_one_hour_before", "manual_by_gm"];
 
@@ -108,13 +109,23 @@ export async function updateDraftSettingsAction(
     return { error: "Only the commissioner can change draft settings." };
   }
 
-  const draft_type = (formData.get("draft_type") as string)?.trim() as DraftType | undefined;
+  const draft_type_ui = (formData.get("draft_type_ui") as string)?.trim();
+  const draft_style = (formData.get("draft_style") as string)?.trim();
   const time_per_pick_seconds = formData.get("time_per_pick_seconds");
   const draft_order_method = (formData.get("draft_order_method") as string)?.trim() as DraftOrderMethod | undefined;
   const draft_date = (formData.get("draft_date") as string)?.trim() || null;
 
   const payload: Record<string, unknown> = { draft_date: draft_date || null };
-  if (draft_type && DRAFT_TYPES.includes(draft_type)) payload.draft_type = draft_type;
+
+  if (draft_type_ui === "live" && draft_style && DRAFT_STYLES.includes(draft_style as "linear" | "snake")) {
+    payload.draft_type = draft_style;
+    payload.draft_style = draft_style;
+  } else if (draft_type_ui === "offline" || draft_type_ui === "autopick") {
+    payload.draft_type = draft_type_ui;
+  } else if (draft_type_ui && DRAFT_TYPES.includes(draft_type_ui as DraftType)) {
+    payload.draft_type = draft_type_ui;
+  }
+
   if (time_per_pick_seconds != null) {
     const sec = Number(time_per_pick_seconds);
     if ((TIME_PER_PICK_VALUES as readonly number[]).includes(sec)) payload.time_per_pick_seconds = sec;
