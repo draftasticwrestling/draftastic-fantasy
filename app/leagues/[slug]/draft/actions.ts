@@ -142,7 +142,7 @@ export async function clearLastPickFromFormAction(formData: FormData): Promise<v
 export async function saveDraftPreferencesAction(
   leagueSlug: string,
   payload: {
-    priority_list?: string[];
+    priority_list?: string[] | string;
     focus: string;
     pointStrategy: string;
     wrestlerStrategy: string;
@@ -161,7 +161,17 @@ export async function saveDraftPreferencesAction(
     .eq("user_id", user.id)
     .maybeSingle();
   if (!member) return { error: "You are not a member of this league." };
-  const priority_list = Array.isArray(payload.priority_list) ? payload.priority_list : [];
+  let priority_list: string[] = [];
+  if (Array.isArray(payload.priority_list)) {
+    priority_list = payload.priority_list;
+  } else if (typeof payload.priority_list === "string") {
+    try {
+      const parsed = JSON.parse(payload.priority_list) as unknown;
+      priority_list = Array.isArray(parsed) ? (parsed as string[]) : [];
+    } catch {
+      priority_list = [];
+    }
+  }
   const result = await setDraftPreferences(league.id, user.id, {
     priority_list,
     strategy: [],

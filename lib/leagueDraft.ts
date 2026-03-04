@@ -97,7 +97,17 @@ export async function getDraftPreferences(
   }
   if (result.error || !result.data) return null;
   const data = result.data as { priority_list?: unknown; strategy?: unknown; strategy_options?: unknown };
-  const list = Array.isArray(data.priority_list) ? data.priority_list : [];
+  let list: string[] = [];
+  if (Array.isArray(data.priority_list)) {
+    list = data.priority_list as string[];
+  } else if (typeof data.priority_list === "string") {
+    try {
+      const parsed = JSON.parse(data.priority_list) as unknown;
+      list = Array.isArray(parsed) ? (parsed as string[]) : [];
+    } catch {
+      list = [];
+    }
+  }
   const strategy = Array.isArray(data.strategy) ? data.strategy : [];
   const strategy_options = data.strategy_options as DraftStrategyOptions | null | undefined;
   return {

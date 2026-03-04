@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { saveDraftPreferencesAction } from "../actions";
 
 const MIN_PRIORITY = 10;
@@ -66,6 +67,7 @@ export function DraftPreferencesForm({
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const router = useRouter();
 
   const optionById = useMemo(() => new Map(wrestlerOptions.map((w) => [w.id, w])), [wrestlerOptions]);
   const availableToAdd = useMemo(
@@ -192,7 +194,7 @@ export function DraftPreferencesForm({
     }
     setSaving(true);
     const result = await saveDraftPreferencesAction(leagueSlug, {
-      priority_list: priorityList,
+      priority_list: JSON.stringify(priorityList),
       focus,
       pointStrategy,
       wrestlerStrategy,
@@ -203,6 +205,7 @@ export function DraftPreferencesForm({
       return;
     }
     setMessage({ type: "success", text: "Preferences saved." });
+    router.refresh();
   };
 
   return (

@@ -12,6 +12,8 @@ export const metadata = {
   description: "Set your draft focus and strategy for auto-picks.",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function DraftPreferencesPage({ params }: Props) {
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
@@ -94,6 +96,7 @@ export default async function DraftPreferencesPage({ params }: Props) {
       )}
 
       <DraftPreferencesForm
+        key={JSON.stringify(initialPriorityList)}
         leagueSlug={slug}
         wrestlerOptions={wrestlerOptions}
         initialPriorityList={initialPriorityList}
