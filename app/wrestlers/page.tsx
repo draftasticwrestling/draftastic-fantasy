@@ -77,8 +77,9 @@ export default async function WrestlersPage() {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
     const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
-    const points = getPointsForWrestler(pointsBySlug, canonicalKey, canonicalKey);
-    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, canonicalKey, canonicalKey);
+    // Use slugKey (stable id/slug) first so points match when display name changed (e.g. Natalya → Nattie, slug still natalya)
+    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const titles =

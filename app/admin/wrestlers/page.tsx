@@ -121,14 +121,15 @@ export default async function AdminWrestlersPage() {
     const slugKey = w.id as string;
     const nameKey = w.name ? normalizeWrestlerName(String(w.name)) : "";
     const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
-    const points = getPointsForWrestler(pointsBySlug, canonicalKey, canonicalKey);
-    const points2025 = getPointsForWrestler(points2025BySlug, canonicalKey, canonicalKey);
-    const points2026 = getPointsForWrestler(points2026BySlug, canonicalKey, canonicalKey);
-    const pointsAllTime = getPointsForWrestler(pointsAllTimeBySlug, canonicalKey, canonicalKey);
-    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, canonicalKey, canonicalKey);
-    const extraBeltAllTime = getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, canonicalKey, canonicalKey);
-    const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, canonicalKey, canonicalKey);
-    const extraBelt2026 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2026, canonicalKey, canonicalKey);
+    // Use slugKey (stable id/slug) first so points match when display name changed (e.g. Natalya → Nattie, slug still natalya)
+    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const points2025 = getPointsForWrestler(points2025BySlug, slugKey, nameKey);
+    const points2026 = getPointsForWrestler(points2026BySlug, slugKey, nameKey);
+    const pointsAllTime = getPointsForWrestler(pointsAllTimeBySlug, slugKey, nameKey);
+    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
+    const extraBeltAllTime = getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey);
+    const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
+    const extraBelt2026 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2026, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const beltPointsAllTime = pointsAllTime.beltPoints + extraBeltAllTime;

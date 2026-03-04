@@ -473,17 +473,23 @@ export async function makeDraftPick(
 export async function getDraftPicksHistory(
   leagueId: string
 ): Promise<
-  { overall_pick: number; user_id: string; wrestler_id: string; wrestler_name: string | null; picked_at: string }[]
+  { overall_pick: number; user_id: string; wrestler_id: string; wrestler_name: string | null; picked_at: string; is_auto_pick?: boolean }[]
 > {
   const supabase = await createClient();
-  const { data: rows, error } = await supabase
+  let result = await supabase
     .from("league_draft_picks")
-    .select("overall_pick, user_id, wrestler_id, picked_at")
+    .select("overall_pick, user_id, wrestler_id, picked_at, is_auto_pick")
     .eq("league_id", leagueId)
     .order("overall_pick", { ascending: true });
-
-  if (error) return []; /* table may not exist yet (migration not run) */
-  if (!rows?.length) return [];
+  if (result.error && (result.error.code === "42703" || result.error.message?.includes("is_auto_pick"))) {
+    result = await supabase
+      .from("league_draft_picks")
+      .select("overall_pick, user_id, wrestler_id, picked_at")
+      .eq("league_id", leagueId)
+      .order("overall_pick", { ascending: true });
+  }
+  const rows = result.data;
+  if (result.error || !rows?.length) return [];
 
   const wrestlerIds = [...new Set(rows.map((r) => r.wrestler_id))];
   const { data: wrestlers } = await supabase
@@ -493,13 +499,14 @@ export async function getDraftPicksHistory(
   const nameById: Record<string, string | null> = {};
   for (const w of wrestlers ?? []) nameById[w.id] = w.name ?? null;
 
-  return (rows as { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string }[]).map(
+  return (rows as { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string; is_auto_pick?: boolean }[]).map(
     (r) => ({
       overall_pick: r.overall_pick,
       user_id: r.user_id,
       wrestler_id: r.wrestler_id,
       wrestler_name: nameById[r.wrestler_id] ?? null,
       picked_at: r.picked_at,
+      is_auto_pick: r.is_auto_pick ?? false,
     })
   );
 }
