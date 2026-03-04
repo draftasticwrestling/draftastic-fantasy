@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import WrestlerList, { type WrestlerRow } from "@/app/wrestlers/WrestlerList";
-import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   computeEndOfMonthBeltPoints,
   getCurrentChampionsBySlug,
@@ -113,12 +113,12 @@ export default async function AdminWrestlersPage() {
   const error = wrestlersResult.error;
   const wrestlersFiltered = (wrestlers ?? []).filter((w: { id: string }) => !isPersonaOnlySlug(w.id));
   const rows = wrestlersFiltered.map((w: Record<string, unknown>) => {
-    const points = pointsBySlug[w.id as string] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
-    const points2025 = points2025BySlug[w.id as string] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
-    const points2026 = points2026BySlug[w.id as string] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
-    const pointsAllTime = pointsAllTimeBySlug[w.id as string] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
     const slugKey = w.id as string;
     const nameKey = w.name ? normalizeWrestlerName(String(w.name)) : "";
+    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const points2025 = getPointsForWrestler(points2025BySlug, slugKey, nameKey);
+    const points2026 = getPointsForWrestler(points2026BySlug, slugKey, nameKey);
+    const pointsAllTime = getPointsForWrestler(pointsAllTimeBySlug, slugKey, nameKey);
     const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const extraBeltAllTime = getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey);
     const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);

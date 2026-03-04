@@ -26,6 +26,7 @@ import {
   getTitleReignsForWrestler,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
@@ -251,7 +252,10 @@ export default async function WrestlerProfilePage({
   const extraBelt = getMonthlyBeltForWrestler(endOfMonthBySlug, wrestler.id, nameKey)
     || (slug && slug !== wrestler.id ? getMonthlyBeltForWrestler(endOfMonthBySlug, slug, nameKey) : 0);
 
-  const points = pointsBySlug[wrestler.id] ?? pointsBySlug[slug] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
+  const pointsById = getPointsForWrestler(pointsBySlug, wrestler.id, nameKey);
+  const pointsBySlugParam = slug && slug !== wrestler.id ? getPointsForWrestler(pointsBySlug, slug, nameKey) : pointsById;
+  const total = (p: { rsPoints: number; plePoints: number; beltPoints: number }) => p.rsPoints + p.plePoints + p.beltPoints;
+  const points = total(pointsBySlugParam) >= total(pointsById) ? pointsBySlugParam : pointsById;
   const beltPoints = points.beltPoints + extraBelt;
   const totalPoints = points.rsPoints + points.plePoints + beltPoints;
 

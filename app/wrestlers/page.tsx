@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import WrestlerList from "./WrestlerList";
-import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   computeEndOfMonthBeltPoints,
   FIRST_END_OF_MONTH_POINTS_DATE,
@@ -74,9 +74,9 @@ export default async function WrestlersPage() {
   const wrestlers = wrestlersResult.data ?? [];
   const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
   const rows = wrestlersFiltered.map((w) => {
-    const points = pointsBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
+    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
     const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
