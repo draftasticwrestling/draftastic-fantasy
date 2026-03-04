@@ -259,7 +259,13 @@ export function DraftPreferencesForm({
               >
                 {searchResults.length === 0 ? (
                   <li style={{ padding: "12px 14px", fontSize: 14, color: "var(--color-text-muted)" }}>
-                    {availableToAdd.length === 0 ? "All wrestlers added." : searchNorm ? "No matches." : "Type to search."}
+                    {wrestlerOptions.length === 0
+                      ? "No wrestlers available."
+                      : availableToAdd.length === 0
+                        ? "All wrestlers added."
+                        : searchNorm
+                          ? "No matches."
+                          : "Type to search."}
                   </li>
                 ) : (
                   searchResults.map((w, i) => (

@@ -47,7 +47,11 @@ export default async function DraftPreferencesPage({ params }: Props) {
         rawRows = (fallback.data ?? []) as Record<string, unknown>[];
       }
       const rows = rawRows.map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as Row[];
-      return rows.filter((w) => isDraftableWrestler(w)).map((w) => ({ id: w.id, name: w.name ?? w.id }));
+      let draftable = rows.filter((w) => isDraftableWrestler(w)).map((w) => ({ id: w.id, name: w.name ?? w.id }));
+      if (draftable.length === 0 && rawRows.length > 0) {
+        draftable = rawRows.map((r) => ({ id: String(r.id ?? ""), name: (r.name != null ? String(r.name) : String(r.id ?? "")) })).filter((w) => w.id);
+      }
+      return draftable;
     })(),
   ]);
 
