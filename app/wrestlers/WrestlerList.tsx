@@ -343,8 +343,9 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: "dqPct", label: "DQ%", minW: 52, align: "center", section: "MATCHES" },
 ];
 
-const STICKY_COLUMN_COUNT = 4;
-const stickyLefts = [0, 52, 100, 176]; // cumulative: Roster 52, Rank 48, Image 76, Name 160
+const STICKY_COLUMN_COUNT = 5; // Roster, Rank, Image, Name, Status
+const STICKY_WIDTHS = [52, 48, 76, 160, 96] as const; // fixed widths so columns don't resize on scroll
+const stickyLefts = [0, 52, 100, 176, 336]; // cumulative
 
 const ROW_BG_ALT = "#f8f9fa";
 const ROW_BG_MAIN = "#ffffff";
@@ -651,9 +652,20 @@ export default function WrestlerList({
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto", minWidth: tableMinWidth }}>
           <thead>
             <tr>
-              {HEADER_CONFIG.slice(0, 8).map((h, i) => (
-                <th key={`gh-${i}`} style={{ ...thBase, minWidth: h.minW, borderBottom: "1px solid " + BORDER_TABLE }} />
-              ))}
+              {HEADER_CONFIG.slice(0, 8).map((h, i) => {
+                const fixedW = i < STICKY_COLUMN_COUNT ? STICKY_WIDTHS[i] : undefined;
+                return (
+                  <th
+                    key={`gh-${i}`}
+                    style={{
+                      ...thBase,
+                      minWidth: h.minW,
+                      ...(fixedW != null ? { width: fixedW, maxWidth: fixedW, boxSizing: "border-box" } : {}),
+                      borderBottom: "1px solid " + BORDER_TABLE,
+                    }}
+                  />
+                );
+              })}
               <th
                 colSpan={5}
                 style={{
@@ -683,9 +695,11 @@ export default function WrestlerList({
                 const isSortable = h.key != null;
                 const isActive = sortColumn === h.key;
                 const isSticky = i < STICKY_COLUMN_COUNT;
+                const fixedW = isSticky ? STICKY_WIDTHS[i] : undefined;
                 const style: React.CSSProperties = {
                   ...thBase,
                   minWidth: h.minW,
+                  ...(fixedW != null ? { width: fixedW, maxWidth: fixedW, boxSizing: "border-box" } : {}),
                   textAlign: h.align,
                   ...(i === HEADER_CONFIG.length - 1 && !isSticky ? { borderRight: "none" } : {}),
                   ...(isSticky
@@ -746,7 +760,9 @@ export default function WrestlerList({
                 <tr key={w.id}>
                   <td
                     style={{
+                      width: 52,
                       minWidth: 52,
+                      maxWidth: 52,
                       padding: 0,
                       verticalAlign: "middle",
                       textAlign: "center",
@@ -757,6 +773,7 @@ export default function WrestlerList({
                       left: 0,
                       zIndex: 1,
                       boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
+                      boxSizing: "border-box",
                     }}
                   >
                     <div
@@ -779,7 +796,9 @@ export default function WrestlerList({
                   </td>
                   <td
                     style={{
+                      width: 48,
                       minWidth: 48,
+                      maxWidth: 48,
                       padding: "10px 6px",
                       textAlign: "center",
                       fontWeight: 600,
@@ -788,19 +807,23 @@ export default function WrestlerList({
                       left: 52,
                       zIndex: 1,
                       boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
+                      boxSizing: "border-box",
                     }}
                   >
                     {rankByWrestlerId.get(w.id) ?? "—"}
                   </td>
                   <td
                     style={{
+                      width: 76,
                       minWidth: 76,
+                      maxWidth: 76,
                       padding: 6,
                       ...cellStyle,
                       position: "sticky",
                       left: 100,
                       zIndex: 1,
                       boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
+                      boxSizing: "border-box",
                     }}
                   >
                     {w.image_url ? (
@@ -837,7 +860,9 @@ export default function WrestlerList({
                   </td>
                   <td
                     style={{
+                      width: 160,
                       minWidth: 160,
+                      maxWidth: 160,
                       padding: "10px 12px",
                       fontWeight: 600,
                       position: "sticky",
@@ -845,6 +870,7 @@ export default function WrestlerList({
                       zIndex: 1,
                       boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
                       ...cellStyle,
+                      boxSizing: "border-box",
                     }}
                   >
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -872,7 +898,21 @@ export default function WrestlerList({
                       </div>
                     )}
                   </td>
-                  <td style={{ minWidth: 96, padding: "8px", textAlign: "center", ...cellStyle }}>
+                  <td
+                    style={{
+                      width: 96,
+                      minWidth: 96,
+                      maxWidth: 96,
+                      padding: "8px",
+                      textAlign: "center",
+                      ...cellStyle,
+                      position: "sticky",
+                      left: 336,
+                      zIndex: 1,
+                      boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
+                      boxSizing: "border-box",
+                    }}
+                  >
                     {rosterByWrestler?.[w.id] ? (
                       <>
                         <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>
