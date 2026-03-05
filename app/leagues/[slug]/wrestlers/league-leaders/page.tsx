@@ -150,6 +150,12 @@ export default async function LeagueLeadersPage({
   const matchStats2025BySlug = aggregateWrestlerMatchStats(events2025 ?? []);
   const matchStats2026BySlug = aggregateWrestlerMatchStats(events2026 ?? []);
   const matchStatsAllTimeBySlug = aggregateWrestlerMatchStats(eventsAll ?? []);
+  const unparsedBySlug = getUnparsedMatchesByWrestler(
+    (eventsSinceStart ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
+  );
+  const wrestlerSlugsWithUnparsed = Object.keys(unparsedBySlug).filter(
+    (s) => unparsedBySlug[s].length > 0
+  );
   // Only award end-of-month belt points for month-ends on or after league start (e.g. league started 2/20/26 → first eligible month-end is 2/28/26; current month excluded until passed).
   const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
