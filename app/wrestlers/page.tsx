@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import WrestlerList from "./WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
   FIRST_END_OF_MONTH_POINTS_DATE,
@@ -68,6 +69,7 @@ export default async function WrestlersPage() {
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
 
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
+  const matchStatsBySlug = aggregateWrestlerMatchStats(events ?? []);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
@@ -79,6 +81,7 @@ export default async function WrestlersPage() {
     const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
     // Use slugKey (stable id/slug) first so points match when display name changed (e.g. Natalya → Nattie, slug still natalya)
     const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const matchStats = getMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
     const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
@@ -98,6 +101,12 @@ export default async function WrestlersPage() {
       plePoints: points.plePoints,
       beltPoints,
       totalPoints,
+      mw: matchStats.mw,
+      win: matchStats.win,
+      loss: matchStats.loss,
+      nc: matchStats.nc,
+      dqw: matchStats.dqw,
+      dql: matchStats.dql,
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,

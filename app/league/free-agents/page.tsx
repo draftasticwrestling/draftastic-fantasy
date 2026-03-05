@@ -2,7 +2,8 @@ import { supabase } from "@/lib/supabase";
 import { EXAMPLE_LEAGUE } from "@/lib/league";
 import WrestlerList from "../../wrestlers/WrestlerList";
 import type { WrestlerRow } from "../../wrestlers/WrestlerList";
-import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
   FIRST_END_OF_MONTH_POINTS_DATE,
@@ -77,6 +78,7 @@ export default async function LeagueFreeAgentsPage() {
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
+  const matchStatsBySlug = aggregateWrestlerMatchStats(events ?? []);
   const endOfMonthBeltBySlug = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
 
   const assignedIds = new Set(
@@ -90,9 +92,11 @@ export default async function LeagueFreeAgentsPage() {
   ) as { id: string; name: string | null; gender: string | null; brand: string | null; image_url?: string | null; dob?: string | null }[];
 
   const rows: WrestlerRow[] = freeAgentsRaw.map((w) => {
-    const points = pointsBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
+    const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
-    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltBySlug, w.id, nameKey);
+    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const matchStats = getMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
+    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltBySlug, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const titles =
@@ -110,6 +114,12 @@ export default async function LeagueFreeAgentsPage() {
       plePoints: points.plePoints,
       beltPoints,
       totalPoints,
+      mw: matchStats.mw,
+      win: matchStats.win,
+      loss: matchStats.loss,
+      nc: matchStats.nc,
+      dqw: matchStats.dqw,
+      dql: matchStats.dql,
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
     };

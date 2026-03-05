@@ -32,6 +32,31 @@ export type WrestlerRow = {
   plePointsAllTime?: number;
   beltPointsAllTime?: number;
   totalPointsAllTime?: number;
+  /** Match stats (period-specific when period filter used). */
+  mw?: number;
+  win?: number;
+  loss?: number;
+  nc?: number;
+  dqw?: number;
+  dql?: number;
+  mw2025?: number;
+  win2025?: number;
+  loss2025?: number;
+  nc2025?: number;
+  dqw2025?: number;
+  dql2025?: number;
+  mw2026?: number;
+  win2026?: number;
+  loss2026?: number;
+  nc2026?: number;
+  dqw2026?: number;
+  dql2026?: number;
+  mwAllTime?: number;
+  winAllTime?: number;
+  lossAllTime?: number;
+  ncAllTime?: number;
+  dqwAllTime?: number;
+  dqlAllTime?: number;
   /** Alter-ego persona text, e.g. "Also: El Grande Americano (from Jun 2025)" */
   personaDisplay?: string | null;
   /** Status from API (e.g. Injured, INJ). Used to show injury badge. */
@@ -158,6 +183,20 @@ function getPointsForPeriod(w: WrestlerRow, period: PointsPeriod) {
   };
 }
 
+/** Get effective match stats for display/sort based on selected period. */
+function getMatchStatsForPeriod(w: WrestlerRow, period: PointsPeriod) {
+  if (period === "2025") {
+    return { mw: w.mw2025 ?? 0, win: w.win2025 ?? 0, loss: w.loss2025 ?? 0, nc: w.nc2025 ?? 0, dqw: w.dqw2025 ?? 0, dql: w.dql2025 ?? 0 };
+  }
+  if (period === "2026") {
+    return { mw: w.mw2026 ?? 0, win: w.win2026 ?? 0, loss: w.loss2026 ?? 0, nc: w.nc2026 ?? 0, dqw: w.dqw2026 ?? 0, dql: w.dql2026 ?? 0 };
+  }
+  if (period === "allTime") {
+    return { mw: w.mwAllTime ?? 0, win: w.winAllTime ?? 0, loss: w.lossAllTime ?? 0, nc: w.ncAllTime ?? 0, dqw: w.dqwAllTime ?? 0, dql: w.dqlAllTime ?? 0 };
+  }
+  return { mw: w.mw ?? 0, win: w.win ?? 0, loss: w.loss ?? 0, nc: w.nc ?? 0, dqw: w.dqw ?? 0, dql: w.dql ?? 0 };
+}
+
 export type SortColumn =
   | "roster"
   | "rank"
@@ -168,12 +207,20 @@ export type SortColumn =
   | "rsPoints"
   | "plePoints"
   | "beltPoints"
-  | "totalPoints";
+  | "totalPoints"
+  | "mw"
+  | "win"
+  | "loss"
+  | "nc"
+  | "dqw"
+  | "dql";
 type SortDir = "asc" | "desc";
 
 function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, period: PointsPeriod = "sinceStart"): number {
   const pa = getPointsForPeriod(a, period);
   const pb = getPointsForPeriod(b, period);
+  const ma = getMatchStatsForPeriod(a, period);
+  const mb = getMatchStatsForPeriod(b, period);
   let out = 0;
   switch (col) {
     case "roster": {
@@ -221,6 +268,24 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, 
     case "totalPoints":
       out = pa.totalPoints - pb.totalPoints;
       break;
+    case "mw":
+      out = ma.mw - mb.mw;
+      break;
+    case "win":
+      out = ma.win - mb.win;
+      break;
+    case "loss":
+      out = ma.loss - mb.loss;
+      break;
+    case "nc":
+      out = ma.nc - mb.nc;
+      break;
+    case "dqw":
+      out = ma.dqw - mb.dqw;
+      break;
+    case "dql":
+      out = ma.dql - mb.dql;
+      break;
   }
   return dir === "asc" ? out : -out;
 }
@@ -234,10 +299,16 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: "gender", label: "Gender", minW: 68, align: "center", section: "INFO" },
   { key: "age", label: "Age", minW: 52, align: "center", section: "INFO" },
   { key: "rating2k", label: "2K", minW: 48, align: "center", section: "INFO" },
-  { key: "rsPoints", label: "R/S", minW: 72, align: "center", section: "SEASON PTS" },
-  { key: "plePoints", label: "PLE", minW: 72, align: "center", section: "SEASON PTS" },
-  { key: "beltPoints", label: "Belt", minW: 72, align: "center", section: "SEASON PTS" },
-  { key: "totalPoints", label: "TOT", minW: 80, align: "center", section: "FANTASY PTS" },
+  { key: "rsPoints", label: "R/S", minW: 72, align: "center", section: "POINTS" },
+  { key: "plePoints", label: "PLE", minW: 72, align: "center", section: "POINTS" },
+  { key: "beltPoints", label: "Belt", minW: 72, align: "center", section: "POINTS" },
+  { key: "totalPoints", label: "TOT", minW: 80, align: "center", section: "POINTS" },
+  { key: "mw", label: "MW", minW: 56, align: "center", section: "MATCHES" },
+  { key: "win", label: "Win", minW: 56, align: "center", section: "MATCHES" },
+  { key: "loss", label: "Loss", minW: 56, align: "center", section: "MATCHES" },
+  { key: "nc", label: "NC", minW: 56, align: "center", section: "MATCHES" },
+  { key: "dqw", label: "DQW", minW: 56, align: "center", section: "MATCHES" },
+  { key: "dql", label: "DQL", minW: 56, align: "center", section: "MATCHES" },
 ];
 
 const STICKY_COLUMN_COUNT = 4;
@@ -421,7 +492,7 @@ export default function WrestlerList({
         </div>
         {hasPointsPeriodFilter && (
           <div className="wrestler-list-filter-row">
-            <label htmlFor="wrestler-points-period">Points</label>
+            <label htmlFor="wrestler-points-period">Period</label>
             <select
               id="wrestler-points-period"
               value={pointsPeriod}
@@ -548,6 +619,34 @@ export default function WrestlerList({
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto", minWidth: tableMinWidth }}>
           <thead>
             <tr>
+              {HEADER_CONFIG.slice(0, 8).map((h, i) => (
+                <th key={`gh-${i}`} style={{ ...thBase, minWidth: h.minW, borderBottom: "1px solid " + BORDER_TABLE }} />
+              ))}
+              <th
+                colSpan={4}
+                style={{
+                  ...thBase,
+                  minWidth: 72 * 3 + 80,
+                  textAlign: "center",
+                  borderBottom: "1px solid " + BORDER_TABLE,
+                }}
+              >
+                Points
+              </th>
+              <th
+                colSpan={6}
+                style={{
+                  ...thBase,
+                  minWidth: 56 * 6,
+                  textAlign: "center",
+                  borderRight: "none",
+                  borderBottom: "1px solid " + BORDER_TABLE,
+                }}
+              >
+                Matches
+              </th>
+            </tr>
+            <tr>
               {HEADER_CONFIG.map((h, i) => {
                 const isSortable = h.key != null;
                 const isActive = sortColumn === h.key;
@@ -607,6 +706,7 @@ export default function WrestlerList({
               const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
               const age = calculateAge(w.dob);
               const pts = getPointsForPeriod(w, pointsPeriod);
+              const ms = getMatchStatsForPeriod(w, pointsPeriod);
               const rowBg = rowIndex % 2 === 0 ? ROW_BG_MAIN : ROW_BG_ALT;
               const cellBorder = "1px solid " + BORDER_TABLE;
               const cellStyle = { borderBottom: cellBorder, borderRight: cellBorder, color: "#1a1a1a", background: rowBg };
@@ -848,8 +948,26 @@ export default function WrestlerList({
                   <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
                     {pts.beltPoints}
                   </td>
-                  <td style={{ minWidth: 80, padding: "10px 8px", textAlign: "center", fontWeight: 700, ...cellStyle, borderRight: "none" }}>
+                  <td style={{ minWidth: 80, padding: "10px 8px", textAlign: "center", fontWeight: 700, ...cellStyle }}>
                     {pts.totalPoints}
+                  </td>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                    {ms.mw}
+                  </td>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                    {ms.win}
+                  </td>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                    {ms.loss}
+                  </td>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                    {ms.nc}
+                  </td>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                    {ms.dqw}
+                  </td>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderRight: "none" }}>
+                    {ms.dql}
                   </td>
                 </tr>
               );

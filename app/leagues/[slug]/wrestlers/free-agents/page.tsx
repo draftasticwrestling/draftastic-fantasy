@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
   getCurrentChampionsBySlug,
@@ -140,6 +141,10 @@ export default async function WrestlersFreeAgentsPage({
   const points2025BySlug = aggregateWrestlerPoints(events2025 ?? []);
   const points2026BySlug = aggregateWrestlerPoints(events2026 ?? []);
   const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll ?? []);
+  const matchStatsBySlug = aggregateWrestlerMatchStats(eventsSinceStart ?? []);
+  const matchStats2025BySlug = aggregateWrestlerMatchStats(events2025 ?? []);
+  const matchStats2026BySlug = aggregateWrestlerMatchStats(events2026 ?? []);
+  const matchStatsAllTimeBySlug = aggregateWrestlerMatchStats(eventsAll ?? []);
   const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
   const firstEligibleMonthEndAllTime = "2020-01-31";
@@ -160,6 +165,10 @@ export default async function WrestlersFreeAgentsPage({
     const points2025 = getPointsForWrestler(points2025BySlug, slugKey, nameKey);
     const points2026 = getPointsForWrestler(points2026BySlug, slugKey, nameKey);
     const pointsAllTime = getPointsForWrestler(pointsAllTimeBySlug, slugKey, nameKey);
+    const matchStats = getMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
+    const matchStats2025 = getMatchStatsForWrestler(matchStats2025BySlug, slugKey, nameKey);
+    const matchStats2026 = getMatchStatsForWrestler(matchStats2026BySlug, slugKey, nameKey);
+    const matchStatsAllTime = getMatchStatsForWrestler(matchStatsAllTimeBySlug, slugKey, nameKey);
     const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const extraBeltAllTime = getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey);
     const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
@@ -199,6 +208,30 @@ export default async function WrestlersFreeAgentsPage({
       plePointsAllTime: pointsAllTime.plePoints,
       beltPointsAllTime,
       totalPointsAllTime,
+      mw: matchStats.mw,
+      win: matchStats.win,
+      loss: matchStats.loss,
+      nc: matchStats.nc,
+      dqw: matchStats.dqw,
+      dql: matchStats.dql,
+      mw2025: matchStats2025.mw,
+      win2025: matchStats2025.win,
+      loss2025: matchStats2025.loss,
+      nc2025: matchStats2025.nc,
+      dqw2025: matchStats2025.dqw,
+      dql2025: matchStats2025.dql,
+      mw2026: matchStats2026.mw,
+      win2026: matchStats2026.win,
+      loss2026: matchStats2026.loss,
+      nc2026: matchStats2026.nc,
+      dqw2026: matchStats2026.dqw,
+      dql2026: matchStats2026.dql,
+      mwAllTime: matchStatsAllTime.mw,
+      winAllTime: matchStatsAllTime.win,
+      lossAllTime: matchStatsAllTime.loss,
+      ncAllTime: matchStatsAllTime.nc,
+      dqwAllTime: matchStatsAllTime.dqw,
+      dqlAllTime: matchStatsAllTime.dql,
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
