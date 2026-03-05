@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
-import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
+import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
   getCurrentChampionsBySlug,
@@ -150,11 +150,9 @@ export default async function LeagueLeadersPage({
   const matchStats2025BySlug = aggregateWrestlerMatchStats(events2025 ?? []);
   const matchStats2026BySlug = aggregateWrestlerMatchStats(events2026 ?? []);
   const matchStatsAllTimeBySlug = aggregateWrestlerMatchStats(eventsAll ?? []);
+  // All-time unparsed matches (for "matches needing review" indicator on League Leaders)
   const unparsedBySlug = getUnparsedMatchesByWrestler(
-    (eventsSinceStart ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
-  );
-  const wrestlerSlugsWithUnparsed = Object.keys(unparsedBySlug).filter(
-    (s) => unparsedBySlug[s].length > 0
+    (eventsAll ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
   );
   // Only award end-of-month belt points for month-ends on or after league start (e.g. league started 2/20/26 → first eligible month-end is 2/28/26; current month excluded until passed).
   const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
@@ -195,6 +193,7 @@ export default async function LeagueLeadersPage({
     const titles =
       currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
     const raw = w as Record<string, unknown>;
+    const unparsedCount = getUnparsedMatchesForWrestler(unparsedBySlug, slugKey, nameKey).length;
     return {
       id: w.id,
       name: w.name ?? null,
@@ -247,6 +246,7 @@ export default async function LeagueLeadersPage({
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
+      unparsedCount,
     };
   });
 
@@ -281,7 +281,6 @@ export default async function LeagueLeadersPage({
           leagueSlug={slug}
           wrestlerProfileFrom="league-leaders"
           rosterByWrestler={rosterByWrestler}
-          wrestlerSlugsWithUnparsed={wrestlerSlugsWithUnparsed}
         />
       )}
     </main>

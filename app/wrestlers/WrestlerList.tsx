@@ -64,6 +64,8 @@ export type WrestlerRow = {
   status?: string | null;
   /** Current championship(s) held, e.g. "WWE Championship" or "Raw Tag Team, US Championship". Shown under name. */
   currentChampionship?: string | null;
+  /** Number of matches needing review on this wrestler's profile (all-time). When set, shown next to name on League Leaders. */
+  unparsedCount?: number;
 };
 
 /** True when status indicates injured (Injured, INJ, etc.). */
@@ -439,7 +441,7 @@ type WrestlerListProps = {
   wrestlerProfileFrom?: "league-leaders" | "free-agents" | null;
   /** Wrestler id -> owner info. When set, Status shows owner name + propose trade for rostered; else FA + add/flag. */
   rosterByWrestler?: Record<string, RosterOwnerInfo> | null;
-  /** Slugs of wrestlers who have matches needing review (show caution icon on League Leaders). */
+  /** Slugs of wrestlers who have matches needing review (show caution icon). Used when rows don't have unparsedCount. */
   wrestlerSlugsWithUnparsed?: string[] | null;
 };
 
@@ -644,7 +646,15 @@ export default function WrestlerList({
               <div className="wrestler-card-body">
                 <span className="wrestler-card-name" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   {w.name || w.id}
-                  {wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && (
+                  {w.unparsedCount != null && (
+                    <>
+                      <span style={{ fontWeight: 600, color: "var(--color-text-muted)" }} title="Matches needing review">
+                        {w.unparsedCount}
+                      </span>
+                      {w.unparsedCount > 0 && <CautionBadge size={16} />}
+                    </>
+                  )}
+                  {w.unparsedCount == null && wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && (
                     <CautionBadge size={16} />
                   )}
                   {isInjured(w.status) && (
@@ -934,7 +944,15 @@ export default function WrestlerList({
                       >
                         {w.name || w.id}
                       </Link>
-                      {wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && (
+                      {w.unparsedCount != null && (
+                        <>
+                          <span style={{ fontWeight: 600, color: "var(--color-text-muted)" }} title="Matches needing review">
+                            {w.unparsedCount}
+                          </span>
+                          {w.unparsedCount > 0 && <CautionBadge size={18} />}
+                        </>
+                      )}
+                      {w.unparsedCount == null && wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && (
                         <CautionBadge size={18} />
                       )}
                       {isInjured(w.status) && (
