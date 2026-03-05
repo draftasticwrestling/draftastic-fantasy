@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { generateDraftOrder, makeDraftPick, restartDraft, clearLastPick, startDraft, setDraftPreferences } from "@/lib/leagueDraft";
+import { generateDraftOrder, setDraftOrderFromRound1, makeDraftPick, restartDraft, clearLastPick, startDraft, setDraftPreferences } from "@/lib/leagueDraft";
 
 export async function generateDraftOrderAction(
   leagueSlug: string,
@@ -44,6 +44,24 @@ export async function generateDraftOrderFromFormAction(formData: FormData): Prom
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return;
   await generateDraftOrderAction(leagueSlug, formData);
+}
+
+/** Commissioner only: set draft order from round 1 order (when draft_order_method is manual_by_gm). */
+export async function setDraftOrderAction(
+  leagueSlug: string,
+  round1UserIds: string[]
+): Promise<{ error?: string }> {
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+
+  const result = await setDraftOrderFromRound1(league.id, round1UserIds);
+  if (result.error) return result;
+
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
+  revalidatePath(`/leagues/${leagueSlug}/draft/set-order`);
+  return {};
 }
 
 /** Commissioner only: start the draft (begin pick clock). */

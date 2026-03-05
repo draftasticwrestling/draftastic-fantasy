@@ -290,9 +290,32 @@ export default async function LeagueDraftPage({ params }: Props) {
       {draftStatus === "not_started" && !orderReady && (
         <>
           <p style={{ marginBottom: 16 }}>
-            No draft order yet. The commissioner can generate a randomized order (uses draft type from League Settings).
+            {league.draft_order_method === "manual_by_gm"
+              ? "No draft order yet. The General Manager can set the pick order manually."
+              : "No draft order yet. The commissioner can generate a randomized order (uses draft type from League Settings)."}
           </p>
-          {isCommissioner && (
+          {isCommissioner && league.draft_order_method === "manual_by_gm" && (
+            <p style={{ marginBottom: 16 }}>
+              <Link
+                href={`/leagues/${slug}/draft/set-order`}
+                style={{
+                  display: "inline-block",
+                  padding: "10px 20px",
+                  background: "#1a73e8",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  textDecoration: "none",
+                }}
+              >
+                Set draft order
+              </Link>
+            </p>
+          )}
+          {isCommissioner && league.draft_order_method !== "manual_by_gm" && (
             <form action={generateDraftOrderFromFormAction} style={{ marginBottom: 24 }}>
               <input type="hidden" name="league_slug" value={slug} />
               <button
@@ -321,24 +344,44 @@ export default async function LeagueDraftPage({ params }: Props) {
             Draft order is set. When all owners are ready, the commissioner can start the draft.
           </p>
           {isCommissioner && (
-            <form action={startDraftFromFormAction} style={{ marginBottom: 24 }}>
-              <input type="hidden" name="league_slug" value={slug} />
-              <button
-                type="submit"
-                style={{
-                  padding: "12px 24px",
-                  background: "#0d7d0d",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 16,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Start draft
-              </button>
-            </form>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 24, alignItems: "center" }}>
+              <form action={startDraftFromFormAction}>
+                <input type="hidden" name="league_slug" value={slug} />
+                <button
+                  type="submit"
+                  style={{
+                    padding: "12px 24px",
+                    background: "#0d7d0d",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Start draft
+                </button>
+              </form>
+              {league.draft_order_method === "manual_by_gm" && (
+                <Link
+                  href={`/leagues/${slug}/draft/set-order`}
+                  style={{
+                    padding: "12px 24px",
+                    background: "transparent",
+                    color: "var(--color-blue)",
+                    border: "1px solid var(--color-blue)",
+                    borderRadius: 8,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    textDecoration: "none",
+                  }}
+                >
+                  Change draft order
+                </Link>
+              )}
+            </div>
           )}
           {!isCommissioner && (
             <p style={{ marginBottom: 24, fontSize: 14, color: "#666" }}>

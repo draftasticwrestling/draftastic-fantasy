@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useFormState } from "react-dom";
 import { updateDraftSettingsFormAction } from "../actions";
 import type { DraftOrderMethod } from "@/lib/leagues";
@@ -186,6 +187,11 @@ export function DraftSettingsSection({
                   </option>
                 ))}
               </select>
+              {effectiveOrder === "manual_by_gm" && (
+                <p style={{ marginTop: 8, fontSize: 14, color: "var(--color-text-muted)" }}>
+                  After saving, use <Link href={`/leagues/${leagueSlug}/draft/set-order`} className="app-link">Set draft order</Link> on the Draft page to choose the pick order.
+                </p>
+              )}
             </div>
           </div>
         </div>

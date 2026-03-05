@@ -365,6 +365,74 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
 }
 
 /**
+ * Set draft order from round 1 order (commissioner only). Used when draft_order_method is manual_by_gm.
+ * round1UserIds = ordered list of user_ids for round 1; full order is built using league roster size and snake/linear.
+ */
+export async function setDraftOrderFromRound1(
+  leagueId: string,
+  round1UserIds: string[]
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("id, commissioner_id, draft_style, draft_type")
+    .eq("id", leagueId)
+    .single();
+
+  if (!league || league.commissioner_id !== user.id) {
+    return { error: "Only the commissioner can set draft order." };
+  }
+
+  const members = await getLeagueMembers(leagueId);
+  const rules = getRosterRulesForLeague(members.length);
+  if (!rules) return { error: "League size must be 3–12 teams to set draft order." };
+
+  const memberIds = new Set(members.map((m) => m.user_id));
+  if (round1UserIds.length !== memberIds.size) {
+    return { error: "Round 1 order must include every league member exactly once." };
+  }
+  for (const uid of round1UserIds) {
+    if (!memberIds.has(uid)) return { error: "Round 1 order includes a user who is not a league member." };
+  }
+
+  const numRounds = rules.rosterSize;
+  const draftType = (league as { draft_type?: string }).draft_type ?? league.draft_style;
+  const snake = draftType !== "linear";
+
+  const order: { overall_pick: number; user_id: string }[] = [];
+  let overall = 0;
+  for (let round = 1; round <= numRounds; round++) {
+    const roundOrder = snake && round % 2 === 0 ? [...round1UserIds].reverse() : round1UserIds;
+    for (const uid of roundOrder) {
+      overall++;
+      order.push({ overall_pick: overall, user_id: uid });
+    }
+  }
+
+  await supabase.from("league_draft_order").delete().eq("league_id", leagueId);
+
+  const { error: insertError } = await supabase.from("league_draft_order").insert(
+    order.map((o) => ({ league_id: leagueId, overall_pick: o.overall_pick, user_id: o.user_id }))
+  );
+  if (insertError) return { error: insertError.message };
+
+  const updatePayload = {
+    draft_status: "not_started",
+    draft_current_pick: null,
+    draft_current_pick_started_at: null,
+  };
+  const admin = getAdminClient();
+  const { error: updateError } = admin
+    ? await admin.from("leagues").update(updatePayload).eq("id", leagueId)
+    : await supabase.from("leagues").update(updatePayload).eq("id", leagueId);
+  if (updateError) return { error: updateError.message };
+  return {};
+}
+
+/**
  * Start the draft (commissioner only). Sets draft in progress and first pick clock.
  */
 export async function startDraft(leagueId: string): Promise<{ error?: string }> {
