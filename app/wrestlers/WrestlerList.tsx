@@ -208,12 +208,16 @@ export type SortColumn =
   | "plePoints"
   | "beltPoints"
   | "totalPoints"
+  | "ppm"
   | "mw"
   | "win"
+  | "winPct"
   | "loss"
+  | "lossPct"
   | "nc"
   | "dqw"
-  | "dql";
+  | "dql"
+  | "dqPct";
 type SortDir = "asc" | "desc";
 
 function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, period: PointsPeriod = "sinceStart"): number {
@@ -268,15 +272,33 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, 
     case "totalPoints":
       out = pa.totalPoints - pb.totalPoints;
       break;
+    case "ppm": {
+      const ppmA = ma.mw > 0 ? (pa.rsPoints + pa.plePoints) / ma.mw : 0;
+      const ppmB = mb.mw > 0 ? (pb.rsPoints + pb.plePoints) / mb.mw : 0;
+      out = ppmA - ppmB;
+      break;
+    }
     case "mw":
       out = ma.mw - mb.mw;
       break;
     case "win":
       out = ma.win - mb.win;
       break;
+    case "winPct": {
+      const wa = ma.mw > 0 ? (ma.win / ma.mw) * 100 : 0;
+      const wb = mb.mw > 0 ? (mb.win / mb.mw) * 100 : 0;
+      out = wa - wb;
+      break;
+    }
     case "loss":
       out = ma.loss - mb.loss;
       break;
+    case "lossPct": {
+      const la = ma.mw > 0 ? (ma.loss / ma.mw) * 100 : 0;
+      const lb = mb.mw > 0 ? (mb.loss / mb.mw) * 100 : 0;
+      out = la - lb;
+      break;
+    }
     case "nc":
       out = ma.nc - mb.nc;
       break;
@@ -286,6 +308,12 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, 
     case "dql":
       out = ma.dql - mb.dql;
       break;
+    case "dqPct": {
+      const dqa = ma.mw > 0 ? ((ma.dqw + ma.dql) / ma.mw) * 100 : 0;
+      const dqb = mb.mw > 0 ? ((mb.dqw + mb.dql) / mb.mw) * 100 : 0;
+      out = dqa - dqb;
+      break;
+    }
   }
   return dir === "asc" ? out : -out;
 }
@@ -303,12 +331,16 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: "plePoints", label: "PLE", minW: 72, align: "center", section: "POINTS" },
   { key: "beltPoints", label: "Belt", minW: 72, align: "center", section: "POINTS" },
   { key: "totalPoints", label: "TOT", minW: 80, align: "center", section: "POINTS" },
+  { key: "ppm", label: "PPM", minW: 56, align: "center", section: "POINTS" },
   { key: "mw", label: "MW", minW: 56, align: "center", section: "MATCHES" },
   { key: "win", label: "Win", minW: 56, align: "center", section: "MATCHES" },
+  { key: "winPct", label: "W%", minW: 52, align: "center", section: "MATCHES" },
   { key: "loss", label: "Loss", minW: 56, align: "center", section: "MATCHES" },
+  { key: "lossPct", label: "L%", minW: 52, align: "center", section: "MATCHES" },
   { key: "nc", label: "NC", minW: 56, align: "center", section: "MATCHES" },
   { key: "dqw", label: "DQW", minW: 56, align: "center", section: "MATCHES" },
   { key: "dql", label: "DQL", minW: 56, align: "center", section: "MATCHES" },
+  { key: "dqPct", label: "DQ%", minW: 52, align: "center", section: "MATCHES" },
 ];
 
 const STICKY_COLUMN_COUNT = 4;
@@ -623,10 +655,10 @@ export default function WrestlerList({
                 <th key={`gh-${i}`} style={{ ...thBase, minWidth: h.minW, borderBottom: "1px solid " + BORDER_TABLE }} />
               ))}
               <th
-                colSpan={4}
+                colSpan={5}
                 style={{
                   ...thBase,
-                  minWidth: 72 * 3 + 80,
+                  minWidth: 72 * 3 + 80 + 56,
                   textAlign: "center",
                   borderBottom: "1px solid " + BORDER_TABLE,
                 }}
@@ -634,10 +666,10 @@ export default function WrestlerList({
                 Points
               </th>
               <th
-                colSpan={6}
+                colSpan={9}
                 style={{
                   ...thBase,
-                  minWidth: 56 * 6,
+                  minWidth: 56 * 6 + 52 * 3,
                   textAlign: "center",
                   borderRight: "none",
                   borderBottom: "1px solid " + BORDER_TABLE,
@@ -952,13 +984,22 @@ export default function WrestlerList({
                     {pts.totalPoints}
                   </td>
                   <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                    {ms.mw > 0 ? ((pts.rsPoints + pts.plePoints) / ms.mw).toFixed(1) : "—"}
+                  </td>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
                     {ms.mw}
                   </td>
                   <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
                     {ms.win}
                   </td>
+                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                    {ms.mw > 0 ? ((ms.win / ms.mw) * 100).toFixed(1) : "—"}
+                  </td>
                   <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
                     {ms.loss}
+                  </td>
+                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                    {ms.mw > 0 ? ((ms.loss / ms.mw) * 100).toFixed(1) : "—"}
                   </td>
                   <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
                     {ms.nc}
@@ -966,8 +1007,11 @@ export default function WrestlerList({
                   <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
                     {ms.dqw}
                   </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderRight: "none" }}>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
                     {ms.dql}
+                  </td>
+                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderRight: "none" }}>
+                    {ms.mw > 0 ? (((ms.dqw + ms.dql) / ms.mw) * 100).toFixed(1) : "—"}
                   </td>
                 </tr>
               );

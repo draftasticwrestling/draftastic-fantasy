@@ -645,6 +645,13 @@ export default async function WrestlerProfilePage({
             <span style={{ opacity: 0.9, fontSize: 14 }}>Total Points</span>
             <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{totalPoints}</div>
           </div>
+          <div style={{ padding: "12px 20px", background: "#f5f5f5", borderRadius: 8 }}>
+            <span style={{ color: "#666", fontSize: 14 }}>PPM</span>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+              {matchStats.mw > 0 ? ((points.rsPoints + points.plePoints) / matchStats.mw).toFixed(1) : "—"}
+            </div>
+            <span style={{ fontSize: 12, color: "#666" }}>Points per match (R/S + PLE only)</span>
+          </div>
         </div>
 
         <div style={{ marginTop: 20, padding: "12px 16px", background: "var(--color-bg-elevated, #f8f9fa)", borderRadius: 8, border: "1px solid var(--color-border, #e9ecef)" }}>
@@ -654,13 +661,16 @@ export default async function WrestlerProfilePage({
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 14 }}>
             <span><strong>MW</strong> {matchStats.mw}</span>
             <span><strong>Win</strong> {matchStats.win}</span>
+            <span><strong>W%</strong> {matchStats.mw > 0 ? ((matchStats.win / matchStats.mw) * 100).toFixed(1) : "—"}</span>
             <span><strong>Loss</strong> {matchStats.loss}</span>
+            <span><strong>L%</strong> {matchStats.mw > 0 ? ((matchStats.loss / matchStats.mw) * 100).toFixed(1) : "—"}</span>
             <span><strong>NC</strong> {matchStats.nc}</span>
             <span><strong>DQW</strong> {matchStats.dqw}</span>
             <span><strong>DQL</strong> {matchStats.dql}</span>
+            <span><strong>DQ%</strong> {matchStats.mw > 0 ? (((matchStats.dqw + matchStats.dql) / matchStats.mw) * 100).toFixed(1) : "—"}</span>
           </div>
           <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, color: "var(--color-text-muted, #666)" }}>
-            MW = Matches wrestled · Win/Loss = standard · NC = No contest · DQW/DQL = Win/Loss via DQ
+            MW = Matches wrestled · Win/Loss = standard · NC = No contest · DQW/DQL = Win/Loss via DQ · W%/L%/DQ% = percentages of matches
           </p>
         </div>
       </section>
