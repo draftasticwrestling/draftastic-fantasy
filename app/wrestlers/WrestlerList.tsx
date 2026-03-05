@@ -439,6 +439,8 @@ type WrestlerListProps = {
   wrestlerProfileFrom?: "league-leaders" | "free-agents" | null;
   /** Wrestler id -> owner info. When set, Status shows owner name + propose trade for rostered; else FA + add/flag. */
   rosterByWrestler?: Record<string, RosterOwnerInfo> | null;
+  /** Slugs of wrestlers who have matches needing review (show caution icon on League Leaders). */
+  wrestlerSlugsWithUnparsed?: string[] | null;
 };
 
 function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | null): string {
