@@ -27,7 +27,7 @@ import {
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
-import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
+import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
@@ -267,6 +267,13 @@ export default async function WrestlerProfilePage({
   const matchStatsById = getMatchStatsForWrestler(matchStatsBySlug, wrestler.id, nameKey);
   const matchStatsBySlugParam = slug && slug !== wrestler.id ? getMatchStatsForWrestler(matchStatsBySlug, slug, nameKey) : matchStatsById;
   const matchStats = (matchStatsBySlugParam.mw >= matchStatsById.mw) ? matchStatsBySlugParam : matchStatsById;
+
+  const unparsedBySlug = getUnparsedMatchesByWrestler(
+    (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
+  );
+  const unparsedById = getUnparsedMatchesForWrestler(unparsedBySlug, wrestler.id, nameKey);
+  const unparsedBySlugParam = slug && slug !== wrestler.id ? getUnparsedMatchesForWrestler(unparsedBySlug, slug, nameKey) : unparsedById;
+  const unparsedMatches = unparsedBySlugParam.length >= unparsedById.length ? unparsedBySlugParam : unparsedById;
 
   const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEnd, wrestler.id) || getTitleReignsForWrestler(reigns, firstMonthEnd, slug);
 
@@ -673,6 +680,27 @@ export default async function WrestlerProfilePage({
             MW = Matches wrestled · Win/Loss = standard · NC = No contest · DQW/DQL = Win/Loss via DQ · W%/L%/DQ% = percentages of matches
           </p>
         </div>
+
+        {unparsedMatches.length > 0 && (
+          <div style={{ marginTop: 16, padding: "12px 16px", background: "#fff8e6", borderRadius: 8, border: "1px solid #e6d9b8" }}>
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: 8, color: "#8b6914" }}>
+              Matches needing review ({unparsedMatches.length})
+            </h3>
+            <p style={{ fontSize: 12, color: "#666", marginBottom: 10 }}>
+              These events include matches where this wrestler participated but winner/loser could not be parsed. Fix the event data or parser so outcomes are clear.
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
+              {unparsedMatches.map((u, i) => (
+                <li key={i} style={{ marginBottom: 4 }}>
+                  <Link href={`/event-results/${u.eventId}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
+                    {u.eventName}
+                  </Link>
+                  <span style={{ color: "#666", marginLeft: 8 }}>{formatDate(u.eventDate)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       {titleReigns.length > 0 && (
