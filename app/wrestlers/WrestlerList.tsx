@@ -376,6 +376,8 @@ function InjuryBadge({ size = 20, className }: { size?: number; className?: stri
 }
 const BORDER_TABLE = "#e0e0e0";
 const HEADER_BG = "#f0f2f5";
+/** Bolder border around Points and Matches sections. */
+const SECTION_BORDER = "2px solid #999";
 
 const thBase = {
   padding: "10px 12px",
@@ -673,6 +675,8 @@ export default function WrestlerList({
                   minWidth: 72 * 3 + 80 + 56,
                   textAlign: "center",
                   borderBottom: "1px solid " + BORDER_TABLE,
+                  borderLeft: SECTION_BORDER,
+                  borderRight: SECTION_BORDER,
                 }}
               >
                 Points
@@ -683,7 +687,8 @@ export default function WrestlerList({
                   ...thBase,
                   minWidth: 56 * 6 + 52 * 3,
                   textAlign: "center",
-                  borderRight: "none",
+                  borderLeft: SECTION_BORDER,
+                  borderRight: SECTION_BORDER,
                   borderBottom: "1px solid " + BORDER_TABLE,
                 }}
               >
@@ -708,9 +713,14 @@ export default function WrestlerList({
                         left: stickyLefts[i],
                         zIndex: 2,
                         background: HEADER_BG,
+                        ...(i === STICKY_COLUMN_COUNT - 1 ? { borderRight: "1px solid " + HEADER_BG } : {}),
                         boxShadow: i === STICKY_COLUMN_COUNT - 1 ? "4px 0 8px rgba(0,0,0,0.08)" : undefined,
                       }
                     : {}),
+                  ...(h.section === "POINTS" && i === 8 ? { borderLeft: SECTION_BORDER } : {}),
+                  ...(h.section === "POINTS" && i === 12 ? { borderRight: SECTION_BORDER } : {}),
+                  ...(h.section === "MATCHES" && i === 13 ? { borderLeft: SECTION_BORDER } : {}),
+                  ...(h.section === "MATCHES" && i === 21 ? { borderRight: SECTION_BORDER } : {}),
                 };
                 if (!isSortable) {
                   return <th key={i} style={style}>{h.label}</th>;
@@ -767,7 +777,7 @@ export default function WrestlerList({
                       verticalAlign: "middle",
                       textAlign: "center",
                       borderBottom: cellBorder,
-                      borderRight: cellBorder,
+                      borderRight: "1px solid " + style.showBg,
                       background: style.showBg,
                       position: "sticky",
                       left: 0,
@@ -803,6 +813,7 @@ export default function WrestlerList({
                       textAlign: "center",
                       fontWeight: 600,
                       ...cellStyle,
+                      borderRight: "1px solid " + rowBg,
                       position: "sticky",
                       left: 52,
                       zIndex: 1,
@@ -819,6 +830,7 @@ export default function WrestlerList({
                       maxWidth: 76,
                       padding: 6,
                       ...cellStyle,
+                      borderRight: "1px solid " + rowBg,
                       position: "sticky",
                       left: 100,
                       zIndex: 1,
@@ -870,6 +882,7 @@ export default function WrestlerList({
                       zIndex: 1,
                       boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
                       ...cellStyle,
+                      borderRight: "1px solid " + rowBg,
                       boxSizing: "border-box",
                     }}
                   >
@@ -906,6 +919,7 @@ export default function WrestlerList({
                       padding: "8px",
                       textAlign: "center",
                       ...cellStyle,
+                      borderRight: "1px solid " + rowBg,
                       position: "sticky",
                       left: 336,
                       zIndex: 1,
@@ -1011,7 +1025,7 @@ export default function WrestlerList({
                   <td style={{ minWidth: 48, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
                     {w.rating_2k26 != null ? w.rating_2k26 : w.rating_2k25 != null ? w.rating_2k25 : "—"}
                   </td>
-                  <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
+                  <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle, borderLeft: SECTION_BORDER }}>
                     {pts.rsPoints}
                   </td>
                   <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
@@ -1023,10 +1037,10 @@ export default function WrestlerList({
                   <td style={{ minWidth: 80, padding: "10px 8px", textAlign: "center", fontWeight: 700, ...cellStyle }}>
                     {pts.totalPoints}
                   </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderRight: SECTION_BORDER }}>
                     {ms.mw > 0 ? ((pts.rsPoints + pts.plePoints) / ms.mw).toFixed(1) : "—"}
                   </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderLeft: SECTION_BORDER }}>
                     {ms.mw}
                   </td>
                   <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
@@ -1050,7 +1064,7 @@ export default function WrestlerList({
                   <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
                     {ms.dql}
                   </td>
-                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderRight: "none" }}>
+                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderRight: SECTION_BORDER }}>
                     {ms.mw > 0 ? (((ms.dqw + ms.dql) / ms.mw) * 100).toFixed(1) : "—"}
                   </td>
                 </tr>
