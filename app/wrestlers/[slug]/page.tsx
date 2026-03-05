@@ -27,6 +27,7 @@ import {
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
@@ -248,6 +249,9 @@ export default async function WrestlerProfilePage({
   const pointsBySlug = aggregateWrestlerPoints(
     (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
   );
+  const matchStatsBySlug = aggregateWrestlerMatchStats(
+    (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
+  );
   const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, firstMonthEnd);
   const nameKey = wrestler.name ? normalizeWrestlerName(wrestler.name) : "";
   const extraBelt = getMonthlyBeltForWrestler(endOfMonthBySlug, wrestler.id, nameKey)
@@ -259,6 +263,10 @@ export default async function WrestlerProfilePage({
   const points = total(pointsBySlugParam) >= total(pointsById) ? pointsBySlugParam : pointsById;
   const beltPoints = points.beltPoints + extraBelt;
   const totalPoints = points.rsPoints + points.plePoints + beltPoints;
+
+  const matchStatsById = getMatchStatsForWrestler(matchStatsBySlug, wrestler.id, nameKey);
+  const matchStatsBySlugParam = slug && slug !== wrestler.id ? getMatchStatsForWrestler(matchStatsBySlug, slug, nameKey) : matchStatsById;
+  const matchStats = (matchStatsBySlugParam.mw >= matchStatsById.mw) ? matchStatsBySlugParam : matchStatsById;
 
   const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEnd, wrestler.id) || getTitleReignsForWrestler(reigns, firstMonthEnd, slug);
 
@@ -637,6 +645,23 @@ export default async function WrestlerProfilePage({
             <span style={{ opacity: 0.9, fontSize: 14 }}>Total Points</span>
             <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{totalPoints}</div>
           </div>
+        </div>
+
+        <div style={{ marginTop: 20, padding: "12px 16px", background: "var(--color-bg-elevated, #f8f9fa)", borderRadius: 8, border: "1px solid var(--color-border, #e9ecef)" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: 10, color: "var(--color-text-muted, #555)" }}>
+            Match record ({getPeriodLabel(currentPeriod)})
+          </h3>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 14 }}>
+            <span><strong>MW</strong> {matchStats.mw}</span>
+            <span><strong>Win</strong> {matchStats.win}</span>
+            <span><strong>Loss</strong> {matchStats.loss}</span>
+            <span><strong>NC</strong> {matchStats.nc}</span>
+            <span><strong>DQW</strong> {matchStats.dqw}</span>
+            <span><strong>DQL</strong> {matchStats.dql}</span>
+          </div>
+          <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, color: "var(--color-text-muted, #666)" }}>
+            MW = Matches wrestled · Win/Loss = standard · NC = No contest · DQW/DQL = Win/Loss via DQ
+          </p>
         </div>
       </section>
 
