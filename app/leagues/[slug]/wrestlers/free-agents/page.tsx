@@ -268,6 +268,8 @@ export default async function WrestlersFreeAgentsPage({
           defaultSortColumn="totalPoints"
           defaultSortDir="desc"
           defaultPointsPeriod="allTime"
+          leagueSlug={slug}
+          wrestlerProfileFrom="free-agents"
         />
       )}
     </main>

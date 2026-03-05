@@ -411,9 +411,19 @@ type WrestlerListProps = {
   defaultPointsPeriod?: PointsPeriod;
   /** League slug for "propose trade" links (e.g. League Leaders in a league context). */
   leagueSlug?: string | null;
+  /** When set with leagueSlug, profile links include from= so back nav returns here (e.g. "league-leaders", "free-agents"). */
+  wrestlerProfileFrom?: "league-leaders" | "free-agents" | null;
   /** Wrestler id -> owner info. When set, Status shows owner name + propose trade for rostered; else FA + add/flag. */
   rosterByWrestler?: Record<string, RosterOwnerInfo> | null;
 };
+
+function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | null): string {
+  const base = `/wrestlers/${encodeURIComponent(wrestlerId)}`;
+  if (!leagueSlug) return base;
+  const params = new URLSearchParams({ league: leagueSlug });
+  if (from) params.set("from", from);
+  return `${base}?${params.toString()}`;
+}
 
 export default function WrestlerList({
   wrestlers,
@@ -421,6 +431,7 @@ export default function WrestlerList({
   defaultSortDir = "asc",
   defaultPointsPeriod,
   leagueSlug,
+  wrestlerProfileFrom,
   rosterByWrestler,
 }: WrestlerListProps) {
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
@@ -578,7 +589,7 @@ export default function WrestlerList({
           return (
             <Link
               key={w.id}
-              href={`/wrestlers/${encodeURIComponent(w.id)}${leagueSlug ? `?league=${encodeURIComponent(leagueSlug)}` : ""}`}
+              href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)}
               className="wrestler-card"
             >
               <span
@@ -888,7 +899,7 @@ export default function WrestlerList({
                   >
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <Link
-                        href={`/wrestlers/${encodeURIComponent(w.id)}${leagueSlug ? `?league=${encodeURIComponent(leagueSlug)}` : ""}`}
+                        href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)}
                         style={{ color: "var(--color-blue)", textDecoration: "none" }}
                       >
                         {w.name || w.id}

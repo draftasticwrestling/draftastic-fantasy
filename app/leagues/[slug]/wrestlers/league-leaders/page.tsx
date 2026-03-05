@@ -273,6 +273,7 @@ export default async function LeagueLeadersPage({
           defaultSortDir="desc"
           defaultPointsPeriod="allTime"
           leagueSlug={slug}
+          wrestlerProfileFrom="league-leaders"
           rosterByWrestler={rosterByWrestler}
         />
       )}

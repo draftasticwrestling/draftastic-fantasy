@@ -142,12 +142,13 @@ export default async function WrestlerProfilePage({
   searchParams: searchParamsPromise,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ period?: string; league?: string }>;
+  searchParams?: Promise<{ period?: string; league?: string; from?: string }>;
 }) {
   const { slug } = await params;
   const searchParams = searchParamsPromise ? await searchParamsPromise : {};
   const periodParam = (searchParams.period ?? "").trim() as PointsPeriod | "";
   const leagueSlugParam = (searchParams.league ?? "").trim() || null;
+  const fromParam = (searchParams.from ?? "").trim() || null;
 
   const league = leagueSlugParam ? await getLeagueBySlug(leagueSlugParam) : null;
   const leagueStartDate = league ? getEffectiveLeagueStartDate(league) : null;
@@ -469,11 +470,20 @@ export default async function WrestlerProfilePage({
     rawStatus != null &&
     (String(rawStatus).trim().toLowerCase() === "injured" || String(rawStatus).trim().toLowerCase() === "inj");
 
+  const backHref =
+    leagueSlugParam && fromParam === "league-leaders"
+      ? `/leagues/${encodeURIComponent(leagueSlugParam)}/wrestlers/league-leaders`
+      : leagueSlugParam && fromParam === "free-agents"
+        ? `/leagues/${encodeURIComponent(leagueSlugParam)}/wrestlers/free-agents`
+        : "/wrestlers";
+  const backLabel =
+    fromParam === "league-leaders" ? "League Leaders" : fromParam === "free-agents" ? "Free Agents" : "Wrestlers";
+
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 900, margin: "0 auto", fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 20 }}>
-        <Link href="/wrestlers" style={{ color: "#1a73e8", textDecoration: "none" }}>
-          ← Wrestlers
+        <Link href={backHref} style={{ color: "#1a73e8", textDecoration: "none" }}>
+          ← {backLabel}
         </Link>
       </p>
 
