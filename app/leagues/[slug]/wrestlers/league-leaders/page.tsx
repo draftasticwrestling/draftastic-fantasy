@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
-import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
+import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
   getCurrentChampionsBySlug,
@@ -275,6 +275,7 @@ export default async function LeagueLeadersPage({
           leagueSlug={slug}
           wrestlerProfileFrom="league-leaders"
           rosterByWrestler={rosterByWrestler}
+          wrestlerSlugsWithUnparsed={wrestlerSlugsWithUnparsed}
         />
       )}
     </main>

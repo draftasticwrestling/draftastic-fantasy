@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 
 export type WrestlerRow = {
   id: string;
@@ -374,6 +375,29 @@ function InjuryBadge({ size = 20, className }: { size?: number; className?: stri
     </span>
   );
 }
+
+/** Yellow caution triangle with exclamation — matches needing review. */
+function CautionBadge({ size = 18, title = "Matches needing review" }: { size?: number; title?: string }) {
+  return (
+    <span
+      role="img"
+      aria-label={title}
+      title={title}
+      style={{ display: "inline-flex", flexShrink: 0, verticalAlign: "middle", lineHeight: 1 }}
+    >
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M12 2L2 22h20L12 2z"
+          fill="#facc15"
+          stroke="#1c1917"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        <path d="M12 9v5M12 17v1.5" stroke="#1c1917" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
 const BORDER_TABLE = "#e0e0e0";
 const HEADER_BG = "#f0f2f5";
 /** Bolder border around Points and Matches sections. */
@@ -433,6 +457,7 @@ export default function WrestlerList({
   leagueSlug,
   wrestlerProfileFrom,
   rosterByWrestler,
+  wrestlerSlugsWithUnparsed,
 }: WrestlerListProps) {
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
   const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
@@ -615,8 +640,11 @@ export default function WrestlerList({
                 )}
               </div>
               <div className="wrestler-card-body">
-                <span className="wrestler-card-name">
+                <span className="wrestler-card-name" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   {w.name || w.id}
+                  {wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && (
+                    <CautionBadge size={16} />
+                  )}
                   {isInjured(w.status) && (
                     <span className="wrestler-card-inj" aria-label="Injured"> INJ</span>
                   )}
@@ -904,6 +932,9 @@ export default function WrestlerList({
                       >
                         {w.name || w.id}
                       </Link>
+                      {wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && (
+                        <CautionBadge size={18} />
+                      )}
                       {isInjured(w.status) && (
                         <>
                           <InjuryBadge size={18} />
