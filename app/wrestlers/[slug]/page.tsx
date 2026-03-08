@@ -32,6 +32,8 @@ import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.j
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { WrestlerPointsPeriodSelector, type PointsPeriod } from "./WrestlerPointsPeriodSelector";
+import { WrestlerProfileBackLink } from "./WrestlerProfileBackLink";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -235,6 +237,8 @@ export default async function WrestlerProfilePage({
   );
   const events = filterEventsByPeriod(allEvents, currentPeriod, leagueStartDate);
   const firstMonthEnd = getFirstMonthEndForPeriod(currentPeriod, leagueStartDate);
+  // Monthly belt points and title reigns display always from Jan 2025 so all profiles show/count Jan 2025 onward
+  const firstMonthEndForBelt = FIRST_END_OF_MONTH_POINTS_DATE;
 
   const { data: rawReigns } = await db
     .from("championship_history")
@@ -253,7 +257,7 @@ export default async function WrestlerProfilePage({
   const matchStatsBySlug = aggregateWrestlerMatchStats(
     (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
   );
-  const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, firstMonthEnd);
+  const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, firstMonthEndForBelt);
   const nameKey = wrestler.name ? normalizeWrestlerName(wrestler.name) : "";
   const extraBelt = getMonthlyBeltForWrestler(endOfMonthBySlug, wrestler.id, nameKey)
     || (slug && slug !== wrestler.id ? getMonthlyBeltForWrestler(endOfMonthBySlug, slug, nameKey) : 0);
@@ -276,7 +280,7 @@ export default async function WrestlerProfilePage({
   const unparsedBySlugParam = slug && slug !== wrestler.id ? getUnparsedMatchesForWrestler(unparsedBySlug, slug, nameKey) : unparsedById;
   const unparsedMatches = unparsedBySlugParam.length >= unparsedById.length ? unparsedBySlugParam : unparsedById;
 
-  const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEnd, wrestler.id) || getTitleReignsForWrestler(reigns, firstMonthEnd, slug);
+  const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEndForBelt, wrestler.id) || getTitleReignsForWrestler(reigns, firstMonthEndForBelt, slug);
 
   const { data: wrestlersList } = await db.from("wrestlers").select("id, name");
   const slugToCanonical = new Map<string, string>();
@@ -470,21 +474,12 @@ export default async function WrestlerProfilePage({
     rawStatus != null &&
     (String(rawStatus).trim().toLowerCase() === "injured" || String(rawStatus).trim().toLowerCase() === "inj");
 
-  const backHref =
-    leagueSlugParam && fromParam === "league-leaders"
-      ? `/leagues/${encodeURIComponent(leagueSlugParam)}/wrestlers/league-leaders`
-      : leagueSlugParam && fromParam === "free-agents"
-        ? `/leagues/${encodeURIComponent(leagueSlugParam)}/wrestlers/free-agents`
-        : "/wrestlers";
-  const backLabel =
-    fromParam === "league-leaders" ? "League Leaders" : fromParam === "free-agents" ? "Free Agents" : "Wrestlers";
-
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 900, margin: "0 auto", fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 20 }}>
-        <Link href={backHref} style={{ color: "#1a73e8", textDecoration: "none" }}>
-          ← {backLabel}
-        </Link>
+        <Suspense fallback={<Link href="/wrestlers" style={{ color: "#1a73e8", textDecoration: "none" }}>← Wrestlers</Link>}>
+          <WrestlerProfileBackLink />
+        </Suspense>
       </p>
 
       <section style={{ display: "flex", gap: 24, alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap" }}>

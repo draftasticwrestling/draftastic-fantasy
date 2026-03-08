@@ -157,7 +157,7 @@ export default async function LeagueLeadersPage({
   // Only award end-of-month belt points for month-ends on or after league start (e.g. league started 2/20/26 → first eligible month-end is 2/28/26; current month excluded until passed).
   const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
   const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
-  const firstEligibleMonthEndAllTime = "2020-01-31";
+  const firstEligibleMonthEndAllTime = "2025-01-31"; // monthly belt points from Jan 2025 onward
   const endOfMonthBeltPointsAllTime = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEndAllTime);
   const endOfMonthBeltPoints2025 = computeEndOfMonthBeltPoints(reigns, "2025-01-31", "2025-12-31");
   const endOfMonthBeltPoints2026 = computeEndOfMonthBeltPoints(reigns, "2026-01-31");

@@ -4,6 +4,8 @@ import "./globals.css";
 import Nav from "./components/Nav";
 import PageLayout from "./components/PageLayout";
 
+const GA_MEASUREMENT_ID = "G-NQSQEP66V2";
+
 const LANDING_DOMAIN = "draftasticprowrestling.com";
 
 export const metadata: Metadata = {
@@ -23,6 +25,23 @@ export default async function RootLayout({
   if (isLandingDomain) {
     return (
       <html lang="en">
+        <head>
+          {/* Google tag (gtag.js) - draftasticprowrestling.com */}
+          <script
+            async
+            src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA_MEASUREMENT_ID}');
+              `,
+            }}
+          />
+        </head>
         <body>{children}</body>
       </html>
     );
@@ -30,6 +49,23 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
+      <head>
+        {/* Google tag (gtag.js) - all pages */}
+        <script
+          async
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${GA_MEASUREMENT_ID}');
+            `,
+          }}
+        />
+      </head>
       <body>
         <Nav />
         <PageLayout>{children}</PageLayout>
