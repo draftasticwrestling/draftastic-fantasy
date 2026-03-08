@@ -241,6 +241,9 @@ export default async function EventResultsPage({
   const isKOTRPLE =
     scored.eventType === EVENT_TYPES.NIGHT_OF_CHAMPIONS ||
     scored.eventType === EVENT_TYPES.KING_QUEEN_OF_THE_RING;
+  const isRSEvent =
+    scored.eventType === EVENT_TYPES.RAW ||
+    scored.eventType === EVENT_TYPES.SMACKDOWN;
 
   type KotrDebugRow = { eventId: string; eventName: string; date: string; eventType: string; isRS: boolean; matchSummary: string[] };
   type RawMatchInspect = { order: number; keys: string[]; stipulationLike: string; participantsLike: string };
@@ -984,7 +987,7 @@ export default async function EventResultsPage({
                             }}
                           >
                             <div>{wp.total} pts</div>
-                            {kotrTowardNOC > 0 && (
+                            {kotrTowardNOC > 0 && !isRSEvent && (
                               <div
                                 style={{
                                   marginTop: 4,
