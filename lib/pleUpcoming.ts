@@ -13,6 +13,8 @@ export type UpcomingMatch = {
   eventId: string;
   /** Match order within the event */
   order: number;
+  /** Participant wrestler slugs (lowercase) for roster matching, e.g. ["cody-rhodes", "randy-orton"] */
+  participantSlugs: string[];
   /** Raw match object for scoring when event is completed */
   raw?: Record<string, unknown>;
 };
@@ -45,6 +47,15 @@ function formatParticipants(participants: string | null | undefined): string {
     .join(" vs. ");
 }
 
+/** Parse participants string into lowercase slugs for roster matching. */
+function parseParticipantSlugs(participants: string | null | undefined): string[] {
+  if (!participants || typeof participants !== "string") return [];
+  return participants
+    .split(/\s+vs\.?\s+/i)
+    .map((s) => s.trim().toLowerCase().replace(/\s+/g, "-"))
+    .filter(Boolean);
+}
+
 /** Build a single match label from raw match object (Boxscore shape). */
 function matchToLabel(match: Record<string, unknown>, eventId: string, order: number): UpcomingMatch {
   const title = (match.title ?? match.matchType ?? "") as string;
@@ -53,7 +64,8 @@ function matchToLabel(match: Record<string, unknown>, eventId: string, order: nu
   const formattedParticipants = formatParticipants(participants || result);
   const titlePart = title?.trim() ? `${title.trim()}: ` : "";
   const label = formattedParticipants ? `${titlePart}${formattedParticipants}` : titlePart || `Match ${order}`;
-  return { label: label.trim() || `Match ${order}`, eventId, order, raw: match };
+  const participantSlugs = parseParticipantSlugs(participants || result);
+  return { label: label.trim() || `Match ${order}`, eventId, order, participantSlugs, raw: match };
 }
 
 /**
