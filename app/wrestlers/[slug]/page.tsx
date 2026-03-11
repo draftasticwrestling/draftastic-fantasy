@@ -28,6 +28,7 @@ import {
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
+import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
@@ -250,10 +251,14 @@ export default async function WrestlerProfilePage({
   // Monthly belt points and title reigns display always from Jan 2025 so all profiles show/count Jan 2025 onward
   const firstMonthEndForBelt = FIRST_END_OF_MONTH_POINTS_DATE;
 
-  const { data: rawReigns } = await db
-    .from("championship_history")
-    .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
-    .order("won_date", { ascending: true });
+  const [reignsResult, currentFromChanges] = await Promise.all([
+    db
+      .from("championship_history")
+      .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
+      .order("won_date", { ascending: true }),
+    getCurrentChampionsFromChanges(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
+  ]);
+  const { data: rawReigns } = reignsResult;
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
   const eventsWithDate = (events ?? []).filter((e): e is typeof e & { date: string } => e.date != null);
   const inferredReigns = inferReignsFromEvents(
@@ -303,10 +308,48 @@ export default async function WrestlerProfilePage({
     (slug ? currentChampionsBySlug[slug] : null) ??
     (nameKey ? currentChampionsBySlug[nameKey] : null) ??
     [];
-  const primaryCurrentTitle = currentTitles[0] ?? null;
+
+  // Prefer current champion from "championship_changes" table if present (e.g. Boxscore sync)
+  const fromChanges =
+    currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
+
+  const primaryCurrentTitle = fromChanges
+    ? fromChanges.title
+    : (currentTitles[0] ?? null);
   const championBeltImageUrl = primaryCurrentTitle
     ? getBeltImageUrlForTitle(primaryCurrentTitle, wrestler.gender)
     : null;
+
+  const today = new Date().toISOString().slice(0, 10);
+  let reignWonDate: string | null;
+  if (fromChanges) {
+    reignWonDate = fromChanges.wonDate.slice(0, 10);
+  } else {
+    const currentReign =
+      primaryCurrentTitle && reigns?.length
+        ? reigns.find((r) => {
+            const lost = (r.lost_date ?? r.end_date) ? String(r.lost_date ?? r.end_date).slice(0, 10) : null;
+            if (lost != null && lost <= today) return false;
+            const titleName = (r.title ?? r.title_name ?? "").trim();
+            if (titleName !== primaryCurrentTitle) return false;
+            const champName = r.champion ?? r.champion_name ?? "";
+            const raw =
+              r.champion_slug ?? r.champion_id ?? (champName ? normalizeWrestlerName(champName) : null);
+            if (!raw) return false;
+            const won = (r.won_date ?? r.start_date)?.slice(0, 10) ?? "";
+            const resolved = resolvePersonaToCanonical(raw, won) ?? raw;
+            const key = normalizeWrestlerName(resolved) || resolved.toLowerCase().trim();
+            return key === idKey || key === slugKey || (nameKey !== "" && key === nameKey);
+          })
+        : null;
+    reignWonDate = currentReign ? (currentReign.won_date ?? currentReign.start_date)?.slice(0, 10) ?? null : null;
+  }
+  const daysHeld =
+    reignWonDate
+      ? Math.floor(
+          (new Date().setHours(0, 0, 0, 0) - new Date(reignWonDate).setHours(0, 0, 0, 0)) / (24 * 60 * 60 * 1000)
+        )
+      : null;
 
   const { data: wrestlersList } = await db.from("wrestlers").select("id, name");
   const slugToCanonical = new Map<string, string>();
@@ -686,6 +729,27 @@ export default async function WrestlerProfilePage({
           </div>
         </div>
       </section>
+
+      {primaryCurrentTitle && (
+        <section style={{ marginBottom: 32 }}>
+          <div style={{ marginTop: 0, padding: "12px 16px", background: "linear-gradient(135deg, #f4e4bc 0%, #e8d08a 50%, #d4af37 100%)", borderRadius: 8, border: "1px solid #b8860b", boxShadow: "0 1px 3px rgba(184, 134, 11, 0.3)", textAlign: "center" }}>
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: 8, color: "#5c4a1a" }}>
+              Current championship
+            </h3>
+            <div style={{ fontSize: "1.35rem", fontWeight: 700, color: "#3d3511", marginBottom: 10, lineHeight: 1.2 }}>
+              {primaryCurrentTitle}
+            </div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 14, color: "#3d3511", justifyContent: "center" }}>
+              {reignWonDate && (
+                <span><strong>Won</strong> {formatDate(reignWonDate)}</span>
+              )}
+              {daysHeld != null && (
+                <span><strong>Days held</strong> {daysHeld}</span>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section style={{ marginBottom: 32 }}>
         <div style={{ marginTop: 0, padding: "12px 16px", background: "var(--color-bg-elevated, #f8f9fa)", borderRadius: 8, border: "1px solid var(--color-border, #e9ecef)" }}>
