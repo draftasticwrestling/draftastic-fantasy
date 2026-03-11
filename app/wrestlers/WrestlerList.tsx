@@ -351,7 +351,13 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
 
 const STICKY_COLUMN_COUNT = 6; // Roster, Rank, Image, Name, Titles, Status
 const STICKY_WIDTHS = [52, 48, 76, 160, 64, 96] as const;
-const stickyLefts = [0, 52, 100, 176, 336, 400]; // cumulative
+const STICKY_TOTAL_WIDTH = STICKY_WIDTHS.reduce((a, b) => a + b, 0); // 496
+const SCROLL_HEADERS = HEADER_CONFIG.slice(STICKY_COLUMN_COUNT);
+const SCROLL_TOTAL_WIDTH = SCROLL_HEADERS.reduce((s, h) => s + h.minW, 0);
+/** Fixed body row height so left and right table rows match. */
+const BODY_ROW_HEIGHT = 80;
+/** Fixed header row heights so left and right table headers match and body rows align. */
+const HEADER_ROW_HEIGHT = 40;
 
 const ROW_BG_ALT = "#f8f9fa";
 const ROW_BG_MAIN = "#ffffff";
@@ -693,483 +699,151 @@ export default function WrestlerList({
         })}
       </div>
 
-      {/* Desktop: table (hidden on mobile) */}
-      <div
-        className="wrestler-list-table-wrap"
-        style={{
-          border: "1px solid " + BORDER_TABLE,
-          borderRadius: 8,
-          overflow: "hidden",
-          background: ROW_BG_MAIN,
-          overflowX: "auto",
-          WebkitOverflowScrolling: "touch",
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto", minWidth: tableMinWidth }}>
-          <thead>
-            <tr>
-              {HEADER_CONFIG.slice(0, 9).map((h, i) => {
-                const fixedW = i < STICKY_COLUMN_COUNT ? STICKY_WIDTHS[i] : undefined;
-                return (
-                  <th
-                    key={`gh-${i}`}
-                    style={{
-                      ...thBase,
-                      minWidth: h.minW,
-                      ...(fixedW != null ? { width: fixedW, maxWidth: fixedW, boxSizing: "border-box" } : {}),
-                      borderBottom: "1px solid " + BORDER_TABLE,
-                    }}
-                  />
-                );
-              })}
-              <th
-                colSpan={5}
-                style={{
-                  ...thBase,
-                  minWidth: 72 * 3 + 80 + 56,
-                  textAlign: "center",
-                  borderBottom: "1px solid " + BORDER_TABLE,
-                  borderLeft: SECTION_BORDER,
-                  borderRight: SECTION_BORDER,
-                }}
-              >
-                Points
-              </th>
-              <th
-                colSpan={9}
-                style={{
-                  ...thBase,
-                  minWidth: 56 * 6 + 52 * 3,
-                  textAlign: "center",
-                  borderLeft: SECTION_BORDER,
-                  borderRight: SECTION_BORDER,
-                  borderBottom: "1px solid " + BORDER_TABLE,
-                }}
-              >
-                Matches
-              </th>
-            </tr>
-            <tr>
-              {HEADER_CONFIG.map((h, i) => {
+      {/* Desktop: single grid — one row definition for left + right so heights always match */}
+      {(() => {
+        const gridTemplateRows = "40px 40px " + flatList.map(() => "80px").join(" ");
+        const cellBorder = "1px solid " + BORDER_TABLE;
+        const scrollCols = SCROLL_HEADERS.map((h) => h.minW + "px").join(" ");
+        return (
+          <div
+            className="wrestler-list-table-wrap"
+            style={{
+              border: "1px solid " + BORDER_TABLE,
+              borderRadius: 8,
+              overflow: "hidden",
+              background: ROW_BG_MAIN,
+              display: "grid",
+              gridTemplateColumns: STICKY_TOTAL_WIDTH + "px 1fr",
+              gridTemplateRows,
+            }}
+          >
+            {/* Left column: one grid row per table row */}
+            <div style={{ gridColumn: 1, gridRow: 1, display: "grid", gridTemplateColumns: "52px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
+              {HEADER_CONFIG.slice(0, 6).map((_, i) => (
+                <div key={i} style={{ ...thBase, borderRight: cellBorder, borderBottom: "none" }} />
+              ))}
+            </div>
+            <div style={{ gridColumn: 1, gridRow: 2, display: "grid", gridTemplateColumns: "52px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
+              {HEADER_CONFIG.slice(0, 6).map((h, i) => {
                 const isSortable = h.key != null;
                 const isActive = sortColumn === h.key;
-                const isSticky = i < STICKY_COLUMN_COUNT;
-                const fixedW = isSticky ? STICKY_WIDTHS[i] : undefined;
-                const style: React.CSSProperties = {
-                  ...thBase,
-                  minWidth: h.minW,
-                  ...(fixedW != null ? { width: fixedW, maxWidth: fixedW, boxSizing: "border-box" } : {}),
-                  textAlign: h.align,
-                  ...(i === HEADER_CONFIG.length - 1 && !isSticky ? { borderRight: "none" } : {}),
-                  ...(isSticky
-                    ? {
-                        position: "sticky" as const,
-                        left: stickyLefts[i],
-                        zIndex: 2,
-                        background: HEADER_BG,
-                        ...(i === STICKY_COLUMN_COUNT - 1 ? { borderRight: "1px solid " + HEADER_BG } : {}),
-                        boxShadow: i === STICKY_COLUMN_COUNT - 1 ? "4px 0 8px rgba(0,0,0,0.08)" : undefined,
-                      }
-                    : {}),
-                  ...(h.section === "POINTS" && i === 9 ? { borderLeft: SECTION_BORDER } : {}),
-                  ...(h.section === "POINTS" && i === 13 ? { borderRight: SECTION_BORDER } : {}),
-                  ...(h.section === "MATCHES" && i === 14 ? { borderLeft: SECTION_BORDER } : {}),
-                  ...(h.section === "MATCHES" && i === 21 ? { borderRight: SECTION_BORDER } : {}),
-                };
-                if (!isSortable) {
-                  return <th key={i} style={style}>{h.label}</th>;
-                }
+                const style: React.CSSProperties = { ...thBase, textAlign: h.align, borderRight: cellBorder, borderBottom: "none", display: "flex", alignItems: "center" };
+                if (!isSortable) return <div key={i} style={style}>{h.label}</div>;
                 return (
-                  <th key={i} style={style}>
-                    <button
-                      type="button"
-                      onClick={() => handleSort(h.key as SortColumn)}
-                      style={{
-                        width: "100%",
-                        padding: 0,
-                        border: "none",
-                        background: "none",
-                        color: isActive ? "var(--color-blue)" : "inherit",
-                        font: "inherit",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: h.align === "center" ? "center" : "flex-start",
-                        gap: 4,
-                      }}
-                    >
+                  <div key={i} style={style}>
+                    <button type="button" onClick={() => handleSort(h.key as SortColumn)} style={{ width: "100%", padding: 0, border: "none", background: "none", color: isActive ? "var(--color-blue)" : "inherit", font: "inherit", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: h.align === "center" ? "center" : "flex-start", gap: 4 }}>
                       <span>{h.label}</span>
-                      {isActive && (
-                        <span style={{ opacity: 0.9 }} aria-hidden>
-                          {sortDir === "asc" ? "↑" : "↓"}
-                        </span>
-                      )}
+                      {isActive && <span style={{ opacity: 0.9 }}>{sortDir === "asc" ? "↑" : "↓"}</span>}
                     </button>
-                  </th>
+                  </div>
                 );
               })}
-            </tr>
-          </thead>
-          <tbody>
+            </div>
             {flatList.map((w, rowIndex) => {
               const roster = normalizeRoster(w.brand);
               const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
-              const age = calculateAge(w.dob);
-              const pts = getPointsForPeriod(w, pointsPeriod);
-              const ms = getMatchStatsForPeriod(w, pointsPeriod);
               const rowBg = rowIndex % 2 === 0 ? ROW_BG_MAIN : ROW_BG_ALT;
-              const cellBorder = "1px solid " + BORDER_TABLE;
-              const cellStyle = { borderBottom: cellBorder, borderRight: cellBorder, color: "#1a1a1a", background: rowBg };
               return (
-                <tr key={w.id}>
-                  <td
-                    style={{
-                      width: 52,
-                      minWidth: 52,
-                      maxWidth: 52,
-                      padding: 0,
-                      verticalAlign: "middle",
-                      textAlign: "center",
-                      borderBottom: cellBorder,
-                      borderRight: "1px solid " + style.showBg,
-                      background: style.showBg,
-                      position: "sticky",
-                      left: 0,
-                      zIndex: 1,
-                      boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    <div
-                      style={{
-                        writingMode: "vertical-rl",
-                        textOrientation: "mixed",
-                        transform: "rotate(-180deg)",
-                        height: 72,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: 0.5,
-                        color: "#fff",
-                      }}
-                    >
-                      {style.label}
-                    </div>
-                  </td>
-                  <td
-                    style={{
-                      width: 48,
-                      minWidth: 48,
-                      maxWidth: 48,
-                      padding: "10px 6px",
-                      textAlign: "center",
-                      fontWeight: 600,
-                      ...cellStyle,
-                      borderRight: "1px solid " + rowBg,
-                      position: "sticky",
-                      left: 52,
-                      zIndex: 1,
-                      boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    {rankByWrestlerId.get(w.id) ?? "—"}
-                  </td>
-                  <td
-                    style={{
-                      width: 76,
-                      minWidth: 76,
-                      maxWidth: 76,
-                      padding: 6,
-                      ...cellStyle,
-                      borderRight: "1px solid " + rowBg,
-                      position: "sticky",
-                      left: 100,
-                      zIndex: 1,
-                      boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    {w.image_url ? (
-                      <img
-                        src={w.image_url}
-                        alt={w.name || w.id}
-                        style={{
-                          width: 60,
-                          height: 60,
-                          objectFit: "cover",
-                          borderRadius: "50%",
-                          display: "block",
-                          background: BORDER_TABLE,
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 60,
-                          height: 60,
-                          borderRadius: "50%",
-                          background: ROW_BG_ALT,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#999",
-                          fontSize: 20,
-                        }}
-                        aria-hidden
-                      >
-                        —
-                      </div>
-                    )}
-                  </td>
-                  <td
-                    style={{
-                      width: 160,
-                      minWidth: 160,
-                      maxWidth: 160,
-                      padding: "10px 12px",
-                      fontWeight: 600,
-                      position: "sticky",
-                      left: 176,
-                      zIndex: 1,
-                      boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
-                      ...cellStyle,
-                      borderRight: "1px solid " + rowBg,
-                      boxSizing: "border-box",
-                    }}
-                  >
+                <div key={w.id} style={{ gridColumn: 1, gridRow: rowIndex + 3, display: "grid", gridTemplateColumns: "52px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
+                  <div style={{ padding: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRight: cellBorder, background: style.showBg }}>
+                    <span style={{ writingMode: "vertical-rl", transform: "rotate(-180deg)", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: "#fff" }}>{style.label}</span>
+                  </div>
+                  <div style={{ padding: "10px 6px", textAlign: "center", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center" }}>{rankByWrestlerId.get(w.id) ?? "—"}</div>
+                  <div style={{ padding: 6, borderRight: cellBorder, background: rowBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {w.image_url ? <img src={w.image_url} alt={w.name || w.id} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: "50%", display: "block", background: BORDER_TABLE }} /> : <div style={{ width: 60, height: 60, borderRadius: "50%", background: ROW_BG_ALT, display: "flex", alignItems: "center", justifyContent: "center", color: "#999", fontSize: 20 }} aria-hidden>—</div>}
+                  </div>
+                  <div style={{ padding: "10px 12px", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      <Link
-                        href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)}
-                        style={{ color: "var(--color-blue)", textDecoration: "none" }}
-                      >
-                        {w.name || w.id}
-                      </Link>
-                      {w.unparsedCount != null && (
-                        <>
-                          <span style={{ fontWeight: 600, color: "var(--color-text-muted)" }} title="Matches needing review">
-                            {w.unparsedCount}
-                          </span>
-                          {w.unparsedCount > 0 && <CautionBadge size={18} />}
-                        </>
-                      )}
-                      {w.unparsedCount == null && wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && (
-                        <CautionBadge size={18} />
-                      )}
-                      {isInjured(w.status) && (
-                        <>
-                          <InjuryBadge size={18} />
-                          <span style={{ color: "#c00", fontWeight: 600, fontSize: 11 }}>INJ</span>
-                        </>
-                      )}
+                      <Link href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)} style={{ color: "var(--color-blue)", textDecoration: "none" }}>{w.name || w.id}</Link>
+                      {w.unparsedCount != null && <><span style={{ fontWeight: 600, color: "var(--color-text-muted)" }} title="Matches needing review">{w.unparsedCount}</span>{w.unparsedCount > 0 && <CautionBadge size={18} />}</>}
+                      {w.unparsedCount == null && wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && <CautionBadge size={18} />}
+                      {isInjured(w.status) && <><InjuryBadge size={18} /><span style={{ color: "#c00", fontWeight: 600, fontSize: 11 }}>INJ</span></>}
                     </span>
-                    {w.currentChampionship && (
-                      <div style={{ fontSize: 11, fontWeight: 500, color: "#b8860b", marginTop: 2 }}>
-                        {w.currentChampionship}
-                      </div>
-                    )}
-                    {w.personaDisplay && (
-                      <div style={{ fontSize: 11, fontWeight: 400, color: "var(--color-text-muted)", fontStyle: "italic", marginTop: 2 }}>
-                        {w.personaDisplay}
-                      </div>
-                    )}
-                  </td>
-                  <td
-                    style={{
-                      width: 64,
-                      minWidth: 64,
-                      maxWidth: 64,
-                      padding: 6,
-                      textAlign: "center",
-                      verticalAlign: "middle",
-                      ...cellStyle,
-                      borderRight: "1px solid " + rowBg,
-                      position: "sticky",
-                      left: 336,
-                      zIndex: 1,
-                      boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    {w.championBeltImageUrl ? (
-                      <img
-                        src={w.championBeltImageUrl}
-                        alt=""
-                        aria-hidden
-                        style={{
-                          width: 56,
-                          height: 32,
-                          objectFit: "contain",
-                          display: "block",
-                          margin: "0 auto",
-                        }}
-                      />
-                    ) : null}
-                  </td>
-                  <td
-                    style={{
-                      width: 96,
-                      minWidth: 96,
-                      maxWidth: 96,
-                      padding: "8px",
-                      textAlign: "center",
-                      ...cellStyle,
-                      borderRight: "1px solid " + rowBg,
-                      position: "sticky",
-                      left: 400,
-                      zIndex: 1,
-                      boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
-                      boxSizing: "border-box",
-                    }}
-                  >
+                    {w.currentChampionship && <div style={{ fontSize: 11, fontWeight: 500, color: "#b8860b", marginTop: 2 }}>{w.currentChampionship}</div>}
+                    {w.personaDisplay && <div style={{ fontSize: 11, fontWeight: 400, color: "var(--color-text-muted)", fontStyle: "italic", marginTop: 2 }}>{w.personaDisplay}</div>}
+                  </div>
+                  <div style={{ padding: 6, textAlign: "center", borderRight: cellBorder, background: rowBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {w.championBeltImageUrl ? <img src={w.championBeltImageUrl} alt="" aria-hidden style={{ width: 56, height: 32, objectFit: "contain", display: "block" }} /> : null}
+                  </div>
+                  <div style={{ padding: "8px", textAlign: "center", background: rowBg, color: "#1a1a1a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                     {rosterByWrestler?.[w.id] ? (
                       <>
-                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>
-                          {rosterByWrestler[w.id].ownerName}
-                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>{rosterByWrestler[w.id].ownerName}</div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                          {leagueSlug && (
-                            <Link
-                              href={`/leagues/${encodeURIComponent(leagueSlug)}/team?proposeTradeTo=${encodeURIComponent(rosterByWrestler[w.id].ownerUserId)}`}
-                              style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: "50%",
-                                background: "#e5e5e5",
-                                border: "none",
-                                color: "#000",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                textDecoration: "none",
-                              }}
-                              title="Propose trade"
-                              aria-label={`Propose trade with ${rosterByWrestler[w.id].ownerName}`}
-                            >
-                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                <path d="M13 5H4M4 5L6 3M4 5l2 2" />
-                                <path d="M3 11h9M12 11l-2-2M12 11l-2 2" />
-                              </svg>
-                            </Link>
-                          )}
+                          {leagueSlug && <Link href={`/leagues/${encodeURIComponent(leagueSlug)}/team?proposeTradeTo=${encodeURIComponent(rosterByWrestler[w.id].ownerUserId)}`} style={{ width: 32, height: 32, borderRadius: "50%", background: "#e5e5e5", border: "none", color: "#000", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }} title="Propose trade" aria-label={`Propose trade with ${rosterByWrestler[w.id].ownerName}`}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M13 5H4M4 5L6 3M4 5l2 2" /><path d="M3 11h9M12 11l-2-2M12 11l-2 2" /></svg></Link>}
                         </div>
                       </>
                     ) : (
                       <>
                         <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>FA</div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                          <Link
-                            href={
-                              leagueSlug
-                                ? `/leagues/${encodeURIComponent(leagueSlug)}/team?addFa=${encodeURIComponent(w.id)}`
-                                : `/wrestlers/${encodeURIComponent(w.id)}`
-                            }
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: "50%",
-                              background: "var(--color-blue)",
-                              color: "#fff",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              textDecoration: "none",
-                              fontWeight: 700,
-                              fontSize: 18,
-                              lineHeight: 1,
-                            }}
-                            title={leagueSlug ? "Sign free agent (go to My Team)" : "View wrestler"}
-                            aria-label={leagueSlug ? `Sign ${w.name || w.id} as free agent` : `View ${w.name || w.id}`}
-                          >
-                            +
-                          </Link>
-                          <Link
-                            href={
-                              leagueSlug
-                                ? `/leagues/${encodeURIComponent(leagueSlug)}/watchlist?add=${encodeURIComponent(w.id)}`
-                                : `/wrestlers/watch?add=${encodeURIComponent(w.id)}`
-                            }
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: "50%",
-                              background: "transparent",
-                              border: "1px solid " + BORDER_TABLE,
-                              color: "var(--color-text)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              textDecoration: "none",
-                              fontSize: 14,
-                            }}
-                            title="Watchlist"
-                            aria-label="Add to watch list"
-                          >
-                            ⚑
-                          </Link>
+                          <Link href={leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}/team?addFa=${encodeURIComponent(w.id)}` : `/wrestlers/${encodeURIComponent(w.id)}`} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-blue)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontWeight: 700, fontSize: 18, lineHeight: 1 }} title={leagueSlug ? "Sign free agent (go to My Team)" : "View wrestler"} aria-label={leagueSlug ? `Sign ${w.name || w.id} as free agent` : `View ${w.name || w.id}`}>+</Link>
+                          <Link href={leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}/watchlist?add=${encodeURIComponent(w.id)}` : `/wrestlers/watch?add=${encodeURIComponent(w.id)}`} style={{ width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "1px solid " + BORDER_TABLE, color: "var(--color-text)", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: 14 }} title="Watchlist" aria-label="Add to watch list">⚑</Link>
                         </div>
                       </>
                     )}
-                  </td>
-                  <td style={{ minWidth: 68, padding: "10px 8px", textAlign: "center", ...cellStyle }}>
-                    {normalizeGender(w.gender)}
-                  </td>
-                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", ...cellStyle }}>
-                    {age != null ? age : "—"}
-                  </td>
-                  <td style={{ minWidth: 48, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, fontWeight: 700, color: "#c00" }}>
-                    {w.rating_2k26 != null ? w.rating_2k26 : w.rating_2k25 != null ? w.rating_2k25 : "—"}
-                  </td>
-                  <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle, borderLeft: SECTION_BORDER }}>
-                    {pts.rsPoints}
-                  </td>
-                  <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
-                    {pts.plePoints}
-                  </td>
-                  <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle }}>
-                    {pts.beltPoints}
-                  </td>
-                  <td style={{ minWidth: 80, padding: "10px 8px", textAlign: "center", fontWeight: 700, ...cellStyle }}>
-                    {pts.totalPoints}
-                  </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderRight: SECTION_BORDER }}>
-                    {ms.mw > 0 ? ((pts.rsPoints + pts.plePoints) / ms.mw).toFixed(1) : "—"}
-                  </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderLeft: SECTION_BORDER }}>
-                    {ms.mw}
-                  </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
-                    {ms.win}
-                  </td>
-                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
-                    {ms.mw > 0 ? ((ms.win / ms.mw) * 100).toFixed(1) : "—"}
-                  </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
-                    {ms.loss}
-                  </td>
-                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
-                    {ms.mw > 0 ? ((ms.loss / ms.mw) * 100).toFixed(1) : "—"}
-                  </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
-                    {ms.nc}
-                  </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
-                    {ms.dqw}
-                  </td>
-                  <td style={{ minWidth: 56, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
-                    {ms.dql}
-                  </td>
-                  <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, borderRight: SECTION_BORDER }}>
-                    {ms.mw > 0 ? (((ms.dqw + ms.dql) / ms.mw) * 100).toFixed(1) : "—"}
-                  </td>
-                </tr>
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+            {/* Right column: single cell spanning all rows, inner grid with same row template */}
+            <div style={{ gridColumn: 2, gridRow: "1 / -1", minWidth: 0, overflowX: "auto", WebkitOverflowScrolling: "touch", borderLeft: "1px solid " + BORDER_TABLE, background: HEADER_BG }}>
+              <div style={{ display: "grid", gridTemplateColumns: scrollCols, gridTemplateRows, width: SCROLL_TOTAL_WIDTH + "px", minWidth: SCROLL_TOTAL_WIDTH + "px" }}>
+                <div style={{ gridRow: 1, display: "grid", gridTemplateColumns: scrollCols, borderBottom: cellBorder }}>
+                  <div style={{ ...thBase, gridColumn: "1 / 4", borderRight: cellBorder, borderBottom: cellBorder }} />
+                  <div style={{ ...thBase, gridColumn: "4 / 9", textAlign: "center", borderLeft: SECTION_BORDER, borderRight: SECTION_BORDER, borderBottom: cellBorder }}>Points</div>
+                  <div style={{ ...thBase, gridColumn: "9 / -1", textAlign: "center", borderLeft: SECTION_BORDER, borderRight: cellBorder, borderBottom: cellBorder }}>Matches</div>
+                </div>
+                <div style={{ gridRow: 2, display: "grid", gridTemplateColumns: scrollCols, borderBottom: cellBorder }}>
+                  {SCROLL_HEADERS.map((h, i) => {
+                    const isSortable = h.key != null;
+                    const isActive = sortColumn === h.key;
+                    const idx = i + STICKY_COLUMN_COUNT;
+                    const style: React.CSSProperties = { ...thBase, minWidth: h.minW, textAlign: h.align, borderRight: idx === HEADER_CONFIG.length - 1 ? cellBorder : cellBorder, borderBottom: cellBorder, display: "flex", alignItems: "center", ...(h.section === "POINTS" && idx === 9 ? { borderLeft: SECTION_BORDER } : {}), ...(h.section === "POINTS" && idx === 13 ? { borderRight: SECTION_BORDER } : {}), ...(h.section === "MATCHES" && idx === 14 ? { borderLeft: SECTION_BORDER } : {}) };
+                    if (!isSortable) return <div key={i} style={style}>{h.label}</div>;
+                    return (
+                      <div key={i} style={style}>
+                        <button type="button" onClick={() => handleSort(h.key as SortColumn)} style={{ width: "100%", padding: 0, border: "none", background: "none", color: isActive ? "var(--color-blue)" : "inherit", font: "inherit", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: h.align === "center" ? "center" : "flex-start", gap: 4 }}>
+                          <span>{h.label}</span>
+                          {isActive && <span style={{ opacity: 0.9 }}>{sortDir === "asc" ? "↑" : "↓"}</span>}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {flatList.map((w, rowIndex) => {
+                  const age = calculateAge(w.dob);
+                  const pts = getPointsForPeriod(w, pointsPeriod);
+                  const ms = getMatchStatsForPeriod(w, pointsPeriod);
+                  const rowBg = rowIndex % 2 === 0 ? ROW_BG_MAIN : ROW_BG_ALT;
+                  const cellStyle: React.CSSProperties = { borderRight: cellBorder, borderBottom: cellBorder, color: "#1a1a1a", background: rowBg, padding: "10px 8px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center" };
+                  return (
+                    <div key={w.id} style={{ gridRow: rowIndex + 3, display: "grid", gridTemplateColumns: scrollCols }}>
+                      <div style={cellStyle}>{normalizeGender(w.gender)}</div>
+                      <div style={cellStyle}>{age != null ? age : "—"}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "#c00" }}>{w.rating_2k26 != null ? w.rating_2k26 : w.rating_2k25 != null ? w.rating_2k25 : "—"}</div>
+                      <div style={{ ...cellStyle, fontWeight: 600, borderLeft: SECTION_BORDER }}>{pts.rsPoints}</div>
+                      <div style={{ ...cellStyle, fontWeight: 600 }}>{pts.plePoints}</div>
+                      <div style={{ ...cellStyle, fontWeight: 600 }}>{pts.beltPoints}</div>
+                      <div style={{ ...cellStyle, fontWeight: 700 }}>{pts.totalPoints}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>{ms.mw > 0 ? ((pts.rsPoints + pts.plePoints) / ms.mw).toFixed(1) : "—"}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderLeft: SECTION_BORDER }}>{ms.mw}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.win}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.win / ms.mw) * 100).toFixed(1) : "—"}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.loss}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.loss / ms.mw) * 100).toFixed(1) : "—"}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.nc}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dqw}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dql}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>{ms.mw > 0 ? (((ms.dqw + ms.dql) / ms.mw) * 100).toFixed(1) : "—"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {flatList.length === 0 && (
         <p style={{ marginTop: 16, color: "var(--color-text-muted)", textAlign: "center" }}>
