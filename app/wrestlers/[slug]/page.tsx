@@ -21,11 +21,13 @@ import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.j
 import {
   computeEndOfMonthBeltPoints,
   FIRST_END_OF_MONTH_POINTS_DATE,
+  getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   getTitleReignsForWrestler,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
@@ -33,7 +35,15 @@ import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { WrestlerPointsPeriodSelector, type PointsPeriod } from "./WrestlerPointsPeriodSelector";
 import { WrestlerProfileBackLink } from "./WrestlerProfileBackLink";
+import { WrestlerProfileImage } from "./WrestlerProfileImage";
+import { getWrestlerFullImageUrl } from "@/lib/wrestlerImages";
 import { Suspense } from "react";
+
+/** True if URL looks like a full-body image (e.g. .../cody-rhodes-full.png). */
+function isFullBodyImageUrl(url: string | null): boolean {
+  if (!url || typeof url !== "string") return false;
+  return /-full\.(png|jpg|jpeg|webp)/i.test(url);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -282,6 +292,22 @@ export default async function WrestlerProfilePage({
 
   const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEndForBelt, wrestler.id) || getTitleReignsForWrestler(reigns, firstMonthEndForBelt, slug);
 
+  const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
+  // Keys in currentChampionsBySlug are canonical (normalizeWrestlerName); use same normalization for lookup
+  const idKey = normalizeWrestlerName(String(wrestler.id));
+  const slugKey = slug ? normalizeWrestlerName(slug) : "";
+  const currentTitles =
+    currentChampionsBySlug[idKey] ??
+    currentChampionsBySlug[wrestler.id] ??
+    (slugKey ? currentChampionsBySlug[slugKey] : null) ??
+    (slug ? currentChampionsBySlug[slug] : null) ??
+    (nameKey ? currentChampionsBySlug[nameKey] : null) ??
+    [];
+  const primaryCurrentTitle = currentTitles[0] ?? null;
+  const championBeltImageUrl = primaryCurrentTitle
+    ? getBeltImageUrlForTitle(primaryCurrentTitle, wrestler.gender)
+    : null;
+
   const { data: wrestlersList } = await db.from("wrestlers").select("id, name");
   const slugToCanonical = new Map<string, string>();
   for (const w of wrestlersList ?? []) {
@@ -482,31 +508,53 @@ export default async function WrestlerProfilePage({
         </Suspense>
       </p>
 
-      <section style={{ display: "flex", gap: 24, alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap" }}>
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          {wrestler.image_url ? (
-            <img
-              src={wrestler.image_url}
-              alt={displayName}
-              style={{ width: 120, height: 120, objectFit: "cover", borderRadius: "50%", background: "#333" }}
-            />
-          ) : (
-            <div
-              style={{
-                width: 120,
-                height: 120,
-                borderRadius: "50%",
-                background: "#ddd",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#666",
-                fontSize: 32,
-              }}
-            >
-              —
-            </div>
+      <div style={{ marginBottom: 16, display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "8px 16px" }}>
+        <h1 style={{ margin: 0, fontSize: "1.75rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+          {displayName}
+          {isInjured && (
+            <span style={{ color: "#c00", fontWeight: 600, fontSize: "0.85em" }}>INJ</span>
           )}
+        </h1>
+        <a
+          href={boxscoreUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#1a73e8", textDecoration: "none", fontSize: 15 }}
+        >
+          View profile on Pro Wrestling Boxscore →
+        </a>
+        <p style={{ margin: 0, color: "#555", width: "100%" }}>
+          {wrestler.brand ?? "—"} · {wrestler.gender ? (String(wrestler.gender).toLowerCase() === "male" || wrestler.gender === "M" ? "Male" : "Female") : "—"}
+          {age != null ? ` · ${age} years old` : ""}
+          {(() => {
+            const r26 = (wrestler as Record<string, unknown>)["2K26 rating"];
+            const r25 = (wrestler as Record<string, unknown>)["2K25 rating"];
+            const n26 = r26 != null && r26 !== "" ? Number(r26) : null;
+            const n25 = r25 != null && r25 !== "" ? Number(r25) : null;
+            const val = n26 ?? n25;
+            if (val == null || Number.isNaN(val)) return null;
+            return ` · 2K Rating: ${val}${n26 != null ? " (2K26)" : " (2K25)"}`;
+          })()}
+        </p>
+      </div>
+
+      <section style={{ display: "flex", gap: 24, alignItems: "stretch", marginBottom: 32, flexWrap: "wrap" }}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <WrestlerProfileImage
+            fullImageUrl={
+              isFullBodyImageUrl(wrestler.image_url)
+                ? wrestler.image_url
+                : getWrestlerFullImageUrl(slug)
+            }
+            fallbackImageUrl={
+              isFullBodyImageUrl(wrestler.image_url)
+                ? getWrestlerFullImageUrl(slug)
+                : wrestler.image_url
+            }
+            alt={displayName}
+            variant="full"
+            beltImageUrl={championBeltImageUrl}
+          />
           {isInjured && (
             <span
               title="Injured"
@@ -531,27 +579,8 @@ export default async function WrestlerProfilePage({
             </span>
           )}
         </div>
-        <div style={{ flex: "1 1 300px" }}>
-          <h1 style={{ margin: "0 0 8px", fontSize: "1.75rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-            {displayName}
-            {isInjured && (
-              <span style={{ color: "#c00", fontWeight: 600, fontSize: "0.85em" }}>INJ</span>
-            )}
-          </h1>
-          <p style={{ margin: "0 0 4px", color: "#555" }}>
-            {wrestler.brand ?? "—"} · {wrestler.gender ? (String(wrestler.gender).toLowerCase() === "male" || wrestler.gender === "M" ? "Male" : "Female") : "—"}
-            {age != null ? ` · ${age} years old` : ""}
-            {(() => {
-              const r26 = (wrestler as Record<string, unknown>)["2K26 rating"];
-              const r25 = (wrestler as Record<string, unknown>)["2K25 rating"];
-              const n26 = r26 != null && r26 !== "" ? Number(r26) : null;
-              const n25 = r25 != null && r25 !== "" ? Number(r25) : null;
-              const val = n26 ?? n25;
-              if (val == null || Number.isNaN(val)) return null;
-              return ` · 2K Rating: ${val}${n26 != null ? " (2K26)" : " (2K25)"}`;
-            })()}
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 12 }}>
+        <div style={{ flex: "1 1 320px", minWidth: 0, height: 280, display: "flex", flexDirection: "column", gap: 6, justifyContent: "space-between" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
             {rosterOwner && leagueSlugParam ? (
               <Link
                 href={`/leagues/${encodeURIComponent(leagueSlugParam)}/team?proposeTradeTo=${encodeURIComponent(rosterOwner.userId)}#propose-trade`}
@@ -559,18 +588,18 @@ export default async function WrestlerProfilePage({
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 6,
-                  padding: "8px 14px",
-                  fontSize: 14,
+                  gap: 4,
+                  padding: "5px 10px",
+                  fontSize: 12,
                   fontWeight: 600,
                   color: "#1a1a1a",
                   background: "#e5e5e5",
                   border: "1px solid #ccc",
-                  borderRadius: 6,
+                  borderRadius: 4,
                   textDecoration: "none",
                 }}
               >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M13 5H4M4 5L6 3M4 5l2 2" />
                   <path d="M3 11h9M12 11l-2-2M12 11l-2 2" />
                 </svg>
@@ -585,13 +614,13 @@ export default async function WrestlerProfilePage({
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      padding: "8px 14px",
-                      fontSize: 14,
+                      padding: "5px 10px",
+                      fontSize: 12,
                       fontWeight: 600,
                       color: "#fff",
                       background: "var(--color-blue)",
                       border: "none",
-                      borderRadius: 6,
+                      borderRadius: 4,
                       textDecoration: "none",
                     }}
                   >
@@ -604,13 +633,13 @@ export default async function WrestlerProfilePage({
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    padding: "8px 14px",
-                    fontSize: 14,
+                    padding: "5px 10px",
+                    fontSize: 12,
                     fontWeight: 600,
                     color: "var(--color-text)",
                     background: "transparent",
                     border: "1px solid var(--color-border)",
-                    borderRadius: 6,
+                    borderRadius: 4,
                     textDecoration: "none",
                   }}
                 >
@@ -618,55 +647,48 @@ export default async function WrestlerProfilePage({
                 </Link>
               </>
             )}
+            <WrestlerPointsPeriodSelector currentPeriod={currentPeriod} leagueSlug={leagueSlugParam} compact />
           </div>
-          <p style={{ marginTop: 16 }}>
-            <a
-              href={boxscoreUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: "#1a73e8", textDecoration: "none" }}
-            >
-              View profile on Pro Wrestling Boxscore →
-            </a>
-          </p>
+          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+            <h2 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0 }}>
+              Points ({getPeriodLabel(currentPeriod)})
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: 300, flex: 1, minHeight: 0 }}>
+              <div style={{ padding: "6px 10px", background: "#1a1a1a", color: "#fff", borderRadius: 4, textAlign: "center" }}>
+                <span style={{ opacity: 0.9, fontSize: 10 }}>Total Points</span>
+                <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>{totalPoints}</div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, flex: 1, minHeight: 0 }}>
+                <div style={{ padding: "4px 8px", background: "#f5f5f5", borderRadius: 4, textAlign: "center" }}>
+                  <span style={{ color: "#666", fontSize: 10 }}>R/S Points</span>
+                  <div style={{ fontSize: "0.9rem", fontWeight: 700 }}>{points.rsPoints}</div>
+                </div>
+                <div style={{ padding: "4px 8px", background: "#f5f5f5", borderRadius: 4, textAlign: "center" }}>
+                  <span style={{ color: "#666", fontSize: 10 }}>PLE Points</span>
+                  <div style={{ fontSize: "0.9rem", fontWeight: 700 }}>{points.plePoints}</div>
+                </div>
+                <div style={{ padding: "4px 8px", background: "#f5f5f5", borderRadius: 4, textAlign: "center" }}>
+                  <span style={{ color: "#666", fontSize: 10 }}>Belt Points</span>
+                  <div style={{ fontSize: "0.9rem", fontWeight: 700 }}>{beltPoints}</div>
+                  {extraBelt > 0 && (
+                    <span style={{ fontSize: 9, color: "#666" }}>(+{extraBelt} mo)</span>
+                  )}
+                </div>
+                <div style={{ padding: "4px 8px", background: "#f5f5f5", borderRadius: 4, textAlign: "center" }}>
+                  <span style={{ color: "#666", fontSize: 10 }}>PPM</span>
+                  <div style={{ fontSize: "0.9rem", fontWeight: 700 }}>
+                    {matchStats.mw > 0 ? ((points.rsPoints + points.plePoints) / matchStats.mw).toFixed(1) : "—"}
+                  </div>
+                  <span style={{ fontSize: 9, color: "#666" }}>per match</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
       <section style={{ marginBottom: 32 }}>
-        <WrestlerPointsPeriodSelector currentPeriod={currentPeriod} leagueSlug={leagueSlugParam} />
-        <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: 12 }}>
-          Points ({getPeriodLabel(currentPeriod)})
-        </h2>
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-          <div style={{ padding: "12px 20px", background: "#f5f5f5", borderRadius: 8 }}>
-            <span style={{ color: "#666", fontSize: 14 }}>R/S Points</span>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{points.rsPoints}</div>
-          </div>
-          <div style={{ padding: "12px 20px", background: "#f5f5f5", borderRadius: 8 }}>
-            <span style={{ color: "#666", fontSize: 14 }}>PLE Points</span>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{points.plePoints}</div>
-          </div>
-          <div style={{ padding: "12px 20px", background: "#f5f5f5", borderRadius: 8 }}>
-            <span style={{ color: "#666", fontSize: 14 }}>Belt Points</span>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{beltPoints}</div>
-            {extraBelt > 0 && (
-              <span style={{ fontSize: 12, color: "#666" }}>({points.beltPoints} match + {extraBelt} monthly)</span>
-            )}
-          </div>
-          <div style={{ padding: "12px 20px", background: "#1a1a1a", color: "#fff", borderRadius: 8 }}>
-            <span style={{ opacity: 0.9, fontSize: 14 }}>Total Points</span>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{totalPoints}</div>
-          </div>
-          <div style={{ padding: "12px 20px", background: "#f5f5f5", borderRadius: 8 }}>
-            <span style={{ color: "#666", fontSize: 14 }}>PPM</span>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
-              {matchStats.mw > 0 ? ((points.rsPoints + points.plePoints) / matchStats.mw).toFixed(1) : "—"}
-            </div>
-            <span style={{ fontSize: 12, color: "#666" }}>Points per match (R/S + PLE only)</span>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 20, padding: "12px 16px", background: "var(--color-bg-elevated, #f8f9fa)", borderRadius: 8, border: "1px solid var(--color-border, #e9ecef)" }}>
+        <div style={{ marginTop: 0, padding: "12px 16px", background: "var(--color-bg-elevated, #f8f9fa)", borderRadius: 8, border: "1px solid var(--color-border, #e9ecef)" }}>
           <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: 10, color: "var(--color-text-muted, #555)" }}>
             Match record ({getPeriodLabel(currentPeriod)})
           </h3>
@@ -708,51 +730,61 @@ export default async function WrestlerProfilePage({
         )}
       </section>
 
-      {titleReigns.length > 0 && (
-        <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: 12 }}>Title reigns (months held)</h2>
-          <div style={{ border: "1px solid #ddd", borderRadius: 8, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f5f5f5" }}>
-                  <th style={{ padding: "10px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Title</th>
-                  <th style={{ padding: "10px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Months held (end of month)</th>
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: 12 }}>Title reigns (months held)</h2>
+        <div style={{ border: "1px solid #ddd", borderRadius: 8, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f5f5f5" }}>
+                <th style={{ padding: "10px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Title</th>
+                <th style={{ padding: "10px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Months held (end of month)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {titleReigns.length === 0 ? (
+                <tr>
+                  <td colSpan={2} style={{ padding: "16px 12px", color: "#666", textAlign: "center" }}>
+                    No title reigns.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {titleReigns.map((r, i) => (
+              ) : (
+                titleReigns.map((r, i) => (
                   <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
                     <td style={{ padding: "10px 12px", fontWeight: 600 }}>{r.title}</td>
                     <td style={{ padding: "10px 12px", color: "#555" }}>
                       {r.monthEnds.map(formatMonthEnd).join(", ")}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: 12 }}>
           Events with points ({matchesWithPoints.length})
         </h2>
-        {matchesWithPoints.length === 0 ? (
-          <p style={{ color: "#666" }}>No matches with points in the league period.</p>
-        ) : (
-          <div style={{ border: "1px solid #ddd", borderRadius: 8, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-              <thead>
-                <tr style={{ background: "#f5f5f5" }}>
-                  <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Date</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Event</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Result / Title</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #ddd" }}>Pts</th>
+        <div style={{ border: "1px solid #ddd", borderRadius: 8, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: "#f5f5f5" }}>
+                <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Date</th>
+                <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Event</th>
+                <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Result / Title</th>
+                <th style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #ddd" }}>Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matchesWithPoints.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ padding: "16px 12px", color: "#666", textAlign: "center" }}>
+                    No matches with points in the league period.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {matchesWithPoints.map((row, i) => (
+              ) : (
+                matchesWithPoints.map((row, i) => (
                   <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
                     <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{formatDate(row.date)}</td>
                     <td style={{ padding: "8px 12px" }}>
@@ -776,11 +808,11 @@ export default async function WrestlerProfilePage({
                     </td>
                     <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>{row.total}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   );

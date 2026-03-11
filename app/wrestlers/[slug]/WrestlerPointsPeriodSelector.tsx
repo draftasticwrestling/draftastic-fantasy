@@ -17,9 +17,11 @@ const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 type Props = {
   currentPeriod: PointsPeriod;
   leagueSlug: string | null;
+  /** When true, use smaller font and padding for the image-cell layout. */
+  compact?: boolean;
 };
 
-export function WrestlerPointsPeriodSelector({ currentPeriod, leagueSlug }: Props) {
+export function WrestlerPointsPeriodSelector({ currentPeriod, leagueSlug, compact }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const didAutoLeague = useRef(false);
@@ -52,8 +54,8 @@ export function WrestlerPointsPeriodSelector({ currentPeriod, leagueSlug }: Prop
   }
 
   return (
-    <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-      <label htmlFor="wrestler-points-period" style={{ fontSize: 14, fontWeight: 600 }}>
+    <div style={{ marginBottom: compact ? 0 : 16, display: "flex", alignItems: "center", gap: compact ? 6 : 12, flexWrap: "wrap" }}>
+      <label htmlFor="wrestler-points-period" style={{ fontSize: compact ? 12 : 14, fontWeight: 600 }}>
         Points:
       </label>
       <select
@@ -61,11 +63,11 @@ export function WrestlerPointsPeriodSelector({ currentPeriod, leagueSlug }: Prop
         value={currentPeriod}
         onChange={(e) => handleChange(e.target.value as PointsPeriod)}
         style={{
-          padding: "8px 12px",
-          fontSize: 14,
-          borderRadius: 6,
+          padding: compact ? "4px 8px" : "8px 12px",
+          fontSize: compact ? 12 : 14,
+          borderRadius: compact ? 4 : 6,
           border: "1px solid #ccc",
-          minWidth: 180,
+          minWidth: compact ? 140 : 180,
         }}
       >
         {PERIOD_OPTIONS.map((opt) => (
@@ -75,7 +77,7 @@ export function WrestlerPointsPeriodSelector({ currentPeriod, leagueSlug }: Prop
         ))}
       </select>
       {currentPeriod === "sinceStart" && !leagueSlug && (
-        <span style={{ fontSize: 13, color: "#666" }}>
+        <span style={{ fontSize: compact ? 11 : 13, color: "#666" }}>
           Add <code style={{ background: "#f0f0f0", padding: "2px 6px", borderRadius: 4 }}>?league=your-league-slug</code> to the URL to view since a league&apos;s start.
         </span>
       )}
