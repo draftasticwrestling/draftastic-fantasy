@@ -542,9 +542,9 @@ export default async function WrestlerProfilePage({
         <div style={{ position: "relative", flexShrink: 0 }}>
           <WrestlerProfileImage
             fullImageUrl={
-              isFullBodyImageUrl(wrestler.image_url)
+              (isFullBodyImageUrl(wrestler.image_url)
                 ? wrestler.image_url
-                : getWrestlerFullImageUrl(slug)
+                : getWrestlerFullImageUrl(slug)) || getWrestlerFullImageUrl(slug) || ""
             }
             fallbackImageUrl={
               isFullBodyImageUrl(wrestler.image_url)
