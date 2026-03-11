@@ -67,14 +67,14 @@ export default function Nav() {
   };
 
   const handlePrimaryEnter = (primary: typeof hoverPrimary, e: React.MouseEvent) => {
-    const from = e.relatedTarget as Node | null;
-    if (from && secondaryWrapRef.current?.contains(from)) return;
+    const from = e.relatedTarget;
+    if (from instanceof Node && secondaryWrapRef.current?.contains(from)) return;
     setHoverPrimaryStable(primary);
   };
 
   const handleLowerBarLeave = (e: React.MouseEvent) => {
-    const to = e.relatedTarget as Node | null;
-    if (to && secondaryWrapRef.current?.contains(to)) return;
+    const to = e.relatedTarget;
+    if (to instanceof Node && secondaryWrapRef.current?.contains(to)) return;
     if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     closeTimeoutRef.current = setTimeout(() => setHoverPrimary(null), 150);
   };
@@ -153,7 +153,8 @@ export default function Nav() {
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      const target = e.target as Node;
+      const target = e.target;
+      if (!(target instanceof Node)) return;
       if (adminRef.current && !adminRef.current.contains(target)) setAdminOpen(false);
       const leagueWrap = leagueSwitcherRef.current;
       const leaguePanel = document.getElementById("nav-league-switcher-panel");

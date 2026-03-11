@@ -134,7 +134,7 @@ export function DraftPreferencesForm({
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+      if (e.target instanceof Node && searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setSearchOpen(false);
       }
     }
