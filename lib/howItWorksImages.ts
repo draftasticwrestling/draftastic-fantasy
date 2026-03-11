@@ -43,18 +43,18 @@ export type EventLogoKey =
 const BELTS_BASE =
   "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/belts";
 
-/** Belt image URL by key. Empty = use placeholder. */
+/** Belt image URL by key. Empty = use placeholder. Crown Jewel belts omitted for now. */
 export const BELT_IMAGE_URLS: Partial<Record<BeltKey, string>> = {
-  "undisputed-wwe": `${BELTS_BASE}/undisputed-wwe-championship.png`,
-  heavyweight: `${BELTS_BASE}/world-heavyweight-championship.png`,
-  "wwe-womens": `${BELTS_BASE}/wwe-womens-championship.png`,
-  "womens-world": `${BELTS_BASE}/womens-world-championship.png`,
-  "intercontinental-mens": `${BELTS_BASE}/mens-intercontinental-championship1.png`,
-  "intercontinental-womens": `${BELTS_BASE}/womens-intercontinental-championship.png`,
-  "us-mens": `${BELTS_BASE}/mens-united-states-championship.png`,
-  "us-womens": `${BELTS_BASE}/womens-united-states-championship.png`,
-  "tag-team-mens": `${BELTS_BASE}/raw-tag-team-championship.png`,
-  "tag-team-womens": `${BELTS_BASE}/womens-tag-team-championship.png`,
+  "undisputed-wwe": `${BELTS_BASE}/mens-wwe-champion.png`,
+  heavyweight: `${BELTS_BASE}/mens-world-heavyweight.png`,
+  "wwe-womens": `${BELTS_BASE}/womens-wwe-champion.png`,
+  "womens-world": `${BELTS_BASE}/womens-world-champion.png`,
+  "intercontinental-mens": `${BELTS_BASE}/mens-intercontinental.png`,
+  "intercontinental-womens": `${BELTS_BASE}/womens-intercontinental.png`,
+  "us-mens": `${BELTS_BASE}/mens-united-states.png`,
+  "us-womens": `${BELTS_BASE}/womens-united-states.png`,
+  "tag-team-mens": `${BELTS_BASE}/mens-world-tag.png`,
+  "tag-team-womens": `${BELTS_BASE}/womens-tag.png`,
 };
 
 /** Event logo URL by key. Empty = use placeholder. */

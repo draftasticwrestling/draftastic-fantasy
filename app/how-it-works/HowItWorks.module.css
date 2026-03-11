@@ -43,6 +43,13 @@
 
 .titlePointsThBeltMens {
   background: #1e3a5f;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .titlePointsThPtsMens {
@@ -65,6 +72,13 @@
 
 .titlePointsThBeltWomens {
   background: #8b1538;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .titlePointsThPtsWomens {
@@ -96,6 +110,7 @@
   width: 72px;
   min-width: 72px;
   max-width: 72px;
+  min-height: 48px;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -126,6 +141,7 @@
   width: 72px;
   min-width: 72px;
   max-width: 72px;
+  min-height: 48px;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -153,8 +169,8 @@
 }
 
 .beltPlaceholder {
-  width: 48px;
-  height: 24px;
+  width: 56px;
+  height: 32px;
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
@@ -163,9 +179,10 @@
   justify-content: center;
   font-size: 10px;
   color: rgba(255, 255, 255, 0.8);
+  box-sizing: border-box;
 }
 
-/* Fixed-size box so both men's and women's belts render identically */
+/* Fixed-size box so both men's and women's belts render identically; centered in cell */
 .beltImageWrap {
   display: block;
   width: 56px;
@@ -176,6 +193,7 @@
   max-height: 32px;
   flex: 0 0 auto;
   align-self: center;
+  margin: 0 auto;
   overflow: hidden;
   box-sizing: border-box;
   position: relative;
