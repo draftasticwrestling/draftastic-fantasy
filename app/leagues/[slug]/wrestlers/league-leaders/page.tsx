@@ -23,6 +23,7 @@ function firstMonthEndOnOrAfter(startDate: string): string {
 }
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
+import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -246,6 +247,7 @@ export default async function LeagueLeadersPage({
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
+      championBeltImageUrl: titles.length > 0 ? getBeltImageUrlForTitle(titles[0], w.gender) : null,
       unparsedCount,
     };
   });

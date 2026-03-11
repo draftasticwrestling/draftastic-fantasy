@@ -13,6 +13,7 @@ import {
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
+import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 
 const LEAGUE_START_DATE = "2025-05-02";
 
@@ -110,6 +111,7 @@ export default async function WrestlersPage() {
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
+      championBeltImageUrl: titles.length > 0 ? getBeltImageUrlForTitle(titles[0], w.gender) : null,
     };
   });
 

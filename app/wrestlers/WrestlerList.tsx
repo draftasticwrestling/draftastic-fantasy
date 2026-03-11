@@ -64,6 +64,8 @@ export type WrestlerRow = {
   status?: string | null;
   /** Current championship(s) held, e.g. "WWE Championship" or "Raw Tag Team, US Championship". Shown under name. */
   currentChampionship?: string | null;
+  /** Belt image URL for primary current title (shown in Titles column). */
+  championBeltImageUrl?: string | null;
   /** Number of matches needing review on this wrestler's profile (all-time). When set, shown next to name on League Leaders. */
   unparsedCount?: number;
 };
@@ -326,6 +328,7 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: "rank", label: "Rank", minW: 48, align: "center", section: "PLAYER" },
   { key: null, label: "", minW: 76, align: "center", section: "PLAYER" },
   { key: "name", label: "Name", minW: 160, align: "left", section: "PLAYER" },
+  { key: null, label: "Titles", minW: 64, align: "center", section: "PLAYER" },
   { key: null, label: "STATUS", minW: 96, align: "center", section: "STATUS" },
   { key: "gender", label: "Gender", minW: 68, align: "center", section: "INFO" },
   { key: "age", label: "Age", minW: 52, align: "center", section: "INFO" },
@@ -346,9 +349,9 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: "dqPct", label: "DQ%", minW: 52, align: "center", section: "MATCHES" },
 ];
 
-const STICKY_COLUMN_COUNT = 5; // Roster, Rank, Image, Name, Status
-const STICKY_WIDTHS = [52, 48, 76, 160, 96] as const; // fixed widths so columns don't resize on scroll
-const stickyLefts = [0, 52, 100, 176, 336]; // cumulative
+const STICKY_COLUMN_COUNT = 6; // Roster, Rank, Image, Name, Titles, Status
+const STICKY_WIDTHS = [52, 48, 76, 160, 64, 96] as const;
+const stickyLefts = [0, 52, 100, 176, 336, 400]; // cumulative
 
 const ROW_BG_ALT = "#f8f9fa";
 const ROW_BG_MAIN = "#ffffff";
@@ -438,14 +441,14 @@ type WrestlerListProps = {
   /** League slug for "propose trade" links (e.g. League Leaders in a league context). */
   leagueSlug?: string | null;
   /** When set with leagueSlug, profile links include from= so back nav returns here (e.g. "league-leaders", "free-agents"). */
-  wrestlerProfileFrom?: "league-leaders" | "free-agents" | null;
+  wrestlerProfileFrom?: "league-leaders" | "free-agents" | "team" | null;
   /** Wrestler id -> owner info. When set, Status shows owner name + propose trade for rostered; else FA + add/flag. */
   rosterByWrestler?: Record<string, RosterOwnerInfo> | null;
   /** Slugs of wrestlers who have matches needing review (show caution icon). Used when rows don't have unparsedCount. */
   wrestlerSlugsWithUnparsed?: string[] | null;
 };
 
-function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | null): string {
+function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | "team" | null): string {
   const base = `/wrestlers/${encodeURIComponent(wrestlerId)}`;
   if (!leagueSlug) return base;
   const params = new URLSearchParams({ league: leagueSlug });
@@ -705,7 +708,7 @@ export default function WrestlerList({
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto", minWidth: tableMinWidth }}>
           <thead>
             <tr>
-              {HEADER_CONFIG.slice(0, 8).map((h, i) => {
+              {HEADER_CONFIG.slice(0, 9).map((h, i) => {
                 const fixedW = i < STICKY_COLUMN_COUNT ? STICKY_WIDTHS[i] : undefined;
                 return (
                   <th
@@ -768,9 +771,9 @@ export default function WrestlerList({
                         boxShadow: i === STICKY_COLUMN_COUNT - 1 ? "4px 0 8px rgba(0,0,0,0.08)" : undefined,
                       }
                     : {}),
-                  ...(h.section === "POINTS" && i === 8 ? { borderLeft: SECTION_BORDER } : {}),
-                  ...(h.section === "POINTS" && i === 12 ? { borderRight: SECTION_BORDER } : {}),
-                  ...(h.section === "MATCHES" && i === 13 ? { borderLeft: SECTION_BORDER } : {}),
+                  ...(h.section === "POINTS" && i === 9 ? { borderLeft: SECTION_BORDER } : {}),
+                  ...(h.section === "POINTS" && i === 13 ? { borderRight: SECTION_BORDER } : {}),
+                  ...(h.section === "MATCHES" && i === 14 ? { borderLeft: SECTION_BORDER } : {}),
                   ...(h.section === "MATCHES" && i === 21 ? { borderRight: SECTION_BORDER } : {}),
                 };
                 if (!isSortable) {
@@ -975,6 +978,38 @@ export default function WrestlerList({
                   </td>
                   <td
                     style={{
+                      width: 64,
+                      minWidth: 64,
+                      maxWidth: 64,
+                      padding: 6,
+                      textAlign: "center",
+                      verticalAlign: "middle",
+                      ...cellStyle,
+                      borderRight: "1px solid " + rowBg,
+                      position: "sticky",
+                      left: 336,
+                      zIndex: 1,
+                      boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    {w.championBeltImageUrl ? (
+                      <img
+                        src={w.championBeltImageUrl}
+                        alt=""
+                        aria-hidden
+                        style={{
+                          width: 56,
+                          height: 32,
+                          objectFit: "contain",
+                          display: "block",
+                          margin: "0 auto",
+                        }}
+                      />
+                    ) : null}
+                  </td>
+                  <td
+                    style={{
                       width: 96,
                       minWidth: 96,
                       maxWidth: 96,
@@ -983,7 +1018,7 @@ export default function WrestlerList({
                       ...cellStyle,
                       borderRight: "1px solid " + rowBg,
                       position: "sticky",
-                      left: 336,
+                      left: 400,
                       zIndex: 1,
                       boxShadow: "4px 0 8px rgba(0,0,0,0.06)",
                       boxSizing: "border-box",
@@ -1084,7 +1119,7 @@ export default function WrestlerList({
                   <td style={{ minWidth: 52, padding: "10px 8px", textAlign: "center", ...cellStyle }}>
                     {age != null ? age : "—"}
                   </td>
-                  <td style={{ minWidth: 48, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle }}>
+                  <td style={{ minWidth: 48, padding: "10px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums", ...cellStyle, fontWeight: 700, color: "#c00" }}>
                     {w.rating_2k26 != null ? w.rating_2k26 : w.rating_2k25 != null ? w.rating_2k25 : "—"}
                   </td>
                   <td style={{ minWidth: 72, padding: "10px 8px", textAlign: "center", fontWeight: 600, ...cellStyle, borderLeft: SECTION_BORDER }}>
