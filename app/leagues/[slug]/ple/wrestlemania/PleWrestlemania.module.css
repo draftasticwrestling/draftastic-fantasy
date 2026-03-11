@@ -1,0 +1,175 @@
+/* PLE page: dark theme hero + points table (WrestleMania style) */
+
+.plePage {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px 48px;
+  background: #0d0d0d;
+  min-height: 100vh;
+  color: #fff;
+}
+
+.backLink {
+  display: inline-block;
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  font-size: 0.95rem;
+  margin-bottom: 20px;
+}
+
+.backLink:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* Hero: dark background, bold title, location, date */
+.pleHero {
+  background: linear-gradient(180deg, #0a0a0a 0%, #141414 50%, #0d0d0d 100%);
+  border-radius: 12px;
+  padding: 48px 32px 40px;
+  margin-bottom: 32px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.pleHero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(180, 60, 60, 0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.pleEventLabel {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+}
+
+.pleTitle {
+  font-size: clamp(2rem, 6vw, 3.25rem);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+  text-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
+}
+
+.pleSubtitle {
+  font-size: clamp(1.1rem, 3vw, 1.5rem);
+  font-weight: 600;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 20px;
+  letter-spacing: 0.05em;
+}
+
+.pleMeta {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+.pleDivider {
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #2563eb, transparent);
+  margin: 28px 0 24px;
+  border: none;
+}
+
+/* Section heading above table */
+.pleTableSectionTitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 16px;
+}
+
+.pleTableSectionSubtitle {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 20px;
+}
+
+/* Table: black/dark background, white grid */
+.pleTableWrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #0a0a0a;
+}
+
+.pleTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.pleTable th,
+.pleTable td {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.pleTable th {
+  background: #111;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.pleTable th.pleColMatch {
+  text-align: left;
+  min-width: 280px;
+  max-width: 380px;
+}
+
+.pleTable td.pleColMatch {
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.4;
+}
+
+.pleTable td.pleColPoints {
+  text-align: center;
+  color: #fbbf24;
+  font-weight: 600;
+  min-width: 52px;
+}
+
+.pleTable tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pleTable tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pleTableTotalRow td {
+  background: rgba(37, 99, 235, 0.15) !important;
+  font-weight: 700;
+  color: #fff;
+}
+
+.pleTableTotalRow td.pleColMatch {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pleMemberTotal {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.noMatches {
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+  padding: 24px 14px;
+}

@@ -156,6 +156,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             <h2 className="lm-card-title">Quick Links</h2>
             <ul className="lm-quick-links">
               <li><Link href="/how-it-works"><span className="lm-quick-link-icon">☰</span> Rules</Link></li>
+              <li><Link href={`/leagues/${slug}/ple/wrestlemania`}><span className="lm-quick-link-icon">🏟</span> WrestleMania</Link></li>
               <li><Link href={`/leagues/${slug}/draft`}><span className="lm-quick-link-icon">⚙</span> Draft</Link></li>
               <li><Link href={`/leagues/${slug}`}><span className="lm-quick-link-icon">👤</span> Wrestlers</Link></li>
               <li><Link href="/"><span className="lm-quick-link-icon">⌂</span> Home</Link></li>
@@ -169,6 +170,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             <h1 className="lm-card-title" style={{ fontSize: "1.35rem", marginBottom: 8 }}>{league.name}</h1>
             <nav className="lm-subnav" aria-label="League sections">
               <Link href={`/leagues/${slug}`}>League</Link>
+              <span className="lm-subnav-sep">|</span>
+              <Link href={`/leagues/${slug}/ple/wrestlemania`}>WrestleMania</Link>
               <span className="lm-subnav-sep">|</span>
               <Link href={currentUser ? `/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}` : `/leagues/${slug}/team`}>Roster</Link>
               <span className="lm-subnav-sep">|</span>

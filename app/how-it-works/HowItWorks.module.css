@@ -25,7 +25,7 @@
 /* ---------- Title Points: single table, 6 columns (Men's name | belt | pts | Women's name | belt | pts) ---------- */
 .titlePointsGrid {
   display: grid;
-  grid-template-columns: 1fr minmax(72px, 72px) 48px 1fr minmax(72px, 72px) 48px;
+  grid-template-columns: 1fr minmax(72px, 72px) 96px 1fr minmax(72px, 72px) 96px;
   gap: 0;
   border: 1px solid #ccc;
   border-radius: 8px;
@@ -48,9 +48,12 @@
 .titlePointsThPtsMens {
   background: #1e3a5f;
   color: white;
-  padding: 12px 16px;
+  padding: 12px 10px;
   font-weight: 700;
   text-align: right;
+  min-width: 0;
+  overflow: visible;
+  white-space: nowrap;
 }
 
 .titlePointsThWomens {
@@ -67,9 +70,12 @@
 .titlePointsThPtsWomens {
   background: #8b1538;
   color: white;
-  padding: 12px 16px;
+  padding: 12px 10px;
   font-weight: 700;
   text-align: right;
+  min-width: 0;
+  overflow: visible;
+  white-space: nowrap;
 }
 
 /* Data cells */
@@ -95,7 +101,7 @@
 }
 
 .titlePointsTdPtsMens {
-  padding: 12px 16px;
+  padding: 12px 8px;
   background: #2c5282;
   color: white;
   font-weight: 700;
@@ -125,7 +131,7 @@
 }
 
 .titlePointsTdPtsWomens {
-  padding: 12px 16px;
+  padding: 12px 8px;
   background: #9f2241;
   color: white;
   font-weight: 700;

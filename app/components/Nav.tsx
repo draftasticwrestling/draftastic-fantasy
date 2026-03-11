@@ -34,6 +34,7 @@ function getActivePrimary(pathname: string, slug: string): string | null {
   if (rest === "") return "league";
   if (rest === "wrestlers" || rest === "league-leaders" || rest === "injury-report" || rest === "stat-corrections") return "wrestlers";
   if (rest === "matchups") return "matchups";
+  if (rest === "ple") return "ple";
   if (rest === "draft" || rest === "draft-history" || rest === "draft-settings") return "draft";
   if (rest === "notify-league" || rest === "manage-rosters" || rest === "league-settings" || rest === "pending-trades") return "gm-tools";
   return null;
@@ -47,7 +48,7 @@ export default function Nav() {
   const [leagues, setLeagues] = useState<LeagueItem[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
   const [leagueSwitcherOpen, setLeagueSwitcherOpen] = useState(false);
-  const [hoverPrimary, setHoverPrimary] = useState<"my-team" | "league" | "wrestlers" | "draft" | "gm-tools" | null>(null);
+  const [hoverPrimary, setHoverPrimary] = useState<"my-team" | "league" | "wrestlers" | "matchups" | "ple" | "draft" | "gm-tools" | null>(null);
   const [lastVisitedSlug, setLastVisitedSlug] = useState<string | null>(null);
   const adminRef = useRef<HTMLDivElement>(null);
   const leagueSwitcherRef = useRef<HTMLDivElement>(null);
@@ -487,6 +488,14 @@ export default function Nav() {
                   </Link>
                 </li>
               )}
+              <li>
+                <Link
+                  href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/ple/wrestlemania` : "#"}
+                  className={`nav-primary-link ${activePrimary === "ple" ? "is-active" : ""}`}
+                >
+                  PLE
+                </Link>
+              </li>
               <li onMouseEnter={(e) => handlePrimaryEnter("draft", e)}>
                 <Link
                   href={draftSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/draft` : "#")}
@@ -561,6 +570,16 @@ export default function Nav() {
               {(hoverPrimary ?? activePrimary) === "matchups" && currentLeague?.league_type !== "season_overall" && (
                 <li>
                   <span className="nav-secondary-context">Matchups</span>
+                </li>
+              )}
+              {(hoverPrimary ?? activePrimary) === "ple" && currentLeagueSlug && (
+                <li>
+                  <Link
+                    href={`/leagues/${currentLeagueSlug}/ple/wrestlemania`}
+                    className={`nav-secondary-link ${pathname.includes("/ple/wrestlemania") ? "is-active" : ""}`}
+                  >
+                    WrestleMania
+                  </Link>
                 </li>
               )}
               {(hoverPrimary ?? activePrimary) === "wrestlers" &&
