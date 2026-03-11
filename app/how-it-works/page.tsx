@@ -1,13 +1,191 @@
 import Link from "next/link";
+import { Fragment } from "react";
+import type { BeltKey } from "@/lib/howItWorksImages";
+import { BELT_IMAGE_URLS } from "@/lib/howItWorksImages";
+import styles from "./HowItWorks.module.css";
 
 export const metadata = {
   title: "How it Works — Draftastic Fantasy",
-  description: "League types (Total Season Points, Head-to-Head, Combo League, Legacy), fantasy scoring, event points, titles, and special matches.",
+  description:
+    "League types (Total Season Points, Head-to-Head, Combo League, Legacy), fantasy scoring, event points, titles, and special matches.",
 };
+
+const GENERAL_RULES = [
+  "A standard match victory earns full points. If a victory occurs via disqualification (DQ) or any other disqualifying result, it is worth half points. A No Contest result only earns appearance points; no victory or title defense points are awarded.",
+  "Additional main event points are awarded only if the match is not the PLE's featured (titled) match. Example: If the Men's Royal Rumble is the main event of the PLE, the winner receives only the standard event points, not extra for it being the main event.",
+  "A successful title defense is worth an additional 4 points, regardless of the event or match placement. If the title is retained via disqualification, the bonus is reduced to 2 points (half points).",
+  "An initial title win earns an additional 5 points, regardless of where or how it occurs.",
+  "Points are awarded during the event.",
+];
+
+const MENS_BELT_KEYS: BeltKey[] = [
+  "undisputed-wwe",
+  "heavyweight",
+  "intercontinental-mens",
+  "us-mens",
+  "tag-team-mens",
+];
+const TITLE_POINTS_MENS = [
+  { name: "Undisputed WWE Champion", points: 10 },
+  { name: "Heavy Weight Champion", points: 10 },
+  { name: "Intercontinental Champion", points: 8 },
+  { name: "US Champion", points: 7 },
+  { name: "Tag Team Champion (Per Member)", points: 4 },
+];
+
+const WOMENS_BELT_KEYS: BeltKey[] = [
+  "wwe-womens",
+  "womens-world",
+  "intercontinental-womens",
+  "us-womens",
+  "tag-team-womens",
+];
+
+/** Exact pixel size for every belt image so men's and women's match. */
+const BELT_IMG_WIDTH = 56;
+const BELT_IMG_HEIGHT = 32;
+const beltImgStyle = {
+  width: BELT_IMG_WIDTH,
+  height: BELT_IMG_HEIGHT,
+  maxWidth: BELT_IMG_WIDTH,
+  maxHeight: BELT_IMG_HEIGHT,
+  objectFit: "contain" as const,
+  display: "block" as const,
+};
+const beltWrapStyle = {
+  width: BELT_IMG_WIDTH,
+  height: BELT_IMG_HEIGHT,
+  minWidth: BELT_IMG_WIDTH,
+  maxWidth: BELT_IMG_WIDTH,
+  minHeight: BELT_IMG_HEIGHT,
+  maxHeight: BELT_IMG_HEIGHT,
+  overflow: "hidden" as const,
+  display: "block" as const,
+  flexShrink: 0,
+};
+
+const TITLE_POINTS_WOMENS = [
+  { name: "WWE Women's Champion", points: 10 },
+  { name: "Women's World Champion", points: 10 },
+  { name: "Intercontinental Champion", points: 8 },
+  { name: "US Champion", points: 7 },
+  { name: "Tag Team Champion (Per Member)", points: 4 },
+];
+
+const RAW_POINTS = [
+  ["Main Eventing", 3],
+  ["Successful Title Defense", 4],
+  ["Being on the Match Card (non-main event)", 1],
+  ["Entering the Andre the Giant Battle Royal", 1],
+];
+
+const SMACKDOWN_POINTS = [
+  ["Winning the Main Event", 4],
+  ["Title Changes Hands", 5],
+  ["Winning Your Match", 2],
+  ["Eliminating a BR Participant", 2],
+  ["Winning the Battle Royal", 8],
+];
+
+const WRESTLEMANIA_POINTS = [
+  ["Main Eventing Night Two at Wrestlemania", 30],
+  ["Winning Non-ME Match at Wrestlemania", 16],
+  ["Being on the Non-ME Card at Wrestlemania", 8],
+  ["Winning Main Event Night Two at Wrestlemania", 40],
+  ["Winning Night One in Main Event at Wrestlemania", 30],
+  ["Main Eventing Night One at Wrestlemania", 25],
+];
+
+const SUMMERSLAM_POINTS = [
+  ["Winning the Main Event at Summer Slam either Night", 20],
+  ["Main Eventing Night Two of Summer Slam", 15],
+  ["Main Eventing Night One of Summer Slam", 10],
+  ["Winning Your Match", 10],
+  ["Being on the Non-ME Card", 5],
+];
+
+const SURVIVOR_SERIES_POINTS = [
+  ["Winning the Main Event", 15],
+  ["Main Eventing", 12],
+  ["Winning Your Match", 10],
+  ["Being on the Non-ME Card", 5],
+  ["Being on a War Games Team", 8],
+  ["Winning War Games", 14],
+  ["Wrestler Who Makes the Pin", 10],
+  ["Point Bonus for Entry Order", "1-5"],
+];
+
+const ROYAL_RUMBLE_POINTS = [
+  ["Winning the Royal Rumble", 30],
+  ["Points for Each Person Eliminated", 3],
+  ["Iron Man/Iron Woman", 12],
+  ["Person Who Eliminates the Most", 12],
+  ["Winning the Main Event", 15],
+  ["Main Eventing", 12],
+  ["Winning Your Match", 10],
+  ["Being on the Non-ME Card", 5],
+  ["Being in the Royal Rumble", 2],
+];
+
+const ELIMINATION_CHAMBER_POINTS = [
+  ["Winning the Elimination Chamber", 30],
+  ["Qualifying for the Elimination Chamber", 10],
+  ["Eliminating an Opponent in the Chamber", 10],
+  ["Longest Lasting Participant in the Chamber", 15],
+  ["Winning the Main Event", 15],
+  ["Main Eventing", 9],
+  ["Winning Your Match", 8],
+  ["Being on the Match Card (non-main event)", 4],
+];
+
+const NOC_POINTS = [
+  ["Winning the Main Event", 15],
+  ["Main Eventing", 9],
+  ["Winning Your Match", 8],
+  ["Being on the Match Card (non-main event)", 4],
+];
+
+const MITB_POINTS = [
+  ["Money in the Bank Winner", 25],
+  ["Earning a Spot in the Ladder Match", 12],
+  ["Winning the Main Event", 15],
+  ["Main Eventing", 9],
+  ["Winning Your Match", 8],
+  ["Being on the Match Card (non-main event)", 4],
+];
+
+const CROWN_JEWEL_POINTS = [
+  ["Winning the Crown Jewel Championship", 20],
+  ["Crown Jewel Championship", 10],
+  ["Winning the Main Event (non CJ Championship)", 15],
+  ["Main Eventing (non CJ Championship)", 9],
+  ["Winning Your Match", 8],
+  ["Being on the Match Card (non-main event)", 4],
+];
+
+const KING_QUEEN_POINTS = [
+  ["King or Queen of the Ring", 20],
+  ["Finals Qualification", 10],
+  ["Semi-Finals Qualification (in addition to Raw/Smackdown match points)", 7],
+  ["First Round Qualification (in addition to Raw/Smackdown match points)", 3],
+];
+
+const MINOR_PLE_BASE_POINTS = [
+  ["Winning the Main Event", 12],
+  ["Main Eventing", 7],
+  ["Winning Your Match", 6],
+  ["Being on the Match Card (non-main event)", 3],
+];
+
+const EVOLUTION_EXTRA_POINTS = [
+  ["Entering the Battle Royal", 1],
+  ["Eliminating a BR Participant", 2],
+  ["Winning the Battle Royal", 8],
+];
 
 export default function HowItWorksPage() {
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 960, margin: "0 auto", fontSize: 18, lineHeight: 1.6 }}>
+    <main className={styles.page}>
       <p style={{ marginBottom: 24 }}>
         <Link href="/">← Home</Link>
       </p>
@@ -16,165 +194,320 @@ export default function HowItWorksPage() {
       <p style={{ color: "#555", marginBottom: 32 }}>
         Fantasy points are calculated from <strong>Pro Wrestling Boxscore</strong> event data. Your wrestlers earn points for appearing, winning, main eventing, and title matches — with bonuses for premium live events (PLEs) and special match types.
       </p>
-      <p style={{ marginBottom: 32 }}>
-        <strong><Link href="/points">Full Points System →</Link></strong> — Raw/SmackDown, every PLE (WrestleMania to minor events), title points, and general rules.
-      </p>
 
-      <section style={{ marginBottom: 32 }}>
+      {/* League types — keep compact */}
+      <section style={{ marginBottom: 40 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>League types</h2>
-        <p style={{ marginBottom: 16 }}>
-          When you create a league, you choose how the winner is determined. We support two primary formats now, with more on the way.
-        </p>
         <ul style={{ listStyle: "none", paddingLeft: 0 }}>
-          <li style={{ marginBottom: 20, paddingLeft: 0 }}>
+          <li style={{ marginBottom: 16 }}>
             <strong>Total Season Points</strong> — Compete against your whole league all season. The team with the most overall points wins!
           </li>
-          <li style={{ marginBottom: 20, paddingLeft: 0 }}>
-            <strong>Head-to-Head</strong> — Minimum 4 teams, maximum 16. During the Road to SummerSlam period, teams play head-to-head against an opponent each week. Points only matter for that week’s matchup (season overall is not tracked). The team with the best win-loss-draw record at the end of the season wins the league and earns the Draftastic Championship Belt. A short seeded playoff determines the champion, with the final taking place the week of WrestleMania. Teams that don’t make the final compete in consolation matchups so full league placement can be determined.
+          <li style={{ marginBottom: 16 }}>
+            <strong>Head-to-Head</strong> — Minimum 4 teams, maximum 16. Weekly matchups during the Road to SummerSlam; the team with the best win-loss-draw record wins the league and the Draftastic Championship Belt.
           </li>
-          <li style={{ marginBottom: 20, paddingLeft: 0 }}>
-            <strong>Combo League (H2H+Total Season Points)</strong> — Earn extra season points for winning your weekly matchup, but the final winner is determined by your roster’s cumulative overall points—not your win-loss record. <em>Coming soon.</em>
+          <li style={{ marginBottom: 16 }}>
+            <strong>Combo League (H2H + Total Season Points)</strong> — <em>Coming soon.</em>
           </li>
-          <li style={{ marginBottom: 0, paddingLeft: 0 }}>
-            <strong>Legacy</strong> — Draft your wrestlers and sign them to long-term contracts. Then go to work building your dynasty! This one is for die hard fans that want to play the long game. <em>Coming soon.</em>
+          <li>
+            <strong>Legacy</strong> — Long-term contracts and dynasty play. <em>Coming soon.</em>
           </li>
         </ul>
       </section>
 
+      {/* ---------- Title Points ---------- */}
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Title Points</h2>
+        <p className={styles.sectionSubtitle}>
+          (Awarded to whoever holds the belt at the end of the last day of each month)
+        </p>
+        <div className={styles.titlePointsGrid}>
+          {/* Row 1: headers — Men's Division | (belt) | Points | Women's Division | (belt) | Points */}
+          <div className={styles.titlePointsThMens}>Men&apos;s Division</div>
+          <div className={styles.titlePointsThBeltMens} aria-hidden />
+          <div className={styles.titlePointsThPtsMens}>Points</div>
+          <div className={styles.titlePointsThWomens}>Women&apos;s Division</div>
+          <div className={styles.titlePointsThBeltWomens} aria-hidden />
+          <div className={styles.titlePointsThPtsWomens}>Points</div>
+          {/* Data rows: 6 cells each, left to right */}
+          {TITLE_POINTS_MENS.map((mensRow, i) => {
+            const womensRow = TITLE_POINTS_WOMENS[i];
+            const rowAlt = i % 2 === 1 ? styles.titlePointsRowAlt : "";
+            const mensBeltKey = MENS_BELT_KEYS[i];
+            const womensBeltKey = WOMENS_BELT_KEYS[i];
+            const mensBeltUrl = mensBeltKey ? BELT_IMAGE_URLS[mensBeltKey] : undefined;
+            const womensBeltUrl = womensBeltKey ? BELT_IMAGE_URLS[womensBeltKey] : undefined;
+            return (
+              <Fragment key={mensRow.name}>
+                <div className={`${styles.titlePointsTdNameMens} ${rowAlt}`}>{mensRow.name}</div>
+                <div className={`${styles.titlePointsTdBeltMens} ${rowAlt}`}>
+                  {mensBeltUrl ? (
+                    <div className={styles.beltImageWrap} style={beltWrapStyle}>
+                      <img
+                        src={mensBeltUrl}
+                        alt=""
+                        className={styles.beltImage}
+                        width={BELT_IMG_WIDTH}
+                        height={BELT_IMG_HEIGHT}
+                        style={beltImgStyle}
+                      />
+                    </div>
+                  ) : (
+                    <div className={styles.beltPlaceholder}>Belt</div>
+                  )}
+                </div>
+                <div className={`${styles.titlePointsTdPtsMens} ${rowAlt}`}>{mensRow.points}</div>
+                <div className={`${styles.titlePointsTdNameWomens} ${rowAlt}`}>{womensRow.name}</div>
+                <div className={`${styles.titlePointsTdBeltWomens} ${rowAlt}`}>
+                  {womensBeltUrl ? (
+                    <div className={styles.beltImageWrap} style={beltWrapStyle}>
+                      <img
+                        src={womensBeltUrl}
+                        alt=""
+                        className={styles.beltImage}
+                        width={BELT_IMG_WIDTH}
+                        height={BELT_IMG_HEIGHT}
+                        style={beltImgStyle}
+                      />
+                    </div>
+                  ) : (
+                    <div className={styles.beltPlaceholder}>Belt</div>
+                  )}
+                </div>
+                <div className={`${styles.titlePointsTdPtsWomens} ${rowAlt}`}>{womensRow.points}</div>
+              </Fragment>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ---------- Raw / Smackdown Points ---------- */}
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Raw/Smackdown Points</h2>
+        <div className={styles.rulesBlock}>
+          {GENERAL_RULES.slice(0, 4).map((text, i) => (
+            <p key={i}>{text}</p>
+          ))}
+        </div>
+        <div className={styles.darkBox}>
+          <div className={styles.rawSmackdownLogoRow}>
+            <div className={styles.eventLogoPlaceholder}>RAW logo</div>
+            <div className={styles.rawSmackdownAmp} aria-hidden>&</div>
+            <div className={styles.eventLogoPlaceholder}>SmackDown logo</div>
+          </div>
+          <div className={styles.rawSmackdownFlex}>
+            <div className={styles.rawSmackdownCol}>
+              {RAW_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+            <div className={styles.rawSmackdownCol}>
+              {SMACKDOWN_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- Major PLE — Big Four ---------- */}
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Major Premium Live Event Points — The &quot;Big Four&quot;</h2>
+        <div className={styles.rulesBlock}>
+          {GENERAL_RULES.map((text, i) => (
+            <p key={i}>{text}</p>
+          ))}
+        </div>
+        <div className={styles.pleDarkBox}>
+        <div className={styles.wrestlemaniaBlock}>
+          <div className={styles.wrestlemaniaLogoPlaceholder}>WrestleMania logo</div>
+          <div className={styles.majorPleTwoCol}>
+            <div>
+              {WRESTLEMANIA_POINTS.slice(0, 3).map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{String(pts)}</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              {WRESTLEMANIA_POINTS.slice(3, 6).map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{String(pts)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className={styles.majorPleThreeCol}>
+          <div className={styles.eventCard}>
+            <div className={styles.eventCardLogo}>SummerSlam logo</div>
+            {SUMMERSLAM_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.eventCard}>
+            <div className={styles.eventCardLogo}>Survivor Series: War Games logo</div>
+            {SURVIVOR_SERIES_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{String(pts)}</span>
+              </div>
+            ))}
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 8 }}>
+              (Firsts get 5pts, fifths get 1pt)
+            </p>
+          </div>
+          <div className={styles.eventCard}>
+            <div className={styles.eventCardLogo}>Royal Rumble logo</div>
+            {ROYAL_RUMBLE_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{String(pts)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        </div>
+      </section>
+
+      {/* ---------- Medium PLE ---------- */}
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Medium Premium Live Event Points</h2>
+        <div className={styles.rulesBlock}>
+          {GENERAL_RULES.map((text, i) => (
+            <p key={i}>{text}</p>
+          ))}
+        </div>
+        <p style={{ marginBottom: 16 }}>Points are awarded during the event</p>
+        <div className={styles.pleDarkBox}>
+        <div className={styles.mediumPleGrid}>
+          <div className={styles.mediumPleCard}>
+            <div className={styles.eventCardLogo}>Elimination Chamber logo</div>
+            {ELIMINATION_CHAMBER_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.mediumPleCard}>
+            <div className={styles.eventCardLogo}>Night of Champions logo</div>
+            {NOC_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.mediumPleCard}>
+            <div className={styles.eventCardLogo}>Money in the Bank logo</div>
+            {MITB_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.mediumPleCard}>
+            <div className={styles.eventCardLogo}>Crown Jewel logo</div>
+            {CROWN_JEWEL_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.mediumPleCard}>
+            <div className={styles.eventCardLogo}>King & Queen of the Ring logo</div>
+            {KING_QUEEN_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        </div>
+      </section>
+
+      {/* ---------- Minor PLE ---------- */}
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Minor Premium Live Event Points</h2>
+        <div className={styles.rulesBlock}>
+          <p>A standard match victory earns full points. If a victory occurs via disqualification (DQ) or any other disqualifying result, it is worth half points. A No Contest result only earns appearance points; no victory or title defense points are awarded.</p>
+          <p>A successful title defense is worth an additional 4 points, regardless of the event or match placement. If the title is retained via disqualification, the bonus is reduced to 2 points (half points).</p>
+          <p>An initial title win earns an additional 5 points, regardless of where or how it occurs.</p>
+          <p>Points are awarded during the event</p>
+        </div>
+        <div className={styles.pleDarkBox}>
+        <div className={styles.minorPleGrid}>
+          <div className={styles.minorPleCard}>
+            <div className={styles.eventCardLogo}>Saturday Night&apos;s Main Event</div>
+            {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.minorPleCard}>
+            <div className={styles.eventCardLogo}>Backlash</div>
+            {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.minorPleCard}>
+            <div className={styles.eventCardLogo}>Evolution</div>
+            {[...MINOR_PLE_BASE_POINTS, ...EVOLUTION_EXTRA_POINTS].map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.minorPleCard}>
+            <div className={styles.eventCardLogo}>Clash in Paris</div>
+            {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.minorPleCard}>
+            <div className={styles.eventCardLogo}>Wrestlepalooza</div>
+            {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+              <div key={i} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        </div>
+      </section>
+
+      {/* Point categories summary + links */}
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Point categories</h2>
-        <p>
-          Each wrestler’s total for a match is the sum of:
-        </p>
-        <ul>
-          <li><strong>Match points</strong> — Appearance (on card) + win bonus, scaled by event type</li>
-          <li><strong>Main event points</strong> — Extra for main eventing the show</li>
-          <li><strong>Title points</strong> — Title win or title defense</li>
-          <li><strong>Special points</strong> — Royal Rumble, War Games, Elimination Chamber, Money in the Bank, etc.</li>
-          <li><strong>Battle royal points</strong> — Entry and winner bonus for battle royals</li>
-        </ul>
-      </section>
-
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>TV shows (RAW / SmackDown)</h2>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #333", textAlign: "left" }}>
-              <th style={{ padding: "8px 12px" }}>Situation</th>
-              <th style={{ padding: "8px 12px" }}>Points</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ borderBottom: "1px solid #ddd" }}><td style={{ padding: "8px 12px" }}>On match card (appearance)</td><td style={{ padding: "8px 12px" }}>+1</td></tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}><td style={{ padding: "8px 12px" }}>Winning a match</td><td style={{ padding: "8px 12px" }}>+2</td></tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}><td style={{ padding: "8px 12px" }}>Main eventing</td><td style={{ padding: "8px 12px" }}>+3</td></tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}><td style={{ padding: "8px 12px" }}>Winning the main event</td><td style={{ padding: "8px 12px" }}>+4</td></tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Premium live events (PLEs)</h2>
-        <p style={{ marginBottom: 12 }}>
-          Bigger events give higher appearance and win bonuses. “On card” points are always awarded (including for No Contest); win and main event bonuses only apply when there is a clear winner.
-        </p>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, fontSize: 15 }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #333", textAlign: "left" }}>
-              <th style={{ padding: "8px 12px" }}>Event</th>
-              <th style={{ padding: "8px 12px" }}>On card</th>
-              <th style={{ padding: "8px 12px" }}>Win</th>
-              <th style={{ padding: "8px 12px" }}>Main event (bonus)</th>
-              <th style={{ padding: "8px 12px" }}>Win main event</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
-              <td style={{ padding: "8px 12px" }}>WrestleMania Night 1</td>
-              <td style={{ padding: "8px 12px" }}>+6</td>
-              <td style={{ padding: "8px 12px" }}>+12</td>
-              <td style={{ padding: "8px 12px" }}>+20</td>
-              <td style={{ padding: "8px 12px" }}>+25</td>
-            </tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
-              <td style={{ padding: "8px 12px" }}>WrestleMania Night 2</td>
-              <td style={{ padding: "8px 12px" }}>+6</td>
-              <td style={{ padding: "8px 12px" }}>+12</td>
-              <td style={{ padding: "8px 12px" }}>+25</td>
-              <td style={{ padding: "8px 12px" }}>+35</td>
-            </tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
-              <td style={{ padding: "8px 12px" }}>SummerSlam</td>
-              <td style={{ padding: "8px 12px" }}>+5</td>
-              <td style={{ padding: "8px 12px" }}>+10</td>
-              <td style={{ padding: "8px 12px" }}>+10 (N1) / +15 (N2)</td>
-              <td style={{ padding: "8px 12px" }}>+20</td>
-            </tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
-              <td style={{ padding: "8px 12px" }}>Survivor Series</td>
-              <td style={{ padding: "8px 12px" }}>+5</td>
-              <td style={{ padding: "8px 12px" }}>+10</td>
-              <td style={{ padding: "8px 12px" }}>+12</td>
-              <td style={{ padding: "8px 12px" }}>+15</td>
-            </tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
-              <td style={{ padding: "8px 12px" }}>Royal Rumble (non-Rumble match)</td>
-              <td style={{ padding: "8px 12px" }}>+5</td>
-              <td style={{ padding: "8px 12px" }}>+10</td>
-              <td style={{ padding: "8px 12px" }}>+12</td>
-              <td style={{ padding: "8px 12px" }}>+15</td>
-            </tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
-              <td style={{ padding: "8px 12px" }}>Elimination Chamber / Crown Jewel / Night of Champions / MITB (non-special match)</td>
-              <td style={{ padding: "8px 12px" }}>+4</td>
-              <td style={{ padding: "8px 12px" }}>+8</td>
-              <td style={{ padding: "8px 12px" }}>+9</td>
-              <td style={{ padding: "8px 12px" }}>+15</td>
-            </tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
-              <td style={{ padding: "8px 12px" }}>Other PLEs (e.g. Backlash, Saturday Night’s Main Event)</td>
-              <td style={{ padding: "8px 12px" }}>+3</td>
-              <td style={{ padding: "8px 12px" }}>+6</td>
-              <td style={{ padding: "8px 12px" }}>+7</td>
-              <td style={{ padding: "8px 12px" }}>+12</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Titles</h2>
-        <ul>
-          <li><strong>Title win</strong> (new champion): +5</li>
-          <li><strong>Title defense</strong> (retention): +4</li>
-          <li><strong>Title defense via DQ</strong>: +2</li>
-        </ul>
-      </section>
-
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Special matches</h2>
-        <ul>
-          <li><strong>Battle royal</strong> — Entry: +1; Winner: +8</li>
-          <li><strong>Royal Rumble match</strong> — Participant: +2; +3 per elimination; Iron Man / Iron Woman: +12; Most eliminations: +12; Winner: +30</li>
-          <li><strong>War Games</strong> (Survivor Series) — Team: +8; Winning team: +14</li>
-          <li><strong>Elimination Chamber</strong> — Participant: +10; Winner: +30; Per elimination: +10; Longest lasting (ironman/ironwoman): +15. Qualifier matches: +10.</li>
-          <li><strong>Money in the Bank ladder match</strong> — Participant: +12; Winner: +25</li>
-          <li><strong>Crown Jewel Championship match</strong> — Participant: +10; Winner: +20</li>
-        </ul>
-      </section>
-
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Other rules</h2>
-        <ul>
-          <li><strong>DQ win</strong> — Only <strong>win</strong> points are halved (rounded down). “On card” and main event bonuses are unchanged.</li>
-          <li><strong>No Contest</strong> — Only <strong>appearance</strong> (“on card”) points are awarded. No win or main event bonus.</li>
-          <li><strong>Promos / segments</strong> — No points. Segments classified as “Promo” in the data are excluded from scoring.</li>
-          <li><strong>Tag teams</strong> — Points are awarded to <strong>individual wrestlers</strong> only (e.g. each member of a tag team gets their own match/win/main event points).</li>
-        </ul>
+        <p>Each wrestler&apos;s total for a match is the sum of: <strong>Match points</strong> (appearance + win), <strong>Main event points</strong>, <strong>Title points</strong>, <strong>Special points</strong> (Rumble, War Games, Chamber, MITB, etc.), and <strong>Battle royal points</strong>.</p>
       </section>
 
       <p style={{ marginTop: 24 }}>
-        <Link href="/points">Points System</Link> for the complete breakdown. <Link href="/event-results">Event Results</Link> to see points in action, or open any <Link href="/">completed event</Link> from the list to view the full breakdown per wrestler.
+        <Link href="/points">Full Points System</Link> for the complete breakdown. <Link href="/event-results">Event Results</Link> to see points in action.
       </p>
     </main>
   );

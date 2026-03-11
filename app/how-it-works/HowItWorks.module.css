@@ -1,0 +1,413 @@
+/* How It Works — scoring sections matching screenshot layouts */
+
+.page {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.sectionSubtitle {
+  color: #555;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* ---------- Title Points: single table, 6 columns (Men's name | belt | pts | Women's name | belt | pts) ---------- */
+.titlePointsGrid {
+  display: grid;
+  grid-template-columns: 1fr minmax(72px, 72px) 48px 1fr minmax(72px, 72px) 48px;
+  gap: 0;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 32px;
+}
+
+/* Header row: 6 cells */
+.titlePointsThMens {
+  background: #1e3a5f;
+  color: white;
+  padding: 12px 16px;
+  font-weight: 700;
+}
+
+.titlePointsThBeltMens {
+  background: #1e3a5f;
+}
+
+.titlePointsThPtsMens {
+  background: #1e3a5f;
+  color: white;
+  padding: 12px 16px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.titlePointsThWomens {
+  background: #8b1538;
+  color: white;
+  padding: 12px 16px;
+  font-weight: 700;
+}
+
+.titlePointsThBeltWomens {
+  background: #8b1538;
+}
+
+.titlePointsThPtsWomens {
+  background: #8b1538;
+  color: white;
+  padding: 12px 16px;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* Data cells */
+.titlePointsTdNameMens {
+  padding: 12px 16px;
+  background: #2c5282;
+  color: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.titlePointsTdBeltMens {
+  padding: 8px;
+  background: #2c5282;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.titlePointsTdPtsMens {
+  padding: 12px 16px;
+  background: #2c5282;
+  color: white;
+  font-weight: 700;
+  text-align: right;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.titlePointsTdNameWomens {
+  padding: 12px 16px;
+  background: #9f2241;
+  color: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.titlePointsTdBeltWomens {
+  padding: 8px;
+  background: #9f2241;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.titlePointsTdPtsWomens {
+  padding: 12px 16px;
+  background: #9f2241;
+  color: white;
+  font-weight: 700;
+  text-align: right;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Alternating row colors (odd rows) */
+.titlePointsTdNameMens.titlePointsRowAlt,
+.titlePointsTdBeltMens.titlePointsRowAlt,
+.titlePointsTdPtsMens.titlePointsRowAlt {
+  background: #2a4365;
+}
+
+.titlePointsTdNameWomens.titlePointsRowAlt,
+.titlePointsTdBeltWomens.titlePointsRowAlt,
+.titlePointsTdPtsWomens.titlePointsRowAlt {
+  background: #7a1a32;
+}
+
+.beltPlaceholder {
+  width: 48px;
+  height: 24px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Fixed-size box so both men's and women's belts render identically */
+.beltImageWrap {
+  display: block;
+  width: 56px;
+  height: 32px;
+  min-width: 56px;
+  max-width: 56px;
+  min-height: 32px;
+  max-height: 32px;
+  flex: 0 0 auto;
+  align-self: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.beltImageWrap .beltImage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  box-sizing: border-box;
+}
+
+.pointsVal {
+  font-weight: 700;
+  text-align: right;
+}
+
+/* ---------- Raw/Smackdown: white rules + black box ---------- */
+.rulesBlock {
+  background: #fff;
+  margin-bottom: 24px;
+}
+
+.rulesBlock p {
+  margin-bottom: 12px;
+  color: #1a1a1a;
+}
+
+.darkBox,
+.pleDarkBox {
+  background: #111;
+  color: #fff;
+  padding: 28px 24px;
+  border-radius: 8px;
+  margin-bottom: 32px;
+}
+
+.rawSmackdownLogoRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.rawSmackdownLogoRow .eventLogoPlaceholder {
+  margin-bottom: 0;
+}
+
+.rawSmackdownFlex {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.rawSmackdownCol {
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.rawSmackdownAmp {
+  display: flex;
+  align-items: center;
+  font-size: 2.5rem;
+  font-weight: 300;
+  color: #fff;
+  opacity: 0.9;
+}
+
+.eventLogoPlaceholder {
+  height: 56px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pointRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 15px;
+}
+
+.pointRow:last-child {
+  border-bottom: none;
+}
+
+.pointRowPoints {
+  font-weight: 700;
+  margin-left: 12px;
+}
+
+/* ---------- Major PLE: content in .pleDarkBox ---------- */
+.wrestlemaniaBlock {
+  text-align: center;
+  margin: 28px 0;
+}
+
+.wrestlemaniaLogoPlaceholder {
+  height: 80px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.majorPleTwoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 560px;
+  margin: 0 auto 32px;
+}
+
+.majorPleThreeCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.eventCard {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.eventCardLogo {
+  height: 52px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+.eventCard .pointRow {
+  font-size: 14px;
+}
+
+/* ---------- Medium PLE: content in .pleDarkBox ---------- */
+.pleDarkBox .mediumPleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 0;
+}
+
+.mediumPleCard {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.mediumPleCard .eventCardLogo {
+  height: 48px;
+  font-size: 11px;
+}
+
+/* ---------- Minor PLE: content in .pleDarkBox ---------- */
+.pleDarkBox .minorPleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.minorPleCard {
+  background: #111;
+  color: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #333;
+}
+
+.minorPleCard .eventCardLogo {
+  height: 48px;
+  margin-bottom: 12px;
+  font-size: 11px;
+}
+
+@media (max-width: 768px) {
+  .titlePointsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .majorPleTwoCol,
+  .majorPleThreeCol {
+    grid-template-columns: 1fr;
+  }
+
+  .mediumPleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .minorPleGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .rawSmackdownLogoRow {
+    flex-direction: column;
+  }
+
+  .rawSmackdownFlex {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .minorPleGrid {
+    grid-template-columns: 1fr;
+  }
+}
