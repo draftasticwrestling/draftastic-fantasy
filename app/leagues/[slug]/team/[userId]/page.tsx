@@ -10,14 +10,11 @@ import {
 } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import {
-  getNextUpcomingEvent,
-  getLineupForEvent,
   getTradeProposalsForLeague,
   getReleaseProposalsForLeague,
   getFreeAgentProposalsForLeague,
 } from "@/lib/leagueOwner";
-import { getRosterRulesForLeague, getActivePerEvent } from "@/lib/leagueStructure";
-import { LineupForm } from "../LineupForm";
+import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
 import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
@@ -183,7 +180,6 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   }
 
   const rosterRules = getRosterRulesForLeague(members.length);
-  const activePerEvent = rosterRules ? getActivePerEvent(rosterRules.rosterSize) : undefined;
   const rosterWrestlers = rosterEntries.map((e) => {
     const w = wrestlers.find((x) => x.id === e.wrestler_id);
     return { id: e.wrestler_id, name: w?.name ?? e.wrestler_id };
@@ -289,27 +285,17 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const otherMembers = members.filter((m) => m.user_id !== currentUser.id);
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
 
-  let nextEvent: Awaited<ReturnType<typeof getNextUpcomingEvent>> = null;
-  let lineupIds: string[] = [];
   let tradeProposals: Awaited<ReturnType<typeof getTradeProposalsForLeague>> = [];
   let releaseProposals: Awaited<ReturnType<typeof getReleaseProposalsForLeague>> = [];
   let faProposals: Awaited<ReturnType<typeof getFreeAgentProposalsForLeague>> = [];
   try {
-    [nextEvent, tradeProposals, releaseProposals, faProposals] = await Promise.all([
-      getNextUpcomingEvent({ preferSmackDown: true }),
+    [tradeProposals, releaseProposals, faProposals] = await Promise.all([
       getTradeProposalsForLeague(league.id),
       getReleaseProposalsForLeague(league.id),
       getFreeAgentProposalsForLeague(league.id),
     ]);
   } catch {
     // Tables may not exist
-  }
-  if (nextEvent) {
-    try {
-      lineupIds = await getLineupForEvent(league.id, currentUser.id, nextEvent.id);
-    } catch {
-      lineupIds = [];
-    }
   }
   const tradesForMe = tradeProposals.filter(
     (p) => p.status === "pending" && p.to_user_id === currentUser.id
@@ -341,59 +327,31 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         initialTeamName={targetMember.team_name ?? ""}
       />
       <p style={{ color: "#555", marginBottom: 24, fontSize: 14 }}>
-        Manage your roster, set your lineup for the next event, and propose trades, releases, or free agent signings.
+        Manage your roster and propose trades, releases, or free agent signings.
       </p>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>My roster</h2>
         {rosterRules && (
-          <p style={{ fontSize: 14, color: "#666", marginBottom: 4 }}>
+          <p style={{ fontSize: 14, color: "#666", marginBottom: 24 }}>
             {rosterEntries.length} / {rosterRules.rosterSize} wrestlers (min {rosterRules.minFemale} female, min {rosterRules.minMale} male).
           </p>
         )}
-        <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
-          Same table as League Leaders — titles, 2K rating, points, and match stats. Sort by any column.
-        </p>
         {rosterTableRows.length > 0 ? (
           <WrestlerList
             wrestlers={rosterTableRows}
             defaultSortColumn="totalPoints"
             defaultSortDir="desc"
-            defaultPointsPeriod="allTime"
+            defaultPointsPeriod="sinceStart"
             leagueSlug={slug}
             wrestlerProfileFrom="team"
             rosterByWrestler={rosterByWrestlerForTable}
+            hideRosterFilter
           />
         ) : (
           <p style={{ color: "#666", fontSize: 14 }}>No wrestlers on your roster yet. Add wrestlers via the draft or free agent signings.</p>
         )}
       </section>
-
-      {nextEvent && activePerEvent != null && rosterWrestlers.length > 0 && (
-        <section
-          style={{
-            marginBottom: 32,
-            padding: 16,
-            background: "#f8f9fa",
-            borderRadius: 8,
-            border: "1px solid #eee",
-          }}
-        >
-          <LineupForm
-            leagueSlug={slug}
-            eventId={nextEvent.id}
-            eventName={nextEvent.name}
-            roster={rosterWrestlers}
-            initialActiveIds={lineupIds}
-            maxActive={activePerEvent}
-          />
-        </section>
-      )}
-      {!nextEvent && (
-        <p style={{ fontSize: 14, color: "#666", marginBottom: 24 }}>
-          No upcoming event found. Lineup will be available when the next event is scheduled.
-        </p>
-      )}
 
       <section id="propose-trade" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Propose trade</h2>

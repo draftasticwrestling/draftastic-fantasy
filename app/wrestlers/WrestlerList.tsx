@@ -452,6 +452,8 @@ type WrestlerListProps = {
   rosterByWrestler?: Record<string, RosterOwnerInfo> | null;
   /** Slugs of wrestlers who have matches needing review (show caution icon). Used when rows don't have unparsedCount. */
   wrestlerSlugsWithUnparsed?: string[] | null;
+  /** When true, hide the Include (roster/brand) filter row. Used e.g. on My Team roster where the list is already just that roster. */
+  hideRosterFilter?: boolean;
 };
 
 function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | "team" | null): string {
@@ -471,12 +473,13 @@ export default function WrestlerList({
   wrestlerProfileFrom,
   rosterByWrestler,
   wrestlerSlugsWithUnparsed,
+  hideRosterFilter = false,
 }: WrestlerListProps) {
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
   const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
   const [search, setSearch] = useState("");
   const [includedRosters, setIncludedRosters] = useState<Set<string>>(
-    () => new Set(["Raw", "SmackDown"])
+    () => (hideRosterFilter ? new Set(ALL_ROSTER_VALUES) : new Set(["Raw", "SmackDown"]))
   );
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>(
     defaultPointsPeriod ?? "sinceStart"
@@ -548,32 +551,34 @@ export default function WrestlerList({
 
   return (
     <>
-      {/* Toolbar: Roster checkboxes, Search, Reset */}
+      {/* Toolbar: Roster checkboxes (optional), Period, Search, Reset */}
       <div className="wrestler-list-toolbar">
-        <div className="wrestler-list-roster-filters">
-          <span className="wrestler-list-roster-label">Include:</span>
-          <div className="wrestler-list-roster-checkboxes" role="group" aria-label="Filter by roster">
-            {ROSTER_CATEGORIES.map(({ value, label }) => (
-              <label key={value} className="wrestler-list-roster-check">
-                <input
-                  type="checkbox"
-                  checked={includedRosters.has(value)}
-                  onChange={() => toggleRoster(value)}
-                  aria-label={`Include ${label}`}
-                />
-                <span>{label}</span>
-              </label>
-            ))}
+        {!hideRosterFilter && (
+          <div className="wrestler-list-roster-filters">
+            <span className="wrestler-list-roster-label">Include:</span>
+            <div className="wrestler-list-roster-checkboxes" role="group" aria-label="Filter by roster">
+              {ROSTER_CATEGORIES.map(({ value, label }) => (
+                <label key={value} className="wrestler-list-roster-check">
+                  <input
+                    type="checkbox"
+                    checked={includedRosters.has(value)}
+                    onChange={() => toggleRoster(value)}
+                    aria-label={`Include ${label}`}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="wrestler-list-roster-actions">
+              <button type="button" className="wrestler-list-reset" onClick={selectAllRosters}>
+                All
+              </button>
+              <button type="button" className="wrestler-list-reset" onClick={clearAllRosters}>
+                None
+              </button>
+            </div>
           </div>
-          <div className="wrestler-list-roster-actions">
-            <button type="button" className="wrestler-list-reset" onClick={selectAllRosters}>
-              All
-            </button>
-            <button type="button" className="wrestler-list-reset" onClick={clearAllRosters}>
-              None
-            </button>
-          </div>
-        </div>
+        )}
         {hasPointsPeriodFilter && (
           <div className="wrestler-list-filter-row">
             <label htmlFor="wrestler-points-period">Period</label>
