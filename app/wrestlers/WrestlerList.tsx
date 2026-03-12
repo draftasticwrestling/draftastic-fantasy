@@ -424,6 +424,9 @@ const thBase = {
   fontSize: "13px",
 } as const;
 
+/** When on My Team roster, highlight the TOT column. */
+const TOT_HIGHLIGHT_STYLE: React.CSSProperties = { background: "#1a1a1a", color: "#fff", fontWeight: 700 };
+
 const ALL_ROSTER_VALUES = ROSTER_CATEGORIES.map((c) => c.value);
 
 const POINTS_PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
@@ -804,11 +807,12 @@ export default function WrestlerList({
                     const isSortable = h.key != null;
                     const isActive = sortColumn === h.key;
                     const idx = i + STICKY_COLUMN_COUNT;
-                    const style: React.CSSProperties = { ...thBase, minWidth: h.minW, textAlign: h.align, borderRight: idx === HEADER_CONFIG.length - 1 ? cellBorder : cellBorder, borderBottom: cellBorder, display: "flex", alignItems: "center", ...(h.section === "POINTS" && idx === 9 ? { borderLeft: SECTION_BORDER } : {}), ...(h.section === "POINTS" && idx === 13 ? { borderRight: SECTION_BORDER } : {}), ...(h.section === "MATCHES" && idx === 14 ? { borderLeft: SECTION_BORDER } : {}) };
+                    const highlightTOT = wrestlerProfileFrom === "team" && h.key === "totalPoints";
+                    const style: React.CSSProperties = { ...thBase, minWidth: h.minW, textAlign: h.align, borderRight: idx === HEADER_CONFIG.length - 1 ? cellBorder : cellBorder, borderBottom: cellBorder, display: "flex", alignItems: "center", ...(h.section === "POINTS" && idx === 9 ? { borderLeft: SECTION_BORDER } : {}), ...(h.section === "POINTS" && idx === 13 ? { borderRight: SECTION_BORDER } : {}), ...(h.section === "MATCHES" && idx === 14 ? { borderLeft: SECTION_BORDER } : {}), ...(highlightTOT ? TOT_HIGHLIGHT_STYLE : {}) };
                     if (!isSortable) return <div key={i} style={style}>{h.label}</div>;
                     return (
                       <div key={i} style={style}>
-                        <button type="button" onClick={() => handleSort(h.key as SortColumn)} style={{ width: "100%", padding: 0, border: "none", background: "none", color: isActive ? "var(--color-blue)" : "inherit", font: "inherit", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: h.align === "center" ? "center" : "flex-start", gap: 4 }}>
+                        <button type="button" onClick={() => handleSort(h.key as SortColumn)} style={{ width: "100%", padding: 0, border: "none", background: "none", color: highlightTOT ? "#fff" : isActive ? "var(--color-blue)" : "inherit", font: "inherit", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: h.align === "center" ? "center" : "flex-start", gap: 4 }}>
                           <span>{h.label}</span>
                           {isActive && <span style={{ opacity: 0.9 }}>{sortDir === "asc" ? "↑" : "↓"}</span>}
                         </button>
@@ -830,7 +834,7 @@ export default function WrestlerList({
                       <div style={{ ...cellStyle, fontWeight: 600, borderLeft: SECTION_BORDER }}>{pts.rsPoints}</div>
                       <div style={{ ...cellStyle, fontWeight: 600 }}>{pts.plePoints}</div>
                       <div style={{ ...cellStyle, fontWeight: 600 }}>{pts.beltPoints}</div>
-                      <div style={{ ...cellStyle, fontWeight: 700 }}>{pts.totalPoints}</div>
+                      <div style={{ ...cellStyle, ...(wrestlerProfileFrom === "team" ? TOT_HIGHLIGHT_STYLE : { fontWeight: 700 }) }}>{pts.totalPoints}</div>
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>{ms.mw > 0 ? ((pts.rsPoints + pts.plePoints) / ms.mw).toFixed(1) : "—"}</div>
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderLeft: SECTION_BORDER }}>{ms.mw}</div>
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.win}</div>
