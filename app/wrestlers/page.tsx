@@ -17,6 +17,9 @@ import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 
 const LEAGUE_START_DATE = "2025-05-02";
 
+/** Allow cached response for 60s to improve repeat visit speed. */
+export const revalidate = 60;
+
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
   if (v == null || v === "") return null;
@@ -44,7 +47,7 @@ type ChampionshipReign = {
 };
 
 export default async function WrestlersPage() {
-  const [wrestlersResult, { data: events }] = await Promise.all([
+  const [wrestlersResult, { data: events }, { data: rawReigns }] = await Promise.all([
     (async () => {
       // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
       const r = await supabase
@@ -59,12 +62,11 @@ export default async function WrestlersPage() {
       .eq("status", "completed")
       .gte("date", LEAGUE_START_DATE)
       .order("date", { ascending: true }),
+    supabase
+      .from("championship_history")
+      .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
+      .order("won_date", { ascending: true }),
   ]);
-
-  const { data: rawReigns } = await supabase
-    .from("championship_history")
-    .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
-    .order("won_date", { ascending: true });
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
   const inferredReigns = inferReignsFromEvents(events ?? []);
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];

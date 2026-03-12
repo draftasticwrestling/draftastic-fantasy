@@ -48,6 +48,9 @@ type ChampionshipReign = {
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 10000;
 
+/** Allow cached response per league for 60s to improve repeat visit speed. */
+export const revalidate = 60;
+
 export async function generateMetadata({
   params,
 }: {
@@ -82,6 +85,7 @@ export default async function WrestlersFreeAgentsPage({
     { data: events2026 },
     { data: eventsAll },
     rosters,
+    { data: rawReigns },
   ] = await Promise.all([
     (async () => {
       // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
@@ -119,6 +123,10 @@ export default async function WrestlersFreeAgentsPage({
       .order("date", { ascending: true })
       .limit(ALL_TIME_EVENTS_LIMIT),
     getRostersForLeague(league.id),
+    supabase
+      .from("championship_history")
+      .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
+      .order("won_date", { ascending: true }),
   ]);
 
   const wrestlers = wrestlersResult.data ?? [];
@@ -130,10 +138,6 @@ export default async function WrestlersFreeAgentsPage({
     }
   }
 
-  const { data: rawReigns } = await supabase
-    .from("championship_history")
-    .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
-    .order("won_date", { ascending: true });
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
   const inferredReigns = inferReignsFromEvents(eventsAll ?? []);
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];

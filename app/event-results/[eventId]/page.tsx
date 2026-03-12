@@ -183,11 +183,14 @@ export default async function EventResultsPage({
   const search = await searchParams;
   const debugKotr = search?.debug === "kotr" || search?.debug === "1";
 
-  const { data: event, error } = await supabase
-    .from("events")
-    .select("id, name, date, location, matches")
-    .eq("id", eventId)
-    .single();
+  const [{ data: event, error }, { data: wrestlers }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, name, date, location, matches")
+      .eq("id", eventId)
+      .single(),
+    supabase.from("wrestlers").select("id, name"),
+  ]);
 
   if (error || !event) {
     notFound();
@@ -196,10 +199,6 @@ export default async function EventResultsPage({
   const { scoreEvent } = await import("@/lib/scoring/scoreEvent.js");
   const { EVENT_TYPES } = await import("@/lib/scoring/parsers/eventClassifier.js");
   const { normalizeWrestlerName } = await import("@/lib/scoring/parsers/participantParser.js");
-
-  const { data: wrestlers } = await supabase
-    .from("wrestlers")
-    .select("id, name");
   const slugToName = new Map<string, string>();
   const slugToCanonical = new Map<string, string>();
   for (const w of wrestlers ?? []) {
@@ -370,22 +369,24 @@ export default async function EventResultsPage({
     kotrDebugKings = kingFromPrior;
 
     const forceKotrIds = ["smackdown-20250620", "raw-20250623"];
+    const toFetchForceIds = forceKotrIds.filter((id) => id !== currentEventId);
     const processedForceIds = new Set<string>();
     kotrForceFetchLog = [];
+    const forceEvents = await (async () => {
+      if (toFetchForceIds.length === 0) return [];
+      const { data } = await supabase
+        .from("events")
+        .select("id, name, date, matches")
+        .in("id", toFetchForceIds);
+      return data ?? [];
+    })();
+    const forceEventsById = new Map(forceEvents.map((e) => [String(e.id), e]));
     for (const fid of forceKotrIds) {
       if (fid === currentEventId) {
         kotrForceFetchLog.push({ id: fid, found: true, eventType: "(current event, skipped)" });
         continue;
       }
-      const { data: forceEv, error: forceErr } = await supabase
-        .from("events")
-        .select("id, name, date, matches")
-        .eq("id", fid)
-        .single();
-      if (forceErr) {
-        kotrForceFetchLog.push({ id: fid, found: false, error: forceErr.message });
-        continue;
-      }
+      const forceEv = forceEventsById.get(fid);
       if (!forceEv) {
         kotrForceFetchLog.push({ id: fid, found: false, error: "No data" });
         continue;

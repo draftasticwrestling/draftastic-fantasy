@@ -75,6 +75,7 @@ export function RosterTable({
                         className="roster-player-avatar"
                         width={32}
                         height={32}
+                        loading="lazy"
                       />
                     ) : null}
                     {leagueSlug ? (
