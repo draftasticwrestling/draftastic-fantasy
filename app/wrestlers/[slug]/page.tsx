@@ -83,7 +83,7 @@ function getPeriodLabel(period: PointsPeriod): string {
   if (period === "2026") return "2026";
   return "since league start";
 }
-const BOXSCORE_WRESTLER_BASE = "https://prowrestlingboxscore.com/wrestlers";
+const BOXSCORE_WRESTLER_BASE = "https://prowrestlingboxscore.com/wrestler";
 
 type ChampionshipReign = {
   champion_slug?: string | null;
