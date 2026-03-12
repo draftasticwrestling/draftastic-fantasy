@@ -320,7 +320,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       style={{
         fontFamily: "system-ui, sans-serif",
         padding: 24,
-        maxWidth: 640,
+        maxWidth: 1200,
         margin: "0 auto",
         fontSize: 16,
         lineHeight: 1.5,
@@ -345,35 +345,27 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       </p>
 
       <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>My roster</h2>
+        <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>My roster</h2>
         {rosterRules && (
-          <p style={{ fontSize: 14, color: "#666", marginBottom: 8 }}>
+          <p style={{ fontSize: 14, color: "#666", marginBottom: 4 }}>
             {rosterEntries.length} / {rosterRules.rosterSize} wrestlers (min {rosterRules.minFemale} female, min {rosterRules.minMale} male).
           </p>
         )}
-        <RosterTable
-          entries={rosterEntries}
-          wrestlerName={(id) => wrestlerNamesMap[id] ?? id}
-          leagueSlug={slug}
-          pointsByWrestlerId={Object.fromEntries(rosterWithPoints.map((w) => [w.wrestler_id, w.points]))}
-          wrestlerImageUrl={wrestlerImageUrl}
-          maxSlots={rosterRules?.rosterSize}
-        />
-        {rosterTableRows.length > 0 && (
-          <div style={{ marginTop: 24 }}>
-            <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Same table as League Leaders — titles, 2K rating, points, and match stats for your wrestlers.
-            </p>
-            <WrestlerList
-              wrestlers={rosterTableRows}
-              defaultSortColumn="totalPoints"
-              defaultSortDir="desc"
-              defaultPointsPeriod="allTime"
-              leagueSlug={slug}
-              wrestlerProfileFrom="team"
-              rosterByWrestler={rosterByWrestlerForTable}
-            />
-          </div>
+        <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
+          Same table as League Leaders — titles, 2K rating, points, and match stats. Sort by any column.
+        </p>
+        {rosterTableRows.length > 0 ? (
+          <WrestlerList
+            wrestlers={rosterTableRows}
+            defaultSortColumn="totalPoints"
+            defaultSortDir="desc"
+            defaultPointsPeriod="allTime"
+            leagueSlug={slug}
+            wrestlerProfileFrom="team"
+            rosterByWrestler={rosterByWrestlerForTable}
+          />
+        ) : (
+          <p style={{ color: "#666", fontSize: 14 }}>No wrestlers on your roster yet. Add wrestlers via the draft or free agent signings.</p>
         )}
       </section>
 
