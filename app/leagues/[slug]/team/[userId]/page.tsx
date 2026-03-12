@@ -189,30 +189,37 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   let rosterTableRows: WrestlerRow[] = [];
   if (isOwnTeam && rosterIds.length > 0) {
     const supabaseTable = await createClient();
-    const [{ data: fullWrestlersData }, { data: eventsAll }, { data: rawReigns }] = await Promise.all([
+    const startDate = getEffectiveLeagueStartDate(league);
+    const [{ data: fullWrestlersData }, { data: eventsSinceStart }, { data: eventsAll }, { data: rawReigns }] = await Promise.all([
       supabaseTable.from("wrestlers").select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"').in("id", rosterIds),
+      supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", startDate).order("date", { ascending: true }),
       supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", ALL_TIME_EVENTS_FROM).order("date", { ascending: true }).limit(ALL_TIME_EVENTS_LIMIT),
       supabaseTable.from("championship_history").select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
     ]);
     const fullWrestlers = fullWrestlersData ?? [];
-    const startDate = getEffectiveLeagueStartDate(league);
     const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
     const inferredReigns = inferReignsFromEvents(eventsAll ?? []);
     const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
     const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
-    const pointsBySlug = aggregateWrestlerPoints(eventsAll ?? []);
-    const matchStatsBySlug = aggregateWrestlerMatchStats(eventsAll ?? []);
+    const pointsBySlugSinceStart = aggregateWrestlerPoints(eventsSinceStart ?? []);
+    const pointsBySlugAllTime = aggregateWrestlerPoints(eventsAll ?? []);
+    const matchStatsBySlugSinceStart = aggregateWrestlerMatchStats(eventsSinceStart ?? []);
+    const matchStatsBySlugAllTime = aggregateWrestlerMatchStats(eventsAll ?? []);
     const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
     const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
     rosterTableRows = fullWrestlers.map((w: { id: string; name: string | null; gender: string | null; brand: string | null; image_url?: string | null; dob?: string | null; Status?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null }) => {
       const slugKey = w.id;
       const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
       const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
-      const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
-      const matchStats = getMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
+      const points = getPointsForWrestler(pointsBySlugSinceStart, slugKey, nameKey);
+      const pointsAllTime = getPointsForWrestler(pointsBySlugAllTime, slugKey, nameKey);
+      const matchStats = getMatchStatsForWrestler(matchStatsBySlugSinceStart, slugKey, nameKey);
+      const matchStatsAllTime = getMatchStatsForWrestler(matchStatsBySlugAllTime, slugKey, nameKey);
       const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
       const beltPoints = points.beltPoints + extraBelt;
       const totalPoints = points.rsPoints + points.plePoints + beltPoints;
+      const beltPointsAllTime = pointsAllTime.beltPoints + extraBelt;
+      const totalPointsAllTime = pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
       const titles = currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
       const raw = w as Record<string, unknown>;
       return {
@@ -236,10 +243,10 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         plePoints2026: 0,
         beltPoints2026: 0,
         totalPoints2026: 0,
-        rsPointsAllTime: points.rsPoints,
-        plePointsAllTime: points.plePoints,
-        beltPointsAllTime: beltPoints,
-        totalPointsAllTime: totalPoints,
+        rsPointsAllTime: pointsAllTime.rsPoints,
+        plePointsAllTime: pointsAllTime.plePoints,
+        beltPointsAllTime,
+        totalPointsAllTime,
         mw: matchStats.mw,
         win: matchStats.win,
         loss: matchStats.loss,
@@ -258,12 +265,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         nc2026: 0,
         dqw2026: 0,
         dql2026: 0,
-        mwAllTime: matchStats.mw,
-        winAllTime: matchStats.win,
-        lossAllTime: matchStats.loss,
-        ncAllTime: matchStats.nc,
-        dqwAllTime: matchStats.dqw,
-        dqlAllTime: matchStats.dql,
+        mwAllTime: matchStatsAllTime.mw,
+        winAllTime: matchStatsAllTime.win,
+        lossAllTime: matchStatsAllTime.loss,
+        ncAllTime: matchStatsAllTime.nc,
+        dqwAllTime: matchStatsAllTime.dqw,
+        dqlAllTime: matchStatsAllTime.dql,
         personaDisplay: getPersonasForDisplay(w.id) ?? null,
         status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
         currentChampionship: titles.length > 0 ? titles.join(", ") : null,
