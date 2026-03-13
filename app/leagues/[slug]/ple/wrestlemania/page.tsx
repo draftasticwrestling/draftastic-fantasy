@@ -6,6 +6,7 @@ import {
   getUpcomingWrestleManiaEvents,
   formatPleDate,
 } from "@/lib/pleUpcoming";
+import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 import styles from "./PleWrestlemania.module.css";
 
 /** Minimum appearance points (non-main event) until main events and night assignment are known. */
@@ -89,6 +90,8 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
     });
   });
 
+  const wrestlemaniaLogoUrl = EVENT_LOGO_URLS.wrestlemania;
+
   return (
     <main className={styles.plePage}>
       <Link href={`/leagues/${slug}`} className={styles.backLink}>
@@ -97,6 +100,11 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
 
       <section className={styles.pleHero} aria-label="Event header">
         <p className={styles.pleEventLabel}>Premium Live Event</p>
+        {wrestlemaniaLogoUrl && (
+          <div className={styles.pleHeroLogo}>
+            <img src={wrestlemaniaLogoUrl} alt="WrestleMania" loading="lazy" />
+          </div>
+        )}
         <h1 className={styles.pleTitle}>{heroTitle}</h1>
         <p className={styles.pleSubtitle}>{heroSubtitle}</p>
         <p className={styles.pleMeta}>{heroLocation}</p>

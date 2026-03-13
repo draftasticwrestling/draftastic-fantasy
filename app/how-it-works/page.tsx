@@ -493,7 +493,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.minorPleCard}>
-            <EventLogo eventKey="evolution" placeholderText="Evolution" className={styles.eventCardLogo} />
+            <EventLogo eventKey="evolution" placeholderText="Evolution" className={styles.eventCardLogoTall} />
             {[...MINOR_PLE_BASE_POINTS, ...EVOLUTION_EXTRA_POINTS].map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -511,7 +511,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.minorPleCard}>
-            <EventLogo eventKey="wrestlepalooza" placeholderText="Wrestlepalooza" className={styles.eventCardLogo} />
+            <EventLogo eventKey="wrestlepalooza" placeholderText="Wrestlepalooza" className={styles.eventCardLogoTall} />
             {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
