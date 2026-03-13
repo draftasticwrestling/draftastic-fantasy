@@ -754,7 +754,7 @@ export default function WrestlerList({
                           maxWidth: "none",
                           maxHeight: "none",
                           objectFit: "contain",
-                          transform: "rotate(180deg)",
+                          transform: "rotate(90deg)",
                         }}
                       />
                     ) : (
