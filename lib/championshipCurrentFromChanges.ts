@@ -7,7 +7,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
-import { getTagTeamMemberSlugs } from "@/lib/scoring/tagTeamMembers.js";
+import { getTagTeamMemberSlugs, parseTagTeamChampionToMemberSlugs } from "@/lib/scoring/tagTeamMembers.js";
 
 const CHANGES_TABLE = process.env.CHAMPIONSHIP_CHANGES_TABLE ?? "championship_changes";
 
@@ -76,7 +76,8 @@ export async function getCurrentChampionsFromChanges(
     if (champion && normalizeWrestlerName(champion) !== slugKey) result[normalizeWrestlerName(champion)] = entry;
     // Tag team: also assign to each member so profile/roster show belt for both
     if (TAG_TEAM_TYPES.has(typeKey)) {
-      const memberSlugs = getTagTeamMemberSlugs(slugKey);
+      const memberSlugs =
+        getTagTeamMemberSlugs(slugKey) ?? parseTagTeamChampionToMemberSlugs(champion || champion_slug || "");
       if (memberSlugs?.length) {
         for (const memberSlug of memberSlugs) {
           const memberKey = normalizeWrestlerName(memberSlug) || memberSlug;

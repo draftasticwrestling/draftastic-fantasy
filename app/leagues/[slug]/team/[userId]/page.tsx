@@ -214,6 +214,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     rosterTableRows = fullWrestlers.map((w: { id: string; name: string | null; gender: string | null; brand: string | null; image_url?: string | null; dob?: string | null; Status?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null }) => {
       const slugKey = w.id;
       const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
+      const idKey = normalizeWrestlerName(String(w.id));
       const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
       const points = getPointsForWrestler(pointsBySlugSinceStart, slugKey, nameKey);
       const pointsAllTime = getPointsForWrestler(pointsBySlugAllTime, slugKey, nameKey);
@@ -225,7 +226,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       const beltPointsAllTime = pointsAllTime.beltPoints + extraBelt;
       const totalPointsAllTime = pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
       const fromChanges =
-        currentFromChanges[canonicalKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
+        currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
       const titlesFromHistory = currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
       const primaryTitle = fromChanges ? fromChanges.title : (titlesFromHistory[0] ?? null);
       const titles = primaryTitle ? [primaryTitle] : titlesFromHistory;

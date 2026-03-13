@@ -23,6 +23,8 @@ function firstMonthEndOnOrAfter(startDate: string): string {
 }
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
+import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
+import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
@@ -88,6 +90,7 @@ export default async function LeagueLeadersPage({
     rosters,
     members,
     { data: rawReigns },
+    currentFromChanges,
   ] = await Promise.all([
     (async () => {
       // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
@@ -130,6 +133,7 @@ export default async function LeagueLeadersPage({
       .from("championship_history")
       .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
+    getCurrentChampionsFromChanges(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
   ]);
 
   const memberByUserId = Object.fromEntries((members ?? []).map((m) => [m.user_id, m]));
@@ -174,6 +178,7 @@ export default async function LeagueLeadersPage({
   const rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
+    const idKey = normalizeWrestlerName(String(w.id));
     const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
     // Use slugKey (stable id/slug) first so points match when display name changed (e.g. Natalya → Nattie, slug still natalya)
     const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
@@ -195,8 +200,12 @@ export default async function LeagueLeadersPage({
       pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
     const beltPoints2025 = points2025.beltPoints + extraBelt2025;
     const beltPoints2026 = points2026.beltPoints + extraBelt2026;
-    const titles =
+    const fromChanges =
+      currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
+    const titlesFromHistory =
       currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
+    const primaryTitle = fromChanges ? fromChanges.title : (titlesFromHistory[0] ?? null);
+    const titles = primaryTitle ? [primaryTitle] : titlesFromHistory;
     const raw = w as Record<string, unknown>;
     const unparsedCount = getUnparsedMatchesForWrestler(unparsedBySlug, slugKey, nameKey).length;
     return {
@@ -251,7 +260,7 @@ export default async function LeagueLeadersPage({
       personaDisplay: getPersonasForDisplay(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
-      championBeltImageUrl: titles.length > 0 ? getBeltImageUrlForTitle(titles[0], w.gender) : null,
+      championBeltImageUrl: primaryTitle ? getBeltImageUrlForTitle(primaryTitle, w.gender) : null,
       unparsedCount,
     };
   });
