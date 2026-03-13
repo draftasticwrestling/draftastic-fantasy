@@ -482,7 +482,15 @@ export function RosterCardGrid({
         }}
       >
         {sortedWrestlers.map((w) => (
-          <WrestlerCard key={w.id} w={w} leagueSlug={leagueSlug} />
+          <WrestlerCard
+            key={w.id}
+            w={w}
+            leagueSlug={leagueSlug}
+            canDrop={showDrop}
+            canTrade={showTrade}
+            onDropClick={() => handleDrop(w)}
+            onTradeClick={() => handleTrade(w)}
+          />
         ))}
       </div>
     </>
