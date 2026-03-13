@@ -337,7 +337,7 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, 
 }
 
 const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; align: "left" | "center"; section?: string }[] = [
-  { key: "roster", label: "Roster", minW: 52, align: "center", section: "PLAYER" },
+  { key: "roster", label: "Roster", minW: 80, align: "center", section: "PLAYER" },
   { key: "rank", label: "Rank", minW: 48, align: "center", section: "PLAYER" },
   { key: null, label: "", minW: 76, align: "center", section: "PLAYER" },
   { key: "name", label: "Name", minW: 160, align: "left", section: "PLAYER" },
@@ -363,7 +363,7 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
 ];
 
 const STICKY_COLUMN_COUNT = 6; // Roster, Rank, Image, Name, Titles, Status
-const STICKY_WIDTHS = [52, 48, 76, 160, 64, 96] as const;
+const STICKY_WIDTHS = [80, 48, 76, 160, 64, 96] as const;
 const STICKY_TOTAL_WIDTH = STICKY_WIDTHS.reduce((a, b) => a + b, 0); // 496
 const SCROLL_HEADERS = HEADER_CONFIG.slice(STICKY_COLUMN_COUNT);
 const SCROLL_TOTAL_WIDTH = SCROLL_HEADERS.reduce((s, h) => s + h.minW, 0);
@@ -704,12 +704,12 @@ export default function WrestlerList({
             }}
           >
             {/* Left column: one grid row per table row */}
-            <div style={{ gridColumn: 1, gridRow: 1, display: "grid", gridTemplateColumns: "52px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
+            <div style={{ gridColumn: 1, gridRow: 1, display: "grid", gridTemplateColumns: "80px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
               {HEADER_CONFIG.slice(0, 6).map((_, i) => (
                 <div key={i} style={{ ...thBase, borderRight: cellBorder, borderBottom: "none" }} />
               ))}
             </div>
-            <div style={{ gridColumn: 1, gridRow: 2, display: "grid", gridTemplateColumns: "52px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
+            <div style={{ gridColumn: 1, gridRow: 2, display: "grid", gridTemplateColumns: "80px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
               {HEADER_CONFIG.slice(0, 6).map((h, i) => {
                 const isSortable = h.key != null;
                 const isActive = sortColumn === h.key;
@@ -731,7 +731,7 @@ export default function WrestlerList({
               const brandLogo = BRAND_LOGO_URLS[roster];
               const rowBg = rowIndex % 2 === 0 ? ROW_BG_MAIN : ROW_BG_ALT;
               return (
-                <div key={w.id} style={{ gridColumn: 1, gridRow: rowIndex + 3, display: "grid", gridTemplateColumns: "52px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
+                <div key={w.id} style={{ gridColumn: 1, gridRow: rowIndex + 3, display: "grid", gridTemplateColumns: "80px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
                   <div
                     style={{
                       padding: 0,
@@ -754,7 +754,7 @@ export default function WrestlerList({
                           maxWidth: "none",
                           maxHeight: "none",
                           objectFit: "contain",
-                          transform: "rotate(90deg)",
+                          transform: "rotate(180deg)",
                         }}
                       />
                     ) : (
