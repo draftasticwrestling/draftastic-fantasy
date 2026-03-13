@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 
 export type WrestlerRow = {
   id: string;
@@ -111,6 +112,12 @@ const BRAND_STYLES: Record<string, { bg: string; showBg: string; label: string }
   Alumni: { bg: "#3d3d3d", showBg: "#2d2d2d", label: "ALUMNI" },
   Unassigned: { bg: "#5c5c5c", showBg: "#4c4c4c", label: "UNASSIGNED" },
   Other: { bg: "#3d3d3d", showBg: "#2d2d2d", label: "OTHER" },
+};
+
+/** Brand logo URLs for use in the roster column (League Leaders / Free Agents). */
+const BRAND_LOGO_URLS: Record<string, string | undefined> = {
+  Raw: EVENT_LOGO_URLS.raw,
+  SmackDown: EVENT_LOGO_URLS.smackdown,
 };
 
 /** Map raw brand string to a filter category. */
@@ -715,11 +722,47 @@ export default function WrestlerList({
             {flatList.map((w, rowIndex) => {
               const roster = normalizeRoster(w.brand);
               const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
+              const brandLogo = BRAND_LOGO_URLS[roster];
               const rowBg = rowIndex % 2 === 0 ? ROW_BG_MAIN : ROW_BG_ALT;
               return (
                 <div key={w.id} style={{ gridColumn: 1, gridRow: rowIndex + 3, display: "grid", gridTemplateColumns: "52px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
-                  <div style={{ padding: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRight: cellBorder, background: style.showBg }}>
-                    <span style={{ writingMode: "vertical-rl", transform: "rotate(-180deg)", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: "#fff" }}>{style.label}</span>
+                  <div
+                    style={{
+                      padding: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRight: cellBorder,
+                      background: style.showBg,
+                    }}
+                  >
+                    {brandLogo ? (
+                      <img
+                        src={brandLogo}
+                        alt={roster}
+                        loading="lazy"
+                        style={{
+                          display: "block",
+                          maxHeight: 70,
+                          maxWidth: 48,
+                          width: "auto",
+                          objectFit: "contain",
+                        }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          writingMode: "vertical-rl",
+                          transform: "rotate(-180deg)",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: 0.5,
+                          color: "#fff",
+                        }}
+                      >
+                        {style.label}
+                      </span>
+                    )}
                   </div>
                   <div style={{ padding: "10px 6px", textAlign: "center", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center" }}>{rankByWrestlerId.get(w.id) ?? "—"}</div>
                   <div style={{ padding: 6, borderRight: cellBorder, background: rowBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
