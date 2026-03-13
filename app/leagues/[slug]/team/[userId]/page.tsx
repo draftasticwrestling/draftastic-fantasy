@@ -146,43 +146,6 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     };
   });
 
-  if (!isOwnTeam) {
-    return (
-      <main
-        style={{
-          fontFamily: "system-ui, sans-serif",
-          padding: 24,
-          maxWidth: 640,
-          margin: "0 auto",
-          fontSize: 16,
-          lineHeight: 1.5,
-        }}
-      >
-        <p style={{ marginBottom: 24 }}>
-          <Link href={`/leagues/${slug}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
-            ← {league.name}
-          </Link>
-        </p>
-        <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>{teamLabel}</h1>
-        <p style={{ color: "#555", marginBottom: 24 }}>
-          <span style={{ fontWeight: 600, color: "#c00" }}>{totalPoints} pts</span> total
-        </p>
-        <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Roster</h2>
-          <RosterTable
-            entries={rosterEntries}
-            wrestlerName={(id) => wrestlerNamesMap[id] ?? id}
-            leagueSlug={slug}
-            pointsByWrestlerId={Object.fromEntries(rosterWithPoints.map((w) => [w.wrestler_id, w.points]))}
-            wrestlerImageUrl={wrestlerImageUrl}
-            showTradeButton
-            tradeTargetUserId={userId}
-          />
-        </section>
-      </main>
-    );
-  }
-
   const rosterRules = getRosterRulesForLeague(members.length);
   const rosterWrestlers = rosterEntries.map((e) => {
     const w = wrestlers.find((x) => x.id === e.wrestler_id);
@@ -191,7 +154,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
 
   const rosterIds = rosterEntries.map((e) => e.wrestler_id);
   let rosterTableRows: WrestlerRow[] = [];
-  if (isOwnTeam && rosterIds.length > 0) {
+  if (rosterIds.length > 0) {
     const supabaseTable = await createClient();
     const startDate = getEffectiveLeagueStartDate(league);
     const [{ data: fullWrestlersData }, { data: eventsSinceStart }, { data: eventsAll }, { data: rawReigns }, currentFromTable, currentFromChanges] = await Promise.all([
@@ -337,21 +300,49 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           ← {league.name}
         </Link>
       </p>
-      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>My team</h1>
-      <p style={{ color: "#555", marginBottom: 16 }}>
-        Total: <strong style={{ color: "#c00" }}>{totalPoints} pts</strong>
+      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>
+        {isOwnTeam ? "My team" : teamLabel}
+      </h1>
+      <p
+        style={{
+          color: "#555",
+          marginBottom: 16,
+          fontSize: 16,
+          fontWeight: 600,
+        }}
+      >
+        Team total:&nbsp;
+        <span
+          style={{
+            display: "inline-block",
+            padding: "4px 10px",
+            borderRadius: 999,
+            background: "linear-gradient(135deg, #c00 0%, #7a0000 100%)",
+            color: "#fff",
+            fontWeight: 800,
+            letterSpacing: 0.5,
+          }}
+        >
+          {totalPoints} pts
+        </span>
       </p>
-      <EditTeamNameForm
-        key={targetMember.team_name ?? "default"}
-        leagueSlug={slug}
-        initialTeamName={targetMember.team_name ?? ""}
-      />
-      <p style={{ color: "#555", marginBottom: 24, fontSize: 14 }}>
-        Manage your roster and propose trades, releases, or free agent signings.
-      </p>
+      {isOwnTeam && (
+        <>
+          <EditTeamNameForm
+            key={targetMember.team_name ?? "default"}
+            leagueSlug={slug}
+            initialTeamName={targetMember.team_name ?? ""}
+          />
+          <p style={{ color: "#555", marginBottom: 24, fontSize: 14 }}>
+            Manage your roster and propose trades, releases, or free agent signings.
+          </p>
+        </>
+      )}
 
       <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>My roster</h2>
+        <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>
+          {isOwnTeam ? "My roster" : "Roster"}
+        </h2>
         {rosterRules && (
           <p style={{ fontSize: 14, color: "#666", marginBottom: 24 }}>
             {rosterEntries.length} / {rosterRules.rosterSize} wrestlers (min {rosterRules.minFemale} female, min {rosterRules.minMale} male).
@@ -374,87 +365,100 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               image_url: w.image_url,
             }))}
             leagueSlug={slug}
+            teamUserId={userId}
+            viewerUserId={currentUser.id}
+            showDrop={isOwnTeam}
+            showTrade
+            isOwnTeam={isOwnTeam}
           />
         ) : (
-          <p style={{ color: "#666", fontSize: 14 }}>No wrestlers on your roster yet. Add wrestlers via the draft or free agent signings.</p>
+          <p style={{ color: "#666", fontSize: 14 }}>
+            {isOwnTeam
+              ? "No wrestlers on your roster yet. Add wrestlers via the draft or free agent signings."
+              : "This team has no wrestlers on the roster yet."}
+          </p>
         )}
       </section>
 
-      <section id="propose-trade" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Propose trade</h2>
-        {proposeTradeTo && (() => {
-          const target = otherMembers.find((m) => m.user_id === proposeTradeTo);
-          if (!target) return null;
-          const name = target.team_name?.trim() || target.display_name?.trim() || "this manager";
-          return (
-            <p style={{ fontSize: 14, color: "var(--color-blue)", fontWeight: 600, marginBottom: 12 }}>
-              Propose a trade with {name} (selected below).
+      {isOwnTeam && (
+        <>
+          <section id="propose-trade" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
+            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Propose trade</h2>
+            {proposeTradeTo && (() => {
+              const target = otherMembers.find((m) => m.user_id === proposeTradeTo);
+              if (!target) return null;
+              const name = target.team_name?.trim() || target.display_name?.trim() || "this manager";
+              return (
+                <p style={{ fontSize: 14, color: "var(--color-blue)", fontWeight: 600, marginBottom: 12 }}>
+                  Propose a trade with {name} (selected below).
+                </p>
+              );
+            })()}
+            <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
+              Offer wrestlers to another owner and request wrestlers in return. They can accept or reject.
             </p>
-          );
-        })()}
-        <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-          Offer wrestlers to another owner and request wrestlers in return. They can accept or reject.
-        </p>
-        {otherMembers.length === 0 ? (
-          <p style={{ color: "#666" }}>No other members in the league.</p>
-        ) : (
-          <ProposeTradeForm
-            leagueSlug={slug}
-            myRosterWrestlers={rosterWrestlers}
-            otherMembers={otherMembers.map((m) => ({
-              id: m.user_id,
-              name: (m.team_name?.trim() || m.display_name?.trim()) ?? "Unknown",
-            }))}
-            otherRosters={Object.fromEntries(
-              otherMembers.map((m) => [
-                m.user_id,
-                (rosters[m.user_id] ?? []).map((e) => e.wrestler_id),
-              ])
+            {otherMembers.length === 0 ? (
+              <p style={{ color: "#666" }}>No other members in the league.</p>
+            ) : (
+              <ProposeTradeForm
+                leagueSlug={slug}
+                myRosterWrestlers={rosterWrestlers}
+                otherMembers={otherMembers.map((m) => ({
+                  id: m.user_id,
+                  name: (m.team_name?.trim() || m.display_name?.trim()) ?? "Unknown",
+                }))}
+                otherRosters={Object.fromEntries(
+                  otherMembers.map((m) => [
+                    m.user_id,
+                    (rosters[m.user_id] ?? []).map((e) => e.wrestler_id),
+                  ])
+                )}
+                wrestlerNames={wrestlerNamesMap}
+                initialToUserId={proposeTradeTo}
+              />
             )}
-            wrestlerNames={wrestlerNamesMap}
-            initialToUserId={proposeTradeTo}
-          />
-        )}
-      </section>
+          </section>
 
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Request release</h2>
-        <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-          Request to drop a wrestler from your roster. The commissioner must approve.
-        </p>
-        {rosterWrestlers.length === 0 ? (
-          <p style={{ color: "#666" }}>Your roster is empty.</p>
-        ) : (
-          <ProposeReleaseForm
-            leagueSlug={slug}
-            rosterWrestlers={rosterWrestlers}
-            pendingReleaseIds={releaseProposals
-              .filter((p) => p.status === "pending" && p.user_id === currentUser.id)
-              .map((p) => p.wrestler_id)}
-          />
-        )}
-      </section>
+          <section id="request-release" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
+            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Request release</h2>
+            <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
+              Request to drop a wrestler from your roster. The commissioner must approve.
+            </p>
+            {rosterWrestlers.length === 0 ? (
+              <p style={{ color: "#666" }}>Your roster is empty.</p>
+            ) : (
+              <ProposeReleaseForm
+                leagueSlug={slug}
+                rosterWrestlers={rosterWrestlers}
+                pendingReleaseIds={releaseProposals
+                  .filter((p) => p.status === "pending" && p.user_id === currentUser.id)
+                  .map((p) => p.wrestler_id)}
+              />
+            )}
+          </section>
 
-      <section id="sign-free-agent" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Sign free agent</h2>
-        <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-          Request to add a wrestler who isn’t on any roster. Optionally drop one to make room. Commissioner must approve.
-        </p>
-        {freeAgents.length === 0 ? (
-          <p style={{ color: "#666" }}>No free agents available.</p>
-        ) : (
-          <ProposeFreeAgentForm
-            leagueSlug={slug}
-            freeAgents={freeAgents}
-            myRosterWrestlers={rosterWrestlers}
-            rosterSize={rosterRules?.rosterSize ?? 0}
-            pendingFaIds={faProposals
-              .filter((p) => p.status === "pending" && p.user_id === currentUser.id)
-              .map((p) => p.wrestler_id)}
-            initialWrestlerId={addFa}
-          />
-        )}
-      </section>
+          <section id="sign-free-agent" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
+            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Sign free agent</h2>
+            <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
+              Request to add a wrestler who isn’t on any roster. Optionally drop one to make room. Commissioner must approve.
+            </p>
+            {freeAgents.length === 0 ? (
+              <p style={{ color: "#666" }}>No free agents available.</p>
+            ) : (
+              <ProposeFreeAgentForm
+                leagueSlug={slug}
+                freeAgents={freeAgents}
+                myRosterWrestlers={rosterWrestlers}
+                rosterSize={rosterRules?.rosterSize ?? 0}
+                pendingFaIds={faProposals
+                  .filter((p) => p.status === "pending" && p.user_id === currentUser.id)
+                  .map((p) => p.wrestler_id)}
+                initialWrestlerId={addFa}
+              />
+            )}
+          </section>
+        </>
+      )}
 
       {tradesForMe.length > 0 && (
         <section style={{ marginBottom: 32 }}>

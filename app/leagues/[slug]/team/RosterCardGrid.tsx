@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getWrestlerFullImageUrl } from "@/lib/wrestlerImages";
 
@@ -39,14 +40,32 @@ const SILVER_FRAME = "linear-gradient(145deg, #a0a0a0 0%, #606060 30%, #404040 7
 type Props = {
   wrestlers: RosterCardWrestler[];
   leagueSlug: string;
+  /** User whose roster this is (owner of these cards) */
+  teamUserId: string;
+  /** Currently logged-in user viewing the page */
+  viewerUserId: string;
+  /** Show Drop action on cards (only for own team) */
+  showDrop?: boolean;
+  /** Show Trade action on cards */
+  showTrade?: boolean;
+  /** Whether this page is the viewer's own team */
+  isOwnTeam?: boolean;
 };
 
 function WrestlerCard({
   w,
   leagueSlug,
+  canDrop,
+  canTrade,
+  onDropClick,
+  onTradeClick,
 }: {
   w: RosterCardWrestler;
   leagueSlug: string;
+  canDrop: boolean;
+  canTrade: boolean;
+  onDropClick?: () => void;
+  onTradeClick?: () => void;
 }) {
   const rating = w.rating_2k26 ?? w.rating_2k25 ?? null;
   const ppm = w.mw > 0 ? w.totalPoints / w.mw : 0;
@@ -116,16 +135,72 @@ function WrestlerCard({
             {rating != null ? rating : "—"}
           </span>
         </div>
-        <div
-          style={{
-            width: 28,
-            height: 20,
-            background: "linear-gradient(135deg, #c0c0c0 0%, #808080 50%, #e8e8e8 100%)",
-            borderRadius: 4,
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.3)",
-          }}
-          aria-hidden
-        />
+        {canDrop || canTrade ? (
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+            }}
+          >
+            {canTrade && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onTradeClick?.();
+                }}
+                style={{
+                  padding: "4px 8px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  border: "1px solid #1a73e8",
+                  background: "linear-gradient(135deg, #1a73e8 0%, #0c4ba4 100%)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Trade
+              </button>
+            )}
+            {canDrop && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDropClick?.();
+                }}
+                style={{
+                  padding: "4px 8px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  border: "1px solid #b3261e",
+                  background: "linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Drop
+              </button>
+            )}
+          </div>
+        ) : (
+          <div
+            style={{
+              width: 28,
+              height: 20,
+              background: "linear-gradient(135deg, #c0c0c0 0%, #808080 50%, #e8e8e8 100%)",
+              borderRadius: 4,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.3)",
+            }}
+            aria-hidden
+          />
+        )}
       </div>
 
       {/* Image area with metallic frame */}
@@ -301,7 +376,16 @@ function getSortValue(w: RosterCardWrestler, key: SortKey): number {
   }
 }
 
-export function RosterCardGrid({ wrestlers, leagueSlug }: Props) {
+export function RosterCardGrid({
+  wrestlers,
+  leagueSlug,
+  teamUserId,
+  viewerUserId,
+  showDrop = false,
+  showTrade = false,
+  isOwnTeam = false,
+}: Props) {
+  const router = useRouter();
   const [sortBy, setSortBy] = useState<SortKey>("total");
   const [sortDesc, setSortDesc] = useState(true);
 
@@ -315,6 +399,32 @@ export function RosterCardGrid({ wrestlers, leagueSlug }: Props) {
     });
     return list;
   }, [wrestlers, sortBy, sortDesc]);
+
+  function handleDrop(w: RosterCardWrestler) {
+    if (!showDrop) return;
+    const name = w.name ?? w.id;
+    if (typeof window !== "undefined") {
+      // Simple confirmation before routing to the release section
+      const ok = window.confirm(`Request to drop ${name} from your roster? This will open the release form.`);
+      if (!ok) return;
+    }
+    const url = `/leagues/${encodeURIComponent(leagueSlug)}/team/${encodeURIComponent(
+      teamUserId,
+    )}?dropWrestlerId=${encodeURIComponent(w.id)}#request-release`;
+    router.push(url);
+  }
+
+  function handleTrade(w: RosterCardWrestler) {
+    if (!showTrade) return;
+    // For own team, just open the trade section on my team page.
+    // For other teams, go to my team page with proposeTradeTo set to this roster's owner.
+    const baseTeamUserId = encodeURIComponent(viewerUserId);
+    const base = `/leagues/${encodeURIComponent(leagueSlug)}/team/${baseTeamUserId}`;
+    const url = isOwnTeam
+      ? `${base}#propose-trade`
+      : `${base}?proposeTradeTo=${encodeURIComponent(teamUserId)}#propose-trade`;
+    router.push(url);
+  }
 
   return (
     <>

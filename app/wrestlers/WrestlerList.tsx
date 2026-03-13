@@ -387,28 +387,6 @@ function InjuryBadge({ size = 20, className }: { size?: number; className?: stri
   );
 }
 
-/** Yellow caution triangle with exclamation — matches needing review. */
-function CautionBadge({ size = 18, title = "Matches needing review" }: { size?: number; title?: string }) {
-  return (
-    <span
-      role="img"
-      aria-label={title}
-      title={title}
-      style={{ display: "inline-flex", flexShrink: 0, verticalAlign: "middle", lineHeight: 1 }}
-    >
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path
-          d="M12 2L2 22h20L12 2z"
-          fill="#facc15"
-          stroke="#1c1917"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-        />
-        <path d="M12 9v5M12 17v1.5" stroke="#1c1917" strokeWidth="1.8" strokeLinecap="round" />
-      </svg>
-    </span>
-  );
-}
 const BORDER_TABLE = "#e0e0e0";
 const HEADER_BG = "#f0f2f5";
 /** Bolder border around Points and Matches sections. */
@@ -453,8 +431,6 @@ type WrestlerListProps = {
   wrestlerProfileFrom?: "league-leaders" | "free-agents" | "team" | null;
   /** Wrestler id -> owner info. When set, Status shows owner name + propose trade for rostered; else FA + add/flag. */
   rosterByWrestler?: Record<string, RosterOwnerInfo> | null;
-  /** Slugs of wrestlers who have matches needing review (show caution icon). Used when rows don't have unparsedCount. */
-  wrestlerSlugsWithUnparsed?: string[] | null;
   /** When true, hide the Include (roster/brand) filter row. Used e.g. on My Team roster where the list is already just that roster. */
   hideRosterFilter?: boolean;
 };
@@ -475,7 +451,6 @@ export default function WrestlerList({
   leagueSlug,
   wrestlerProfileFrom,
   rosterByWrestler,
-  wrestlerSlugsWithUnparsed,
   hideRosterFilter = false,
 }: WrestlerListProps) {
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
@@ -664,17 +639,6 @@ export default function WrestlerList({
               <div className="wrestler-card-body">
                 <span className="wrestler-card-name" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   {w.name || w.id}
-                  {w.unparsedCount != null && (
-                    <>
-                      <span style={{ fontWeight: 600, color: "var(--color-text-muted)" }} title="Matches needing review">
-                        {w.unparsedCount}
-                      </span>
-                      {w.unparsedCount > 0 && <CautionBadge size={16} />}
-                    </>
-                  )}
-                  {w.unparsedCount == null && wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && (
-                    <CautionBadge size={16} />
-                  )}
                   {isInjured(w.status) && (
                     <span className="wrestler-card-inj" aria-label="Injured"> INJ</span>
                   )}
@@ -764,8 +728,6 @@ export default function WrestlerList({
                   <div style={{ padding: "10px 12px", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <Link href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)} style={{ color: "var(--color-blue)", textDecoration: "none" }}>{w.name || w.id}</Link>
-                      {w.unparsedCount != null && <><span style={{ fontWeight: 600, color: "var(--color-text-muted)" }} title="Matches needing review">{w.unparsedCount}</span>{w.unparsedCount > 0 && <CautionBadge size={18} />}</>}
-                      {w.unparsedCount == null && wrestlerSlugsWithUnparsed?.length && (wrestlerSlugsWithUnparsed.includes(normalizeWrestlerName(w.id)) || wrestlerSlugsWithUnparsed.includes(w.id)) && <CautionBadge size={18} />}
                       {isInjured(w.status) && <><InjuryBadge size={18} /><span style={{ color: "#c00", fontWeight: 600, fontSize: 11 }}>INJ</span></>}
                     </span>
                     {w.currentChampionship && <div style={{ fontSize: 11, fontWeight: 500, color: "#b8860b", marginTop: 2 }}>{w.currentChampionship}</div>}
