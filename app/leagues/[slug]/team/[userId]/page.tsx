@@ -35,6 +35,7 @@ import {
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
+import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
@@ -197,7 +198,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", startDate).order("date", { ascending: true }),
       supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", ALL_TIME_EVENTS_FROM).order("date", { ascending: true }).limit(ALL_TIME_EVENTS_LIMIT),
       supabaseTable.from("championship_history").select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
-      getCurrentChampionsFromChanges(supabaseTable).catch(() => ({})),
+      getCurrentChampionsFromChanges(supabaseTable).catch((): Record<string, CurrentChampionFromChanges> => ({})),
     ]);
     const fullWrestlers = fullWrestlersData ?? [];
     const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
