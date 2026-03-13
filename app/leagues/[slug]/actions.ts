@@ -113,7 +113,18 @@ export async function updateDraftSettingsAction(
   const draft_style = (formData.get("draft_style") as string)?.trim();
   const time_per_pick_seconds = formData.get("time_per_pick_seconds");
   const draft_order_method = (formData.get("draft_order_method") as string)?.trim() as DraftOrderMethod | undefined;
-  const draft_date = (formData.get("draft_date") as string)?.trim() || null;
+  const draft_date_raw = (formData.get("draft_date") as string)?.trim() || "";
+  const draft_time_raw = (formData.get("draft_time") as string)?.trim() || "";
+
+  let draft_date: string | null = null;
+  if (draft_date_raw) {
+    if (draft_time_raw) {
+      // Store combined local date+time; downstream code slices to YYYY-MM-DD when needed.
+      draft_date = `${draft_date_raw}T${draft_time_raw}:00`;
+    } else {
+      draft_date = draft_date_raw;
+    }
+  }
 
   const payload: Record<string, unknown> = { draft_date: draft_date || null };
 

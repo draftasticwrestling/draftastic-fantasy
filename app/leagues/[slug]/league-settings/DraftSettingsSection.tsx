@@ -61,6 +61,10 @@ export function DraftSettingsSection({
   const effectiveStyle = draftStyle ?? (draftType === "linear" ? "linear" : "snake");
   const effectiveTime = timePerPickSeconds ?? 120;
   const effectiveOrder = draftOrderMethod ?? "random_one_hour_before";
+  const draftTimeDefault =
+    draftDate && draftDate.length > 10
+      ? draftDate.slice(11, 16)
+      : "";
 
   const [state, formAction] = useFormState(updateDraftSettingsFormAction, null as { error?: string } | null);
 
@@ -150,6 +154,19 @@ export function DraftSettingsSection({
                 defaultValue={draftDate ?? ""}
                 className="app-input"
                 style={{ minWidth: 160 }}
+              />
+            </div>
+            <div>
+              <label htmlFor="draft_time" style={{ display: "block", fontWeight: 500, marginBottom: 6 }}>
+                Draft Time
+              </label>
+              <input
+                id="draft_time"
+                type="time"
+                name="draft_time"
+                defaultValue={draftTimeDefault}
+                className="app-input"
+                style={{ minWidth: 140 }}
               />
             </div>
             <div>

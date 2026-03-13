@@ -12,6 +12,7 @@ import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.j
 
 const LEAGUE_START_DATE = "2025-05-02";
 const DEFAULT_TIME_PER_PICK_SECONDS = 2 * 60;
+const FIRST_PICK_BUFFER_SECONDS = 60; // extra buffer after draft begins before first auto-pick
 const CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER = 3;
 
 /** Strategy keys for auto-draft when priority list does not apply (legacy). */
@@ -1083,7 +1084,10 @@ export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoP
   const skipTimer = userState.auto_pick_rest_of_draft;
   if (!skipTimer) {
     if (!startedAt) return { didAutoPick: false };
-    const deadline = new Date(startedAt).getTime() + timePerPickSeconds * 1000;
+    const isFirstPick = state.draft_current_pick === 1;
+    const effectiveSeconds =
+      timePerPickSeconds + (isFirstPick ? FIRST_PICK_BUFFER_SECONDS : 0);
+    const deadline = new Date(startedAt).getTime() + effectiveSeconds * 1000;
     if (Date.now() < deadline) return { didAutoPick: false };
   }
 

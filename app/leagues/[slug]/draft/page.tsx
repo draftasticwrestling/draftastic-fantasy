@@ -143,6 +143,32 @@ export default async function LeagueDraftPage({ params }: Props) {
     const hasLeagueDraftDetails =
       leagueDraftType || league.draft_date || timePerPickLabel || draftOrderLabel;
 
+    const isLiveDraftType = leagueDraftType === "linear" || leagueDraftType === "snake";
+
+    let canStartDraftNow = true;
+    let scheduledDraftMessage: string | null = null;
+    if (league.draft_date) {
+      const raw = String(league.draft_date);
+      const datePart = raw.slice(0, 10);
+      const timePart = raw.length > 10 ? raw.slice(11, 16) : null;
+      let scheduledMs: number | null = null;
+      if (datePart) {
+        const candidate = new Date(`${datePart}T${timePart ?? "00:00"}:00`);
+        if (!Number.isNaN(candidate.getTime())) {
+          scheduledMs = candidate.getTime();
+        }
+      }
+      if (scheduledMs != null) {
+        const nowMs = Date.now();
+        canStartDraftNow = nowMs >= scheduledMs;
+        if (!canStartDraftNow) {
+          scheduledDraftMessage = timePart
+            ? `Draft is scheduled for ${datePart} at ${timePart}. The Begin Draft button will appear at that time.`
+            : `Draft is scheduled for ${datePart}. The Begin Draft button will appear on that date.`;
+        }
+      }
+    }
+
     function normGender(g: string | null | undefined): "F" | "M" | null {
       if (g == null || typeof g !== "string") return null;
       const l = g.trim().toLowerCase();
@@ -340,10 +366,15 @@ export default async function LeagueDraftPage({ params }: Props) {
 
       {draftStatus === "not_started" && orderReady && (
         <>
-          <p style={{ marginBottom: 16, color: "#555" }}>
-            Draft order is set. When all owners are ready, the commissioner can start the draft.
+          <p style={{ marginBottom: 8, color: "#555" }}>
+            Draft order is set. When all owners are ready, the commissioner can begin the draft.
           </p>
-          {isCommissioner && (
+          {scheduledDraftMessage && (
+            <p style={{ marginBottom: 8, fontSize: 13, color: "var(--color-text-muted)" }}>
+              {scheduledDraftMessage}
+            </p>
+          )}
+          {isCommissioner && isLiveDraftType && canStartDraftNow && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 24, alignItems: "center" }}>
               <form action={startDraftFromFormAction}>
                 <input type="hidden" name="league_slug" value={slug} />
@@ -360,7 +391,7 @@ export default async function LeagueDraftPage({ params }: Props) {
                     cursor: "pointer",
                   }}
                 >
-                  Start draft
+                  Begin draft
                 </button>
               </form>
               {league.draft_order_method === "manual_by_gm" && (
