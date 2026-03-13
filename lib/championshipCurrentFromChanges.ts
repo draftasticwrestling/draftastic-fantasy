@@ -74,6 +74,10 @@ export async function getCurrentChampionsFromChanges(
     const entry: CurrentChampionFromChanges = { title, wonDate: date };
     result[slugKey] = entry;
     if (champion && normalizeWrestlerName(champion) !== slugKey) result[normalizeWrestlerName(champion)] = entry;
+    if ((champion_slug ?? "").includes("_")) {
+      const hyphenKey = normalizeWrestlerName((champion_slug ?? "").replace(/_/g, "-"));
+      if (hyphenKey && hyphenKey !== slugKey) result[hyphenKey] = entry;
+    }
     // Tag team: also assign to each member so profile/roster show belt for both
     if (TAG_TEAM_TYPES.has(typeKey)) {
       const memberSlugs =
