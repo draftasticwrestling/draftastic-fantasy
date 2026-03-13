@@ -1,7 +1,18 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { getWrestlerFullImageUrl } from "@/lib/wrestlerImages";
+
+const SORT_OPTIONS = [
+  { value: "2k", label: "2K Rating" },
+  { value: "rs", label: "R/S Points" },
+  { value: "ple", label: "PLE Points" },
+  { value: "belt", label: "Belt Points" },
+  { value: "ppm", label: "PPM" },
+  { value: "total", label: "Total Points" },
+] as const;
+type SortKey = (typeof SORT_OPTIONS)[number]["value"];
 
 export type RosterCardWrestler = {
   id: string;
@@ -50,7 +61,7 @@ function WrestlerCard({
         transition: "transform 0.15s ease, box-shadow 0.15s ease",
       }}
     >
-      {/* Top bar: 2K rating (W2K style) + chrome accent */}
+      {/* Top bar: WWE 2K logo + rating + chrome accent */}
       <div
         style={{
           display: "flex",
@@ -64,20 +75,20 @@ function WrestlerCard({
         <div
           style={{
             display: "flex",
-            alignItems: "baseline",
-            gap: 4,
+            alignItems: "center",
+            gap: 6,
           }}
         >
-          <span
+          <img
+            src="https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/event-logos/wwe-2k.webp"
+            alt="WWE 2K"
+            loading="lazy"
             style={{
-              fontSize: 11,
-              fontWeight: 800,
-              color: "#c00",
-              letterSpacing: 0.5,
+              display: "block",
+              height: 18,
+              width: "auto",
             }}
-          >
-            W2K
-          </span>
+          />
           <span
             style={{
               fontSize: 18,
@@ -244,6 +255,7 @@ function WrestlerCard({
           padding: "10px 12px",
           background: "#1a1a1a",
           borderTop: "2px solid #333",
+          textAlign: "center",
         }}
       >
         <div style={{ fontSize: 10, fontWeight: 700, color: "#999", marginBottom: 4 }}>TOTAL POINTS</div>
@@ -253,7 +265,40 @@ function WrestlerCard({
   );
 }
 
+function getSortValue(w: RosterCardWrestler, key: SortKey): number {
+  switch (key) {
+    case "2k":
+      return w.rating_2k26 ?? w.rating_2k25 ?? 0;
+    case "rs":
+      return w.rsPoints;
+    case "ple":
+      return w.plePoints;
+    case "belt":
+      return w.beltPoints;
+    case "ppm":
+      return w.mw > 0 ? w.totalPoints / w.mw : 0;
+    case "total":
+      return w.totalPoints;
+    default:
+      return 0;
+  }
+}
+
 export function RosterCardGrid({ wrestlers, leagueSlug }: Props) {
+  const [sortBy, setSortBy] = useState<SortKey>("total");
+  const [sortDesc, setSortDesc] = useState(true);
+
+  const sortedWrestlers = useMemo(() => {
+    const list = [...wrestlers];
+    list.sort((a, b) => {
+      const va = getSortValue(a, sortBy);
+      const vb = getSortValue(b, sortBy);
+      if (va !== vb) return sortDesc ? vb - va : va - vb;
+      return (a.name ?? a.id).localeCompare(b.name ?? b.id);
+    });
+    return list;
+  }, [wrestlers, sortBy, sortDesc]);
+
   return (
     <>
       <style>{`
@@ -262,6 +307,46 @@ export function RosterCardGrid({ wrestlers, leagueSlug }: Props) {
           box-shadow: 0 12px 28px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.08);
         }
       `}</style>
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <label style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>
+          Sort by:
+        </label>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortKey)}
+          style={{
+            padding: "6px 10px",
+            fontSize: 14,
+            borderRadius: 6,
+            border: "1px solid #444",
+            background: "#1a1a1a",
+            color: "#fff",
+            minWidth: 140,
+          }}
+        >
+          {SORT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => setSortDesc((d) => !d)}
+          style={{
+            padding: "6px 10px",
+            fontSize: 13,
+            fontWeight: 600,
+            borderRadius: 6,
+            border: "1px solid #444",
+            background: "#2a2a2a",
+            color: "#fff",
+            cursor: "pointer",
+          }}
+        >
+          {sortDesc ? "High → Low" : "Low → High"}
+        </button>
+      </div>
       <div
         style={{
           display: "grid",
@@ -269,9 +354,9 @@ export function RosterCardGrid({ wrestlers, leagueSlug }: Props) {
           gap: 24,
         }}
       >
-      {wrestlers.map((w) => (
-        <WrestlerCard key={w.id} w={w} leagueSlug={leagueSlug} />
-      ))}
+        {sortedWrestlers.map((w) => (
+          <WrestlerCard key={w.id} w={w} leagueSlug={leagueSlug} />
+        ))}
       </div>
     </>
   );

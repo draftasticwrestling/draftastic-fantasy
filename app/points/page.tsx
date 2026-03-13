@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 
 export const metadata = {
   title: "Points System — Draftastic Fantasy",
@@ -17,12 +18,19 @@ const tdStyle = { padding: "8px 12px", borderBottom: "1px solid #ddd" };
 function EventTable({
   title,
   rows,
+  logoUrl,
 }: {
   title: string;
   rows: [string, number | string][];
+  logoUrl?: string | null;
 }) {
   return (
     <div style={{ marginBottom: 24 }}>
+      {logoUrl && (
+        <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+          <img src={logoUrl} alt="" style={{ height: 40, width: "auto", objectFit: "contain" }} loading="lazy" />
+        </div>
+      )}
       <h3 style={{ fontSize: "1.1rem", marginBottom: 8 }}>{title}</h3>
       <table style={tableBase}>
         <thead>
@@ -139,6 +147,7 @@ export default function PointsPage() {
         <div className="points-grid">
           <EventTable
             title="WrestleMania"
+            logoUrl={EVENT_LOGO_URLS.wrestlemania}
             rows={[
               ["Winning Main Event Night Two at WrestleMania", 40],
               ["Main Eventing Night Two at WrestleMania", 30],
@@ -150,6 +159,7 @@ export default function PointsPage() {
           />
           <EventTable
             title="SummerSlam"
+            logoUrl={EVENT_LOGO_URLS.summerslam}
             rows={[
               ["Winning the Main Event at SummerSlam (either night)", 20],
               ["Main Eventing Night Two of SummerSlam", 15],
@@ -160,6 +170,7 @@ export default function PointsPage() {
           />
           <EventTable
             title="Survivor Series War Games"
+            logoUrl={EVENT_LOGO_URLS["survivor-series"]}
             rows={[
               ["Winning the Main Event", 15],
               ["Main Eventing", 12],
@@ -173,6 +184,7 @@ export default function PointsPage() {
           />
           <EventTable
             title="Royal Rumble"
+            logoUrl={EVENT_LOGO_URLS["royal-rumble"]}
             rows={[
               ["Winning the Royal Rumble", 30],
               ["Winning the Main Event", 15],
@@ -194,6 +206,7 @@ export default function PointsPage() {
         <div className="points-grid">
           <EventTable
             title="Elimination Chamber"
+            logoUrl={EVENT_LOGO_URLS["elimination-chamber"]}
             rows={[
               ["Participant (being in the match)", 10],
               ["Winning the Elimination Chamber", 30],
@@ -208,6 +221,7 @@ export default function PointsPage() {
           />
           <EventTable
             title="Night of Champions"
+            logoUrl={EVENT_LOGO_URLS["night-of-champions"]}
             rows={[
               ["Winning the Main Event", 15],
               ["Main Eventing", 9],
@@ -217,6 +231,7 @@ export default function PointsPage() {
           />
           <EventTable
             title="King & Queen of the Ring"
+            logoUrl={EVENT_LOGO_URLS["king-queen"]}
             rows={[
               ["King or Queen of the Ring", 20],
               ["Finals Qualification", 10],
@@ -226,6 +241,7 @@ export default function PointsPage() {
           />
           <EventTable
             title="Money in the Bank"
+            logoUrl={EVENT_LOGO_URLS["money-in-the-bank"]}
             rows={[
               ["Money in the Bank Winner", 25],
               ["Earning a Spot in the Ladder Match", 12],
@@ -237,6 +253,7 @@ export default function PointsPage() {
           />
           <EventTable
             title="Crown Jewel"
+            logoUrl={EVENT_LOGO_URLS["crown-jewel"]}
             rows={[
               ["Winning the Crown Jewel Championship", 20],
               ["Crown Jewel Championship (participating)", 10],
@@ -258,6 +275,7 @@ export default function PointsPage() {
         <div className="points-grid">
           <EventTable
             title="Saturday Night's Main Event / Backlash / Clash in Paris / WrestlePalooza"
+            logoUrl={EVENT_LOGO_URLS.backlash}
             rows={[
               ["Winning the Main Event", 12],
               ["Main Eventing", 7],
@@ -267,6 +285,7 @@ export default function PointsPage() {
           />
           <EventTable
             title="Evolution (includes Battle Royal)"
+            logoUrl={EVENT_LOGO_URLS.evolution}
             rows={[
               ["Winning the Main Event", 12],
               ["Main Eventing", 7],

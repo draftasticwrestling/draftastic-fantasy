@@ -286,6 +286,24 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* Modifier when showing real logo image instead of placeholder */
+.hasImg {}
+
+.eventLogoPlaceholder.hasImg,
+.eventCardLogo.hasImg,
+.wrestlemaniaLogoPlaceholder.hasImg {
+  background: transparent;
+}
+
+.eventLogoPlaceholder.hasImg img,
+.eventCardLogo.hasImg img,
+.wrestlemaniaLogoPlaceholder.hasImg img {
+  max-height: 100%;
+  max-width: 100%;
+  width: auto;
+  object-fit: contain;
+}
+
 .pointRow {
   display: flex;
   justify-content: space-between;
@@ -320,6 +338,10 @@
   justify-content: center;
   font-size: 16px;
   color: rgba(255, 255, 255, 0.6);
+}
+
+.eventCardLogo.hasImg img {
+  max-width: 160px;
 }
 
 .majorPleTwoCol {

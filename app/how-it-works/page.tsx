@@ -1,8 +1,31 @@
 import Link from "next/link";
 import { Fragment } from "react";
-import type { BeltKey } from "@/lib/howItWorksImages";
-import { BELT_IMAGE_URLS } from "@/lib/howItWorksImages";
+import type { BeltKey, EventLogoKey } from "@/lib/howItWorksImages";
+import { BELT_IMAGE_URLS, EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 import styles from "./HowItWorks.module.css";
+
+/** Renders event logo image from Supabase when URL exists, otherwise placeholder text. */
+function EventLogo({
+  eventKey,
+  placeholderText,
+  className,
+}: {
+  eventKey: EventLogoKey;
+  placeholderText: string;
+  className: string;
+}) {
+  const url = EVENT_LOGO_URLS[eventKey];
+  const hasImg = Boolean(url);
+  return (
+    <div className={`${className}${hasImg ? ` ${styles.hasImg}` : ""}`}>
+      {hasImg && url ? (
+        <img src={url} alt="" loading="lazy" />
+      ) : (
+        placeholderText
+      )}
+    </div>
+  );
+}
 
 export const metadata = {
   title: "How it Works — Draftastic Fantasy",
@@ -290,9 +313,9 @@ export default function HowItWorksPage() {
         </div>
         <div className={styles.darkBox}>
           <div className={styles.rawSmackdownLogoRow}>
-            <div className={styles.eventLogoPlaceholder}>RAW logo</div>
+            <EventLogo eventKey="raw" placeholderText="RAW logo" className={styles.eventLogoPlaceholder} />
             <div className={styles.rawSmackdownAmp} aria-hidden>&</div>
-            <div className={styles.eventLogoPlaceholder}>SmackDown logo</div>
+            <EventLogo eventKey="smackdown" placeholderText="SmackDown logo" className={styles.eventLogoPlaceholder} />
           </div>
           <div className={styles.rawSmackdownFlex}>
             <div className={styles.rawSmackdownCol}>
@@ -325,7 +348,7 @@ export default function HowItWorksPage() {
         </div>
         <div className={styles.pleDarkBox}>
         <div className={styles.wrestlemaniaBlock}>
-          <div className={styles.wrestlemaniaLogoPlaceholder}>WrestleMania logo</div>
+          <EventLogo eventKey="wrestlemania" placeholderText="WrestleMania logo" className={styles.wrestlemaniaLogoPlaceholder} />
           <div className={styles.majorPleTwoCol}>
             <div>
               {WRESTLEMANIA_POINTS.slice(0, 3).map(([action, pts], i) => (
@@ -347,7 +370,7 @@ export default function HowItWorksPage() {
         </div>
         <div className={styles.majorPleThreeCol}>
           <div className={styles.eventCard}>
-            <div className={styles.eventCardLogo}>SummerSlam logo</div>
+            <EventLogo eventKey="summerslam" placeholderText="SummerSlam logo" className={styles.eventCardLogo} />
             {SUMMERSLAM_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -356,7 +379,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.eventCard}>
-            <div className={styles.eventCardLogo}>Survivor Series: War Games logo</div>
+            <EventLogo eventKey="survivor-series" placeholderText="Survivor Series: War Games logo" className={styles.eventCardLogo} />
             {SURVIVOR_SERIES_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -368,7 +391,7 @@ export default function HowItWorksPage() {
             </p>
           </div>
           <div className={styles.eventCard}>
-            <div className={styles.eventCardLogo}>Royal Rumble logo</div>
+            <EventLogo eventKey="royal-rumble" placeholderText="Royal Rumble logo" className={styles.eventCardLogo} />
             {ROYAL_RUMBLE_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -392,7 +415,7 @@ export default function HowItWorksPage() {
         <div className={styles.pleDarkBox}>
         <div className={styles.mediumPleGrid}>
           <div className={styles.mediumPleCard}>
-            <div className={styles.eventCardLogo}>Elimination Chamber logo</div>
+            <EventLogo eventKey="elimination-chamber" placeholderText="Elimination Chamber logo" className={styles.eventCardLogo} />
             {ELIMINATION_CHAMBER_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -401,7 +424,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.mediumPleCard}>
-            <div className={styles.eventCardLogo}>Night of Champions logo</div>
+            <EventLogo eventKey="night-of-champions" placeholderText="Night of Champions logo" className={styles.eventCardLogo} />
             {NOC_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -410,7 +433,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.mediumPleCard}>
-            <div className={styles.eventCardLogo}>Money in the Bank logo</div>
+            <EventLogo eventKey="money-in-the-bank" placeholderText="Money in the Bank logo" className={styles.eventCardLogo} />
             {MITB_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -419,7 +442,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.mediumPleCard}>
-            <div className={styles.eventCardLogo}>Crown Jewel logo</div>
+            <EventLogo eventKey="crown-jewel" placeholderText="Crown Jewel logo" className={styles.eventCardLogo} />
             {CROWN_JEWEL_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -428,7 +451,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.mediumPleCard}>
-            <div className={styles.eventCardLogo}>King & Queen of the Ring logo</div>
+            <EventLogo eventKey="king-queen" placeholderText="King & Queen of the Ring logo" className={styles.eventCardLogo} />
             {KING_QUEEN_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -452,7 +475,7 @@ export default function HowItWorksPage() {
         <div className={styles.pleDarkBox}>
         <div className={styles.minorPleGrid}>
           <div className={styles.minorPleCard}>
-            <div className={styles.eventCardLogo}>Saturday Night&apos;s Main Event</div>
+            <EventLogo eventKey="saturday-nights-main-event" placeholderText="Saturday Night's Main Event" className={styles.eventCardLogo} />
             {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -461,7 +484,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.minorPleCard}>
-            <div className={styles.eventCardLogo}>Backlash</div>
+            <EventLogo eventKey="backlash" placeholderText="Backlash" className={styles.eventCardLogo} />
             {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -470,7 +493,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.minorPleCard}>
-            <div className={styles.eventCardLogo}>Evolution</div>
+            <EventLogo eventKey="evolution" placeholderText="Evolution" className={styles.eventCardLogo} />
             {[...MINOR_PLE_BASE_POINTS, ...EVOLUTION_EXTRA_POINTS].map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -479,7 +502,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.minorPleCard}>
-            <div className={styles.eventCardLogo}>Clash in Paris</div>
+            <EventLogo eventKey="clash-in-paris" placeholderText="Clash in Paris" className={styles.eventCardLogo} />
             {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>
@@ -488,7 +511,7 @@ export default function HowItWorksPage() {
             ))}
           </div>
           <div className={styles.minorPleCard}>
-            <div className={styles.eventCardLogo}>Wrestlepalooza</div>
+            <EventLogo eventKey="wrestlepalooza" placeholderText="Wrestlepalooza" className={styles.eventCardLogo} />
             {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
               <div key={i} className={styles.pointRow}>
                 <span>{action}</span>

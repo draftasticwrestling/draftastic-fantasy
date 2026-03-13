@@ -57,7 +57,25 @@ export const BELT_IMAGE_URLS: Partial<Record<BeltKey, string>> = {
   "tag-team-womens": `${BELTS_BASE}/womens-tag.png`,
 };
 
-/** Event logo URL by key. Empty = use placeholder. */
+const EVENT_LOGOS_BASE =
+  "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/event-logos";
+
+/** Event logo URL by key. Empty = use placeholder. Filenames match Supabase event-logos bucket. */
 export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
-  // Example: "raw": "/events/raw.png",
+  raw: `${EVENT_LOGOS_BASE}/Raw.png`,
+  smackdown: `${EVENT_LOGOS_BASE}/SmackDown.png`,
+  wrestlemania: `${EVENT_LOGOS_BASE}/WrestleMania.png`,
+  summerslam: `${EVENT_LOGOS_BASE}/Summer-Slam.png`,
+  "survivor-series": `${EVENT_LOGOS_BASE}/Survivor-Series.png`,
+  "royal-rumble": `${EVENT_LOGOS_BASE}/Royal-Rumble.png`,
+  "elimination-chamber": `${EVENT_LOGOS_BASE}/Elimination-Chamber.png`,
+  "night-of-champions": `${EVENT_LOGOS_BASE}/Night-Of-Champions.png`,
+  "money-in-the-bank": `${EVENT_LOGOS_BASE}/Money-In-The-Bank.png`,
+  "crown-jewel": `${EVENT_LOGOS_BASE}/Crown-Jewel.png`,
+  "king-queen": `${EVENT_LOGOS_BASE}/King-And-Queen-Of-The-Ring.png`,
+  "saturday-nights-main-event": `${EVENT_LOGOS_BASE}/Saturday-Nights-Main-Event.png`,
+  backlash: `${EVENT_LOGOS_BASE}/Backlash.png`,
+  evolution: `${EVENT_LOGOS_BASE}/Evolution.png`,
+  "clash-in-paris": `${EVENT_LOGOS_BASE}/Clash-In-Italy.png`,
+  wrestlepalooza: `${EVENT_LOGOS_BASE}/Wrestlepalooza.png`,
 };
