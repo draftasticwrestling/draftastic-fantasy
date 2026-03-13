@@ -112,7 +112,8 @@ function WrestlerCard({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 2,
+            gap: 4,
+            marginRight: "auto",
           }}
         >
           <img
@@ -121,7 +122,7 @@ function WrestlerCard({
             loading="lazy"
             style={{
               display: "block",
-              height: 52,
+              height: 44,
               width: "auto",
             }}
           />
@@ -140,6 +141,7 @@ function WrestlerCard({
             style={{
               display: "flex",
               gap: 4,
+              marginLeft: "auto",
             }}
           >
             {canTrade && (
