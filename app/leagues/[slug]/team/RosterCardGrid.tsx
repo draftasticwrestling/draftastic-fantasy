@@ -139,7 +139,7 @@ function WrestlerCard({
           <div
             style={{
               display: "flex",
-              gap: 6,
+              gap: 4,
             }}
           >
             {canTrade && (
@@ -151,12 +151,12 @@ function WrestlerCard({
                   onTradeClick?.();
                 }}
                 style={{
-                  padding: "4px 8px",
-                  fontSize: 11,
+                  padding: "2px 6px",
+                  fontSize: 10,
                   fontWeight: 700,
                   borderRadius: 999,
-                  border: "1px solid #1a73e8",
-                  background: "linear-gradient(135deg, #1a73e8 0%, #0c4ba4 100%)",
+                  border: "1px solid #0f4b8f",
+                  background: "linear-gradient(135deg, #173963 0%, #0f2844 100%)",
                   color: "#fff",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
@@ -174,12 +174,12 @@ function WrestlerCard({
                   onDropClick?.();
                 }}
                 style={{
-                  padding: "4px 8px",
-                  fontSize: 11,
+                  padding: "2px 6px",
+                  fontSize: 10,
                   fontWeight: 700,
                   borderRadius: 999,
-                  border: "1px solid #b3261e",
-                  background: "linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%)",
+                  border: "1px solid #7f1b12",
+                  background: "linear-gradient(135deg, #5b1410 0%, #3a0907 100%)",
                   color: "#fff",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
