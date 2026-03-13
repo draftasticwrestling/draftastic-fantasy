@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getLeaguesForUser } from "@/lib/leagues";
+import { EmailSignupForm } from "@/app/coming-soon/EmailSignupForm";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -42,6 +43,45 @@ export default async function HomePage() {
                 Already have an account? <Link href="/auth/sign-in" style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>Sign in</Link>
               </p>
             </div>
+          </div>
+        </section>
+
+        <section className="home-section home-story-section" style={{ background: "var(--color-bg-page)" }}>
+          <div className="home-story">
+            <h2 className="home-story-title">Draftastic Fantasy Pro Wrestling</h2>
+            <p className="home-story-tagline">Putting the sport back in sports entertainment.</p>
+            <p>
+              Millions of fans tune in every week to watch the spectacle of professional wrestling. The drama. The rivalries. The moments that make you jump off the couch.
+            </p>
+            <p>So we had a question:</p>
+            <p><strong>Why isn&apos;t Fantasy Pro Wrestling a huge thing?</strong></p>
+            <p>Three longtime wrestling fans decided to find out.</p>
+            <p>
+              After attending our first WWE event in over twenty years, something clicked. The energy, the crowd, the stories unfolding in the ring… it all came rushing back. But when we went looking for a fantasy league to make watching wrestling even more fun, we discovered something surprising.
+            </p>
+            <p>There really weren&apos;t any great options.</p>
+            <p>So we did what wrestling fans have always done when something doesn&apos;t exist yet.</p>
+            <p><strong>We built it ourselves.</strong></p>
+            <p>
+              Draftastic started as a spreadsheet, a scoring system, and a group of friends who suddenly cared a lot about what happened on RAW, SmackDown, and every Premium Live Event. The more we refined the league, the more invested we became. Soon we weren&apos;t just watching wrestling again.
+            </p>
+            <p>We were studying it. Debating it. Drafting it. Trash-talking about it.</p>
+            <p>Now we&apos;re bringing that experience to fans everywhere.</p>
+            <p className="home-story-cta-lines">
+              Draft your roster.<br />
+              Track every match.<br />
+              Compete with your friends.
+            </p>
+            <p>Because wrestling isn&apos;t just entertainment.</p>
+            <p><strong>It&apos;s competition.</strong></p>
+            <p className="home-story-close">And now you&apos;re part of the game.</p>
+          </div>
+          <div className="home-panel home-email-cta">
+            <h2>Get updates</h2>
+            <p style={{ margin: "0 0 16px", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+              Join our email list for launch news, tips, and league updates.
+            </p>
+            <EmailSignupForm />
           </div>
         </section>
 

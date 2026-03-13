@@ -1870,6 +1870,86 @@ body {
   text-decoration: underline;
 }
 
+/* Home: story / ad copy block (landing CTA before email signup) */
+.home-story-section {
+  padding-top: 40px;
+}
+
+.home-story {
+  max-width: 640px;
+  margin: 0 auto 32px;
+  color: var(--color-text);
+  line-height: 1.65;
+  font-size: 1rem;
+}
+
+.home-story-title {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  border-bottom: none;
+  padding-bottom: 0;
+  display: block;
+}
+
+.home-story-tagline {
+  margin: 0 0 24px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.home-story p {
+  margin: 0 0 16px;
+}
+
+.home-story-cta-lines {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 24px 0 16px !important;
+  line-height: 1.6;
+}
+
+.home-story-close {
+  font-weight: 600;
+  margin-top: 24px !important;
+}
+
+/* Email signup on home (reuses coming-soon form; style for light background) */
+.home-email-cta .coming-soon-signup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.home-email-cta .coming-soon-form-btn-link {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  text-align: center;
+  text-decoration: none;
+  border: 2px solid var(--color-blue);
+  background: var(--color-blue);
+  color: #fff;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.home-email-cta .coming-soon-form-btn-link:hover {
+  background: var(--color-blue-dark, #0d47a1);
+  color: #fff;
+  border-color: var(--color-blue-dark, #0d47a1);
+}
+
+.home-email-cta .coming-soon-signup-note {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
 @media (max-width: 640px) {
   .home-hero {
     padding: 32px var(--page-padding-x-mobile) 40px;
