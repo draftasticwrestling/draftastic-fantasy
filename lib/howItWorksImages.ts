@@ -63,8 +63,8 @@ const EVENT_LOGOS_BASE =
 /** Event logo URL by key. Empty = use placeholder. Filenames match Supabase event-logos bucket. */
 export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
   raw: `${EVENT_LOGOS_BASE}/Raw.png`,
-  smackdown: `${EVENT_LOGOS_BASE}/SmackDown.png`,
-  wrestlemania: `${EVENT_LOGOS_BASE}/WrestleMania.png`,
+  smackdown: `${EVENT_LOGOS_BASE}/Smackdown.png`,
+  wrestlemania: `${EVENT_LOGOS_BASE}/WrestleMania-White.png`,
   summerslam: `${EVENT_LOGOS_BASE}/Summer-Slam.png`,
   "survivor-series": `${EVENT_LOGOS_BASE}/Survivor-Series.png`,
   "royal-rumble": `${EVENT_LOGOS_BASE}/Royal-Rumble.png`,
