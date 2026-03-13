@@ -358,6 +358,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             wrestlers={rosterTableRows.map((w) => ({
               id: w.id,
               name: w.name,
+              brand: w.brand,
               rsPoints: w.rsPoints ?? 0,
               plePoints: w.plePoints ?? 0,
               beltPoints: w.beltPoints ?? 0,

@@ -961,7 +961,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
                             </td>
                             <td style={{ padding: "6px", textAlign: "center" }}>{normalizeGender(w.gender)}</td>
                             <td style={{ padding: "6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{calculateAge(w.dob) ?? "—"}</td>
-                            <td style={{ padding: "6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{display2k != null ? display2k : "—"}</td>
+                            <td style={{ padding: "6px", textAlign: "center", fontVariantNumeric: "tabular-nums", color: "#c00", fontWeight: 700 }}>{display2k != null ? display2k : "—"}</td>
                             <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{rs}</td>
                             <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{ple}</td>
                             <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{belt}</td>

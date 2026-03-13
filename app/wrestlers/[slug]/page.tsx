@@ -576,7 +576,13 @@ export default async function WrestlerProfilePage({
             const n25 = r25 != null && r25 !== "" ? Number(r25) : null;
             const val = n26 ?? n25;
             if (val == null || Number.isNaN(val)) return null;
-            return ` · 2K Rating: ${val}${n26 != null ? " (2K26)" : " (2K25)"}`;
+            return (
+              <>
+                {" "}
+                · 2K Rating: <span style={{ color: "#c00", fontWeight: 700 }}>{val}</span>
+                {n26 != null ? " (2K26)" : " (2K25)"}
+              </>
+            );
           })()}
         </p>
       </div>

@@ -17,6 +17,7 @@ type SortKey = (typeof SORT_OPTIONS)[number]["value"];
 export type RosterCardWrestler = {
   id: string;
   name: string | null;
+  brand?: string | null;
   rsPoints: number;
   plePoints: number;
   beltPoints: number;
@@ -27,6 +28,11 @@ export type RosterCardWrestler = {
   championBeltImageUrl?: string | null;
   image_url?: string | null;
 };
+
+const RAW_RED = "#c00";
+const SMACKDOWN_BLUE = "#0066cc";
+const GOLD_FRAME = "linear-gradient(145deg, #d4af37 0%, #b8860b 30%, #8b6914 70%, #c9a227 100%)";
+const SILVER_FRAME = "linear-gradient(145deg, #a0a0a0 0%, #606060 30%, #404040 70%, #808080 100%)";
 
 type Props = {
   wrestlers: RosterCardWrestler[];
@@ -45,6 +51,14 @@ function WrestlerCard({
   const profileHref = `/wrestlers/${encodeURIComponent(w.id)}?league=${encodeURIComponent(leagueSlug)}&from=team`;
   const fullImageUrl = getWrestlerFullImageUrl(w.id);
   const displayName = (w.name || w.id).toUpperCase();
+  const brandLower = (w.brand ?? "").toLowerCase().trim();
+  const isRaw = brandLower === "raw";
+  const isSmackDown = brandLower === "smackdown" || brandLower === "sd";
+  const hasBrand = isRaw || isSmackDown;
+  const accentColor = isRaw ? RAW_RED : isSmackDown ? SMACKDOWN_BLUE : "#333";
+  const isChampion = Boolean(w.championBeltImageUrl);
+  const imageFrameBg = isChampion ? GOLD_FRAME : SILVER_FRAME;
+  const cardOutline = hasBrand ? `0 4px 20px rgba(0,0,0,0.2), 0 0 0 2px ${accentColor}` : "0 4px 20px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.08)";
 
   return (
     <Link
@@ -56,7 +70,7 @@ function WrestlerCard({
         color: "inherit",
         borderRadius: 12,
         overflow: "hidden",
-        boxShadow: "0 4px 20px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.08)",
+        boxShadow: cardOutline,
         background: "linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)",
         transition: "transform 0.15s ease, box-shadow 0.15s ease",
       }}
@@ -93,7 +107,7 @@ function WrestlerCard({
             style={{
               fontSize: 18,
               fontWeight: 700,
-              color: "#fff",
+              color: "#c00",
             }}
           >
             {rating != null ? rating : "—"}
@@ -124,11 +138,11 @@ function WrestlerCard({
             position: "relative",
             borderRadius: 6,
             overflow: "hidden",
-            background:
-              "linear-gradient(145deg, #a0a0a0 0%, #606060 30%, #404040 70%, #808080 100%)",
+            background: imageFrameBg,
             padding: 6,
-            boxShadow:
-              "inset 0 2px 4px rgba(255,255,255,0.15), inset 0 -2px 4px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3)",
+            boxShadow: isChampion
+              ? "inset 0 2px 4px rgba(255,255,255,0.35), inset 0 -2px 4px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.3)"
+              : "inset 0 2px 4px rgba(255,255,255,0.15), inset 0 -2px 4px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3)",
           }}
         >
           <div
@@ -253,12 +267,12 @@ function WrestlerCard({
       <div
         style={{
           padding: "10px 12px",
-          background: "#1a1a1a",
-          borderTop: "2px solid #333",
+          background: hasBrand ? accentColor : "#1a1a1a",
+          borderTop: hasBrand ? `2px solid ${accentColor}` : "2px solid #333",
           textAlign: "center",
         }}
       >
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#999", marginBottom: 4 }}>TOTAL POINTS</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: hasBrand ? "rgba(255,255,255,0.85)" : "#999", marginBottom: 4 }}>TOTAL POINTS</div>
         <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{w.totalPoints}</div>
       </div>
     </Link>

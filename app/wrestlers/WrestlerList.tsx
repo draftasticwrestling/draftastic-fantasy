@@ -690,7 +690,7 @@ export default function WrestlerList({
                   )}
                   {normalizeGender(w.gender)} · {age != null ? age : "—"} yrs
                   {(w.rating_2k26 != null || w.rating_2k25 != null) && (
-                    <> · 2K {(w.rating_2k26 ?? w.rating_2k25) ?? ""}</>
+                    <> · 2K <span style={{ color: "#c00", fontWeight: 700 }}>{(w.rating_2k26 ?? w.rating_2k25) ?? ""}</span></>
                   )}
                   {pts.totalPoints > 0 && (
                     <> · {pts.totalPoints} pts</>
