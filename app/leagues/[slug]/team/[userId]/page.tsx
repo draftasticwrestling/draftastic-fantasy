@@ -37,6 +37,7 @@ import { getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
+import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 10000;
@@ -193,11 +194,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   if (isOwnTeam && rosterIds.length > 0) {
     const supabaseTable = await createClient();
     const startDate = getEffectiveLeagueStartDate(league);
-    const [{ data: fullWrestlersData }, { data: eventsSinceStart }, { data: eventsAll }, { data: rawReigns }, currentFromChanges] = await Promise.all([
+    const [{ data: fullWrestlersData }, { data: eventsSinceStart }, { data: eventsAll }, { data: rawReigns }, currentFromTable, currentFromChanges] = await Promise.all([
       supabaseTable.from("wrestlers").select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"').in("id", rosterIds),
       supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", startDate).order("date", { ascending: true }),
       supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", ALL_TIME_EVENTS_FROM).order("date", { ascending: true }).limit(ALL_TIME_EVENTS_LIMIT),
       supabaseTable.from("championship_history").select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
+      getCurrentChampionsFromChampionshipsTable(supabaseTable).catch((): Record<string, CurrentChampionFromChanges> => ({})),
       getCurrentChampionsFromChanges(supabaseTable).catch((): Record<string, CurrentChampionFromChanges> => ({})),
     ]);
     const fullWrestlers = fullWrestlersData ?? [];
@@ -225,10 +227,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       const totalPoints = points.rsPoints + points.plePoints + beltPoints;
       const beltPointsAllTime = pointsAllTime.beltPoints + extraBelt;
       const totalPointsAllTime = pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
+      const fromTable =
+        currentFromTable[idKey] ?? currentFromTable[slugKey] ?? (nameKey ? currentFromTable[nameKey] : null);
       const fromChanges =
         currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
       const titlesFromHistory = currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
-      const primaryTitle = fromChanges ? fromChanges.title : (titlesFromHistory[0] ?? null);
+      const primaryTitle = (fromTable ?? fromChanges) ? (fromTable ?? fromChanges)!.title : (titlesFromHistory[0] ?? null);
       const titles = primaryTitle ? [primaryTitle] : titlesFromHistory;
       const raw = w as Record<string, unknown>;
       return {

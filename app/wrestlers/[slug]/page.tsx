@@ -28,6 +28,7 @@ import {
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
+import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
@@ -251,11 +252,12 @@ export default async function WrestlerProfilePage({
   // Monthly belt points and title reigns display always from Jan 2025 so all profiles show/count Jan 2025 onward
   const firstMonthEndForBelt = FIRST_END_OF_MONTH_POINTS_DATE;
 
-  const [reignsResult, currentFromChanges] = await Promise.all([
+  const [reignsResult, currentFromTable, currentFromChanges] = await Promise.all([
     db
       .from("championship_history")
       .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
+    getCurrentChampionsFromChampionshipsTable(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
     getCurrentChampionsFromChanges(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
   ]);
   const { data: rawReigns } = reignsResult;
@@ -309,12 +311,13 @@ export default async function WrestlerProfilePage({
     (nameKey ? currentChampionsBySlug[nameKey] : null) ??
     [];
 
-  // Prefer current champion from "championship_changes" table if present (e.g. Boxscore sync)
+  const fromTable =
+    currentFromTable[idKey] ?? currentFromTable[slugKey] ?? (nameKey ? currentFromTable[nameKey] : null);
   const fromChanges =
     currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
 
-  const primaryCurrentTitle = fromChanges
-    ? fromChanges.title
+  const primaryCurrentTitle = (fromTable ?? fromChanges)
+    ? (fromTable ?? fromChanges)!.title
     : (currentTitles[0] ?? null);
   const championBeltImageUrl = primaryCurrentTitle
     ? getBeltImageUrlForTitle(primaryCurrentTitle, wrestler.gender)
@@ -322,8 +325,9 @@ export default async function WrestlerProfilePage({
 
   const today = new Date().toISOString().slice(0, 10);
   let reignWonDate: string | null;
-  if (fromChanges) {
-    reignWonDate = fromChanges.wonDate.slice(0, 10);
+  const fromSource = fromTable ?? fromChanges;
+  if (fromSource?.wonDate) {
+    reignWonDate = fromSource.wonDate.slice(0, 10);
   } else {
     const currentReign =
       primaryCurrentTitle && reigns?.length

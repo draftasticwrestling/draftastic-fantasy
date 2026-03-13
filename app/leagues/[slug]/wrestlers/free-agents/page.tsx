@@ -16,6 +16,7 @@ import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.j
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
+import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 
 function firstMonthEndOnOrAfter(startDate: string): string {
@@ -88,6 +89,7 @@ export default async function WrestlersFreeAgentsPage({
     { data: eventsAll },
     rosters,
     { data: rawReigns },
+    currentFromTable,
     currentFromChanges,
   ] = await Promise.all([
     (async () => {
@@ -130,6 +132,7 @@ export default async function WrestlersFreeAgentsPage({
       .from("championship_history")
       .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
+    getCurrentChampionsFromChampionshipsTable(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
     getCurrentChampionsFromChanges(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
   ]);
 
@@ -190,11 +193,13 @@ export default async function WrestlersFreeAgentsPage({
       pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
     const beltPoints2025 = points2025.beltPoints + extraBelt2025;
     const beltPoints2026 = points2026.beltPoints + extraBelt2026;
+    const fromTable =
+      currentFromTable[idKey] ?? currentFromTable[slugKey] ?? (nameKey ? currentFromTable[nameKey] : null);
     const fromChanges =
       currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
     const titlesFromHistory =
       currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
-    const primaryTitle = fromChanges ? fromChanges.title : (titlesFromHistory[0] ?? null);
+    const primaryTitle = (fromTable ?? fromChanges) ? (fromTable ?? fromChanges)!.title : (titlesFromHistory[0] ?? null);
     const titles = primaryTitle ? [primaryTitle] : titlesFromHistory;
     const raw = w as Record<string, unknown>;
     return {
