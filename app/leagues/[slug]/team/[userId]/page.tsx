@@ -19,7 +19,6 @@ import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
 import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
 import { TradeProposalRespond } from "../TradeProposalRespond";
-import { EditTeamNameForm } from "../EditTeamNameForm";
 import { RosterTable } from "../../RosterTable";
 import { RosterCardGrid } from "../RosterCardGrid";
 import type { WrestlerRow } from "@/app/wrestlers/WrestlerList";
@@ -300,44 +299,41 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           ← {league.name}
         </Link>
       </p>
-      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>
-        {isOwnTeam ? "My team" : teamLabel}
+      <h1
+        style={{
+          marginBottom: 6,
+          fontSize: "2rem",
+          fontWeight: 700,
+          textAlign: "center",
+        }}
+      >
+        {teamLabel}
       </h1>
       <p
         style={{
           color: "#555",
-          marginBottom: 16,
-          fontSize: 16,
+          marginBottom: 32,
+          fontSize: 18,
           fontWeight: 600,
+          textAlign: "center",
         }}
       >
-        Team total:&nbsp;
         <span
           style={{
             display: "inline-block",
-            padding: "4px 10px",
+            padding: "6px 16px",
             borderRadius: 999,
             background: "linear-gradient(135deg, #c00 0%, #7a0000 100%)",
             color: "#fff",
             fontWeight: 800,
             letterSpacing: 0.5,
+            fontSize: 20,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
           }}
         >
           {totalPoints} pts
         </span>
       </p>
-      {isOwnTeam && (
-        <>
-          <EditTeamNameForm
-            key={targetMember.team_name ?? "default"}
-            leagueSlug={slug}
-            initialTeamName={targetMember.team_name ?? ""}
-          />
-          <p style={{ color: "#555", marginBottom: 24, fontSize: 14 }}>
-            Manage your roster and propose trades, releases, or free agent signings.
-          </p>
-        </>
-      )}
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>

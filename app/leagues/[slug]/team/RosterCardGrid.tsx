@@ -112,7 +112,7 @@ function WrestlerCard({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 2,
           }}
         >
           <img
