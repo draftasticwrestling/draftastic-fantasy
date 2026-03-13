@@ -85,7 +85,7 @@ function WrestlerCard({
             loading="lazy"
             style={{
               display: "block",
-              height: 18,
+              height: 26,
               width: "auto",
             }}
           />

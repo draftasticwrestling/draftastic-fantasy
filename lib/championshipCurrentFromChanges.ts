@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { getTagTeamMemberSlugs } from "@/lib/scoring/tagTeamMembers.js";
 
 const CHANGES_TABLE = process.env.CHAMPIONSHIP_CHANGES_TABLE ?? "championship_changes";
 
@@ -22,7 +23,16 @@ const TYPE_TO_TITLE: Record<string, string> = {
   "womens-united-states-championship": "Women's United States Championship",
   "world-tag-team-championship": "World Tag Team Championship",
   "womens-tag-team-championship": "Women's Tag Team Championship",
+  "raw-tag-team-championship": "Raw Tag Team Championship",
+  "smackdown-tag-team-championship": "SmackDown Tag Team Championship",
 };
+
+const TAG_TEAM_TYPES = new Set([
+  "world-tag-team-championship",
+  "womens-tag-team-championship",
+  "raw-tag-team-championship",
+  "smackdown-tag-team-championship",
+]);
 
 export type CurrentChampionFromChanges = {
   title: string;
@@ -64,6 +74,16 @@ export async function getCurrentChampionsFromChanges(
     const entry: CurrentChampionFromChanges = { title, wonDate: date };
     result[slugKey] = entry;
     if (champion && normalizeWrestlerName(champion) !== slugKey) result[normalizeWrestlerName(champion)] = entry;
+    // Tag team: also assign to each member so profile/roster show belt for both
+    if (TAG_TEAM_TYPES.has(typeKey)) {
+      const memberSlugs = getTagTeamMemberSlugs(slugKey);
+      if (memberSlugs?.length) {
+        for (const memberSlug of memberSlugs) {
+          const memberKey = normalizeWrestlerName(memberSlug) || memberSlug;
+          result[memberKey] = entry;
+        }
+      }
+    }
   }
   return result;
 }
