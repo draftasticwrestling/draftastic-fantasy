@@ -85,6 +85,7 @@ const ROSTER_CATEGORIES = [
   { value: "Raw", label: "Raw" },
   { value: "SmackDown", label: "SmackDown" },
   { value: "NXT", label: "NXT" },
+  { value: "AAA", label: "AAA" },
   { value: "Front Office", label: "Front Office" },
   { value: "Celebrity Guests", label: "Celebrity Guests" },
   { value: "Alumni", label: "Alumni" },
@@ -96,6 +97,7 @@ const ROSTER_ORDER = [
   "Raw",
   "SmackDown",
   "NXT",
+  "AAA",
   "Front Office",
   "Celebrity Guests",
   "Alumni",
@@ -107,6 +109,7 @@ const BRAND_STYLES: Record<string, { bg: string; showBg: string; label: string }
   Raw: { bg: "#8B1538", showBg: "#6B0F2A", label: "RAW" },
   SmackDown: { bg: "#0A2463", showBg: "#071A4A", label: "SD" },
   NXT: { bg: "#2C2C2C", showBg: "#1a1a1a", label: "NXT" },
+  AAA: { bg: "#222222", showBg: "#151515", label: "AAA" },
   "Front Office": { bg: "#4a4a4a", showBg: "#3a3a3a", label: "FRONT OFFICE" },
   "Celebrity Guests": { bg: "#3d3d3d", showBg: "#2d2d2d", label: "CELEBRITY" },
   Alumni: { bg: "#3d3d3d", showBg: "#2d2d2d", label: "ALUMNI" },
@@ -118,6 +121,8 @@ const BRAND_STYLES: Record<string, { bg: string; showBg: string; label: string }
 const BRAND_LOGO_URLS: Record<string, string | undefined> = {
   Raw: EVENT_LOGO_URLS.raw,
   SmackDown: EVENT_LOGO_URLS.smackdown,
+  NXT: EVENT_LOGO_URLS.nxt,
+  AAA: EVENT_LOGO_URLS.aaa,
 };
 
 /** Map raw brand string to a filter category. */
@@ -127,6 +132,7 @@ function normalizeRoster(brand: string | null): string {
   if (lower === "raw") return "Raw";
   if (lower === "smackdown" || lower === "smack down") return "SmackDown";
   if (lower === "nxt" || lower.includes("nxt")) return "NXT";
+  if (lower === "aaa") return "AAA";
   if (lower === "celebrity guests" || lower === "celebrity" || lower === "celebrity guest") return "Celebrity Guests";
   if (lower === "alumni") return "Alumni";
   if (lower === "managers" || lower === "manager") return "Front Office";
@@ -743,10 +749,12 @@ export default function WrestlerList({
                         loading="lazy"
                         style={{
                           display: "block",
-                          maxHeight: 70,
-                          maxWidth: 48,
-                          width: "auto",
-                          objectFit: "contain",
+                          width: "100%",
+                          height: "100%",
+                          maxWidth: "none",
+                          maxHeight: "none",
+                          objectFit: "cover",
+                          transform: "rotate(90deg)",
                         }}
                       />
                     ) : (

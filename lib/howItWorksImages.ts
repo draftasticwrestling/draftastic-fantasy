@@ -25,6 +25,8 @@ export type BeltKey =
 export type EventLogoKey =
   | "raw"
   | "smackdown"
+  | "nxt"
+  | "aaa"
   | "wrestlemania"
   | "summerslam"
   | "survivor-series"
@@ -64,6 +66,8 @@ const EVENT_LOGOS_BASE =
 export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
   raw: `${EVENT_LOGOS_BASE}/Raw.png`,
   smackdown: `${EVENT_LOGOS_BASE}/Smackdown.png`,
+  nxt: `${EVENT_LOGOS_BASE}/NXT.png`,
+  aaa: `${EVENT_LOGOS_BASE}/AAA.png`,
   wrestlemania: `${EVENT_LOGOS_BASE}/WrestleMania-White.png`,
   summerslam: `${EVENT_LOGOS_BASE}/Summer-Slam.png`,
   "survivor-series": `${EVENT_LOGOS_BASE}/Survivor-Series.png`,
