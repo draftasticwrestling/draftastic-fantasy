@@ -21,7 +21,8 @@ import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
 import { TradeProposalRespond } from "../TradeProposalRespond";
 import { EditTeamNameForm } from "../EditTeamNameForm";
 import { RosterTable } from "../../RosterTable";
-import WrestlerList, { type WrestlerRow } from "@/app/wrestlers/WrestlerList";
+import { RosterCardGrid } from "../RosterCardGrid";
+import type { WrestlerRow } from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
@@ -345,15 +346,21 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           </p>
         )}
         {rosterTableRows.length > 0 ? (
-          <WrestlerList
-            wrestlers={rosterTableRows}
-            defaultSortColumn="totalPoints"
-            defaultSortDir="desc"
-            defaultPointsPeriod="sinceStart"
+          <RosterCardGrid
+            wrestlers={rosterTableRows.map((w) => ({
+              id: w.id,
+              name: w.name,
+              rsPoints: w.rsPoints,
+              plePoints: w.plePoints,
+              beltPoints: w.beltPoints,
+              totalPoints: w.totalPoints,
+              mw: w.mw,
+              rating_2k26: w.rating_2k26,
+              rating_2k25: w.rating_2k25,
+              championBeltImageUrl: w.championBeltImageUrl,
+              image_url: w.image_url,
+            }))}
             leagueSlug={slug}
-            wrestlerProfileFrom="team"
-            rosterByWrestler={rosterByWrestlerForTable}
-            hideRosterFilter
           />
         ) : (
           <p style={{ color: "#666", fontSize: 14 }}>No wrestlers on your roster yet. Add wrestlers via the draft or free agent signings.</p>
