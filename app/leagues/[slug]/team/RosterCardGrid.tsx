@@ -29,8 +29,10 @@ export type RosterCardWrestler = {
   image_url?: string | null;
 };
 
-const RAW_RED = "#c00";
-const SMACKDOWN_BLUE = "#0066cc";
+const RAW_OUTLINE = "#7a1515";
+const RAW_GRADIENT = "linear-gradient(180deg, #4a0808 0%, #6b1010 50%, #8b2020 100%)";
+const SMACKDOWN_OUTLINE = "#1a3a6c";
+const SMACKDOWN_GRADIENT = "linear-gradient(180deg, #0a2244 0%, #152a52 50%, #1e3d6e 100%)";
 const GOLD_FRAME = "linear-gradient(145deg, #d4af37 0%, #b8860b 30%, #8b6914 70%, #c9a227 100%)";
 const SILVER_FRAME = "linear-gradient(145deg, #a0a0a0 0%, #606060 30%, #404040 70%, #808080 100%)";
 
@@ -55,10 +57,11 @@ function WrestlerCard({
   const isRaw = brandLower === "raw";
   const isSmackDown = brandLower === "smackdown" || brandLower === "sd";
   const hasBrand = isRaw || isSmackDown;
-  const accentColor = isRaw ? RAW_RED : isSmackDown ? SMACKDOWN_BLUE : "#333";
+  const outlineColor = isRaw ? RAW_OUTLINE : isSmackDown ? SMACKDOWN_OUTLINE : "#333";
+  const totalPointsBg = isRaw ? RAW_GRADIENT : isSmackDown ? SMACKDOWN_GRADIENT : undefined;
   const isChampion = Boolean(w.championBeltImageUrl);
   const imageFrameBg = isChampion ? GOLD_FRAME : SILVER_FRAME;
-  const cardOutline = hasBrand ? `0 4px 20px rgba(0,0,0,0.2), 0 0 0 2px ${accentColor}` : "0 4px 20px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.08)";
+  const cardOutline = hasBrand ? `0 4px 20px rgba(0,0,0,0.2), 0 0 0 2px ${outlineColor}` : "0 4px 20px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.08)";
 
   return (
     <Link
@@ -267,12 +270,12 @@ function WrestlerCard({
       <div
         style={{
           padding: "10px 12px",
-          background: hasBrand ? accentColor : "#1a1a1a",
-          borderTop: hasBrand ? `2px solid ${accentColor}` : "2px solid #333",
+          background: hasBrand ? totalPointsBg : "#1a1a1a",
+          borderTop: hasBrand ? `2px solid ${outlineColor}` : "2px solid #333",
           textAlign: "center",
         }}
       >
-        <div style={{ fontSize: 10, fontWeight: 700, color: hasBrand ? "rgba(255,255,255,0.85)" : "#999", marginBottom: 4 }}>TOTAL POINTS</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: hasBrand ? "rgba(255,255,255,0.9)" : "#999", marginBottom: 4 }}>TOTAL POINTS</div>
         <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{w.totalPoints}</div>
       </div>
     </Link>
