@@ -105,7 +105,7 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
             <img src={wrestlemaniaLogoUrl} alt="WrestleMania" loading="lazy" />
           </div>
         )}
-        <h1 className={styles.pleTitle}>{heroTitle}</h1>
+        <h1 className={styles.pleTitleSrOnly}>{heroTitle}</h1>
         <p className={styles.pleSubtitle}>{heroSubtitle}</p>
         <p className={styles.pleMeta}>{heroLocation}</p>
         <p className={styles.pleMeta}>{heroDate}</p>

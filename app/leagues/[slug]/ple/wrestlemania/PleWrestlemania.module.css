@@ -76,6 +76,19 @@
   text-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
 }
 
+/* Keep semantic H1 for accessibility but hide visible text now that logo is present */
+.pleTitleSrOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .pleSubtitle {
   font-size: clamp(1.1rem, 3vw, 1.5rem);
   font-weight: 600;

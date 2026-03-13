@@ -291,12 +291,14 @@
 
 .eventLogoPlaceholder.hasImg,
 .eventCardLogo.hasImg,
+.eventCardLogoTall.hasImg,
 .wrestlemaniaLogoPlaceholder.hasImg {
   background: transparent;
 }
 
 .eventLogoPlaceholder.hasImg img,
 .eventCardLogo.hasImg img,
+.eventCardLogoTall.hasImg img,
 .wrestlemaniaLogoPlaceholder.hasImg img {
   max-height: 100%;
   max-width: 100%;
@@ -344,6 +346,10 @@
   max-width: 160px;
 }
 
+.eventCardLogoTall.hasImg img {
+  max-width: 180px;
+}
+
 .majorPleTwoCol {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -378,9 +384,9 @@
   text-align: center;
 }
 
-/* Slightly taller variant for logos that need extra presence (e.g., Evolution, Wrestlepalooza) */
+/* Slightly taller variant for logos that need a bit more presence (e.g., Evolution, Wrestlepalooza) */
 .eventCardLogoTall {
-  height: 72px;
+  height: 64px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 6px;
   margin-bottom: 14px;
