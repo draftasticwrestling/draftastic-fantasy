@@ -6,6 +6,7 @@ import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
+import { RemoveManagerButton } from "./RemoveManagerButton";
 import { RostersSection } from "./RostersSection";
 
 function formatLeagueType(type: string | null | undefined): string {
@@ -223,7 +224,21 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             {league.season_slug && (
               <p className="lm-league-meta" style={{ marginTop: 4, marginBottom: 0 }}>
                 Season: {getSeasonBySlug(league.season_slug)?.name ?? league.season_slug}
-                {league.draft_date && ` · Draft: ${league.draft_date}`}
+                {league.draft_date && (
+                  <>
+                    {" · Draft: "}
+                    {league.draft_date}
+                    {league.draft_time && (() => {
+                      const t = String(league.draft_time).trim();
+                      const [h, m] = t.split(":").map(Number);
+                      if (Number.isNaN(h)) return null;
+                      const hour = h % 12 || 12;
+                      const ampm = h < 12 ? "AM" : "PM";
+                      const min = Number.isNaN(m) ? 0 : m;
+                      return ` at ${hour}:${String(min).padStart(2, "0")} ${ampm}`;
+                    })()}
+                  </>
+                )}
               </p>
             )}
           </div>
@@ -261,6 +276,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               {membersByPoints.map((m) => {
                 const teamLabel = (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
                 const pts = pointsByUserId[m.user_id] ?? 0;
+                const draftStarted = league.draft_status === "in_progress" || league.draft_status === "completed";
+                const canRemove = isCommissioner && !draftStarted && m.role !== "commissioner";
                 return (
                   <li
                     key={m.id}
@@ -271,6 +288,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                       alignItems: "center",
                       justifyContent: "space-between",
                       gap: 16,
+                      flexWrap: "wrap",
                     }}
                   >
                     <Link
@@ -279,8 +297,17 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                     >
                       {teamLabel}
                     </Link>
-                    <span style={{ fontWeight: 600, color: "var(--color-red)", flexShrink: 0 }}>
-                      {pts} pts
+                    <span style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                      <span style={{ fontWeight: 600, color: "var(--color-red)" }}>
+                        {pts} pts
+                      </span>
+                      {canRemove && (
+                        <RemoveManagerButton
+                          leagueSlug={slug}
+                          userId={m.user_id}
+                          teamLabel={teamLabel}
+                        />
+                      )}
                     </span>
                   </li>
                 );

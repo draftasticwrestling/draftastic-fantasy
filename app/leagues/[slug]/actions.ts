@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import type { DraftOrderMethod, DraftType } from "@/lib/leagues";
 import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster } from "@/lib/leagues";
 
@@ -243,6 +244,55 @@ export async function updateLeagueTypeFormAction(
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return { error: "League slug is required." };
   return updateLeagueTypeAction(leagueSlug, formData);
+}
+
+/** Commissioner removes a manager from the league (prior to draft). Frees the slot for a new invite. */
+export async function removeMemberFromLeagueAction(
+  leagueSlug: string,
+  userId: string
+): Promise<{ error?: string }> {
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || league.commissioner_id !== user.id) {
+    return { error: "Only the commissioner can remove a manager." };
+  }
+  if (userId === league.commissioner_id) {
+    return { error: "You cannot remove yourself as commissioner." };
+  }
+  const status = league.draft_status ?? "not_started";
+  if (status === "in_progress" || status === "completed") {
+    return { error: "Managers can only be removed before the draft has started." };
+  }
+
+  const admin = getAdminClient();
+  if (!admin) return { error: "Server configuration error." };
+
+  const { error: rosterErr } = await admin
+    .from("league_rosters")
+    .delete()
+    .eq("league_id", league.id)
+    .eq("user_id", userId);
+  if (rosterErr) return { error: rosterErr.message };
+
+  const { error: prefErr } = await admin
+    .from("league_draft_preferences")
+    .delete()
+    .eq("league_id", league.id)
+    .eq("user_id", userId);
+  if (prefErr) return { error: prefErr.message };
+
+  const { error: memberErr } = await admin
+    .from("league_members")
+    .delete()
+    .eq("league_id", league.id)
+    .eq("user_id", userId);
+  if (memberErr) return { error: memberErr.message };
+
+  revalidatePath(`/leagues/${leagueSlug}`);
+  return {};
 }
 
 export async function deleteLeagueAction(

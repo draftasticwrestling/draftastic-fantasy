@@ -27,8 +27,11 @@ function getLeagueSlugFromPath(pathname: string): string | null {
 }
 
 function getActivePrimary(pathname: string, slug: string): string | null {
-  if (!slug || !pathname.startsWith(`/leagues/${slug}/`)) return null;
-  const rest = pathname.slice(`/leagues/${slug}/`.length).split("/")[0];
+  if (!slug) return null;
+  const base = `/leagues/${slug}`;
+  if (pathname === base || pathname === `${base}/`) return "league";
+  if (!pathname.startsWith(`${base}/`)) return null;
+  const rest = pathname.slice(base.length + 1).split("/")[0];
   if (rest === "standings" || rest === "roster-changes") return "league";
   if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info") return "my-team";
   if (rest === "") return "league";
@@ -212,6 +215,7 @@ export default function Nav() {
     : [];
   const leagueSub = currentLeagueSlug
     ? [
+        { href: `/leagues/${currentLeagueSlug}`, label: "League" },
         { href: `/leagues/${currentLeagueSlug}/standings`, label: "Standings" },
         { href: `/leagues/${currentLeagueSlug}/roster-changes`, label: "Transactions" },
         { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
@@ -456,7 +460,7 @@ export default function Nav() {
               </li>
               <li onMouseEnter={(e) => handlePrimaryEnter("league", e)}>
                 <Link
-                  href={leagueSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "#")}
+                  href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "#"}
                   className={`nav-primary-link ${activePrimary === "league" ? "is-active" : ""}`}
                 >
                   League
