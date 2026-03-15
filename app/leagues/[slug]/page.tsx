@@ -115,7 +115,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const creatorLabel = commissionerMember?.display_name?.trim() || commissionerMember?.team_name?.trim() || "Commissioner";
     const maxTeams = league.max_teams ?? 12;
     const leagueNotFull = members.length < maxTeams;
-    const draftNotScheduled = !league.draft_status || league.draft_status === "not_started";
+    const hasDraftDate = !!(league.draft_date && String(league.draft_date).trim().slice(0, 10));
+    const draftNotScheduled =
+      (!league.draft_status || league.draft_status === "not_started") && !hasDraftDate;
     const showAlert = isCommissioner && (leagueNotFull || draftNotScheduled);
 
     const myTeamName = (currentUserMember?.team_name?.trim() || currentUserMember?.display_name?.trim() || "My Team").trim() || "My Team";

@@ -398,6 +398,7 @@ export function DraftPreferencesForm({
               <input
                 type="radio"
                 name="focus"
+                value={opt.value}
                 checked={focus === opt.value}
                 onChange={() => setFocus(opt.value)}
                 disabled={disabled}
@@ -419,6 +420,7 @@ export function DraftPreferencesForm({
               <input
                 type="radio"
                 name="pointStrategy"
+                value={opt.value}
                 checked={pointStrategy === opt.value}
                 onChange={() => setPointStrategy(opt.value)}
                 disabled={disabled}
@@ -443,6 +445,7 @@ export function DraftPreferencesForm({
               <input
                 type="radio"
                 name="wrestlerStrategy"
+                value={opt.value}
                 checked={wrestlerStrategy === opt.value}
                 onChange={() => setWrestlerStrategy(opt.value)}
                 disabled={disabled}
