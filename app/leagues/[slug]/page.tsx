@@ -276,7 +276,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               {membersByPoints.map((m) => {
                 const teamLabel = (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
                 const pts = pointsByUserId[m.user_id] ?? 0;
-                const draftStarted = league.draft_status === "in_progress" || league.draft_status === "completed";
+                const draftStarted = (league?.draft_status === "in_progress" || league?.draft_status === "completed");
                 const canRemove = isCommissioner && !draftStarted && m.role !== "commissioner";
                 return (
                   <li
