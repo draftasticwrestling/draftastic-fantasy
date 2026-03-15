@@ -27,6 +27,7 @@ export default async function LeagueSettingsPage({
   const timePerPickSeconds = league.time_per_pick_seconds ?? 120;
   const draftOrderMethod = league.draft_order_method ?? "random_one_hour_before";
   const draftDate = league.draft_date ?? null;
+  const draftTime = league.draft_time ?? null;
   const leagueType = league.league_type ?? null;
   const maxTeams = league.max_teams ?? null;
   const autoReactivate = league.auto_reactivate ?? false;
@@ -61,6 +62,7 @@ export default async function LeagueSettingsPage({
             timePerPickSeconds={timePerPickSeconds}
             draftOrderMethod={draftOrderMethod}
             draftDate={draftDate}
+            draftTime={draftTime}
           />
           <DeleteLeagueSection leagueSlug={slug} leagueName={league.name} />
         </>

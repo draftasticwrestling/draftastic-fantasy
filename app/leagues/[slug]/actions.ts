@@ -116,17 +116,14 @@ export async function updateDraftSettingsAction(
   const draft_date_raw = (formData.get("draft_date") as string)?.trim() || "";
   const draft_time_raw = (formData.get("draft_time") as string)?.trim() || "";
 
-  let draft_date: string | null = null;
-  if (draft_date_raw) {
-    if (draft_time_raw) {
-      // Store combined local date+time; downstream code slices to YYYY-MM-DD when needed.
-      draft_date = `${draft_date_raw}T${draft_time_raw}:00`;
-    } else {
-      draft_date = draft_date_raw;
-    }
-  }
+  // draft_date is a DATE column (no time); draft_time is stored separately so it persists.
+  const draft_date = draft_date_raw || null;
+  const draft_time = draft_date && draft_time_raw ? draft_time_raw : null;
 
-  const payload: Record<string, unknown> = { draft_date: draft_date || null };
+  const payload: Record<string, unknown> = {
+    draft_date,
+    draft_time,
+  };
 
   if (draft_type_ui === "live" && draft_style && DRAFT_STYLES.includes(draft_style as "linear" | "snake")) {
     payload.draft_type = draft_style;

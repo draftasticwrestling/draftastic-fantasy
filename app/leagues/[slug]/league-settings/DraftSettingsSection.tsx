@@ -41,6 +41,8 @@ type Props = {
   timePerPickSeconds: number | null | undefined;
   draftOrderMethod: DraftOrderMethod | null | undefined;
   draftDate: string | null | undefined;
+  /** Stored draft time (HH:MM or HH:MM:SS). When set, shown in time input. */
+  draftTime: string | null | undefined;
 };
 
 /** Map stored draft_type to UI type (offline | live | autopick). */
@@ -56,15 +58,16 @@ export function DraftSettingsSection({
   timePerPickSeconds,
   draftOrderMethod,
   draftDate,
+  draftTime,
 }: Props) {
   const uiType = toUiType(draftType);
   const effectiveStyle = draftStyle ?? (draftType === "linear" ? "linear" : "snake");
   const effectiveTime = timePerPickSeconds ?? 120;
   const effectiveOrder = draftOrderMethod ?? "random_one_hour_before";
   const draftTimeDefault =
-    draftDate && draftDate.length > 10
-      ? draftDate.slice(11, 16)
-      : "";
+    (draftTime && draftTime.trim()) ||
+    (draftDate && draftDate.length > 10 ? draftDate.slice(11, 16) : "") ||
+    "";
 
   const [state, formAction] = useFormState(updateDraftSettingsFormAction, null as { error?: string } | null);
 

@@ -16,6 +16,7 @@ export type League = {
   end_date: string | null;
   season_slug?: string | null;
   draft_date?: string | null;
+  draft_time?: string | null;
   league_type?: string | null;
   max_teams?: number | null;
   auto_reactivate?: boolean | null;
@@ -168,7 +169,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, created_at";
+  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, created_at";
   let result = await supabase
     .from("leagues")
     .select(fullSelect)
@@ -189,6 +190,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
     if (minimalResult.data) {
       league = {
         ...minimalResult.data,
+        draft_time: null,
         draft_style: "snake",
         draft_type: "snake",
         time_per_pick_seconds: 120,

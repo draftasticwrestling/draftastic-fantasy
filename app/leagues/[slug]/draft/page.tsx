@@ -150,10 +150,13 @@ export default async function LeagueDraftPage({ params }: Props) {
     if (league.draft_date) {
       const raw = String(league.draft_date);
       const datePart = raw.slice(0, 10);
-      const timePart = raw.length > 10 ? raw.slice(11, 16) : null;
+      const timePart =
+        (league.draft_time && String(league.draft_time).trim()) ||
+        (raw.length > 10 ? raw.slice(11, 16) : null);
       let scheduledMs: number | null = null;
       if (datePart) {
-        const candidate = new Date(`${datePart}T${timePart ?? "00:00"}:00`);
+        const timeForDate = timePart && /^\d{1,2}:\d{2}/.test(timePart) ? timePart.slice(0, 5) : "00:00";
+        const candidate = new Date(`${datePart}T${timeForDate}:00`);
         if (!Number.isNaN(candidate.getTime())) {
           scheduledMs = candidate.getTime();
         }
