@@ -190,13 +190,12 @@ export default async function LeagueDraftPage({ params }: Props) {
 
     const orderInitial = await getDraftOrder(league.id);
     order = orderInitial;
-    const orderReady = order.length > 0;
 
     // Auto-generate draft order when we are within one hour of the scheduled draft time (or later),
     // method is not manual_by_gm, and no order exists yet. Only succeeds for the commissioner.
     const ONE_HOUR_MS = 60 * 60 * 1000;
     if (
-      !orderReady &&
+      order.length === 0 &&
       scheduledMs != null &&
       Date.now() >= scheduledMs - ONE_HOUR_MS &&
       league.draft_order_method !== "manual_by_gm"
@@ -431,7 +430,7 @@ export default async function LeagueDraftPage({ params }: Props) {
         </>
       )}
 
-      {draftStatus === "not_started" && orderReady && (
+      {draftStatus === "not_started" && order.length > 0 && (
         <>
           <p style={{ marginBottom: 8, color: "#555" }}>
             Draft order is set. When all owners are ready, the commissioner can begin the draft.
@@ -514,7 +513,7 @@ export default async function LeagueDraftPage({ params }: Props) {
         </>
       )}
 
-      {(draftStatus === "in_progress" || draftStatus === "completed") && orderReady && (
+      {(draftStatus === "in_progress" || draftStatus === "completed") && order.length > 0 && (
         <>
           {draftStatus === "in_progress" && <DraftPolling />}
           <section style={{ marginBottom: 24 }}>
