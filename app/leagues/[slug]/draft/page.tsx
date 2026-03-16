@@ -598,9 +598,9 @@ export default async function LeagueDraftPage({ params }: Props) {
             members={members.map((m) => ({ user_id: m.user_id, display_name: m.display_name, team_name: m.team_name }))}
             wrestlers={wrestlersRows.map((w) => ({
               id: w.id,
-              name: w.name,
-              gender: w.gender,
-              brand: w.brand,
+              name: w.name ?? null,
+              gender: w.gender ?? null,
+              brand: w.brand ?? null,
               dob: w.dob ?? null,
               image_url: w.image_url ?? null,
               rating_2k26: (w as { "2K26 rating"?: number | null })["2K26 rating"] ?? null,
