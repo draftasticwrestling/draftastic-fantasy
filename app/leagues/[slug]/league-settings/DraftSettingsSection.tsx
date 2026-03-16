@@ -233,11 +233,10 @@ export function DraftSettingsSection({
                   </option>
                 ))}
               </select>
-              {effectiveOrder === "manual_by_gm" && (
-                <p style={{ marginTop: 8, fontSize: 14, color: "var(--color-text-muted)" }}>
-                  After saving, use <Link href={`/leagues/${leagueSlug}/draft/set-order`} className="app-link">Set draft order</Link> on the Draft page to choose the pick order.
-                </p>
-              )}
+              <p style={{ marginTop: 8, fontSize: 14, color: "var(--color-text-muted)" }}>
+                To generate or change who picks when: go to the{" "}
+                <Link href={`/leagues/${leagueSlug}/draft`} className="app-link">Draft</Link> tab and use &quot;Generate draft order&quot; or &quot;Set draft order&quot;.
+              </p>
             </div>
           </div>
         </div>

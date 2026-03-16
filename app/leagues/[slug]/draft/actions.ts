@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { generateDraftOrder, setDraftOrderFromRound1, makeDraftPick, restartDraft, clearLastPick, startDraft, setDraftPreferences } from "@/lib/leagueDraft";
+import { generateDraftOrder, setDraftOrderFromRound1, makeDraftPick, restartDraft, clearLastPick, startDraft, setDraftPreferences, clearDraftOrder } from "@/lib/leagueDraft";
 
 export async function generateDraftOrderAction(
   leagueSlug: string,
@@ -112,7 +113,31 @@ export async function makeDraftPickWithStateAction(
   return makeDraftPickAction(leagueSlug, formData);
 }
 
-/** Commissioner only: restart draft (clear all picks and order). */
+/** Commissioner only: clear draft order so a new order can be generated. */
+export async function clearDraftOrderAction(leagueSlug: string): Promise<{ error?: string }> {
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || league.commissioner_id !== user.id) return { error: "Only the commissioner can clear the draft order." };
+  const result = await clearDraftOrder(league.id);
+  if (result.error) return result;
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
+  return {};
+}
+
+/** Form action: clear draft order and redirect to draft page (so Generate draft order form appears). */
+export async function clearDraftOrderFromFormAction(formData: FormData): Promise<never> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) redirect("/");
+  const result = await clearDraftOrderAction(leagueSlug);
+  if (result.error) redirect(`/leagues/${leagueSlug}/draft?error=${encodeURIComponent(result.error)}`);
+  redirect(`/leagues/${leagueSlug}/draft`);
+}
+
+/** Commissioner only: restart draft (clear all picks and rosters; keeps draft order). */
 export async function restartDraftAction(leagueSlug: string): Promise<{ error?: string }> {
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);

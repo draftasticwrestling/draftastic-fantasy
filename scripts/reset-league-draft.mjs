@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * One-off: clear draft picks and rosters for a league so the draft can be started over.
- * Usage: node scripts/reset-league-draft.mjs <league-slug>
- * Example: node scripts/reset-league-draft.mjs draftastic-test-2
+ * One-off: clear draft picks, rosters, and order for a league so the draft can be started over.
+ * Usage: node scripts/reset-league-draft.mjs <league-slug> [draft_date] [draft_time]
+ * Example: node scripts/reset-league-draft.mjs total-points-test
+ * Example: node scripts/reset-league-draft.mjs total-points-test 2026-03-16 16:00
  * Requires .env with NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
  */
 
@@ -11,25 +12,43 @@ import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
 const slug = process.argv[2];
+const draftDateArg = process.argv[3]; // YYYY-MM-DD
+const draftTimeArg = process.argv[4]; // HH:MM or HH:MM:SS (24h)
+
 if (!slug) {
-  console.error("Usage: node scripts/reset-league-draft.mjs <league-slug>");
+  console.error("Usage: node scripts/reset-league-draft.mjs <league-slug> [draft_date] [draft_time]");
   process.exit(1);
 }
 
-// Load .env from project root
-const envPath = resolve(process.cwd(), ".env");
-if (existsSync(envPath)) {
-  const content = readFileSync(envPath, "utf8");
-  content.split("\n").forEach((line) => {
-    const m = line.match(/^([^#=]+)=(.*)$/);
-    if (m) process.env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, "");
-  });
+// Load .env and .env.local from project root (Next.js often uses .env.local for secrets)
+function loadEnvFile(filename) {
+  const envPath = resolve(process.cwd(), filename);
+  if (existsSync(envPath)) {
+    const content = readFileSync(envPath, "utf8");
+    content.split("\n").forEach((line) => {
+      const m = line.match(/^([^#=]+)=(.*)$/);
+      if (m) {
+        const k = m[1].trim();
+        const v = m[2].trim().replace(/^["']|["']$/g, "");
+        if (v) process.env[k] = v;
+      }
+    });
+  }
 }
+loadEnvFile(".env");
+loadEnvFile(".env.local");
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Accept exact name or common alternate
+const key =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_KEY;
 if (!url || !key) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env");
+  const cwd = process.cwd();
+  console.error("Missing env vars. Check .env / .env.local in:", cwd);
+  console.error("  NEXT_PUBLIC_SUPABASE_URL:", url ? "set" : "missing");
+  console.error("  SUPABASE_SERVICE_ROLE_KEY:", key ? "set" : "missing");
+  console.error("  Use exactly: SUPABASE_SERVICE_ROLE_KEY=your_key (no space around =, value = long JWT from Supabase API settings)");
   process.exit(1);
 }
 
@@ -76,13 +95,21 @@ async function main() {
   }
   console.log("  Deleted league_draft_order");
 
+  const updatePayload = {
+    draft_status: "not_started",
+    draft_current_pick: null,
+    draft_current_pick_started_at: null,
+  };
+  if (draftDateArg && /^\d{4}-\d{2}-\d{2}$/.test(draftDateArg)) {
+    updatePayload.draft_date = draftDateArg;
+    if (draftTimeArg && /^\d{1,2}:\d{2}(:\d{2})?$/.test(draftTimeArg)) {
+      updatePayload.draft_time = draftTimeArg.length === 5 ? draftTimeArg : draftTimeArg.slice(0, 5);
+    }
+  }
+
   const { error: updateErr } = await supabase
     .from("leagues")
-    .update({
-      draft_status: "not_started",
-      draft_current_pick: null,
-      draft_current_pick_started_at: null,
-    })
+    .update(updatePayload)
     .eq("id", leagueId);
 
   if (updateErr) {
@@ -90,8 +117,11 @@ async function main() {
     process.exit(1);
   }
   console.log("  Reset league draft state to not_started");
+  if (updatePayload.draft_date) {
+    console.log("  Set draft_date:", updatePayload.draft_date, updatePayload.draft_time ? "draft_time: " + updatePayload.draft_time : "");
+  }
 
-  console.log("Done. You can open the draft page and generate a new draft order.");
+  console.log("Done. Open the draft page to generate a new draft order; then wait for the scheduled time or click Begin draft.");
 }
 
 main();

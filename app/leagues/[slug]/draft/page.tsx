@@ -12,11 +12,10 @@ import {
   getDraftPreferences,
   getDraftPreferencesForAllMembers,
   runAutoPickIfExpired,
-  runFullAutopickDraftAtScheduledTime,
   isDraftableWrestler,
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
-import { generateDraftOrderFromFormAction, startDraftFromFormAction } from "./actions";
+import { generateDraftOrderFromFormAction, startDraftFromFormAction, clearDraftOrderFromFormAction } from "./actions";
 import { MakePickForm } from "./MakePickForm";
 import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
@@ -81,15 +80,8 @@ export default async function LeagueDraftPage({ params }: Props) {
     const autoResult = await runAutoPickIfExpired(league.id);
     if (autoResult.didAutoPick) redirect(`/leagues/${slug}/draft`);
 
-    const draftStateForAutostart = await getLeagueDraftState(league.id);
-    const leagueDraftTypeForAutostart = league.draft_type ?? (league.draft_style === "linear" ? "linear" : "snake");
-    if (
-      leagueDraftTypeForAutostart === "autopick" &&
-      (draftStateForAutostart?.draft_status ?? "not_started") === "not_started"
-    ) {
-      const fullAutopick = await runFullAutopickDraftAtScheduledTime(league.id);
-      if (fullAutopick.didRun) redirect(`/leagues/${slug}/draft`);
-    }
+    // Do not auto-start autopick on page load: let the commissioner change draft order after
+    // restart if needed, then click "Begin draft". Scheduled autopick is started by cron only.
 
     const [membersData, stateData, currentPickData, rostersData, wrestlersResult, picksData, allPrefsData, pointsData] = await Promise.all([
       getLeagueMembers(league.id),
@@ -324,6 +316,8 @@ export default async function LeagueDraftPage({ params }: Props) {
       }
     }
 
+    const hasServiceRole = getAdminClient() !== null;
+
     function normGender(g: string | null | undefined): "F" | "M" | null {
       if (g == null || typeof g !== "string") return null;
       const l = g.trim().toLowerCase();
@@ -439,6 +433,37 @@ export default async function LeagueDraftPage({ params }: Props) {
               </Link>
             </p>
           )}
+        </section>
+      )}
+
+      {isCommissioner && (
+        <section
+          aria-labelledby="draft-readiness-heading"
+          style={{
+            marginBottom: 24,
+            padding: "14px 18px",
+            background: "var(--color-bg-elevated)",
+            borderRadius: "var(--radius)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <h2 id="draft-readiness-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 10, color: "var(--color-text)" }}>
+            Draft readiness
+          </h2>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14, color: "var(--color-text)", lineHeight: 1.9 }}>
+            <li>
+              Service role: {hasServiceRole ? <span style={{ color: "var(--color-success)" }}>✓ Configured</span> : <span style={{ color: "var(--color-red)" }}>✗ Not set (autopick and draft order will fail)</span>}
+            </li>
+            <li>
+              Draft order: {order.length > 0 ? <span style={{ color: "var(--color-success)" }}>✓ {order.length} picks</span> : <span style={{ color: "var(--color-text-muted)" }}>No order yet</span>}
+            </li>
+            <li>
+              Draft status: <span style={{ fontWeight: 500 }}>{draftStatus}</span>
+            </li>
+          </ul>
+          <p style={{ marginTop: 10, marginBottom: 0, fontSize: 12, color: "var(--color-text-muted)" }}>
+            See <code>docs/DRAFT_VERIFICATION.md</code> in the repo for a step-by-step test procedure.
+          </p>
         </section>
       )}
 
@@ -606,7 +631,7 @@ export default async function LeagueDraftPage({ params }: Props) {
               {scheduledDraftMessage}
             </p>
           )}
-          {isCommissioner && isLiveDraftType && canStartDraftNow && (
+          {isCommissioner && (isLiveDraftType || leagueDraftType === "autopick") && canStartDraftNow && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 24, alignItems: "center" }}>
               <form action={startDraftFromFormAction}>
                 <input type="hidden" name="league_slug" value={slug} />
@@ -643,6 +668,26 @@ export default async function LeagueDraftPage({ params }: Props) {
                 >
                   Change draft order
                 </Link>
+              )}
+              {leagueDraftType === "autopick" && league.draft_order_method !== "manual_by_gm" && (
+                <form action={clearDraftOrderFromFormAction} style={{ display: "inline" }}>
+                  <input type="hidden" name="league_slug" value={slug} />
+                  <button
+                    type="submit"
+                    style={{
+                      padding: "12px 24px",
+                      background: "transparent",
+                      color: "var(--color-blue)",
+                      border: "1px solid var(--color-blue)",
+                      borderRadius: 8,
+                      fontSize: 16,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Generate new draft order
+                  </button>
+                </form>
               )}
             </div>
           )}

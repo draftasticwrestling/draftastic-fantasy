@@ -1619,6 +1619,26 @@ export async function runFullAutopickDraftAtScheduledTime(
 }
 
 /**
+ * Clear draft order only (no picks/rosters). Sets draft_status to not_started.
+ * Commissioner must be verified by caller. Uses service role.
+ */
+export async function clearDraftOrder(leagueId: string): Promise<{ error?: string }> {
+  const admin = getAdminClient();
+  if (!admin) return { error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+  await admin.from("league_draft_order").delete().eq("league_id", leagueId);
+  const { error: updateErr } = await admin
+    .from("leagues")
+    .update({
+      draft_status: "not_started",
+      draft_current_pick: null,
+      draft_current_pick_started_at: null,
+    })
+    .eq("id", leagueId);
+  if (updateErr) return { error: updateErr.message };
+  return {};
+}
+
+/**
  * Restart draft: clear all picks and rosters, reset draft state to not_started.
  * Draft order (league_draft_order) is preserved so the same order is used when the draft is started again.
  * Caller must verify commissioner. Uses service role.

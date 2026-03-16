@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 const POLL_INTERVAL_MS = 5000;
-const AUTOPICK_POLL_INTERVAL_MS = 2000;
+// Autopick: keep high enough for UX, low enough to avoid burning Netlify function invocations (each refresh = 1 serverless call).
+const AUTOPICK_POLL_INTERVAL_MS = 8000;
 
 export function DraftPolling({ isAutopick = false }: { isAutopick?: boolean }) {
   const router = useRouter();
