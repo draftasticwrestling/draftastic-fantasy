@@ -300,6 +300,26 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
 }
 
 /**
+ * Get league member user_ids using service role. For use by cron/scheduled jobs (e.g. draft order at 1hr before).
+ */
+export async function getLeagueMemberUserIdsForAdmin(leagueId: string): Promise<string[]> {
+  const admin = getAdminClient();
+  if (!admin) return [];
+  const { data, error } = await admin
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .order("joined_at", { ascending: true });
+  if (error || !data?.length) return [];
+  const seen = new Set<string>();
+  return (data as { user_id: string }[]).filter((r) => {
+    if (seen.has(r.user_id)) return false;
+    seen.add(r.user_id);
+    return true;
+  }).map((r) => r.user_id);
+}
+
+/**
  * Update the current user's team name for a league. Only the member themselves can update.
  */
 export async function updateLeagueMemberTeamName(

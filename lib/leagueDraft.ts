@@ -4,7 +4,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getLeagueMembers, getRostersForLeague, getRostersForLeagueAdmin } from "@/lib/leagues";
+import { getLeagueMembers, getRostersForLeague, getRostersForLeagueAdmin, getLeagueMemberUserIdsForAdmin } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { isBlocklistedSlug } from "@/lib/draftBlocklist";
 import { addWrestlerToRoster } from "@/lib/leagues";
@@ -349,6 +349,50 @@ async function getCurrentPickUsingAdmin(
   return row as { overall_pick: number; user_id: string };
 }
 
+/** Same as getDraftOrder but uses admin client. Use from cron so order is read without a user session. */
+async function getDraftOrderUsingAdmin(
+  admin: AdminClient,
+  leagueId: string
+): Promise<{ overall_pick: number; user_id: string }[]> {
+  const { data, error } = await admin
+    .from("league_draft_order")
+    .select("overall_pick, user_id")
+    .eq("league_id", leagueId)
+    .order("overall_pick", { ascending: true });
+  if (error) return [];
+  return (data ?? []) as { overall_pick: number; user_id: string }[];
+}
+
+/** Same as getLeagueDraftState but uses admin client. Use from cron so state is read without a user session. */
+async function getLeagueDraftStateUsingAdmin(
+  admin: AdminClient,
+  leagueId: string
+): Promise<{
+  draft_status: "not_started" | "in_progress" | "completed";
+  draft_current_pick: number | null;
+  draft_style: "snake" | "linear";
+  total_picks: number;
+  draft_current_pick_started_at: string | null;
+} | null> {
+  const { data: league, error } = await admin
+    .from("leagues")
+    .select("draft_status, draft_current_pick, draft_style, draft_current_pick_started_at")
+    .eq("id", leagueId)
+    .maybeSingle();
+  if (error || !league) return null;
+  const { count } = await admin
+    .from("league_draft_order")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", leagueId);
+  return {
+    draft_status: (league.draft_status ?? "not_started") as "not_started" | "in_progress" | "completed",
+    draft_current_pick: league.draft_current_pick ?? null,
+    draft_style: (league.draft_style ?? "snake") as "snake" | "linear",
+    total_picks: count ?? 0,
+    draft_current_pick_started_at: league.draft_current_pick_started_at ?? null,
+  };
+}
+
 /** Fetch gender for wrestler ids in one query. Returns id -> raw gender string. */
 async function getWrestlerGendersBatch(
   admin: AdminClient,
@@ -547,6 +591,66 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
   };
   const { error: updateError } = await admin.from("leagues").update(updatePayload).eq("id", leagueId);
   if (updateError) return { error: updateError.message };
+  return {};
+}
+
+/**
+ * Generate draft order using service role only. For use by cron when "randomize one hour before draft time".
+ * Does not require a logged-in user. Ensures all teams get correct pick slots.
+ */
+export async function generateDraftOrderForScheduledDraft(leagueId: string): Promise<{ error?: string }> {
+  const admin = getAdminClient();
+  if (!admin) return { error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+
+  const { data: league, error: leagueErr } = await admin
+    .from("leagues")
+    .select("id, draft_style, draft_type, current_draft_run_id, season_slug, start_date, draft_date, created_at")
+    .eq("id", leagueId)
+    .maybeSingle();
+  if (leagueErr || !league) return { error: "League not found." };
+
+  const memberIds = await getLeagueMemberUserIdsForAdmin(leagueId);
+  const rules = getRosterRulesForLeague(memberIds.length);
+  if (!rules) return { error: "League size must be 3–12 teams to generate draft order." };
+
+  const runId = await ensureDraftRunForLeague(league);
+  if (typeof runId !== "string") return runId;
+
+  const numRounds = rules.rosterSize;
+  const draftType = (league as { draft_type?: string }).draft_type ?? league.draft_style;
+  const snake = draftType !== "linear";
+
+  const round1Order = shuffle(memberIds);
+  const order: { overall_pick: number; user_id: string }[] = [];
+  let overall = 0;
+  for (let round = 1; round <= numRounds; round++) {
+    const roundOrder = snake && round % 2 === 0 ? [...round1Order].reverse() : round1Order;
+    for (const uid of roundOrder) {
+      overall++;
+      order.push({ overall_pick: overall, user_id: uid });
+    }
+  }
+
+  await admin.from("league_draft_order").delete().eq("league_id", leagueId);
+  const { error: insertError } = await admin.from("league_draft_order").insert(
+    order.map((o) => ({
+      league_id: leagueId,
+      draft_run_id: runId,
+      overall_pick: o.overall_pick,
+      user_id: o.user_id,
+    }))
+  );
+  if (insertError) return { error: insertError.message };
+
+  const { error: updateErr } = await admin
+    .from("leagues")
+    .update({
+      draft_status: "not_started",
+      draft_current_pick: null,
+      draft_current_pick_started_at: null,
+    })
+    .eq("id", leagueId);
+  if (updateErr) return { error: updateErr.message };
   return {};
 }
 
@@ -1354,7 +1458,7 @@ export async function runAutoPickIfExpired(
   const admin = getAdminClient();
   if (!admin) return { didAutoPick: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
 
-  const state = await getLeagueDraftState(leagueId);
+  const state = await getLeagueDraftStateUsingAdmin(admin, leagueId);
   if (!state || state.draft_status !== "in_progress" || state.draft_current_pick == null) {
     return { didAutoPick: false };
   }
@@ -1468,8 +1572,8 @@ export async function runFullAutopickDraftAtScheduledTime(
   const draftStatus = (league as { draft_status?: string }).draft_status ?? "not_started";
   if (draftType !== "autopick" || draftStatus !== "not_started") return { didRun: false };
 
-  const order = await getDraftOrder(leagueId);
-  if (order.length === 0) return { didRun: false };
+  const order = await getDraftOrderUsingAdmin(admin, leagueId);
+  if (order.length === 0) return { didRun: false, error: "Draft order not found. Generate or set draft order before draft time." };
 
   const scheduledMs = getScheduledDraftTimeMs(league as { draft_date?: string | null; draft_time?: string | null });
   if (scheduledMs == null || Date.now() < scheduledMs) return { didRun: false };
@@ -1482,7 +1586,7 @@ export async function runFullAutopickDraftAtScheduledTime(
   if (updateErr) return { didRun: false, error: updateErr.message };
 
   while (true) {
-    const state = await getLeagueDraftState(leagueId);
+    const state = await getLeagueDraftStateUsingAdmin(admin, leagueId);
     if (!state || state.draft_status === "completed") return { didRun: true };
     if (state.draft_status !== "in_progress") return { didRun: true };
 
@@ -1493,7 +1597,8 @@ export async function runFullAutopickDraftAtScheduledTime(
 }
 
 /**
- * Restart draft: clear all picks, rosters, and draft order; set draft to not_started.
+ * Restart draft: clear all picks and rosters, reset draft state to not_started.
+ * Draft order (league_draft_order) is preserved so the same order is used when the draft is started again.
  * Caller must verify commissioner. Uses service role.
  */
 export async function restartDraft(leagueId: string): Promise<{ error?: string }> {
@@ -1504,8 +1609,6 @@ export async function restartDraft(leagueId: string): Promise<{ error?: string }
   if (picksErr) return { error: picksErr.message };
   const { error: rostersErr } = await admin.from("league_rosters").delete().eq("league_id", leagueId);
   if (rostersErr) return { error: rostersErr.message };
-  const { error: orderErr } = await admin.from("league_draft_order").delete().eq("league_id", leagueId);
-  if (orderErr) return { error: orderErr.message };
   await admin.from("league_draft_user_state").delete().eq("league_id", leagueId);
   const { error: updateErr } = await admin
     .from("leagues")
