@@ -143,7 +143,22 @@ export default async function LeagueDraftPage({ params }: Props) {
     const hasLeagueDraftDetails =
       leagueDraftType || league.draft_date || timePerPickLabel || draftOrderLabel;
 
+    const hasDraftScheduled = Boolean(league.draft_date);
+
     const isLiveDraftType = leagueDraftType === "linear" || leagueDraftType === "snake";
+
+    const FOCUS_LABELS: Record<string, string> = { all: "All-time points", "2026": "2026 points", "2025": "2025 points" };
+    const POINT_STRATEGY_LABELS: Record<string, string> = { total: "Total Points", rs: "R/S points", ple: "PLE Points", belt: "Belt Points" };
+    const WRESTLER_STRATEGY_LABELS: Record<string, string> = {
+      best_available: "Best available",
+      balanced_gender: "Balanced male/female",
+      balanced_brands: "Balanced Raw/SmackDown",
+      high_males: "High ranking males",
+      high_females: "High ranking females",
+    };
+    const hasAutoDraftSettingsSaved =
+      userDraftPrefs != null &&
+      (userDraftPrefs.priority_list?.length > 0 || userDraftPrefs.strategy_options != null);
 
     let canStartDraftNow = true;
     let scheduledDraftMessage: string | null = null;
@@ -229,6 +244,11 @@ export default async function LeagueDraftPage({ params }: Props) {
             border: "1px solid var(--color-border)",
           }}
         >
+          {hasDraftScheduled && (
+            <p style={{ fontSize: "1rem", fontWeight: 700, color: "#0d7d0d", marginBottom: 12 }}>
+              Your draft is scheduled
+            </p>
+          )}
           <h2 id="league-draft-details-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12, color: "var(--color-text)" }}>
             League draft details
           </h2>
@@ -249,7 +269,18 @@ export default async function LeagueDraftPage({ params }: Props) {
             )}
             {league.draft_date && (
               <li>
-                <strong style={{ color: "var(--color-text)" }}>Draft date:</strong> {league.draft_date}
+                <strong style={{ color: "var(--color-text)" }}>Draft date:</strong>{" "}
+                {league.draft_date}
+                {league.draft_time && (() => {
+                  const t = String(league.draft_time).trim();
+                  const match = t.match(/^(\d{1,2}):(\d{2})/);
+                  if (!match) return null;
+                  const h = parseInt(match[1], 10);
+                  const m = match[2];
+                  const ampm = h >= 12 ? "PM" : "AM";
+                  const h12 = h % 12 || 12;
+                  return <span> at {h12}:{m} {ampm}</span>;
+                })()}
               </li>
             )}
             {timePerPickLabel && (
@@ -294,9 +325,38 @@ export default async function LeagueDraftPage({ params }: Props) {
         <h2 id="auto-draft-settings-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 8, color: "var(--color-text)" }}>
           Your auto-draft settings
         </h2>
+        {hasAutoDraftSettingsSaved && (
+          <p style={{ fontSize: "1rem", fontWeight: 700, color: "#0d7d0d", marginBottom: 12 }}>
+            Your auto-draft settings have been saved.
+          </p>
+        )}
         <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
           If the pick clock runs out, your pick is made automatically using your priority list and strategy.
         </p>
+        {hasAutoDraftSettingsSaved && userDraftPrefs && (
+          <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px", fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
+            {userDraftPrefs.priority_list?.length > 0 && (
+              <li>
+                <strong style={{ color: "var(--color-text)" }}>Priority list:</strong> {userDraftPrefs.priority_list.length} wrestlers
+              </li>
+            )}
+            {userDraftPrefs.strategy_options?.focus && (
+              <li>
+                <strong style={{ color: "var(--color-text)" }}>Focus:</strong> {FOCUS_LABELS[userDraftPrefs.strategy_options.focus] ?? userDraftPrefs.strategy_options.focus}
+              </li>
+            )}
+            {userDraftPrefs.strategy_options?.pointStrategy && (
+              <li>
+                <strong style={{ color: "var(--color-text)" }}>Point strategy:</strong> {POINT_STRATEGY_LABELS[userDraftPrefs.strategy_options.pointStrategy] ?? userDraftPrefs.strategy_options.pointStrategy}
+              </li>
+            )}
+            {userDraftPrefs.strategy_options?.wrestlerStrategy && (
+              <li>
+                <strong style={{ color: "var(--color-text)" }}>Wrestler strategy:</strong> {WRESTLER_STRATEGY_LABELS[userDraftPrefs.strategy_options.wrestlerStrategy] ?? userDraftPrefs.strategy_options.wrestlerStrategy}
+              </li>
+            )}
+          </ul>
+        )}
         <Link
           href={`/leagues/${slug}/draft/preferences`}
           className="app-link"

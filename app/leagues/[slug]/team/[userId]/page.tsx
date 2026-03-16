@@ -381,7 +381,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               );
             })()}
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Offer wrestlers to another owner and request wrestlers in return. They can accept or reject.
+              Offer wrestlers to another owner and request wrestlers in return. They can accept, decline, or counter. If both agree, the commissioner must approve the trade.
             </p>
             {otherMembers.length === 0 ? (
               <p style={{ color: "#666" }}>No other members in the league.</p>
@@ -472,7 +472,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                     .map((i) => wrestlerNamesMap[i.wrestler_id] ?? i.wrestler_id)
                     .join(", ")}
                 </span>
-                <TradeProposalRespond leagueSlug={slug} proposalId={p.id} />
+                <TradeProposalRespond leagueSlug={slug} proposalId={p.id} proposalFromUserId={p.from_user_id} />
               </li>
             ))}
           </ul>
@@ -487,7 +487,14 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               .filter((p) => p.from_user_id === currentUser.id)
               .map((p) => (
                 <li key={p.id} style={{ padding: "6px 0", color: "#666" }}>
-                  Trade to another owner: {p.status}
+                  Trade to {memberByUserId[p.to_user_id]?.display_name ?? memberByUserId[p.to_user_id]?.team_name ?? "another owner"}:{" "}
+                  {p.status === "pending" && "Pending"}
+                  {p.status === "rejected" && "Declined"}
+                  {p.status === "awaiting_gm_approval" && "Accepted — awaiting GM approval"}
+                  {p.status === "gm_approved" && "Approved"}
+                  {p.status === "gm_rejected" && "Rejected by GM"}
+                  {p.status === "accepted" && "Completed"}
+                  {!["pending", "rejected", "awaiting_gm_approval", "gm_approved", "gm_rejected", "accepted"].includes(p.status) && p.status}
                 </li>
               ))}
           </ul>

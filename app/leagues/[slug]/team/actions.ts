@@ -5,6 +5,7 @@ import {
   setLineupForEvent,
   createTradeProposal,
   respondToTradeProposal,
+  respondToTradeByGm,
   dropWrestlerImmediate,
   addFreeAgentImmediate,
 } from "@/lib/leagueOwner";
@@ -85,6 +86,21 @@ export async function respondToTradeAction(
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
   revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/proposals`);
+  return {};
+}
+
+/** Commissioner approves or rejects a trade that was accepted by the other owner. */
+export async function respondToTradeByGmAction(
+  leagueSlug: string,
+  proposalId: string,
+  approve: boolean
+): Promise<{ error?: string }> {
+  const result = await respondToTradeByGm(proposalId, approve);
+  if (result.error) return result;
+  revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/proposals`);
   return {};
 }
 

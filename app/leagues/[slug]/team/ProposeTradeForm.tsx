@@ -46,7 +46,7 @@ export function ProposeTradeForm({
       const result = await proposeTradeAction(leagueSlug, toUserId, giveIds, receiveIds);
       if (result.error) setMessage({ type: "err", text: result.error });
       else {
-        setMessage({ type: "ok", text: "Trade proposed. They can accept or reject." });
+        setMessage({ type: "ok", text: "Trade proposed. They can accept, decline, or counter." });
         setGiveIds([]);
         setReceiveIds([]);
       }

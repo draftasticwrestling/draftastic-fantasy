@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
+import { WrestlerTableLegend } from "./WrestlerTableLegend";
 
 export type WrestlerRow = {
   id: string;
@@ -873,6 +874,8 @@ export default function WrestlerList({
           No wrestlers match your filters. Try a different search or show filter, or Reset All.
         </p>
       )}
+
+      {flatList.length > 0 && <WrestlerTableLegend />}
 
       <p className="wrestler-list-footer" style={{ marginTop: 24, color: "#666" }}>
         {search || includedRosters.size < ALL_ROSTER_VALUES.length ? (

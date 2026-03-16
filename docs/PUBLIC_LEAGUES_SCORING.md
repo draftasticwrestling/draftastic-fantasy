@@ -83,6 +83,18 @@ Defined in `lib/leagueSeasons.ts` (`SEASON_OPTIONS`).
 
 ---
 
+## Points attribution: trades, drops, and free agents
+
+**Rule:** Points are attributed to the team that had the wrestler on their roster **at the time the points were scored** (i.e. at the event date). Roster moves do not transfer or remove past points.
+
+- **Trades:** When Team 1 trades a wrestler to Team 2, all points that wrestler scored **while on Team 1's roster** remain with Team 1. From the moment the wrestler is on Team 2's roster, only the points they score from that point on count for Team 2.
+- **Releases (drops):** When a wrestler is released, the points they scored **before** being released remain with the team that had them at the time. Points they score after release do not count for any team (until/unless they are signed by another team).
+- **Free agent signings:** When a team signs a free agent, they only receive the points that wrestler scores **while on their roster**. They do not receive any points the wrestler scored before the signing (e.g. while on another team or while a free agent).
+
+Implementation: `lib/leagues.ts` uses `getRosterStintsForLeague()` (each stint = one `league_rosters` row with `acquired_at` and `released_at`). For each event, a wrestler's points are added to an owner only if the event date falls within that stint (`event_date >= acquired_at` and `event_date <= released_at` or `released_at` is null). Trades and drops set `released_at` on the old stint and create a new stint for the new team; FA signings create a new stint with `acquired_at` = date of signing.
+
+---
+
 ## Point constants (for implementation)
 
 | Rule                         | Points  |

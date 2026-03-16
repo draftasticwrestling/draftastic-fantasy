@@ -3,10 +3,20 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { getTradeProposalsForLeague, getLeagueRosterActivity } from "@/lib/leagueOwner";
+import { TradeGmActions } from "./TradeGmActions";
 
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string }> };
+
+function tradeStatusLabel(status: string): string {
+  switch (status) {
+    case "gm_approved": return "approved";
+    case "gm_rejected": return "rejected by GM";
+    case "accepted": return "completed";
+    default: return status;
+  }
+}
 
 export default async function ProposalsPage({ params }: Props) {
   const { slug } = await params;
@@ -35,7 +45,11 @@ export default async function ProposalsPage({ params }: Props) {
   }
 
   const pendingTrades = tradeProposals.filter((p) => p.status === "pending");
-  const completedTrades = tradeProposals.filter((p) => p.status === "accepted" || p.status === "rejected");
+  const awaitingGmTrades = tradeProposals.filter((p) => p.status === "awaiting_gm_approval");
+  const completedTrades = tradeProposals.filter((p) =>
+    p.status === "accepted" || p.status === "rejected" || p.status === "gm_approved" || p.status === "gm_rejected"
+  );
+  const isCommissioner = league.role === "commissioner";
 
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 640, margin: "0 auto" }}>
@@ -46,8 +60,30 @@ export default async function ProposalsPage({ params }: Props) {
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Recent Activity</h1>
       <p style={{ color: "#555", marginBottom: 24 }}>
-        Trades (pending and completed) and roster moves. Only trades require approval; drops and free agent pickups are first come, first serve.
+        Trades (pending and completed) and roster moves. When both managers agree, the commissioner must approve the trade. Drops and free agent pickups are first come, first serve.
       </p>
+
+      {isCommissioner && awaitingGmTrades.length > 0 && (
+        <section style={{ marginBottom: 24 }}>
+          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Trades awaiting your approval</h2>
+          <p style={{ fontSize: 14, color: "#555", marginBottom: 12 }}>
+            Both managers have agreed. Approve or reject to complete the trade.
+          </p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {awaitingGmTrades.map((p) => (
+              <li key={p.id} style={{ padding: "12px 0", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                <span>
+                  {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} ↔ {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
+                  {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                  {" for "}
+                  {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                </span>
+                <TradeGmActions leagueSlug={slug} proposalId={p.id} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {pendingTrades.length > 0 && (
         <section style={{ marginBottom: 24 }}>
@@ -76,7 +112,7 @@ export default async function ProposalsPage({ params }: Props) {
                 {" for "}
                 {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                 {" — "}
-                <span style={{ fontWeight: 600 }}>{p.status}</span>
+                <span style={{ fontWeight: 600 }}>{tradeStatusLabel(p.status)}</span>
               </li>
             ))}
           </ul>

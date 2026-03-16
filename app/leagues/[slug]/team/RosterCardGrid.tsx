@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getWrestlerFullImageUrl } from "@/lib/wrestlerImages";
+import { WrestlerCardLegend } from "@/app/wrestlers/WrestlerTableLegend";
 
 const SORT_OPTIONS = [
   { value: "2k", label: "2K Rating" },
@@ -495,6 +496,7 @@ export function RosterCardGrid({
           />
         ))}
       </div>
+      <WrestlerCardLegend />
     </>
   );
 }

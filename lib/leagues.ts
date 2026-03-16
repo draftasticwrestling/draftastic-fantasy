@@ -642,6 +642,9 @@ export type PointsBySlug = Record<string, { rsPoints: number; plePoints: number;
  * Load events in league date range and return points per wrestler slug and per owner.
  * Owner points use acquisition/release windows: only count event points when
  * event_date >= stint.acquired_at and (stint.released_at is null or event_date <= stint.released_at).
+ * So: traded wrestlers' past points stay with the original team; new team gets points from trade date on.
+ * Dropped wrestlers' points stay with the team that had them; FA signings only get points from sign date on.
+ * See docs/PUBLIC_LEAGUES_SCORING.md "Points attribution: trades, drops, and free agents".
  */
 export async function getLeagueScoring(
   leagueId: string

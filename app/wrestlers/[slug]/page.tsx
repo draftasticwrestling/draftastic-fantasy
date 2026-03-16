@@ -735,6 +735,9 @@ export default async function WrestlerProfilePage({
                   <span style={{ fontSize: 9, color: "#666" }}>per match</span>
                 </div>
               </div>
+              <p style={{ marginTop: 8, marginBottom: 0, fontSize: 11, color: "#666" }}>
+                R/S = Raw & SmackDown · PLE = Premium Live Events · Belt = title points · PPM = points per match · Total = R/S + PLE + Belt
+              </p>
             </div>
           </div>
         </div>
