@@ -603,13 +603,14 @@ export async function addWrestlerToRoster(
 
 /**
  * Remove a wrestler from a member's roster (set released_at = today so points before today still count).
- * Commissioner only (RLS enforced).
+ * By default uses RLS (commissioner only). Pass useServiceRole: true for owner self-service drop.
  */
 export async function removeWrestlerFromRoster(
   leagueId: string,
   userId: string,
   wrestlerId: string,
-  releasedAt?: string | null
+  releasedAt?: string | null,
+  useServiceRole?: boolean
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -619,7 +620,8 @@ export async function removeWrestlerFromRoster(
     (releasedAt && /^\d{4}-\d{2}-\d{2}$/.test(releasedAt.trim()) ? releasedAt.trim() : null) ||
     new Date().toISOString().slice(0, 10);
 
-  const { data: updated, error } = await supabase
+  const client = useServiceRole && getAdminClient() ? getAdminClient()! : supabase;
+  const { data: updated, error } = await client
     .from("league_rosters")
     .update({ released_at: releasedDate })
     .eq("league_id", leagueId)

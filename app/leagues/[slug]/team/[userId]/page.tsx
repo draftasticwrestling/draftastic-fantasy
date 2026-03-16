@@ -9,11 +9,7 @@ import {
   getEffectiveLeagueStartDate,
 } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
-import {
-  getTradeProposalsForLeague,
-  getReleaseProposalsForLeague,
-  getFreeAgentProposalsForLeague,
-} from "@/lib/leagueOwner";
+import { getTradeProposalsForLeague } from "@/lib/leagueOwner";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
@@ -127,7 +123,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const totalPoints = pointsWithBonuses[userId] ?? 0;
 
   const wrestlers =
-    (await supabase.from("wrestlers").select("id, name, image_url").order("name", { ascending: true })).data ??
+    (await supabase.from("wrestlers").select("id, name, image_url, gender").order("name", { ascending: true })).data ??
     [];
   const wrestlerNamesMap = Object.fromEntries(wrestlers.map((w) => [w.id, w.name ?? w.id]));
   const wrestlerImageUrl: Record<string, string | null> = Object.fromEntries(
@@ -147,8 +143,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
 
   const rosterRules = getRosterRulesForLeague(members.length);
   const rosterWrestlers = rosterEntries.map((e) => {
-    const w = wrestlers.find((x) => x.id === e.wrestler_id);
-    return { id: e.wrestler_id, name: w?.name ?? e.wrestler_id };
+    const w = wrestlers.find((x) => x.id === e.wrestler_id) as { id: string; name: string | null; gender?: string | null } | undefined;
+    return { id: e.wrestler_id, name: w?.name ?? e.wrestler_id, gender: w?.gender ?? null };
   });
 
   const rosterIds = rosterEntries.map((e) => e.wrestler_id);
@@ -268,14 +264,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
 
   let tradeProposals: Awaited<ReturnType<typeof getTradeProposalsForLeague>> = [];
-  let releaseProposals: Awaited<ReturnType<typeof getReleaseProposalsForLeague>> = [];
-  let faProposals: Awaited<ReturnType<typeof getFreeAgentProposalsForLeague>> = [];
   try {
-    [tradeProposals, releaseProposals, faProposals] = await Promise.all([
-      getTradeProposalsForLeague(league.id),
-      getReleaseProposalsForLeague(league.id),
-      getFreeAgentProposalsForLeague(league.id),
-    ]);
+    tradeProposals = await getTradeProposalsForLeague(league.id);
   } catch {
     // Tables may not exist
   }
@@ -416,9 +406,9 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           </section>
 
           <section id="request-release" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
-            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Request release</h2>
+            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Drop wrestler</h2>
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Request to drop a wrestler from your roster. The commissioner must approve.
+              Drop a wrestler from your roster. Takes effect immediately (first come, first serve).
             </p>
             {rosterWrestlers.length === 0 ? (
               <p style={{ color: "#666" }}>Your roster is empty.</p>
@@ -426,17 +416,17 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               <ProposeReleaseForm
                 leagueSlug={slug}
                 rosterWrestlers={rosterWrestlers}
-                pendingReleaseIds={releaseProposals
-                  .filter((p) => p.status === "pending" && p.user_id === currentUser.id)
-                  .map((p) => p.wrestler_id)}
+                rosterRules={rosterRules}
+                freeAgents={freeAgents.map((w) => ({ id: w.id, name: w.name ?? w.id }))}
+                pendingReleaseIds={[]}
               />
             )}
           </section>
 
           <section id="sign-free-agent" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
-            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Sign free agent</h2>
+            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Add free agent</h2>
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Request to add a wrestler who isn’t on any roster. Optionally drop one to make room. Commissioner must approve.
+              Add a wrestler who isn’t on any roster. If your roster is full, drop one to make room. Takes effect immediately (first come, first serve).
             </p>
             {freeAgents.length === 0 ? (
               <p style={{ color: "#666" }}>No free agents available.</p>
@@ -446,9 +436,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 freeAgents={freeAgents}
                 myRosterWrestlers={rosterWrestlers}
                 rosterSize={rosterRules?.rosterSize ?? 0}
-                pendingFaIds={faProposals
-                  .filter((p) => p.status === "pending" && p.user_id === currentUser.id)
-                  .map((p) => p.wrestler_id)}
+                pendingFaIds={[]}
                 initialWrestlerId={addFa}
               />
             )}
@@ -491,29 +479,15 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      {(tradeProposals.length > 0 || releaseProposals.length > 0 || faProposals.length > 0) && (
+      {tradeProposals.filter((p) => p.from_user_id === currentUser.id).length > 0 && (
         <section>
-          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Your proposals</h2>
+          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Your trade proposals</h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14 }}>
             {tradeProposals
               .filter((p) => p.from_user_id === currentUser.id)
               .map((p) => (
                 <li key={p.id} style={{ padding: "6px 0", color: "#666" }}>
                   Trade to another owner: {p.status}
-                </li>
-              ))}
-            {releaseProposals
-              .filter((p) => p.user_id === currentUser.id)
-              .map((p) => (
-                <li key={p.id} style={{ padding: "6px 0", color: "#666" }}>
-                  Release: {p.status}
-                </li>
-              ))}
-            {faProposals
-              .filter((p) => p.user_id === currentUser.id)
-              .map((p) => (
-                <li key={p.id} style={{ padding: "6px 0", color: "#666" }}>
-                  Free agent signing: {p.status}
                 </li>
               ))}
           </ul>

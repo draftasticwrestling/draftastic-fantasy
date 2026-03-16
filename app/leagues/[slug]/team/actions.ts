@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import {
   setLineupForEvent,
   createTradeProposal,
-  createReleaseProposal,
-  createFreeAgentProposal,
   respondToTradeProposal,
+  dropWrestlerImmediate,
+  addFreeAgentImmediate,
 } from "@/lib/leagueOwner";
 
 export async function setLineupAction(
@@ -45,23 +45,23 @@ export async function proposeTradeAction(
   return {};
 }
 
-export async function proposeReleaseAction(
+/** Owner drops a wrestler from their roster immediately (first come, first serve; no commissioner approval). */
+export async function dropWrestlerAction(
   leagueSlug: string,
   wrestlerId: string
 ): Promise<{ error?: string }> {
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const supabase = await (await import("@/lib/supabase/server")).createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated." };
-  const result = await createReleaseProposal(league.id, user.id, wrestlerId);
+  const result = await dropWrestlerImmediate(league.id, wrestlerId);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}`);
   return {};
 }
 
-export async function proposeFreeAgentAction(
+/** Owner adds a free agent to their roster immediately (first come, first serve; no commissioner approval). */
+export async function addFreeAgentAction(
   leagueSlug: string,
   wrestlerId: string,
   dropWrestlerId?: string | null
@@ -69,12 +69,10 @@ export async function proposeFreeAgentAction(
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const supabase = await (await import("@/lib/supabase/server")).createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated." };
-  const result = await createFreeAgentProposal(league.id, user.id, wrestlerId, dropWrestlerId);
+  const result = await addFreeAgentImmediate(league.id, wrestlerId, dropWrestlerId);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}`);
   return {};
 }
 

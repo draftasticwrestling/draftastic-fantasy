@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { proposeFreeAgentAction } from "./actions";
+import { addFreeAgentAction } from "./actions";
 
 type Wrestler = { id: string; name: string | null };
 
@@ -10,7 +10,6 @@ export function ProposeFreeAgentForm({
   freeAgents,
   myRosterWrestlers,
   rosterSize,
-  pendingFaIds,
   initialWrestlerId,
 }: {
   leagueSlug: string;
@@ -21,7 +20,6 @@ export function ProposeFreeAgentForm({
   /** Pre-select this wrestler (e.g. from League Leaders / Free Agents "Add" link). */
   initialWrestlerId?: string | null;
 }) {
-  const pendingSet = new Set(pendingFaIds);
   const [wrestlerId, setWrestlerId] = useState(initialWrestlerId ?? "");
   const [dropWrestlerId, setDropWrestlerId] = useState("");
   const [pending, startTransition] = useTransition();
@@ -38,14 +36,14 @@ export function ProposeFreeAgentForm({
     }
     setMessage(null);
     startTransition(async () => {
-      const result = await proposeFreeAgentAction(
+      const result = await addFreeAgentAction(
         leagueSlug,
         wrestlerId.trim(),
         dropWrestlerId.trim() || null
       );
       if (result.error) setMessage({ type: "err", text: result.error });
       else {
-        setMessage({ type: "ok", text: "Free agent signing requested. Waiting on commissioner approval." });
+        setMessage({ type: "ok", text: "Free agent added." });
         setWrestlerId("");
         setDropWrestlerId("");
       }
@@ -66,8 +64,8 @@ export function ProposeFreeAgentForm({
         >
           <option value="">Select…</option>
           {freeAgents.map((w) => (
-            <option key={w.id} value={w.id} disabled={pendingSet.has(w.id)}>
-              {w.name ?? w.id} {pendingSet.has(w.id) ? "(request pending)" : ""}
+            <option key={w.id} value={w.id}>
+              {w.name ?? w.id}
             </option>
           ))}
         </select>
@@ -106,7 +104,7 @@ export function ProposeFreeAgentForm({
           cursor: pending ? "not-allowed" : "pointer",
         }}
       >
-        {pending ? "Submitting…" : "Request free agent signing"}
+        {pending ? "Adding…" : "Add free agent"}
       </button>
       {message && (
         <p style={{ margin: 0, fontSize: 14, color: message.type === "err" ? "#b91c1c" : "#166534" }}>

@@ -5,6 +5,7 @@ import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/le
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
+import { getTradeProposalsForLeague, getLeagueRosterActivity } from "@/lib/leagueOwner";
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { RemoveManagerButton } from "./RemoveManagerButton";
@@ -111,6 +112,29 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
     );
 
+    let tradeProposals: Awaited<ReturnType<typeof getTradeProposalsForLeague>> = [];
+    let rosterActivity: Awaited<ReturnType<typeof getLeagueRosterActivity>> = [];
+    let wrestlerNames: Record<string, string> = {};
+    try {
+      [tradeProposals, rosterActivity] = await Promise.all([
+        getTradeProposalsForLeague(league.id),
+        getLeagueRosterActivity(league.id, 30),
+      ]);
+      const { data: wrestlers } = await supabase.from("wrestlers").select("id, name");
+      wrestlerNames = Object.fromEntries((wrestlers ?? []).map((w: { id: string; name: string | null }) => [w.id, w.name ?? w.id]));
+    } catch {
+      // Tables may not exist
+    }
+    const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
+    type FeedItem =
+      | { type: "trade"; id: string; created_at: string; from_user_id: string; to_user_id: string; status: string; items: { wrestler_id: string; direction: string }[] }
+      | { type: "drop"; id: string; created_at: string; user_id: string; wrestler_id: string }
+      | { type: "fa_add"; id: string; created_at: string; user_id: string; wrestler_id: string; secondary_wrestler_id: string | null };
+    const feedItems: FeedItem[] = [
+      ...tradeProposals.map((p) => ({ type: "trade" as const, id: p.id, created_at: p.created_at, from_user_id: p.from_user_id, to_user_id: p.to_user_id, status: p.status, items: p.items })),
+      ...rosterActivity.map((a) => ({ type: a.activity_type as "drop" | "fa_add", id: a.id, created_at: a.created_at, user_id: a.user_id, wrestler_id: a.wrestler_id, secondary_wrestler_id: a.secondary_wrestler_id })),
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 12);
+
     const isCommissioner = league.role === "commissioner";
     const currentUserMember = currentUser ? members.find((m) => m.user_id === currentUser.id) : null;
     const commissionerMember = members.find((m) => m.role === "commissioner");
@@ -173,19 +197,13 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           <div className="lm-card lm-league-card">
             <h1 className="lm-card-title" style={{ fontSize: "1.35rem", marginBottom: 8 }}>{league.name}</h1>
             <nav className="lm-subnav" aria-label="League sections">
-              <Link href={`/leagues/${slug}`}>League</Link>
+              <Link href={currentUser ? `/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}` : `/leagues/${slug}/team`}>My Roster</Link>
               <span className="lm-subnav-sep">|</span>
-              <Link href={`/leagues/${slug}/ple/wrestlemania`}>WrestleMania</Link>
+              <Link href={`/leagues/${slug}/standings`}>Standings</Link>
               <span className="lm-subnav-sep">|</span>
-              <Link href={currentUser ? `/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}` : `/leagues/${slug}/team`}>Roster</Link>
-              {(league?.league_type === "head_to_head" || league?.league_type === "combo") && (
-                <>
-                  <span className="lm-subnav-sep">|</span>
-                  <Link href={`/leagues/${slug}/matchups`}>Matchup</Link>
-                </>
-              )}
+              <Link href={`/leagues/${slug}/ple/wrestlemania`}>Next PLE</Link>
               <span className="lm-subnav-sep">|</span>
-              <Link href={`/leagues/${slug}`}>Rosters</Link>
+              <Link href={`/leagues/${slug}/draft`}>Draft</Link>
             </nav>
             <p className="lm-league-meta">
               <span>Creator: {creatorLabel}</span>
@@ -262,9 +280,42 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             <div className="lm-card">
               <h2 className="lm-card-title">
                 Recent Activity
-                <Link href={`/leagues/${slug}/proposals`} className="lm-card-link">Proposals</Link>
+                <Link href={`/leagues/${slug}/proposals`} className="lm-card-link">Activity</Link>
               </h2>
-              <p className="lm-activity-empty">No Recent Activity</p>
+              {feedItems.length === 0 ? (
+                <p className="lm-activity-empty">No Recent Activity</p>
+              ) : (
+                <ul className="lm-activity-list" style={{ listStyle: "none", padding: 0, margin: "0 0 12px", fontSize: 14 }}>
+                  {feedItems.map((item) => (
+                    <li key={`${item.type}-${item.id}`} style={{ padding: "6px 0", borderBottom: "1px solid var(--color-border-light)" }}>
+                      {item.type === "trade" && (
+                        <>
+                          {memberByUserId[item.from_user_id]?.display_name?.trim() ?? "Unknown"} ↔ {memberByUserId[item.to_user_id]?.display_name?.trim() ?? "Unknown"}:{" "}
+                          {item.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                          {" for "}
+                          {item.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                          {item.status !== "pending" && (
+                            <span style={{ marginLeft: 6, fontWeight: 600 }}>— {item.status}</span>
+                          )}
+                        </>
+                      )}
+                      {item.type === "drop" && (
+                        <>
+                          {memberByUserId[item.user_id]?.display_name?.trim() ?? memberByUserId[item.user_id]?.team_name?.trim() ?? "Unknown"} dropped {wrestlerNames[item.wrestler_id] ?? item.wrestler_id}
+                        </>
+                      )}
+                      {item.type === "fa_add" && (
+                        <>
+                          {memberByUserId[item.user_id]?.display_name?.trim() ?? memberByUserId[item.user_id]?.team_name?.trim() ?? "Unknown"} added {wrestlerNames[item.wrestler_id] ?? item.wrestler_id}
+                          {item.secondary_wrestler_id && (
+                            <> (dropped {wrestlerNames[item.secondary_wrestler_id] ?? item.secondary_wrestler_id})</>
+                          )}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="lm-activity-footer">
                 <Link href={`/leagues/${slug}/proposals`}>See Full Recent Activity</Link>
               </p>

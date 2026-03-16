@@ -10,6 +10,14 @@ import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 import { removeWrestlerFromRoster } from "@/lib/leagues";
 import { addWrestlerToRoster } from "@/lib/leagues";
 
+function normalizeGender(g: string | null | undefined): "F" | "M" | null {
+  if (g == null || typeof g !== "string") return null;
+  const lower = g.trim().toLowerCase();
+  if (lower === "female" || lower === "f") return "F";
+  if (lower === "male" || lower === "m") return "M";
+  return null;
+}
+
 export type UpcomingEvent = { id: string; name: string; date: string; eventType: string };
 
 /** Next upcoming event (date >= today), optionally prefer SmackDown. */
@@ -459,4 +467,141 @@ export async function respondToFreeAgentProposal(
     if (addRes.error) return addRes;
   }
   return {};
+}
+
+// --- Owner self-service: drop and add FA without commissioner approval (first come, first serve) ---
+
+/** Owner drops a wrestler from their own roster immediately. Fails if drop would break roster minimums. */
+export async function dropWrestlerImmediate(
+  leagueId: string,
+  wrestlerId: string
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+  const { data: member } = await supabase
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!member) return { error: "You are not in this league." };
+
+  const wid = wrestlerId.trim();
+  const { count: memberCount } = await supabase
+    .from("league_members")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", leagueId);
+  const teamCount = memberCount ?? 0;
+  const rules = getRosterRulesForLeague(teamCount);
+  if (rules) {
+    const { data: rosterRows } = await supabase
+      .from("league_rosters")
+      .select("wrestler_id")
+      .eq("league_id", leagueId)
+      .eq("user_id", user.id)
+      .is("released_at", null);
+    const currentIds = (rosterRows ?? []).map((r: { wrestler_id: string }) => r.wrestler_id);
+    if (!currentIds.includes(wid)) return { error: "Wrestler not on your roster." };
+    const { data: wrestlerRows } = await supabase
+      .from("wrestlers")
+      .select("id, gender")
+      .in("id", currentIds);
+    const genderById: Record<string, "F" | "M" | null> = {};
+    for (const w of wrestlerRows ?? []) {
+      genderById[(w as { id: string }).id] = normalizeGender((w as { gender: string | null }).gender);
+    }
+    let total = currentIds.length;
+    let female = 0;
+    let male = 0;
+    for (const id of currentIds) {
+      const g = genderById[id];
+      if (g === "F") female++;
+      else if (g === "M") male++;
+    }
+    const dropGender = genderById[wid];
+    const afterTotal = total - 1;
+    const afterFemale = female - (dropGender === "F" ? 1 : 0);
+    const afterMale = male - (dropGender === "M" ? 1 : 0);
+    const minTotal = rules.minFemale + rules.minMale;
+    if (afterTotal < minTotal || afterFemale < rules.minFemale || afterMale < rules.minMale) {
+      return {
+        error: `Dropping this wrestler would leave your roster below the minimum (${minTotal} wrestlers, ${rules.minFemale} women, ${rules.minMale} men). Add a free agent at the same time to stay in compliance.`,
+      };
+    }
+  }
+
+  const res = await removeWrestlerFromRoster(leagueId, user.id, wid, undefined, true);
+  if (res.error) return res;
+  const admin = getAdminClient();
+  if (admin) {
+    await admin.from("league_activity").insert({
+      league_id: leagueId,
+      activity_type: "drop",
+      user_id: user.id,
+      wrestler_id: wid,
+      secondary_wrestler_id: null,
+    });
+  }
+  return {};
+}
+
+/** Owner adds a free agent to their own roster immediately. Optionally drops one to make room. No proposal. */
+export async function addFreeAgentImmediate(
+  leagueId: string,
+  wrestlerId: string,
+  dropWrestlerId?: string | null
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+  const { data: member } = await supabase
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!member) return { error: "You are not in this league." };
+  if (dropWrestlerId?.trim()) {
+    const dropRes = await removeWrestlerFromRoster(leagueId, user.id, dropWrestlerId.trim(), undefined, true);
+    if (dropRes.error) return dropRes;
+  }
+  const addRes = await addWrestlerToRoster(leagueId, user.id, wrestlerId.trim(), null, true);
+  if (addRes.error) return addRes;
+  const admin = getAdminClient();
+  if (admin) {
+    await admin.from("league_activity").insert({
+      league_id: leagueId,
+      activity_type: "fa_add",
+      user_id: user.id,
+      wrestler_id: wrestlerId.trim(),
+      secondary_wrestler_id: dropWrestlerId?.trim() || null,
+    });
+  }
+  return {};
+}
+
+export type LeagueRosterActivityItem = {
+  id: string;
+  league_id: string;
+  activity_type: "drop" | "fa_add";
+  user_id: string;
+  wrestler_id: string;
+  secondary_wrestler_id: string | null;
+  created_at: string;
+};
+
+export async function getLeagueRosterActivity(
+  leagueId: string,
+  limit = 50
+): Promise<LeagueRosterActivityItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("league_activity")
+    .select("id, league_id, activity_type, user_id, wrestler_id, secondary_wrestler_id, created_at")
+    .eq("league_id", leagueId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  return (data ?? []) as LeagueRosterActivityItem[];
 }
