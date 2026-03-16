@@ -55,11 +55,23 @@ export type DraftRoomWrestler = {
 
 type PointsBySlug = Record<string, { rsPoints: number; plePoints: number; beltPoints: number }>;
 
+export type WrestlerPoolDiagnostic = {
+  source: "user" | "admin" | "none";
+  userRawCount: number;
+  userError: string | null;
+  adminUsed: boolean;
+  adminRawCount: number | null;
+  adminError: string | null;
+  filteredCount: number;
+  hasServiceRole: boolean;
+} | null;
+
 type Props = {
   order: { overall_pick: number; user_id: string }[];
   picksHistory: { overall_pick: number; user_id: string; wrestler_id: string; wrestler_name: string | null }[];
   members: { user_id: string; display_name?: string | null; team_name?: string | null }[];
   wrestlers: DraftRoomWrestler[];
+  wrestlerPoolDiagnostic?: WrestlerPoolDiagnostic;
   pointsBySlug: PointsBySlug;
   draftedIds: string[];
   currentPickSlot: number | null;
@@ -76,6 +88,7 @@ export function LeagueDraftRoom({
   picksHistory,
   members,
   wrestlers,
+  wrestlerPoolDiagnostic = null,
   pointsBySlug,
   draftedIds,
   currentPickSlot,
@@ -226,11 +239,37 @@ export function LeagueDraftRoom({
             }}
           >
             {sortedAvailable.length === 0 ? (
-              <p style={{ color: "var(--color-text-muted)", margin: 16 }}>
-                {wrestlers.length === 0
-                  ? "Wrestler pool could not be loaded. Try refreshing the page."
-                  : "None left"}
-              </p>
+              <div style={{ padding: 16, color: "var(--color-text-muted)", fontSize: 14 }}>
+                {wrestlers.length === 0 ? (
+                  <>
+                    <p style={{ margin: "0 0 12px", fontWeight: 600 }}>Wrestler pool could not be loaded.</p>
+                    {wrestlerPoolDiagnostic ? (
+                      <div style={{ marginTop: 8, padding: 12, background: "var(--color-bg-elevated)", borderRadius: "var(--radius)", border: "1px solid var(--color-border)", fontFamily: "monospace", fontSize: 12 }}>
+                        <p style={{ margin: "0 0 8px" }}><strong>Diagnostic</strong></p>
+                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                          <li>Service role available: {wrestlerPoolDiagnostic.hasServiceRole ? "yes" : "no"}</li>
+                          <li>Data source: {wrestlerPoolDiagnostic.source}</li>
+                          {wrestlerPoolDiagnostic.adminUsed && (
+                            <li>Admin query: {wrestlerPoolDiagnostic.adminRawCount ?? 0} rows{wrestlerPoolDiagnostic.adminError ? ` — error: ${wrestlerPoolDiagnostic.adminError}` : ""}</li>
+                          )}
+                          <li>User (session) query: {wrestlerPoolDiagnostic.userRawCount} rows{wrestlerPoolDiagnostic.userError ? ` — error: ${wrestlerPoolDiagnostic.userError}` : ""}</li>
+                          <li>After draftable filter: {wrestlerPoolDiagnostic.filteredCount} wrestlers</li>
+                        </ul>
+                        {!wrestlerPoolDiagnostic.hasServiceRole && (
+                          <p style={{ margin: "8px 0 0", color: "var(--color-red)" }}>Set SUPABASE_SERVICE_ROLE_KEY in Netlify (and redeploy) so the draft can load the wrestler pool.</p>
+                        )}
+                        {wrestlerPoolDiagnostic.filteredCount === 0 && wrestlerPoolDiagnostic.userRawCount > 0 && (
+                          <p style={{ margin: "8px 0 0" }}>Rows returned but none passed the draftable filter (status/classification/brand).</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p>Try refreshing the page.</p>
+                    )}
+                  </>
+                ) : (
+                  "None left"
+                )}
+              </div>
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead style={{ position: "sticky", top: 0, background: "var(--color-bg-elevated)", zIndex: 1 }}>

@@ -59,6 +59,17 @@ export default async function LeagueDraftPage({ params }: Props) {
   let userDraftPrefs: Awaited<ReturnType<typeof getDraftPreferences>> = null;
   let allMembersPrefs: Awaited<ReturnType<typeof getDraftPreferencesForAllMembers>> = [];
   let pointsBySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
+  /** Set when wrestler pool is loaded; used to show why pool is empty (RLS, filter, missing service role). */
+  let wrestlerPoolDiagnostic: {
+    source: "user" | "admin" | "none";
+    userRawCount: number;
+    userError: string | null;
+    adminUsed: boolean;
+    adminRawCount: number | null;
+    adminError: string | null;
+    filteredCount: number;
+    hasServiceRole: boolean;
+  } | null = null;
 
   try {
     league = await getLeagueBySlug(slug);
@@ -77,7 +88,7 @@ export default async function LeagueDraftPage({ params }: Props) {
       if (fullAutopick.didRun) redirect(`/leagues/${slug}/draft`);
     }
 
-    const [membersData, stateData, currentPickData, rostersData, wrestlersData, picksData, allPrefsData, pointsData] = await Promise.all([
+    const [membersData, stateData, currentPickData, rostersData, wrestlersResult, picksData, allPrefsData, pointsData] = await Promise.all([
       getLeagueMembers(league.id),
       getLeagueDraftState(league.id),
       getCurrentPick(league.id),
@@ -86,31 +97,70 @@ export default async function LeagueDraftPage({ params }: Props) {
         type Row = { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null; dob?: string | null; image_url?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null };
         const selectCols = 'id, name, gender, status, "Status", brand, classification, "Classification", dob, image_url, "2K26 rating", "2K25 rating"';
         const selectColsMinimal = 'id, name, gender, status, "Status", brand, classification, "Classification"';
+        const diagnostic: {
+          source: "user" | "admin" | "none";
+          userRawCount: number;
+          userError: string | null;
+          adminUsed: boolean;
+          adminRawCount: number | null;
+          adminError: string | null;
+          filteredCount: number;
+          hasServiceRole: boolean;
+        } = {
+          source: "none",
+          userRawCount: 0,
+          userError: null,
+          adminUsed: false,
+          adminRawCount: null,
+          adminError: null,
+          filteredCount: 0,
+          hasServiceRole: false,
+        };
+        const admin = getAdminClient();
+        diagnostic.hasServiceRole = !!admin;
+
+        // Prefer admin client when available so draft page bypasses RLS (same as Draft Testing intent).
+        // Draft Testing uses createClient() but is under /admin; league draft is per-league and may hit RLS.
         let rawRows: Record<string, unknown>[] = [];
-        const supabase = await createClient();
-        const fullResult = await supabase
-          .from("wrestlers")
-          .select(selectCols)
-          .order("name", { ascending: true });
-        rawRows = (fullResult.data ?? []) as Record<string, unknown>[];
-        if (fullResult.error && !rawRows.length) {
-          const fallback = await supabase.from("wrestlers").select(selectColsMinimal).order("name", { ascending: true });
-          rawRows = (fallback.data ?? []) as Record<string, unknown>[];
-        }
-        // If still empty (e.g. RLS blocks read), use admin client so draft room always has wrestler pool
-        if (!rawRows.length) {
-          const admin = getAdminClient();
-          if (admin) {
-            const adminResult = await admin.from("wrestlers").select(selectCols).order("name", { ascending: true });
-            rawRows = (adminResult.data ?? []) as Record<string, unknown>[];
-            if (adminResult.error && !rawRows.length) {
-              const adminMinimal = await admin.from("wrestlers").select(selectColsMinimal).order("name", { ascending: true });
-              rawRows = (adminMinimal.data ?? []) as Record<string, unknown>[];
-            }
+        if (admin) {
+          const adminResult = await admin.from("wrestlers").select(selectCols).order("name", { ascending: true });
+          rawRows = (adminResult.data ?? []) as Record<string, unknown>[];
+          diagnostic.adminUsed = true;
+          diagnostic.adminRawCount = rawRows.length;
+          diagnostic.adminError = adminResult.error?.message ?? null;
+          if (adminResult.error && !rawRows.length) {
+            const adminMinimal = await admin.from("wrestlers").select(selectColsMinimal).order("name", { ascending: true });
+            rawRows = (adminMinimal.data ?? []) as Record<string, unknown>[];
+            diagnostic.adminRawCount = rawRows.length;
+            if (adminMinimal.error) diagnostic.adminError = adminMinimal.error.message;
           }
+          diagnostic.source = rawRows.length ? "admin" : "none";
         }
+        if (!rawRows.length) {
+          const supabase = await createClient();
+          const fullResult = await supabase
+            .from("wrestlers")
+            .select(selectCols)
+            .order("name", { ascending: true });
+          rawRows = (fullResult.data ?? []) as Record<string, unknown>[];
+          diagnostic.userRawCount = rawRows.length;
+          diagnostic.userError = fullResult.error?.message ?? null;
+          if (fullResult.error && !rawRows.length) {
+            const fallback = await supabase.from("wrestlers").select(selectColsMinimal).order("name", { ascending: true });
+            rawRows = (fallback.data ?? []) as Record<string, unknown>[];
+            diagnostic.userRawCount = rawRows.length;
+            if (fallback.error) diagnostic.userError = fallback.error.message;
+          }
+          if (rawRows.length) diagnostic.source = "user";
+        }
+
         const rows = rawRows.map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as Row[];
-        return rows.filter((w) => isDraftableWrestler(w));
+        const filtered = rows.filter((w) => isDraftableWrestler(w));
+        diagnostic.filteredCount = filtered.length;
+        if (diagnostic.source === "none" && diagnostic.userRawCount === 0 && diagnostic.adminRawCount === 0) {
+          diagnostic.userRawCount = rawRows.length;
+        }
+        return { rows: filtered, diagnostic };
       })(),
       getDraftPicksHistory(league.id),
       getDraftPreferencesForAllMembers(league.id),
@@ -133,7 +183,8 @@ export default async function LeagueDraftPage({ params }: Props) {
     state = stateData;
     currentPick = currentPickData;
     rosters = rostersData;
-    wrestlersRows = wrestlersData;
+    wrestlersRows = wrestlersResult.rows;
+    wrestlerPoolDiagnostic = wrestlersResult.diagnostic;
 
     memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, { display_name: m.display_name, team_name: m.team_name }]));
     rosterRules = getRosterRulesForLeague(members.length);
@@ -612,6 +663,7 @@ export default async function LeagueDraftPage({ params }: Props) {
             order={order}
             picksHistory={picksHistory}
             members={members.map((m) => ({ user_id: m.user_id, display_name: m.display_name, team_name: m.team_name }))}
+            wrestlerPoolDiagnostic={wrestlerPoolDiagnostic}
             wrestlers={wrestlersRows.map((w) => ({
               id: w.id,
               name: w.name ?? null,
