@@ -106,11 +106,6 @@ export default async function LeagueDraftPage({ params }: Props) {
           "2K26 rating"?: number | null;
           "2K25 rating"?: number | null;
         };
-        // Important: only select quoted "Status"/"Classification" so we don't error when
-        // the lowercase columns do not exist in production.
-        const selectCols =
-          'id, name, gender, "Status", "Classification", brand, dob, image_url, "2K26 rating", "2K25 rating"';
-        const selectColsMinimal = 'id, name, gender, "Status", "Classification", brand';
         const diagnostic: {
           source: "user" | "admin" | "none";
           userRawCount: number;
@@ -133,47 +128,47 @@ export default async function LeagueDraftPage({ params }: Props) {
         const admin = getAdminClient();
         diagnostic.hasServiceRole = !!admin;
 
-        // Prefer admin client when available so draft page bypasses RLS (same as Draft Testing intent).
-        // Draft Testing uses createClient() but is under /admin; league draft is per-league and may hit RLS.
+        // Same fallback cascade as Draft Testing: try full columns first, then drop
+        // Status/Classification (they may not exist in production), then minimal.
+        const SELECTS = [
+          'id, name, gender, brand, dob, image_url, "Status", "Classification", "2K26 rating", "2K25 rating"',
+          'id, name, gender, brand, dob, image_url, "Status", "2K26 rating", "2K25 rating"',
+          'id, name, gender, brand, dob, image_url, "2K26 rating", "2K25 rating"',
+          'id, name, gender, brand, dob, image_url',
+          'id, name, gender, brand',
+        ] as const;
+
         let rawRows: Record<string, unknown>[] = [];
         if (admin) {
-          const adminResult = await admin.from("wrestlers").select(selectCols).order("name", { ascending: true });
-          rawRows = (adminResult.data ?? []) as Record<string, unknown>[];
-          diagnostic.adminUsed = true;
-          diagnostic.adminRawCount = rawRows.length;
-          diagnostic.adminError = adminResult.error?.message ?? null;
-          if (adminResult.error && !rawRows.length) {
-            const adminMinimal = await admin.from("wrestlers").select(selectColsMinimal).order("name", { ascending: true });
-            rawRows = (adminMinimal.data ?? []) as Record<string, unknown>[];
+          for (const cols of SELECTS) {
+            const result = await admin.from("wrestlers").select(cols).order("name", { ascending: true });
+            rawRows = (result.data ?? []) as Record<string, unknown>[];
+            diagnostic.adminUsed = true;
             diagnostic.adminRawCount = rawRows.length;
-            if (adminMinimal.error) diagnostic.adminError = adminMinimal.error.message;
+            diagnostic.adminError = result.error?.message ?? null;
+            if (!result.error && rawRows.length > 0) {
+              diagnostic.source = "admin";
+              break;
+            }
           }
-          diagnostic.source = rawRows.length ? "admin" : "none";
         }
         if (!rawRows.length) {
           const supabase = await createClient();
-          const fullResult = await supabase
-            .from("wrestlers")
-            .select(selectCols)
-            .order("name", { ascending: true });
-          rawRows = (fullResult.data ?? []) as Record<string, unknown>[];
-          diagnostic.userRawCount = rawRows.length;
-          diagnostic.userError = fullResult.error?.message ?? null;
-          if (fullResult.error && !rawRows.length) {
-            const fallback = await supabase.from("wrestlers").select(selectColsMinimal).order("name", { ascending: true });
-            rawRows = (fallback.data ?? []) as Record<string, unknown>[];
+          for (const cols of SELECTS) {
+            const result = await supabase.from("wrestlers").select(cols).order("name", { ascending: true });
+            rawRows = (result.data ?? []) as Record<string, unknown>[];
             diagnostic.userRawCount = rawRows.length;
-            if (fallback.error) diagnostic.userError = fallback.error.message;
+            diagnostic.userError = result.error?.message ?? null;
+            if (!result.error && rawRows.length > 0) {
+              diagnostic.source = "user";
+              break;
+            }
           }
-          if (rawRows.length) diagnostic.source = "user";
         }
 
         const rows = rawRows.map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as Row[];
         const filtered = rows.filter((w) => isDraftableWrestler(w));
         diagnostic.filteredCount = filtered.length;
-        if (diagnostic.source === "none" && diagnostic.userRawCount === 0 && diagnostic.adminRawCount === 0) {
-          diagnostic.userRawCount = rawRows.length;
-        }
         return { rows: filtered, diagnostic };
       })(),
       getDraftPicksHistory(league.id),
