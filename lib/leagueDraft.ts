@@ -888,26 +888,28 @@ export async function getTopAvailableWrestlerByPoints(
   options?: PointsFallbackOptions
 ): Promise<string | null> {
   const supabase = await createClient();
-  const draftedIds = options?.draftedIds ?? (() => {
+  let draftedIds: Set<string>;
+  if (options?.draftedIds) {
+    draftedIds = options.draftedIds;
+  } else {
     const rosters = await getRostersForLeague(leagueId);
-    const set = new Set<string>();
-    for (const entries of Object.values(rosters)) for (const e of entries) set.add(e.wrestler_id);
-    return set;
-  })();
+    draftedIds = new Set<string>();
+    for (const entries of Object.values(rosters)) for (const e of entries) draftedIds.add(e.wrestler_id);
+  }
 
   const needGender = options?.requiredGender ?? null;
   const selectCols = needGender
     ? 'id, gender, status, "Status", brand, classification, "Classification"'
     : 'id, status, "Status", brand, classification, "Classification"';
   let wrestlersRes = await supabase.from("wrestlers").select(selectCols).order("id");
-  let list = ((wrestlersRes.data ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
+  let list = ((wrestlersRes.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   if (wrestlersRes.error && !list.length) {
     const fallback = await supabase.from("wrestlers").select(selectCols).order("id");
-    list = ((fallback.data ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
+    list = ((fallback.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   }
   if (!list.length) {
     const noClassification = await supabase.from("wrestlers").select(needGender ? "id, gender, status, \"Status\", brand" : 'id, status, "Status", brand').order("id");
-    list = ((noClassification.data ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
+    list = ((noClassification.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   }
   list = list.filter(isDraftableWrestler).filter((w): w is (DraftPoolRow & { id: string; gender?: string | null }) => Boolean(w.id));
   if (needGender) {
@@ -1024,8 +1026,8 @@ export async function getTopAvailableWrestlerForUser(
           : null
       : null;
 
-  const opts = prefs?.strategy_options;
-  if (opts?.focus != null && opts?.pointStrategy != null && opts?.wrestlerStrategy != null) {
+  const strategyOpts = prefs?.strategy_options;
+  if (strategyOpts?.focus != null && strategyOpts?.pointStrategy != null && strategyOpts?.wrestlerStrategy != null) {
     const [events2025, events2026, eventsAll] = await Promise.all([
       supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
       supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", "2026-01-01").order("date", { ascending: true }),
@@ -1039,7 +1041,7 @@ export async function getTopAvailableWrestlerForUser(
       "2025": pts2025,
       all: ptsAll,
     };
-    const pts = pointsByPeriod[opts.focus] ?? pts2026;
+    const pts = pointsByPeriod[strategyOpts.focus] ?? pts2026;
     const available: WrestlerWithStats[] = [];
     for (const w of wrestlers ?? []) {
       const row = w as { id: string; gender?: string | null; brand?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null };
@@ -1062,19 +1064,19 @@ export async function getTopAvailableWrestlerForUser(
     }
     if (available.length === 0) return null;
     const hasPoints =
-      opts.pointStrategy === "total"
+      strategyOpts.pointStrategy === "total"
         ? (w: WrestlerWithStats) => w.totalPoints > 0
-        : opts.pointStrategy === "rs"
+        : strategyOpts.pointStrategy === "rs"
           ? (w: WrestlerWithStats) => w.rsPoints > 0
-          : opts.pointStrategy === "ple"
+          : strategyOpts.pointStrategy === "ple"
             ? (w: WrestlerWithStats) => w.plePoints > 0
             : (w: WrestlerWithStats) => w.beltPoints > 0;
     const withPoints = available.filter(hasPoints);
     let baseAvailable = withPoints.length > 0 ? withPoints : available;
     const byPoints = [...baseAvailable];
-    if (opts.pointStrategy === "total") byPoints.sort((a, b) => b.totalPoints - a.totalPoints);
-    else if (opts.pointStrategy === "rs") byPoints.sort((a, b) => b.rsPoints - a.rsPoints);
-    else if (opts.pointStrategy === "ple") byPoints.sort((a, b) => b.plePoints - a.plePoints);
+    if (strategyOpts.pointStrategy === "total") byPoints.sort((a, b) => b.totalPoints - a.totalPoints);
+    else if (strategyOpts.pointStrategy === "rs") byPoints.sort((a, b) => b.rsPoints - a.rsPoints);
+    else if (strategyOpts.pointStrategy === "ple") byPoints.sort((a, b) => b.plePoints - a.plePoints);
     else byPoints.sort((a, b) => b.beltPoints - a.beltPoints);
     const significantCount = Math.max(1, Math.ceil(byPoints.length * 0.5));
     const significant = byPoints.slice(0, significantCount);
@@ -1085,12 +1087,12 @@ export async function getTopAvailableWrestlerForUser(
       if (byGender.length > 0) pool = byGender;
     }
     let sorted = [...pool];
-    if (opts.pointStrategy === "total") sorted.sort((a, b) => b.totalPoints - a.totalPoints);
-    else if (opts.pointStrategy === "rs") sorted.sort((a, b) => b.rsPoints - a.rsPoints);
-    else if (opts.pointStrategy === "ple") sorted.sort((a, b) => b.plePoints - a.plePoints);
-    else if (opts.pointStrategy === "belt") sorted.sort((a, b) => b.beltPoints - a.beltPoints);
-    if (opts.wrestlerStrategy === "best_available") return sorted[0]?.id ?? null;
-    if (opts.wrestlerStrategy === "balanced_gender") {
+    if (strategyOpts.pointStrategy === "total") sorted.sort((a, b) => b.totalPoints - a.totalPoints);
+    else if (strategyOpts.pointStrategy === "rs") sorted.sort((a, b) => b.rsPoints - a.rsPoints);
+    else if (strategyOpts.pointStrategy === "ple") sorted.sort((a, b) => b.plePoints - a.plePoints);
+    else if (strategyOpts.pointStrategy === "belt") sorted.sort((a, b) => b.beltPoints - a.beltPoints);
+    if (strategyOpts.wrestlerStrategy === "best_available") return sorted[0]?.id ?? null;
+    if (strategyOpts.wrestlerStrategy === "balanced_gender") {
       sorted.sort((a, b) => {
         const gA = normalizeGender(a.gender);
         const gB = normalizeGender(b.gender);
@@ -1101,7 +1103,7 @@ export async function getTopAvailableWrestlerForUser(
       });
       return sorted[0]?.id ?? null;
     }
-    if (opts.wrestlerStrategy === "balanced_brands") {
+    if (strategyOpts.wrestlerStrategy === "balanced_brands") {
       sorted.sort((a, b) => {
         const brandA = normalizeBrand(a.brand);
         const brandB = normalizeBrand(b.brand);
@@ -1112,13 +1114,13 @@ export async function getTopAvailableWrestlerForUser(
       });
       return sorted[0]?.id ?? null;
     }
-    if (opts.wrestlerStrategy === "high_males") {
+    if (strategyOpts.wrestlerStrategy === "high_males") {
       const male = sorted.filter((w) => normalizeGender(w.gender) === "M");
       const pool = male.length > 0 ? male : sorted;
       pool.sort((a, b) => b.totalPoints * 1.2 - a.totalPoints * 1.2);
       return pool[0]?.id ?? null;
     }
-    if (opts.wrestlerStrategy === "high_females") {
+    if (strategyOpts.wrestlerStrategy === "high_females") {
       const female = sorted.filter((w) => normalizeGender(w.gender) === "F");
       const pool = female.length > 0 ? female : sorted;
       pool.sort((a, b) => b.totalPoints * 1.2 - a.totalPoints * 1.2);
