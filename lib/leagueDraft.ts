@@ -811,8 +811,20 @@ export async function makeDraftPick(
     };
   }
 
+  const { data: orderRow } = await admin
+    .from("league_draft_order")
+    .select("draft_run_id")
+    .eq("league_id", leagueId)
+    .eq("overall_pick", current.overall_pick)
+    .maybeSingle();
+  const draftRunId = (orderRow as { draft_run_id?: string } | null)?.draft_run_id ?? null;
+  if (!draftRunId) {
+    return { error: "Draft run not found. Generate or set draft order first." };
+  }
+
   const { error: pickErr } = await admin.from("league_draft_picks").insert({
     league_id: leagueId,
+    draft_run_id: draftRunId,
     overall_pick: current.overall_pick,
     user_id: current.user_id,
     wrestler_id: wrestlerId,
@@ -1410,11 +1422,21 @@ async function performOneAutoPick(
   });
   if (rosterErr) return { error: rosterErr.message };
 
+  const { data: orderRow } = await admin
+    .from("league_draft_order")
+    .select("draft_run_id")
+    .eq("league_id", leagueId)
+    .eq("overall_pick", current.overall_pick)
+    .maybeSingle();
+  const draftRunId = (orderRow as { draft_run_id?: string } | null)?.draft_run_id ?? null;
+  if (!draftRunId) return { error: "Draft run not found. Generate or set draft order first." };
+
   const nextPick = (state.draft_current_pick ?? 0) + 1;
   const totalPicks = state.total_picks ?? 0;
 
   const { error: pickErr } = await admin.from("league_draft_picks").insert({
     league_id: leagueId,
+    draft_run_id: draftRunId,
     overall_pick: current.overall_pick,
     user_id: current.user_id,
     wrestler_id: wrestlerId,
