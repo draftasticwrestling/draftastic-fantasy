@@ -75,7 +75,15 @@ export default async function RootLayout({
         <div className="nav-sticky-wrap">
           <Nav />
         </div>
-        <PageLayout>{children}</PageLayout>
+        <div className="site-main">
+          <PageLayout>{children}</PageLayout>
+        </div>
+        <footer className="site-footer">
+          <p className="site-footer-copy">© 2026 Draftastic Wrestling. All rights reserved.</p>
+          <p className="site-footer-disclaimer">
+            WWE, Raw, SmackDown, and all related logos and trademarks are the property of World Wrestling Entertainment, Inc. This site is not affiliated with or endorsed by WWE.
+          </p>
+        </footer>
       </body>
     </html>
   );

@@ -316,11 +316,6 @@ export default function Nav() {
                   Sign out
                 </button>
               </div>
-              {showLowerBar && (
-                <Link href="/leagues/new" className="nav-header-start-another">
-                  +Start Another League
-                </Link>
-              )}
             </div>
           ) : (
             <>
@@ -518,6 +513,11 @@ export default function Nav() {
                   </Link>
                 </li>
               )}
+              <li className="nav-primary-item-start-another">
+                <Link href="/leagues/new" className="nav-primary-link">
+                  +Start Another League
+                </Link>
+              </li>
             </ul>
           </nav>
 
