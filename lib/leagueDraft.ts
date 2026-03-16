@@ -307,6 +307,62 @@ function shuffle<T>(array: T[]): T[] {
 }
 
 /**
+ * Ensure there is a draft run row for this league and return its id.
+ * Uses leagues.current_draft_run_id if set; otherwise creates a new run using season/year heuristics.
+ */
+async function ensureDraftRunForLeague(league: {
+  id: string;
+  current_draft_run_id?: string | null;
+  season_slug?: string | null;
+  start_date?: string | null;
+  draft_date?: string | null;
+  created_at?: string | null;
+}): Promise<string | { error: string }> {
+  const existing = (league as { current_draft_run_id?: string | null }).current_draft_run_id;
+  const admin = getAdminClient();
+  const supabase = admin ?? (await createClient());
+
+  if (existing) return existing;
+
+  const seasonSlug = (league.season_slug ?? "").trim();
+  const startDate = league.start_date ? String(league.start_date).slice(0, 10) : null;
+  const draftDate = league.draft_date ? String(league.draft_date).slice(0, 10) : null;
+  const created = league.created_at ? String(league.created_at).slice(0, 10) : null;
+
+  const pickYear = (raw: string | null) => {
+    if (!raw || raw.length < 4) return null;
+    const y = Number(raw.slice(0, 4));
+    return Number.isFinite(y) ? y : null;
+  };
+  const year =
+    pickYear(startDate) ??
+    pickYear(draftDate) ??
+    pickYear(created) ??
+    new Date().getFullYear();
+
+  const payload = {
+    league_id: league.id,
+    season_slug: seasonSlug || "",
+    season_year: year,
+    draft_date: draftDate,
+  };
+
+  const { data: run, error } = await supabase
+    .from("league_draft_runs")
+    .insert(payload)
+    .select("id")
+    .single();
+  if (error || !run?.id) return { error: error?.message ?? "Failed to create draft run." };
+
+  await supabase
+    .from("leagues")
+    .update({ current_draft_run_id: run.id })
+    .eq("id", league.id);
+
+  return run.id as string;
+}
+
+/**
  * Generate draft order (commissioner only). Uses league members and roster size; snake or linear from league draft_type/draft_style (League Settings).
  */
 export async function generateDraftOrder(leagueId: string): Promise<{ error?: string }> {
@@ -316,7 +372,7 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, commissioner_id, draft_style, draft_type")
+    .select("id, commissioner_id, draft_style, draft_type, current_draft_run_id, season_slug, start_date, draft_date, created_at")
     .eq("id", leagueId)
     .single();
 
@@ -327,6 +383,9 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
   const members = await getLeagueMembers(leagueId);
   const rules = getRosterRulesForLeague(members.length);
   if (!rules) return { error: "League size must be 3–12 teams to generate draft order." };
+
+  const runId = await ensureDraftRunForLeague(league);
+  if (typeof runId !== "string") return runId;
 
   const numRounds = rules.rosterSize;
   const memberIds = members.map((m) => m.user_id);
@@ -348,7 +407,12 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
   await supabase.from("league_draft_order").delete().eq("league_id", leagueId);
 
   const { error: insertError } = await supabase.from("league_draft_order").insert(
-    order.map((o) => ({ league_id: leagueId, overall_pick: o.overall_pick, user_id: o.user_id }))
+    order.map((o) => ({
+      league_id: leagueId,
+      draft_run_id: runId,
+      overall_pick: o.overall_pick,
+      user_id: o.user_id,
+    }))
   );
   if (insertError) return { error: insertError.message };
 
@@ -379,7 +443,7 @@ export async function setDraftOrderFromRound1(
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, commissioner_id, draft_style, draft_type")
+    .select("id, commissioner_id, draft_style, draft_type, current_draft_run_id, season_slug, start_date, draft_date, created_at")
     .eq("id", leagueId)
     .single();
 
@@ -390,6 +454,9 @@ export async function setDraftOrderFromRound1(
   const members = await getLeagueMembers(leagueId);
   const rules = getRosterRulesForLeague(members.length);
   if (!rules) return { error: "League size must be 3–12 teams to set draft order." };
+
+  const runId = await ensureDraftRunForLeague(league);
+  if (typeof runId !== "string") return runId;
 
   const memberIds = new Set(members.map((m) => m.user_id));
   if (round1UserIds.length !== memberIds.size) {
@@ -416,7 +483,12 @@ export async function setDraftOrderFromRound1(
   await supabase.from("league_draft_order").delete().eq("league_id", leagueId);
 
   const { error: insertError } = await supabase.from("league_draft_order").insert(
-    order.map((o) => ({ league_id: leagueId, overall_pick: o.overall_pick, user_id: o.user_id }))
+    order.map((o) => ({
+      league_id: leagueId,
+      draft_run_id: runId,
+      overall_pick: o.overall_pick,
+      user_id: o.user_id,
+    }))
   );
   if (insertError) return { error: insertError.message };
 
