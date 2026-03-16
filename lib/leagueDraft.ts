@@ -13,6 +13,8 @@ import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.j
 const LEAGUE_START_DATE = "2025-05-02";
 const DEFAULT_TIME_PER_PICK_SECONDS = 2 * 60;
 const FIRST_PICK_BUFFER_SECONDS = 60; // extra buffer after draft begins before first auto-pick
+/** For autopick leagues, use a short clock so the draft moves quickly (no human picking). */
+const AUTOPICK_TIME_PER_PICK_SECONDS = 5;
 const CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER = 3;
 
 /** Strategy keys for auto-draft when priority list does not apply (legacy). */
@@ -1135,14 +1137,52 @@ export async function getTopAvailableWrestlerForUser(
  * Perform one auto-pick for the current slot and advance. Returns next pick number and total for chaining.
  * Uses priority list first, then draft preferences. Records is_auto_pick and increments consecutive_auto_picks (sets takeover at 3).
  */
+/**
+ * Advance draft to the next slot (or completed) without assigning a wrestler. Used when the pool is
+ * exhausted so the draft does not freeze.
+ */
+async function advanceDraftToNextSlot(
+  admin: AdminClient,
+  leagueId: string,
+  state: { draft_current_pick: number; total_picks: number }
+): Promise<{ nextPick: number; totalPicks: number }> {
+  const nextPick = state.draft_current_pick + 1;
+  const totalPicks = state.total_picks ?? 0;
+  const updates: {
+    draft_current_pick: number | null;
+    draft_status: string;
+    draft_current_pick_started_at?: string;
+  } =
+    nextPick > totalPicks
+      ? { draft_current_pick: null, draft_status: "completed" }
+      : {
+          draft_current_pick: nextPick,
+          draft_status: "in_progress",
+          draft_current_pick_started_at: new Date().toISOString(),
+        };
+  const { error } = await admin.from("leagues").update(updates).eq("id", leagueId);
+  if (error) return { nextPick: state.draft_current_pick, totalPicks };
+  return { nextPick, totalPicks };
+}
+
 async function performOneAutoPick(
   admin: AdminClient,
   leagueId: string,
   current: { overall_pick: number; user_id: string },
   state: { draft_current_pick: number; total_picks: number }
 ): Promise<{ error?: string; nextPick?: number; totalPicks?: number }> {
-  const wrestlerId = await getTopAvailableWrestlerForUser(leagueId, current.user_id);
-  if (!wrestlerId) return { error: "No available wrestler for auto-pick." };
+  // When the user has no preferences we already use "all-time, total points, best available" in getTopAvailableWrestlerForUser.
+  // The fallback is for when the user *has* set preferences (e.g. priority list, balanced_gender, high_females) and those
+  // constraints yield no valid wrestler (e.g. "need a female" but none left, or priority list exhausted). Then we pick
+  // best available by total points so the draft does not freeze.
+  let wrestlerId = await getTopAvailableWrestlerForUser(leagueId, current.user_id);
+  if (!wrestlerId) {
+    wrestlerId = await getTopAvailableWrestlerByPoints(leagueId);
+  }
+  if (!wrestlerId) {
+    // Pool exhausted: advance without assigning so the draft does not freeze
+    return advanceDraftToNextSlot(admin, leagueId, state);
+  }
 
   const members = await getLeagueMembers(leagueId);
   const rules = getRosterRulesForLeague(members.length);
@@ -1227,13 +1267,19 @@ export async function runAutoPickIfExpired(
 
   const userState = await getDraftUserState(admin, leagueId, current.user_id);
   const skipTimerByOption = options?.skipTimer === true;
+  const { data: leagueRow } = await admin
+    .from("leagues")
+    .select("time_per_pick_seconds, draft_type")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const draftType = (leagueRow as { draft_type?: string } | null)?.draft_type ?? null;
+  const rawSec = (leagueRow as { time_per_pick_seconds?: number } | null)?.time_per_pick_seconds;
   const timePerPickSeconds =
-    (await (async () => {
-      const supabase = await createClient();
-      const { data: row } = await supabase.from("leagues").select("time_per_pick_seconds").eq("id", leagueId).maybeSingle();
-      const sec = (row as { time_per_pick_seconds?: number } | null)?.time_per_pick_seconds;
-      return sec != null && [30, 60, 90, 120, 150, 180].includes(sec) ? sec : DEFAULT_TIME_PER_PICK_SECONDS;
-    })());
+    draftType === "autopick"
+      ? AUTOPICK_TIME_PER_PICK_SECONDS
+      : rawSec != null && [30, 60, 90, 120, 150, 180].includes(rawSec)
+        ? rawSec
+        : DEFAULT_TIME_PER_PICK_SECONDS;
 
   const startedAt = state.draft_current_pick_started_at;
   const skipTimer = skipTimerByOption || userState.auto_pick_rest_of_draft;
@@ -1241,7 +1287,7 @@ export async function runAutoPickIfExpired(
     if (!startedAt) return { didAutoPick: false };
     const isFirstPick = state.draft_current_pick === 1;
     const effectiveSeconds =
-      timePerPickSeconds + (isFirstPick ? FIRST_PICK_BUFFER_SECONDS : 0);
+      timePerPickSeconds + (isFirstPick && draftType !== "autopick" ? FIRST_PICK_BUFFER_SECONDS : 0);
     const deadline = new Date(startedAt).getTime() + effectiveSeconds * 1000;
     if (Date.now() < deadline) return { didAutoPick: false };
   }
@@ -1283,8 +1329,9 @@ export async function runAutoPickIfExpired(
 
 /**
  * Compute scheduled draft time in ms (start of draft_date + draft_time). Returns null if no date.
+ * Exported for cron/API route that finds due leagues.
  */
-function getScheduledDraftTimeMs(league: {
+export function getScheduledDraftTimeMs(league: {
   draft_date?: string | null;
   draft_time?: string | null;
 }): number | null {
@@ -1301,14 +1348,15 @@ function getScheduledDraftTimeMs(league: {
 
 /**
  * For autopick leagues: when the scheduled draft time has been reached, start the draft and run all picks to completion.
- * Called when any league member (or commissioner) loads the draft page. Uses service role to start and run picks.
- * Returns { didRun: true } if the draft was started and run (possibly completed); { didRun: false } if conditions were not met.
+ * Called when any league member loads the draft page, or by the cron job (Netlify Scheduled Function).
+ * Uses service role for league fetch so it works without a logged-in user (cron context).
  */
 export async function runFullAutopickDraftAtScheduledTime(
   leagueId: string
 ): Promise<{ didRun: boolean; error?: string }> {
-  const supabase = await createClient();
-  const { data: league } = await supabase
+  const admin = getAdminClient();
+  if (!admin) return { didRun: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+  const { data: league } = await admin
     .from("leagues")
     .select("id, draft_date, draft_time, draft_type, draft_status")
     .eq("id", leagueId)
@@ -1324,9 +1372,6 @@ export async function runFullAutopickDraftAtScheduledTime(
 
   const scheduledMs = getScheduledDraftTimeMs(league as { draft_date?: string | null; draft_time?: string | null });
   if (scheduledMs == null || Date.now() < scheduledMs) return { didRun: false };
-
-  const admin = getAdminClient();
-  if (!admin) return { didRun: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
 
   const { error: updateErr } = await admin.from("leagues").update({
     draft_status: "in_progress",

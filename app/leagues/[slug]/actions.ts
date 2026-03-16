@@ -94,7 +94,7 @@ export async function updateDraftDateFromFormAction(formData: FormData): Promise
 
 const DRAFT_TYPES: DraftType[] = ["offline", "linear", "snake", "autopick"];
 const DRAFT_STYLES = ["linear", "snake"] as const;
-const TIME_PER_PICK_VALUES = [30, 60, 90, 120, 150, 180] as const;
+const TIME_PER_PICK_VALUES = [5, 30, 60, 90, 120, 150, 180] as const;
 const DRAFT_ORDER_METHODS: DraftOrderMethod[] = ["random_one_hour_before", "manual_by_gm"];
 
 export async function updateDraftSettingsAction(

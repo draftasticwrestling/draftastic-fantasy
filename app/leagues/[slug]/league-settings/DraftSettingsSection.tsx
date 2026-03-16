@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useFormState } from "react-dom";
 import { updateDraftSettingsFormAction } from "../actions";
 import type { DraftOrderMethod } from "@/lib/leagues";
@@ -19,6 +20,7 @@ const DRAFT_STYLE_OPTIONS: { value: "linear" | "snake"; label: string }[] = [
 ];
 
 const TIME_PER_PICK_OPTIONS: { value: number; label: string }[] = [
+  { value: 5, label: "5 seconds" },
   { value: 30, label: "30 seconds" },
   { value: 60, label: "1 minute" },
   { value: 90, label: "90 seconds" },
@@ -26,6 +28,8 @@ const TIME_PER_PICK_OPTIONS: { value: number; label: string }[] = [
   { value: 150, label: "2 mins 30 seconds" },
   { value: 180, label: "3 minutes" },
 ];
+
+const AUTOPICK_TIME_PER_PICK_SECONDS = 5;
 
 const DRAFT_ORDER_OPTIONS: { value: DraftOrderMethod; label: string }[] = [
   { value: "random_one_hour_before", label: "Randomized one hour before draft time" },
@@ -61,8 +65,10 @@ export function DraftSettingsSection({
   draftTime,
 }: Props) {
   const uiType = toUiType(draftType);
+  const [selectedUiType, setSelectedUiType] = useState<"offline" | "live" | "autopick">(uiType);
   const effectiveStyle = draftStyle ?? (draftType === "linear" ? "linear" : "snake");
-  const effectiveTime = timePerPickSeconds ?? 120;
+  const isAutopick = selectedUiType === "autopick";
+  const effectiveTime = isAutopick ? AUTOPICK_TIME_PER_PICK_SECONDS : (timePerPickSeconds ?? 120);
   const effectiveOrder = draftOrderMethod ?? "random_one_hour_before";
   const draftTimeDefault =
     (draftTime && draftTime.trim()) ||
@@ -101,7 +107,8 @@ export function DraftSettingsSection({
                     type="radio"
                     name="draft_type_ui"
                     value={opt.value}
-                    defaultChecked={uiType === opt.value}
+                    checked={selectedUiType === opt.value}
+                    onChange={() => setSelectedUiType(opt.value)}
                     style={{ marginTop: 4, flexShrink: 0 }}
                   />
                   <span>
@@ -176,19 +183,38 @@ export function DraftSettingsSection({
               <label htmlFor="time_per_pick_seconds" style={{ display: "block", fontWeight: 500, marginBottom: 6 }}>
                 Time Per Pick
               </label>
-              <select
-                id="time_per_pick_seconds"
-                name="time_per_pick_seconds"
-                className="app-input"
-                defaultValue={String(effectiveTime)}
-                style={{ minWidth: 180 }}
-              >
-                {TIME_PER_PICK_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              {isAutopick ? (
+                <>
+                  <input type="hidden" name="time_per_pick_seconds" value={AUTOPICK_TIME_PER_PICK_SECONDS} readOnly />
+                  <select
+                    id="time_per_pick_seconds"
+                    className="app-input"
+                    value={AUTOPICK_TIME_PER_PICK_SECONDS}
+                    disabled
+                    style={{ minWidth: 180, opacity: 0.8, cursor: "not-allowed" }}
+                    aria-label="Time per pick (fixed at 5 seconds for Autopick)"
+                  >
+                    <option value={AUTOPICK_TIME_PER_PICK_SECONDS}>5 seconds</option>
+                  </select>
+                  <p style={{ marginTop: 6, fontSize: 13, color: "var(--color-text-muted)" }}>
+                    Fixed at 5 seconds for Autopick drafts; not editable.
+                  </p>
+                </>
+              ) : (
+                <select
+                  id="time_per_pick_seconds"
+                  name="time_per_pick_seconds"
+                  className="app-input"
+                  defaultValue={String(effectiveTime)}
+                  style={{ minWidth: 180 }}
+                >
+                  {TIME_PER_PICK_OPTIONS.filter((o) => o.value !== AUTOPICK_TIME_PER_PICK_SECONDS).map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div>
               <label htmlFor="draft_order_method" style={{ display: "block", fontWeight: 500, marginBottom: 6 }}>

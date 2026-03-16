@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
+import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   getDraftOrder,
   getLeagueDraftState,
@@ -21,6 +22,7 @@ import { DraftPolling } from "./DraftPolling";
 import { CommissionerDraftActions } from "./CommissionerDraftActions";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
+import { LeagueDraftRoom } from "./LeagueDraftRoom";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -46,8 +48,8 @@ export default async function LeagueDraftPage({ params }: Props) {
   let state: Awaited<ReturnType<typeof getLeagueDraftState>> = null;
   let currentPick: Awaited<ReturnType<typeof getCurrentPick>> = null;
   let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
-  let wrestlersRows: { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null }[] = [];
-  let memberByUserId: Record<string, { display_name?: string | null }> = {};
+  let wrestlersRows: { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null; dob?: string | null; image_url?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null }[] = [];
+  let memberByUserId: Record<string, { display_name?: string | null; team_name?: string | null }> = {};
   let availableWrestlers: { id: string; name: string | null }[] = [];
   let isCommissioner = false;
   let isCurrentPicker = false;
@@ -55,6 +57,7 @@ export default async function LeagueDraftPage({ params }: Props) {
   let rosterRules: ReturnType<typeof getRosterRulesForLeague> = null;
   let userDraftPrefs: Awaited<ReturnType<typeof getDraftPreferences>> = null;
   let allMembersPrefs: Awaited<ReturnType<typeof getDraftPreferencesForAllMembers>> = [];
+  let pointsBySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
 
   try {
     league = await getLeagueBySlug(slug);
@@ -73,17 +76,17 @@ export default async function LeagueDraftPage({ params }: Props) {
       if (fullAutopick.didRun) redirect(`/leagues/${slug}/draft`);
     }
 
-    const [membersData, stateData, currentPickData, rostersData, wrestlersData, picksData, allPrefsData] = await Promise.all([
+    const [membersData, stateData, currentPickData, rostersData, wrestlersData, picksData, allPrefsData, pointsData] = await Promise.all([
       getLeagueMembers(league.id),
       getLeagueDraftState(league.id),
       getCurrentPick(league.id),
       getRostersForLeague(league.id),
       (async () => {
         const supabase = await createClient();
-        type Row = { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null };
+        type Row = { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null; dob?: string | null; image_url?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null };
         let result = await supabase
           .from("wrestlers")
-          .select('id, name, gender, status, "Status", brand, classification, "Classification"')
+          .select('id, name, gender, status, "Status", brand, classification, "Classification", dob, image_url, "2K26 rating", "2K25 rating"')
           .order("name", { ascending: true });
         if (result.error) {
           result = await supabase.from("wrestlers").select('id, name, gender, status, "Status", brand, classification, "Classification"').order("name", { ascending: true });
@@ -98,16 +101,28 @@ export default async function LeagueDraftPage({ params }: Props) {
       })(),
       getDraftPicksHistory(league.id),
       getDraftPreferencesForAllMembers(league.id),
+      (async () => {
+        const supabase = await createClient();
+        const start = getEffectiveLeagueStartDate(league);
+        const { data: events } = await supabase
+          .from("events")
+          .select("id, name, date, matches")
+          .eq("status", "completed")
+          .gte("date", start)
+          .order("date", { ascending: true });
+        return aggregateWrestlerPoints((events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]);
+      })(),
     ]);
     members = membersData;
     picksHistory = picksData;
     allMembersPrefs = allPrefsData;
+    pointsBySlug = pointsData;
     state = stateData;
     currentPick = currentPickData;
     rosters = rostersData;
     wrestlersRows = wrestlersData;
 
-    memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
+    memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, { display_name: m.display_name, team_name: m.team_name }]));
     rosterRules = getRosterRulesForLeague(members.length);
     const draftedIds = new Set<string>();
     for (const entries of Object.values(rosters)) {
@@ -259,8 +274,9 @@ export default async function LeagueDraftPage({ params }: Props) {
       return needs.length ? needs.join(", ") : null;
     }
 
+    const showDraftRoom = (draftStatus === "in_progress" || draftStatus === "completed") && order.length > 0;
     return (
-    <main className="app-page" style={{ maxWidth: 720, fontSize: 16, lineHeight: 1.5 }}>
+    <main className="app-page" style={{ maxWidth: showDraftRoom ? 1100 : 720, margin: "0 auto", padding: showDraftRoom ? "2rem 1rem" : undefined, fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 24 }}>
         <Link href={`/leagues/${slug}`} className="app-link">
           ← {league.name}
@@ -579,76 +595,36 @@ export default async function LeagueDraftPage({ params }: Props) {
       {(draftStatus === "in_progress" || draftStatus === "completed") && order.length > 0 && (
         <>
           {draftStatus === "in_progress" && <DraftPolling />}
-          <section style={{ marginBottom: 24 }}>
-            <h2 style={{ fontSize: "1.1rem", marginBottom: 12, color: "var(--color-text)" }}>Draft board</h2>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, border: "1px solid var(--color-border)", borderRadius: "var(--radius)", overflow: "hidden", background: "var(--color-bg-surface)" }}>
-              {order.map((o) => {
-                const managerName = memberByUserId[o.user_id]?.display_name?.trim() ?? "Unknown";
-                const pick = picksBySlot[o.overall_pick];
-                const wrestlerDisplay = pick ? (pick.wrestler_name ?? pick.wrestler_id) : null;
-                const isCurrent = draftStatus === "in_progress" && draftCurrentPick === o.overall_pick;
-                const isYourTurn = isCurrent && isCurrentPicker;
-                const risk = isCurrent && rosterRules ? rosterRisk(o.user_id) : null;
-                return (
-                  <li
-                    key={o.overall_pick}
-                    style={{
-                      padding: "10px 14px",
-                      borderBottom: "1px solid var(--color-border)",
-                      fontSize: 14,
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 12,
-                      alignItems: "center",
-                      background: isCurrent ? "var(--color-blue-bg)" : undefined,
-                      borderLeft: isCurrent ? "4px solid var(--color-blue)" : undefined,
-                    }}
-                  >
-                    <div>
-                      <span style={{ color: "var(--color-text-muted)", fontWeight: 600 }}>#{o.overall_pick} · {managerName}</span>
-                      {risk && (
-                        <span style={{ display: "block", fontSize: 12, color: "#d4a017", marginTop: 4 }}>
-                          Roster: need {risk}
-                        </span>
-                      )}
-                    </div>
-                    <span style={{ color: "var(--color-text)", fontWeight: risk ? 500 : undefined }}>
-                      {wrestlerDisplay ?? (isYourTurn ? "Your turn" : "—")}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        </>
-      )}
-
-      {draftStatus === "in_progress" && (
-        <>
-          {currentPick && (
-            <p style={{ marginBottom: 8, fontSize: 14, color: "#666" }}>
-              Up now: <strong>{memberByUserId[currentPick.user_id]?.display_name?.trim() ?? "Unknown"}</strong>
-              {state?.draft_current_pick_started_at && isCurrentPicker && (
-                <DraftTimer startedAt={state.draft_current_pick_started_at} leagueSlug={slug} />
-              )}
-            </p>
-          )}
-          {isCurrentPicker && availableWrestlers.length > 0 && (
-            <MakePickForm leagueSlug={slug} availableWrestlers={availableWrestlers} />
-          )}
-          {isCurrentPicker && availableWrestlers.length === 0 && (
-            <p style={{ color: "#666", marginBottom: 16 }}>No wrestlers left to pick.</p>
-          )}
-          {isCommissioner && (
-            <CommissionerDraftActions leagueSlug={slug} canClearLastPick={picksHistory.length > 0} />
+          <LeagueDraftRoom
+            order={order}
+            picksHistory={picksHistory}
+            members={members.map((m) => ({ user_id: m.user_id, display_name: m.display_name, team_name: m.team_name }))}
+            wrestlers={wrestlersRows.map((w) => ({
+              id: w.id,
+              name: w.name,
+              gender: w.gender,
+              brand: w.brand,
+              dob: w.dob ?? null,
+              image_url: w.image_url ?? null,
+              rating_2k26: (w as { "2K26 rating"?: number | null })["2K26 rating"] ?? null,
+              rating_2k25: (w as { "2K25 rating"?: number | null })["2K25 rating"] ?? null,
+            }))}
+            pointsBySlug={pointsBySlug}
+            draftedIds={Array.from(draftedIds)}
+            currentPickSlot={draftCurrentPick}
+            totalPicks={totalPicks}
+            draftStatus={draftStatus}
+            currentPickerUserId={currentPick?.user_id ?? null}
+            isCurrentPicker={isCurrentPicker}
+            leagueSlug={slug}
+            draftCurrentPickStartedAt={state?.draft_current_pick_started_at ?? null}
+          />
+          {draftStatus === "in_progress" && isCommissioner && (
+            <div style={{ marginTop: 24 }}>
+              <CommissionerDraftActions leagueSlug={slug} canClearLastPick={picksHistory.length > 0} />
+            </div>
           )}
         </>
-      )}
-
-      {draftStatus === "completed" && (
-        <p style={{ marginBottom: 24, color: "#666", fontSize: 14 }}>
-          Rosters are set. View teams on the league page.
-        </p>
       )}
     </main>
     );
