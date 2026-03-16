@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { useFormState } from "react-dom";
+import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { makeDraftPickWithStateAction } from "./actions";
 import { DraftTimer } from "./DraftTimer";
 
@@ -55,6 +57,41 @@ export type DraftRoomWrestler = {
 
 type PointsBySlug = Record<string, { rsPoints: number; plePoints: number; beltPoints: number }>;
 
+/** Points period for ranking/filtering (matches League Leaders). */
+export type PointsPeriod = "sinceStart" | "2025" | "2026" | "allTime";
+
+const POINTS_PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
+  { value: "allTime", label: "All-time points" },
+  { value: "2026", label: "2026 points" },
+  { value: "2025", label: "2025 points" },
+  { value: "sinceStart", label: "Since league start" },
+];
+
+const ROSTER_CATEGORIES = [
+  { value: "Raw", label: "Raw" },
+  { value: "SmackDown", label: "SmackDown" },
+  { value: "NXT", label: "NXT" },
+  { value: "AAA", label: "AAA" },
+  { value: "Front Office", label: "Front Office" },
+  { value: "Celebrity Guests", label: "Celebrity Guests" },
+  { value: "Alumni", label: "Alumni" },
+  { value: "Unassigned", label: "Unassigned" },
+  { value: "Other", label: "Other" },
+] as const;
+
+function normalizeRoster(brand: string | null | undefined): string {
+  if (!brand?.trim()) return "Unassigned";
+  const lower = brand.trim().toLowerCase();
+  if (lower === "raw") return "Raw";
+  if (lower === "smackdown" || lower === "smack down") return "SmackDown";
+  if (lower === "nxt" || lower.includes("nxt")) return "NXT";
+  if (lower === "aaa") return "AAA";
+  if (lower === "celebrity guests" || lower === "celebrity" || lower === "celebrity guest") return "Celebrity Guests";
+  if (lower === "alumni") return "Alumni";
+  if (lower === "managers" || lower === "manager" || lower === "gm" || lower === "gms" || lower === "head of creative" || lower === "announcers" || lower === "announcer") return "Front Office";
+  return "Other";
+}
+
 export type WrestlerPoolDiagnostic = {
   source: "user" | "admin" | "none";
   userRawCount: number;
@@ -73,6 +110,9 @@ type Props = {
   wrestlers: DraftRoomWrestler[];
   wrestlerPoolDiagnostic?: WrestlerPoolDiagnostic;
   pointsBySlug: PointsBySlug;
+  points2025BySlug: PointsBySlug;
+  points2026BySlug: PointsBySlug;
+  pointsAllTimeBySlug: PointsBySlug;
   draftedIds: string[];
   currentPickSlot: number | null;
   totalPicks: number;
@@ -90,6 +130,9 @@ export function LeagueDraftRoom({
   wrestlers,
   wrestlerPoolDiagnostic = null,
   pointsBySlug,
+  points2025BySlug,
+  points2026BySlug,
+  pointsAllTimeBySlug,
   draftedIds,
   currentPickSlot,
   totalPicks,
@@ -101,7 +144,9 @@ export function LeagueDraftRoom({
 }: Props) {
   const [state, formAction] = useFormState(makeDraftPickWithStateAction, { error: undefined });
   const [tableSort, setTableSort] = useState<"rank" | "name" | "total">("rank");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("allTime");
+  const [includedRosters, setIncludedRosters] = useState<Set<string>>(() => new Set(["Raw", "SmackDown"]));
 
   const memberByUserId = useMemo(
     () => Object.fromEntries(members.map((m) => [m.user_id, m])),
@@ -119,10 +164,22 @@ export function LeagueDraftRoom({
     [wrestlers, draftedIds]
   );
 
+  const pointsMapForPeriod = useMemo(() => {
+    if (pointsPeriod === "2025") return points2025BySlug;
+    if (pointsPeriod === "2026") return points2026BySlug;
+    if (pointsPeriod === "allTime") return pointsAllTimeBySlug;
+    return pointsBySlug;
+  }, [pointsPeriod, pointsBySlug, points2025BySlug, points2026BySlug, pointsAllTimeBySlug]);
+
   const availableWithStats = useMemo(() => {
-    return available
+    const filtered = available.filter((w) => includedRosters.has(normalizeRoster(w.brand)));
+    return filtered
       .map((w) => {
-        const pts = pointsBySlug[w.id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
+        const pts = getPointsForWrestler(
+          pointsMapForPeriod,
+          w.id ?? "",
+          w.name != null ? normalizeWrestlerName(w.name) : ""
+        );
         const total = pts.rsPoints + pts.plePoints + pts.beltPoints;
         const rating = w.rating_2k26 ?? w.rating_2k25 ?? 0;
         const composite = total + rating * RATING_WEIGHT;
@@ -137,7 +194,7 @@ export function LeagueDraftRoom({
       })
       .sort((a, b) => b.composite - a.composite || (a.wrestler.name ?? "").localeCompare(b.wrestler.name ?? ""))
       .map((row, i) => ({ ...row, rank: i + 1 }));
-  }, [available, pointsBySlug]);
+  }, [available, pointsMapForPeriod, includedRosters]);
 
   const sortedAvailable = useMemo(() => {
     const list = [...availableWithStats];
@@ -224,8 +281,57 @@ export function LeagueDraftRoom({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
         <div>
           <h3 style={{ fontSize: "1rem", marginBottom: 8 }}>Available wrestlers</h3>
+          <div style={{ marginBottom: 12, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label htmlFor="draft-points-period" style={{ fontSize: 13, fontWeight: 600 }}>Points:</label>
+              <select
+                id="draft-points-period"
+                value={pointsPeriod}
+                onChange={(e) => setPointsPeriod(e.target.value as PointsPeriod)}
+                style={{ fontSize: 13, padding: "4px 8px", borderRadius: "var(--radius)", border: "1px solid var(--color-border)" }}
+                aria-label="Points period"
+              >
+                {POINTS_PERIOD_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Include:</span>
+              {ROSTER_CATEGORIES.map(({ value, label }) => (
+                <label key={value} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={includedRosters.has(value)}
+                    onChange={() => setIncludedRosters((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(value)) next.delete(value);
+                      else next.add(value);
+                      return next;
+                    })}
+                    aria-label={`Include ${label}`}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+              <button
+                type="button"
+                onClick={() => setIncludedRosters(new Set(ROSTER_CATEGORIES.map((c) => c.value)))}
+                style={{ fontSize: 11, padding: "2px 6px", background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", borderRadius: "var(--radius)", cursor: "pointer" }}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setIncludedRosters(new Set())}
+                style={{ fontSize: 11, padding: "2px 6px", background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", borderRadius: "var(--radius)", cursor: "pointer" }}
+              >
+                None
+              </button>
+            </div>
+          </div>
           <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 10 }}>
-            Rank = Total + (2K × 1.5). Click column headers to sort.
+            Rank = Total + (2K × 1.5). Click column headers to sort. Only available (undrafted) wrestlers shown.
           </p>
           {state?.error && (
             <p style={{ marginBottom: 8, fontSize: 14, color: "#b91c1c" }}>{state.error}</p>
@@ -240,7 +346,9 @@ export function LeagueDraftRoom({
           >
             {sortedAvailable.length === 0 ? (
               <div style={{ padding: 16, color: "var(--color-text-muted)", fontSize: 14 }}>
-                {wrestlers.length === 0 ? (
+                {available.length > 0 && includedRosters.size === 0 ? (
+                  <p style={{ margin: 0 }}>No rosters selected. Use the Include checkboxes above to show Raw, SmackDown, NXT, etc.</p>
+                ) : wrestlers.length === 0 ? (
                   <>
                     <p style={{ margin: "0 0 12px", fontWeight: 600 }}>Wrestler pool could not be loaded.</p>
                     {wrestlerPoolDiagnostic ? (

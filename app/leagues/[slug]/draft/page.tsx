@@ -59,6 +59,9 @@ export default async function LeagueDraftPage({ params }: Props) {
   let userDraftPrefs: Awaited<ReturnType<typeof getDraftPreferences>> = null;
   let allMembersPrefs: Awaited<ReturnType<typeof getDraftPreferencesForAllMembers>> = [];
   let pointsBySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
+  let points2025BySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
+  let points2026BySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
+  let pointsAllTimeBySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
   /** Set when wrestler pool is loaded; used to show why pool is empty (RLS, filter, missing service role). */
   let wrestlerPoolDiagnostic: {
     source: "user" | "admin" | "none";
@@ -176,19 +179,30 @@ export default async function LeagueDraftPage({ params }: Props) {
       (async () => {
         const supabase = await createClient();
         const start = getEffectiveLeagueStartDate(league);
-        const { data: events } = await supabase
-          .from("events")
-          .select("id, name, date, matches")
-          .eq("status", "completed")
-          .gte("date", start)
-          .order("date", { ascending: true });
-        return aggregateWrestlerPoints((events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]);
+        const ALL_TIME_FROM = "2020-01-01";
+        const ALL_TIME_LIMIT = 10000;
+        const [sinceStart, events2025, events2026, eventsAll] = await Promise.all([
+          supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", start).order("date", { ascending: true }),
+          supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
+          supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", "2026-01-01").order("date", { ascending: true }),
+          supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", ALL_TIME_FROM).order("date", { ascending: true }).limit(ALL_TIME_LIMIT),
+        ]);
+        const cast = (d: unknown[]) => d as { id: string; name: string; date: string; matches?: object[] }[];
+        return {
+          pointsBySlug: aggregateWrestlerPoints(cast(sinceStart.data ?? [])),
+          points2025BySlug: aggregateWrestlerPoints(cast(events2025.data ?? [])),
+          points2026BySlug: aggregateWrestlerPoints(cast(events2026.data ?? [])),
+          pointsAllTimeBySlug: aggregateWrestlerPoints(cast(eventsAll.data ?? [])),
+        };
       })(),
     ]);
     members = membersData;
     picksHistory = picksData;
     allMembersPrefs = allPrefsData;
-    pointsBySlug = pointsData;
+    pointsBySlug = pointsData.pointsBySlug;
+    points2025BySlug = pointsData.points2025BySlug;
+    points2026BySlug = pointsData.points2026BySlug;
+    pointsAllTimeBySlug = pointsData.pointsAllTimeBySlug;
     state = stateData;
     currentPick = currentPickData;
     rosters = rostersData;
@@ -684,6 +698,9 @@ export default async function LeagueDraftPage({ params }: Props) {
               rating_2k25: (w as { "2K25 rating"?: number | null })["2K25 rating"] ?? null,
             }))}
             pointsBySlug={pointsBySlug}
+            points2025BySlug={points2025BySlug}
+            points2026BySlug={points2026BySlug}
+            pointsAllTimeBySlug={pointsAllTimeBySlug}
             draftedIds={Array.from(draftedIds)}
             currentPickSlot={draftCurrentPick}
             totalPicks={totalPicks}
@@ -693,7 +710,7 @@ export default async function LeagueDraftPage({ params }: Props) {
             leagueSlug={slug}
             draftCurrentPickStartedAt={state?.draft_current_pick_started_at ?? null}
           />
-          {draftStatus === "in_progress" && isCommissioner && (
+          {(draftStatus === "in_progress" || draftStatus === "completed") && isCommissioner && (
             <div style={{ marginTop: 24 }}>
               <CommissionerDraftActions leagueSlug={slug} canClearLastPick={picksHistory.length > 0} />
             </div>
