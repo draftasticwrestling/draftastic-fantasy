@@ -94,9 +94,23 @@ export default async function LeagueDraftPage({ params }: Props) {
       getCurrentPick(league.id),
       getRostersForLeague(league.id),
       (async () => {
-        type Row = { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null; dob?: string | null; image_url?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null };
-        const selectCols = 'id, name, gender, status, "Status", brand, classification, "Classification", dob, image_url, "2K26 rating", "2K25 rating"';
-        const selectColsMinimal = 'id, name, gender, status, "Status", brand, classification, "Classification"';
+        type Row = {
+          id: string;
+          name: string | null;
+          gender: string | null;
+          status?: string | null;
+          brand?: string | null;
+          classification?: string | null;
+          dob?: string | null;
+          image_url?: string | null;
+          "2K26 rating"?: number | null;
+          "2K25 rating"?: number | null;
+        };
+        // Important: only select quoted "Status"/"Classification" so we don't error when
+        // the lowercase columns do not exist in production.
+        const selectCols =
+          'id, name, gender, "Status", "Classification", brand, dob, image_url, "2K26 rating", "2K25 rating"';
+        const selectColsMinimal = 'id, name, gender, "Status", "Classification", brand';
         const diagnostic: {
           source: "user" | "admin" | "none";
           userRawCount: number;
