@@ -142,7 +142,7 @@ export default async function LeagueDraftPage({ params }: Props) {
         if (admin) {
           for (const cols of SELECTS) {
             const result = await admin.from("wrestlers").select(cols).order("name", { ascending: true });
-            rawRows = (result.data ?? []) as Record<string, unknown>[];
+            rawRows = ((result.data ?? []) as unknown) as Record<string, unknown>[];
             diagnostic.adminUsed = true;
             diagnostic.adminRawCount = rawRows.length;
             diagnostic.adminError = result.error?.message ?? null;
@@ -156,7 +156,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           const supabase = await createClient();
           for (const cols of SELECTS) {
             const result = await supabase.from("wrestlers").select(cols).order("name", { ascending: true });
-            rawRows = (result.data ?? []) as Record<string, unknown>[];
+            rawRows = ((result.data ?? []) as unknown) as Record<string, unknown>[];
             diagnostic.userRawCount = rawRows.length;
             diagnostic.userError = result.error?.message ?? null;
             if (!result.error && rawRows.length > 0) {
