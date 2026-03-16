@@ -8,7 +8,9 @@ import {
   getCurrentPick,
   getDraftPicksHistory,
   getDraftPreferences,
+  getDraftPreferencesForAllMembers,
   runAutoPickIfExpired,
+  runFullAutopickDraftAtScheduledTime,
   isDraftableWrestler,
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
@@ -52,6 +54,7 @@ export default async function LeagueDraftPage({ params }: Props) {
   let picksHistory: Awaited<ReturnType<typeof getDraftPicksHistory>> = [];
   let rosterRules: ReturnType<typeof getRosterRulesForLeague> = null;
   let userDraftPrefs: Awaited<ReturnType<typeof getDraftPreferences>> = null;
+  let allMembersPrefs: Awaited<ReturnType<typeof getDraftPreferencesForAllMembers>> = [];
 
   try {
     league = await getLeagueBySlug(slug);
@@ -60,7 +63,17 @@ export default async function LeagueDraftPage({ params }: Props) {
     const autoResult = await runAutoPickIfExpired(league.id);
     if (autoResult.didAutoPick) redirect(`/leagues/${slug}/draft`);
 
-    const [membersData, stateData, currentPickData, rostersData, wrestlersData, picksData] = await Promise.all([
+    const draftStateForAutostart = await getLeagueDraftState(league.id);
+    const leagueDraftTypeForAutostart = league.draft_type ?? (league.draft_style === "linear" ? "linear" : "snake");
+    if (
+      leagueDraftTypeForAutostart === "autopick" &&
+      (draftStateForAutostart?.draft_status ?? "not_started") === "not_started"
+    ) {
+      const fullAutopick = await runFullAutopickDraftAtScheduledTime(league.id);
+      if (fullAutopick.didRun) redirect(`/leagues/${slug}/draft`);
+    }
+
+    const [membersData, stateData, currentPickData, rostersData, wrestlersData, picksData, allPrefsData] = await Promise.all([
       getLeagueMembers(league.id),
       getLeagueDraftState(league.id),
       getCurrentPick(league.id),
@@ -84,9 +97,11 @@ export default async function LeagueDraftPage({ params }: Props) {
         return rows.filter((w) => isDraftableWrestler(w));
       })(),
       getDraftPicksHistory(league.id),
+      getDraftPreferencesForAllMembers(league.id),
     ]);
     members = membersData;
     picksHistory = picksData;
+    allMembersPrefs = allPrefsData;
     state = stateData;
     currentPick = currentPickData;
     rosters = rostersData;
@@ -385,6 +400,54 @@ export default async function LeagueDraftPage({ params }: Props) {
           {userDraftPrefs ? "Edit your auto-draft preferences" : "Set your auto-draft preferences"} →
         </Link>
       </section>
+
+      {draftStatus === "not_started" && leagueDraftType === "autopick" && allMembersPrefs.length > 0 && (
+        <section
+          aria-labelledby="auto-draft-readiness-heading"
+          style={{
+            marginBottom: 24,
+            padding: "16px 18px",
+            background: "var(--color-bg-elevated)",
+            borderRadius: "var(--radius)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <h2 id="auto-draft-readiness-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12, color: "var(--color-text)" }}>
+            Auto-draft readiness
+          </h2>
+          <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
+            Before the draft runs at the scheduled time, confirm each owner has set preferences. If not set, the default is used.
+          </p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
+            {allMembersPrefs.map((entry) => (
+              <li
+                key={entry.user_id}
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "baseline",
+                  gap: 8,
+                  padding: "8px 0",
+                  borderBottom: "1px solid var(--color-border)",
+                }}
+              >
+                <span style={{ fontWeight: 600, color: "var(--color-text)", minWidth: 120 }}>
+                  {entry.display_name}
+                </span>
+                {entry.hasPreferences ? (
+                  <span style={{ color: "#0d7d0d" }}>✓ Preferences set</span>
+                ) : (
+                  <span style={{ color: "var(--color-text-muted)" }}>Default</span>
+                )}
+                <span style={{ width: "100%", fontSize: 13, marginTop: 2 }}>{entry.summary}</span>
+              </li>
+            ))}
+          </ul>
+          <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 12, marginBottom: 0 }}>
+            <strong>Default settings</strong> (when not set): Best available by total points (all-time). Owners can change this under &quot;Set your auto-draft preferences&quot; above.
+          </p>
+        </section>
+      )}
 
       {draftStatus === "completed" ? (
         <p style={{ color: "#0d7d0d", fontWeight: 600, marginBottom: 24 }}>Draft completed.</p>

@@ -74,6 +74,81 @@ export async function getDraftOrder(
   return (data ?? []) as { overall_pick: number; user_id: string }[];
 }
 
+/** Default behavior when a manager has not set auto-draft preferences. */
+export const DEFAULT_AUTOPICK_DESCRIPTION =
+  "Best available by total points (all-time).";
+
+/**
+ * Get preference status for all league members (for pre-draft "auto-draft readiness" display).
+ * Returns one entry per member with hasPreferences and a short summary; missing prefs show default description.
+ */
+export async function getDraftPreferencesForAllMembers(
+  leagueId: string
+): Promise<
+  { user_id: string; display_name: string; hasPreferences: boolean; summary: string }[]
+> {
+  const members = await getLeagueMembers(leagueId);
+  const FOCUS_LABELS: Record<string, string> = {
+    all: "All-time points",
+    "2026": "2026 points",
+    "2025": "2025 points",
+  };
+  const POINT_STRATEGY_LABELS: Record<string, string> = {
+    total: "Total Points",
+    rs: "R/S points",
+    ple: "PLE Points",
+    belt: "Belt Points",
+  };
+  const WRESTLER_STRATEGY_LABELS: Record<string, string> = {
+    best_available: "Best available",
+    balanced_gender: "Balanced male/female",
+    balanced_brands: "Balanced Raw/SmackDown",
+    high_males: "High ranking males",
+    high_females: "High ranking females",
+  };
+  const out: { user_id: string; display_name: string; hasPreferences: boolean; summary: string }[] = [];
+  for (const m of members) {
+    const name =
+      (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+    const prefs = await getDraftPreferences(leagueId, m.user_id);
+    const hasPreferences =
+      prefs != null &&
+      (prefs.priority_list?.length > 0 || prefs.strategy_options != null);
+    let summary = DEFAULT_AUTOPICK_DESCRIPTION;
+    if (hasPreferences && prefs) {
+      if (prefs.priority_list?.length) {
+        summary = `Priority list: ${prefs.priority_list.length} wrestlers`;
+        if (prefs.strategy_options?.focus || prefs.strategy_options?.pointStrategy || prefs.strategy_options?.wrestlerStrategy) {
+          const parts: string[] = [];
+          if (prefs.strategy_options.focus)
+            parts.push(FOCUS_LABELS[prefs.strategy_options.focus] ?? prefs.strategy_options.focus);
+          if (prefs.strategy_options.pointStrategy)
+            parts.push(POINT_STRATEGY_LABELS[prefs.strategy_options.pointStrategy] ?? prefs.strategy_options.pointStrategy);
+          if (prefs.strategy_options.wrestlerStrategy)
+            parts.push(WRESTLER_STRATEGY_LABELS[prefs.strategy_options.wrestlerStrategy] ?? prefs.strategy_options.wrestlerStrategy);
+          if (parts.length) summary += ` · ${parts.join(", ")}`;
+        }
+      } else if (prefs.strategy_options) {
+        const parts: string[] = [];
+        if (prefs.strategy_options.focus)
+          parts.push(FOCUS_LABELS[prefs.strategy_options.focus] ?? prefs.strategy_options.focus);
+        if (prefs.strategy_options.pointStrategy)
+          parts.push(POINT_STRATEGY_LABELS[prefs.strategy_options.pointStrategy] ?? prefs.strategy_options.pointStrategy);
+        if (prefs.strategy_options.wrestlerStrategy)
+          parts.push(WRESTLER_STRATEGY_LABELS[prefs.strategy_options.wrestlerStrategy] ?? prefs.strategy_options.wrestlerStrategy);
+        summary = parts.length ? parts.join(", ") : DEFAULT_AUTOPICK_DESCRIPTION;
+      }
+    }
+    out.push({
+      user_id: m.user_id,
+      display_name: name,
+      hasPreferences,
+      summary,
+    });
+  }
+  return out;
+}
+
 /**
  * Get a user's draft preferences for a league. Returns null if none set.
  * Tolerates missing strategy_options column (pre-migration).
@@ -1126,12 +1201,19 @@ async function performOneAutoPick(
   return { nextPick, totalPicks };
 }
 
+/** When true, auto-pick runs without waiting for the per-pick timer (e.g. scheduled full autopick). */
+export type RunAutoPickOptions = { skipTimer?: boolean };
+
 /**
  * If the current pick has exceeded the allotted time (or user is in "takeover" after 3 missed picks), perform auto-pick(s).
  * Uses priority list first, then draft preferences. If a user has missed 3 times in a row, system takes over and auto-picks
  * for them immediately for the rest of the draft (no timer wait). Uses service role.
+ * When options.skipTimer is true, runs one or more auto-picks immediately without checking the timer (for scheduled autopick drafts).
  */
-export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoPick: boolean; error?: string }> {
+export async function runAutoPickIfExpired(
+  leagueId: string,
+  options?: RunAutoPickOptions
+): Promise<{ didAutoPick: boolean; error?: string }> {
   const admin = getAdminClient();
   if (!admin) return { didAutoPick: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
 
@@ -1144,6 +1226,7 @@ export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoP
   if (!current) return { didAutoPick: false };
 
   const userState = await getDraftUserState(admin, leagueId, current.user_id);
+  const skipTimerByOption = options?.skipTimer === true;
   const timePerPickSeconds =
     (await (async () => {
       const supabase = await createClient();
@@ -1153,7 +1236,7 @@ export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoP
     })());
 
   const startedAt = state.draft_current_pick_started_at;
-  const skipTimer = userState.auto_pick_rest_of_draft;
+  const skipTimer = skipTimerByOption || userState.auto_pick_rest_of_draft;
   if (!skipTimer) {
     if (!startedAt) return { didAutoPick: false };
     const isFirstPick = state.draft_current_pick === 1;
@@ -1195,6 +1278,71 @@ export async function runAutoPickIfExpired(leagueId: string): Promise<{ didAutoP
 
     cursor = nextOrderRow as { overall_pick: number; user_id: string };
     currentPickNum = nextPick;
+  }
+}
+
+/**
+ * Compute scheduled draft time in ms (start of draft_date + draft_time). Returns null if no date.
+ */
+function getScheduledDraftTimeMs(league: {
+  draft_date?: string | null;
+  draft_time?: string | null;
+}): number | null {
+  const raw = league.draft_date ? String(league.draft_date) : null;
+  if (!raw) return null;
+  const datePart = raw.slice(0, 10);
+  const timePart =
+    (league.draft_time && String(league.draft_time).trim()) ||
+    (raw.length > 10 ? raw.slice(11, 16) : null);
+  const timeForDate = timePart && /^\d{1,2}:\d{2}/.test(timePart) ? timePart.slice(0, 5) : "00:00";
+  const candidate = new Date(`${datePart}T${timeForDate}:00`);
+  return Number.isNaN(candidate.getTime()) ? null : candidate.getTime();
+}
+
+/**
+ * For autopick leagues: when the scheduled draft time has been reached, start the draft and run all picks to completion.
+ * Called when any league member (or commissioner) loads the draft page. Uses service role to start and run picks.
+ * Returns { didRun: true } if the draft was started and run (possibly completed); { didRun: false } if conditions were not met.
+ */
+export async function runFullAutopickDraftAtScheduledTime(
+  leagueId: string
+): Promise<{ didRun: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("id, draft_date, draft_time, draft_type, draft_status")
+    .eq("id", leagueId)
+    .single();
+  if (!league) return { didRun: false };
+
+  const draftType = (league as { draft_type?: string }).draft_type ?? null;
+  const draftStatus = (league as { draft_status?: string }).draft_status ?? "not_started";
+  if (draftType !== "autopick" || draftStatus !== "not_started") return { didRun: false };
+
+  const order = await getDraftOrder(leagueId);
+  if (order.length === 0) return { didRun: false };
+
+  const scheduledMs = getScheduledDraftTimeMs(league as { draft_date?: string | null; draft_time?: string | null });
+  if (scheduledMs == null || Date.now() < scheduledMs) return { didRun: false };
+
+  const admin = getAdminClient();
+  if (!admin) return { didRun: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+
+  const { error: updateErr } = await admin.from("leagues").update({
+    draft_status: "in_progress",
+    draft_current_pick: 1,
+    draft_current_pick_started_at: new Date().toISOString(),
+  }).eq("id", leagueId);
+  if (updateErr) return { didRun: false, error: updateErr.message };
+
+  while (true) {
+    const state = await getLeagueDraftState(leagueId);
+    if (!state || state.draft_status === "completed") return { didRun: true };
+    if (state.draft_status !== "in_progress") return { didRun: true };
+
+    const result = await runAutoPickIfExpired(leagueId, { skipTimer: true });
+    if (result.error) return { didRun: true, error: result.error };
+    if (!result.didAutoPick) return { didRun: true };
   }
 }
 
