@@ -83,3 +83,31 @@ export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
   "clash-in-paris": `${EVENT_LOGOS_BASE}/Clash-In-Italy.png`,
   wrestlepalooza: `${EVENT_LOGOS_BASE}/Wrestlepalooza.png`,
 };
+
+/** Map event type (from eventClassifier) to EventLogoKey for EVENT_LOGO_URLS. */
+export function eventTypeToLogoKey(eventType: string): EventLogoKey | null {
+  const t = (eventType || "").toLowerCase().trim();
+  if (t === "raw") return "raw";
+  if (t === "smackdown") return "smackdown";
+  if (t.startsWith("wrestlemania")) return "wrestlemania";
+  if (t.startsWith("summerslam")) return "summerslam";
+  if (t === "survivor-series") return "survivor-series";
+  if (t === "royal-rumble") return "royal-rumble";
+  if (t === "elimination-chamber") return "elimination-chamber";
+  if (t === "night-of-champions") return "night-of-champions";
+  if (t === "king-queen-of-the-ring") return "king-queen";
+  if (t === "money-in-the-bank") return "money-in-the-bank";
+  if (t === "saturday-nights-main-event") return "saturday-nights-main-event";
+  if (t === "backlash") return "backlash";
+  if (t === "evolution") return "evolution";
+  if (t === "clash-in-paris") return "clash-in-paris";
+  if (t === "wrestlepalooza") return "wrestlepalooza";
+  if (t === "crown-jewel") return "crown-jewel";
+  return null;
+}
+
+/** Get event logo URL from event type (from classifyEventType). Returns undefined if no logo. */
+export function getEventLogoUrl(eventType: string): string | undefined {
+  const key = eventTypeToLogoKey(eventType);
+  return key ? EVENT_LOGO_URLS[key] : undefined;
+}

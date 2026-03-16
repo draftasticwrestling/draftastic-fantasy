@@ -636,6 +636,16 @@ export default async function EventResultsPage({
             <> · {formatEventType(scored.eventType)}</>
           )}
         </p>
+        <p style={{ margin: "8px 0 0", fontSize: 14 }}>
+          <a
+            href={`https://prowrestlingboxscore.com/event/${encodeURIComponent(eventId)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#1a73e8", textDecoration: "none" }}
+          >
+            View Full Event Results on Pro Wrestling Boxscore
+          </a>
+        </p>
       </header>
 
       {isKOTRPLE && (

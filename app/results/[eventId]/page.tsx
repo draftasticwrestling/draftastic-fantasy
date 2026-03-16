@@ -635,21 +635,31 @@ export default async function EventResultsPage({
             <> · {formatEventType(scored.eventType)}</>
           )}
         </p>
+        <p style={{ margin: "8px 0 0", fontSize: 14 }}>
+          <a
+            href={`https://prowrestlingboxscore.com/event/${encodeURIComponent(eventId)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#1a73e8", textDecoration: "none" }}
+          >
+            View Full Event Results on Pro Wrestling Boxscore
+          </a>
+        </p>
       </header>
 
       {isKOTRPLE && (
         <div
-          style={{
-            marginBottom: 24,
-            padding: 12,
-            background: "#f5f5f5",
-            border: "1px solid #e0e0e0",
-            borderRadius: 8,
-            fontSize: 13,
-            color: "#555",
-          }}
-        >
-          <strong>King/Queen of the Ring:</strong> Qualifier and semi-final matches take place on Raw and SmackDown; those shows award both event points and tournament points (toward this event). Points from R/S are included below. The final at this event adds 10 pts (both finalists) + 20 pts (winner).
+        style={{
+          marginBottom: 24,
+          padding: 12,
+          background: "#f5f5f5",
+          border: "1px solid #e0e0e0",
+          borderRadius: 8,
+          fontSize: 13,
+          color: "#555",
+        }}
+      >
+        <strong>King/Queen of the Ring:</strong> Qualifier and semi-final matches take place on Raw and SmackDown; those shows award both event points and tournament points (toward this event). Points from R/S are included below. The final at this event adds 10 pts (both finalists) + 20 pts (winner).
         </div>
       )}
 

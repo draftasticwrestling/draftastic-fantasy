@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 import "./globals.css";
 import Nav from "./components/Nav";
 import PageLayout from "./components/PageLayout";
+import EventListBar from "./components/EventListBar";
+import { getRecentEvents } from "@/lib/eventsRecent";
 
 const GA_MEASUREMENT_ID = "G-NQSQEP66V2";
 
@@ -47,6 +49,8 @@ export default async function RootLayout({
     );
   }
 
+  const recentEvents = await getRecentEvents(15);
+
   return (
     <html lang="en">
       <head>
@@ -67,7 +71,10 @@ export default async function RootLayout({
         />
       </head>
       <body>
-        <Nav />
+        <EventListBar events={recentEvents} />
+        <div className="nav-sticky-wrap">
+          <Nav />
+        </div>
         <PageLayout>{children}</PageLayout>
       </body>
     </html>

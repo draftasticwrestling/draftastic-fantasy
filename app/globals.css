@@ -121,6 +121,114 @@ body {
   }
 }
 
+/* --- Event list bar (above nav; scrolls away; nav sticks) --- */
+.event-list-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px var(--page-padding-x);
+  background: var(--color-bg-nav, #f0f2f5);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
+}
+
+.event-list-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: min-content;
+}
+
+.event-list-bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 80px;
+  max-width: 100px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--color-text);
+  font-size: 11px;
+  line-height: 1.2;
+  transition: background 0.15s ease;
+}
+
+.event-list-bar-item:hover {
+  background: var(--color-bg-elevated);
+}
+
+.event-list-bar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.event-list-bar-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.event-list-bar-logo-placeholder {
+  font-size: 20px;
+  color: var(--color-text-muted);
+}
+
+.event-list-bar-date {
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
+}
+
+.event-list-bar-location {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
+}
+
+.event-list-bar-more {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-blue);
+  text-decoration: none;
+}
+
+.event-list-bar-more:hover {
+  text-decoration: underline;
+}
+
+/* Sticky nav wrapper: event bar scrolls away, this sticks to top */
+.nav-sticky-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--color-bg-page);
+}
+
+.nav-sticky-wrap .nav-header {
+  background: var(--color-bg-elevated);
+}
+
+.nav-sticky-wrap .nav-lower-bar {
+  background: var(--color-bg-nav);
+}
+
 /* --- Nav (mobile-friendly: scrollable primary, clear active state) --- */
 .nav-header {
   background: var(--color-bg-elevated);
