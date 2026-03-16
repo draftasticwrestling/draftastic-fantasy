@@ -84,15 +84,12 @@ export default async function LeagueDraftPage({ params }: Props) {
       (async () => {
         const supabase = await createClient();
         type Row = { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null; dob?: string | null; image_url?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null };
-        let result = await supabase
+        const fullResult = await supabase
           .from("wrestlers")
           .select('id, name, gender, status, "Status", brand, classification, "Classification", dob, image_url, "2K26 rating", "2K25 rating"')
           .order("name", { ascending: true });
-        if (result.error) {
-          result = await supabase.from("wrestlers").select('id, name, gender, status, "Status", brand, classification, "Classification"').order("name", { ascending: true });
-        }
-        let rawRows = (result.data ?? []) as Record<string, unknown>[];
-        if (result.error && !rawRows.length) {
+        let rawRows: Record<string, unknown>[] = (fullResult.data ?? []) as Record<string, unknown>[];
+        if (fullResult.error && !rawRows.length) {
           const fallback = await supabase.from("wrestlers").select('id, name, gender, status, "Status", brand, classification, "Classification"').order("name", { ascending: true });
           rawRows = (fallback.data ?? []) as Record<string, unknown>[];
         }
