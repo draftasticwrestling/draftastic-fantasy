@@ -18,6 +18,7 @@ import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
 import { CommissionerDraftActions } from "./CommissionerDraftActions";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -59,9 +60,8 @@ export default async function LeagueDraftPage({ params }: Props) {
     const autoResult = await runAutoPickIfExpired(league.id);
     if (autoResult.didAutoPick) redirect(`/leagues/${slug}/draft`);
 
-    const [membersData, orderData, stateData, currentPickData, rostersData, wrestlersData, picksData] = await Promise.all([
+    const [membersData, stateData, currentPickData, rostersData, wrestlersData, picksData] = await Promise.all([
       getLeagueMembers(league.id),
-      getDraftOrder(league.id),
       getLeagueDraftState(league.id),
       getCurrentPick(league.id),
       getRostersForLeague(league.id),
@@ -87,7 +87,6 @@ export default async function LeagueDraftPage({ params }: Props) {
     ]);
     members = membersData;
     picksHistory = picksData;
-    order = orderData;
     state = stateData;
     currentPick = currentPickData;
     rosters = rostersData;
@@ -116,7 +115,6 @@ export default async function LeagueDraftPage({ params }: Props) {
     const draftStyle = state?.draft_style ?? "snake";
     const totalPicks = state?.total_picks ?? 0;
     const draftCurrentPick = state?.draft_current_pick ?? null;
-    const orderReady = order.length > 0;
     const picksBySlot = Object.fromEntries(picksHistory.map((p) => [p.overall_pick, p]));
 
     const leagueDraftType = league.draft_type ?? (league.draft_style === "linear" ? "linear" : "snake");
@@ -162,13 +160,13 @@ export default async function LeagueDraftPage({ params }: Props) {
 
     let canStartDraftNow = true;
     let scheduledDraftMessage: string | null = null;
+    let scheduledMs: number | null = null;
     if (league.draft_date) {
       const raw = String(league.draft_date);
       const datePart = raw.slice(0, 10);
       const timePart =
         (league.draft_time && String(league.draft_time).trim()) ||
         (raw.length > 10 ? raw.slice(11, 16) : null);
-      let scheduledMs: number | null = null;
       if (datePart) {
         const timeForDate = timePart && /^\d{1,2}:\d{2}/.test(timePart) ? timePart.slice(0, 5) : "00:00";
         const candidate = new Date(`${datePart}T${timeForDate}:00`);
@@ -180,10 +178,33 @@ export default async function LeagueDraftPage({ params }: Props) {
         const nowMs = Date.now();
         canStartDraftNow = nowMs >= scheduledMs;
         if (!canStartDraftNow) {
-          scheduledDraftMessage = timePart
-            ? `Draft is scheduled for ${datePart} at ${timePart}. The Begin Draft button will appear at that time.`
+          const rawTime =
+            (league.draft_time && String(league.draft_time).trim()) ||
+            (raw.length > 10 ? raw.slice(11, 16) : null);
+          scheduledDraftMessage = rawTime
+            ? `Draft is scheduled for ${datePart} at ${rawTime}. The Begin Draft button will appear at that time.`
             : `Draft is scheduled for ${datePart}. The Begin Draft button will appear on that date.`;
         }
+      }
+    }
+
+    const orderInitial = await getDraftOrder(league.id);
+    order = orderInitial;
+    const orderReady = order.length > 0;
+
+    // Auto-generate draft order when we are within one hour of the scheduled draft time (or later),
+    // method is not manual_by_gm, and no order exists yet. Only succeeds for the commissioner.
+    const ONE_HOUR_MS = 60 * 60 * 1000;
+    if (
+      !orderReady &&
+      scheduledMs != null &&
+      Date.now() >= scheduledMs - ONE_HOUR_MS &&
+      league.draft_order_method !== "manual_by_gm"
+    ) {
+      const { generateDraftOrder } = await import("@/lib/leagueDraft");
+      const autoResult = await generateDraftOrder(league.id);
+      if (!autoResult.error) {
+        order = await getDraftOrder(league.id);
       }
     }
 
@@ -376,7 +397,7 @@ export default async function LeagueDraftPage({ params }: Props) {
         </p>
       )}
 
-      {draftStatus === "not_started" && !orderReady && (
+      {draftStatus === "not_started" && order.length === 0 && (
         <>
           <p style={{ marginBottom: 16 }}>
             {league.draft_order_method === "manual_by_gm"
@@ -405,24 +426,7 @@ export default async function LeagueDraftPage({ params }: Props) {
             </p>
           )}
           {isCommissioner && league.draft_order_method !== "manual_by_gm" && (
-            <form action={generateDraftOrderFromFormAction} style={{ marginBottom: 24 }}>
-              <input type="hidden" name="league_slug" value={slug} />
-              <button
-                type="submit"
-                style={{
-                  padding: "10px 20px",
-                  background: "#1a73e8",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 16,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Generate draft order
-              </button>
-            </form>
+            <GenerateDraftOrderForm leagueSlug={slug} />
           )}
         </>
       )}

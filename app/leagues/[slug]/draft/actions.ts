@@ -46,6 +46,18 @@ export async function generateDraftOrderFromFormAction(formData: FormData): Prom
   await generateDraftOrderAction(leagueSlug, formData);
 }
 
+/** useFormState-friendly wrapper so the draft page can show success/errors inline. */
+export async function generateDraftOrderWithStateAction(
+  _prevState: { error?: string } | null,
+  formData: FormData
+): Promise<{ error?: string } | null> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return { error: "League slug is required." };
+  const result = await generateDraftOrderAction(leagueSlug, formData);
+  if (result.error) return { error: result.error };
+  return {};
+}
+
 /** Commissioner only: set draft order from round 1 order (when draft_order_method is manual_by_gm). */
 export async function setDraftOrderAction(
   leagueSlug: string,
