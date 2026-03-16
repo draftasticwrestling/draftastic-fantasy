@@ -681,7 +681,9 @@ export default async function LeagueDraftPage({ params }: Props) {
 
       {(draftStatus === "in_progress" || draftStatus === "completed") && order.length > 0 && (
         <>
-          {draftStatus === "in_progress" && <DraftPolling />}
+          {draftStatus === "in_progress" && (
+            <DraftPolling isAutopick={league.draft_type === "autopick"} />
+          )}
           <LeagueDraftRoom
             order={order}
             picksHistory={picksHistory}
@@ -702,6 +704,7 @@ export default async function LeagueDraftPage({ params }: Props) {
             points2026BySlug={points2026BySlug}
             pointsAllTimeBySlug={pointsAllTimeBySlug}
             draftedIds={Array.from(draftedIds)}
+            rosterEntriesByUser={rosters}
             currentPickSlot={draftCurrentPick}
             totalPicks={totalPicks}
             draftStatus={draftStatus}
@@ -709,6 +712,12 @@ export default async function LeagueDraftPage({ params }: Props) {
             isCurrentPicker={isCurrentPicker}
             leagueSlug={slug}
             draftCurrentPickStartedAt={state?.draft_current_pick_started_at ?? null}
+            timePerPickSeconds={
+              league.draft_type === "autopick"
+                ? 5
+                : (league.time_per_pick_seconds ?? 120)
+            }
+            showTimerForAll={league.draft_type === "autopick"}
           />
           {(draftStatus === "in_progress" || draftStatus === "completed") && isCommissioner && (
             <div style={{ marginTop: 24 }}>

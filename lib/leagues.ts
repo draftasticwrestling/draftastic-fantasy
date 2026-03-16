@@ -432,6 +432,32 @@ export async function getRostersForLeague(
 }
 
 /**
+ * Same as getRostersForLeague but uses service role so all teams' rosters are returned.
+ * Use in autopick/cron so draft state is correct regardless of RLS.
+ */
+export async function getRostersForLeagueAdmin(
+  leagueId: string
+): Promise<Record<string, LeagueRosterEntry[]>> {
+  const admin = getAdminClient();
+  if (!admin) return {};
+  const { data, error } = await admin
+    .from("league_rosters")
+    .select("user_id, wrestler_id, contract")
+    .eq("league_id", leagueId)
+    .is("released_at", null)
+    .order("created_at", { ascending: true });
+
+  if (error) return {};
+  const rows = (data ?? []) as { user_id: string; wrestler_id: string; contract: string | null }[];
+  const byUser: Record<string, LeagueRosterEntry[]> = {};
+  for (const r of rows) {
+    if (!byUser[r.user_id]) byUser[r.user_id] = [];
+    byUser[r.user_id].push({ wrestler_id: r.wrestler_id, contract: r.contract });
+  }
+  return byUser;
+}
+
+/**
  * Get all roster stints for a league (active and released) for acquisition-window scoring.
  */
 export async function getRosterStintsForLeague(

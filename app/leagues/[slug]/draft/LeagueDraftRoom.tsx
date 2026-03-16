@@ -12,6 +12,10 @@ const BRAND_STYLES: Record<string, { showBg: string; label: string }> = {
   Raw: { showBg: "#6B0F2A", label: "RAW" },
   SmackDown: { showBg: "#071A4A", label: "SD" },
   NXT: { showBg: "#1a1a1a", label: "NXT" },
+  AAA: { showBg: "#2d2d2d", label: "AAA" },
+  "Front Office": { showBg: "#3a3a3a", label: "FRONT OFFICE" },
+  "Celebrity Guests": { showBg: "#2d2d2d", label: "CELEBRITY" },
+  Alumni: { showBg: "#2d2d2d", label: "ALUMNI" },
   Unassigned: { showBg: "#4c4c4c", label: "UNASSIGNED" },
   Other: { showBg: "#2d2d2d", label: "OTHER" },
 };
@@ -22,7 +26,11 @@ function rosterCategory(brand: string | null | undefined): string {
   if (lower === "raw") return "Raw";
   if (lower === "smackdown" || lower === "smack down") return "SmackDown";
   if (lower === "nxt" || lower.includes("nxt")) return "NXT";
-  return "Unassigned";
+  if (lower === "celebrity guests" || lower === "celebrity" || lower === "celebrity guest") return "Celebrity Guests";
+  if (lower === "alumni") return "Alumni";
+  if (lower === "managers" || lower === "manager" || lower === "gm" || lower === "gms" || lower === "head of creative" || lower === "announcers" || lower === "announcer") return "Front Office";
+  if (lower === "aaa") return "AAA";
+  return "Other";
 }
 
 function normalizeGender(g: string | null | undefined): string {
@@ -114,6 +122,8 @@ type Props = {
   points2026BySlug: PointsBySlug;
   pointsAllTimeBySlug: PointsBySlug;
   draftedIds: string[];
+  /** Roster entries from league_rosters (same source as draftedIds). When set, used to show who picked which wrestler so display stays in sync. */
+  rosterEntriesByUser?: Record<string, { wrestler_id: string }[]>;
   currentPickSlot: number | null;
   totalPicks: number;
   draftStatus: string;
@@ -121,6 +131,10 @@ type Props = {
   isCurrentPicker: boolean;
   leagueSlug: string;
   draftCurrentPickStartedAt: string | null;
+  /** For autopick use 5; for live use league time_per_pick_seconds so timer matches server. */
+  timePerPickSeconds?: number;
+  /** When true (e.g. autopick), show the countdown timer to everyone, not just the current picker. */
+  showTimerForAll?: boolean;
 };
 
 export function LeagueDraftRoom({
@@ -134,6 +148,7 @@ export function LeagueDraftRoom({
   points2026BySlug,
   pointsAllTimeBySlug,
   draftedIds,
+  rosterEntriesByUser,
   currentPickSlot,
   totalPicks,
   draftStatus,
@@ -141,12 +156,15 @@ export function LeagueDraftRoom({
   isCurrentPicker,
   leagueSlug,
   draftCurrentPickStartedAt,
+  timePerPickSeconds = 120,
+  showTimerForAll = false,
 }: Props) {
   const [state, formAction] = useFormState(makeDraftPickWithStateAction, { error: undefined });
   const [tableSort, setTableSort] = useState<"rank" | "name" | "total">("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("allTime");
   const [includedRosters, setIncludedRosters] = useState<Set<string>>(() => new Set(["Raw", "SmackDown"]));
+  const [searchQuery, setSearchQuery] = useState("");
 
   const memberByUserId = useMemo(
     () => Object.fromEntries(members.map((m) => [m.user_id, m])),
@@ -210,6 +228,15 @@ export function LeagueDraftRoom({
     return list;
   }, [availableWithStats, tableSort, sortDir]);
 
+  const filteredBySearch = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sortedAvailable;
+    return sortedAvailable.filter((row) => {
+      const name = (row.wrestler.name ?? row.wrestler.id ?? "").toLowerCase();
+      return name.startsWith(q) || name.includes(q);
+    });
+  }, [sortedAvailable, searchQuery]);
+
   const handleSort = (col: "rank" | "name" | "total") => {
     if (tableSort === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
@@ -218,21 +245,45 @@ export function LeagueDraftRoom({
     }
   };
 
+  const wrestlerIdToName = useMemo(
+    () => Object.fromEntries(wrestlers.map((w) => [w.id, w.name ?? w.id])),
+    [wrestlers]
+  );
+  const wrestlerIdToImage = useMemo(
+    () => Object.fromEntries(wrestlers.map((w) => [w.id, w.image_url ?? null])),
+    [wrestlers]
+  );
+
   const rosterByUserId = useMemo(() => {
-    const byUser: Record<string, { wrestler_id: string; wrestler_name: string | null; overall_pick: number }[]> = {};
-    for (const p of picksHistory) {
-      if (!byUser[p.user_id]) byUser[p.user_id] = [];
-      byUser[p.user_id].push({
-        wrestler_id: p.wrestler_id,
-        wrestler_name: p.wrestler_name,
-        overall_pick: p.overall_pick,
-      });
+    // Prefer picksHistory for the roster panel so all teams show their drafted wrestlers
+    // (league_rosters via rosterEntriesByUser may be RLS-limited to current user only).
+    if (picksHistory.length > 0) {
+      const byUser: Record<string, { wrestler_id: string; wrestler_name: string | null; overall_pick?: number }[]> = {};
+      for (const p of picksHistory) {
+        if (!byUser[p.user_id]) byUser[p.user_id] = [];
+        byUser[p.user_id].push({
+          wrestler_id: p.wrestler_id,
+          wrestler_name: p.wrestler_name ?? wrestlerIdToName[p.wrestler_id] ?? p.wrestler_id,
+          overall_pick: p.overall_pick,
+        });
+      }
+      for (const u of Object.keys(byUser)) {
+        byUser[u].sort((a, b) => (a.overall_pick ?? 0) - (b.overall_pick ?? 0));
+      }
+      return byUser;
     }
-    for (const u of Object.keys(byUser)) {
-      byUser[u].sort((a, b) => a.overall_pick - b.overall_pick);
+    if (rosterEntriesByUser && Object.keys(rosterEntriesByUser).length > 0) {
+      const byUser: Record<string, { wrestler_id: string; wrestler_name: string | null }[]> = {};
+      for (const [uid, entries] of Object.entries(rosterEntriesByUser)) {
+        byUser[uid] = entries.map((e) => ({
+          wrestler_id: e.wrestler_id,
+          wrestler_name: wrestlerIdToName[e.wrestler_id] ?? e.wrestler_id,
+        }));
+      }
+      return byUser;
     }
-    return byUser;
-  }, [picksHistory]);
+    return {};
+  }, [picksHistory, rosterEntriesByUser, wrestlerIdToName]);
 
   const uniqueOrderUserIds = useMemo(() => {
     const seen = new Set<string>();
@@ -265,8 +316,12 @@ export function LeagueDraftRoom({
             Pick {currentPickSlot} of {totalPicks} — <strong>{currentManagerName ?? "Unknown"}</strong> is on the clock
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            {draftCurrentPickStartedAt && isCurrentPicker && (
-              <DraftTimer startedAt={draftCurrentPickStartedAt} leagueSlug={leagueSlug} />
+            {draftCurrentPickStartedAt && (isCurrentPicker || showTimerForAll) && (
+              <DraftTimer
+                startedAt={draftCurrentPickStartedAt}
+                leagueSlug={leagueSlug}
+                secondsPerPick={timePerPickSeconds}
+              />
             )}
           </div>
         </section>
@@ -329,6 +384,24 @@ export function LeagueDraftRoom({
                 None
               </button>
             </div>
+            <div style={{ marginBottom: 10 }}>
+              <input
+                type="search"
+                placeholder="Search wrestler name…"
+                aria-label="Search wrestler name"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: "100%",
+                  maxWidth: 280,
+                  padding: "8px 12px",
+                  fontSize: 14,
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius)",
+                  background: "var(--color-bg-input)",
+                }}
+              />
+            </div>
           </div>
           <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 10 }}>
             Rank = Total + (2K × 1.5). Click column headers to sort. Only available (undrafted) wrestlers shown.
@@ -344,7 +417,7 @@ export function LeagueDraftRoom({
               borderRadius: "var(--radius)",
             }}
           >
-            {sortedAvailable.length === 0 ? (
+            {filteredBySearch.length === 0 ? (
               <div style={{ padding: 16, color: "var(--color-text-muted)", fontSize: 14 }}>
                 {available.length > 0 && includedRosters.size === 0 ? (
                   <p style={{ margin: 0 }}>No rosters selected. Use the Include checkboxes above to show Raw, SmackDown, NXT, etc.</p>
@@ -408,7 +481,7 @@ export function LeagueDraftRoom({
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedAvailable.map(({ wrestler: w, rank, rs, ple, belt, total }) => {
+                  {filteredBySearch.map(({ wrestler: w, rank, rs, ple, belt, total }) => {
                     const display2k = w.rating_2k26 ?? w.rating_2k25 ?? null;
                     const roster = rosterCategory(w.brand);
                     const brandStyle = BRAND_STYLES[roster] ?? BRAND_STYLES.Unassigned;
@@ -531,11 +604,45 @@ export function LeagueDraftRoom({
                 >
                   <strong style={{ fontSize: 14 }}>{name}</strong>
                   <ul style={{ margin: "8px 0 0", paddingLeft: 0, listStyle: "none", fontSize: 14, color: "var(--color-text-muted)" }}>
-                    {picks.map(({ wrestler_id, wrestler_name }) => (
-                      <li key={`${userId}-${wrestler_id}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                        <span>{wrestler_name ?? wrestler_id}</span>
-                      </li>
-                    ))}
+                    {picks.map(({ wrestler_id, wrestler_name }) => {
+                      const displayName = wrestler_name ?? wrestlerIdToName[wrestler_id] ?? wrestler_id;
+                      const imageUrl = wrestlerIdToImage[wrestler_id];
+                      return (
+                        <li key={`${userId}-${wrestler_id}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt=""
+                              style={{
+                                width: 24,
+                                height: 24,
+                                objectFit: "cover",
+                                borderRadius: "50%",
+                                background: "var(--color-bg-input)",
+                              }}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: "50%",
+                                background: "var(--color-bg-input)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 10,
+                                color: "var(--color-text-muted)",
+                              }}
+                              aria-hidden
+                            >
+                              —
+                            </span>
+                          )}
+                          <span>{displayName}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               );

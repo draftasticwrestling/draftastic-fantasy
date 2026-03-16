@@ -3,13 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const DEADLINE_SECONDS = 2 * 60; // 2 minutes
-
-function secondsLeft(startedAt: string): number {
+function secondsLeft(startedAt: string, deadlineSeconds: number): number {
   const start = new Date(startedAt).getTime();
-  const deadline = start + DEADLINE_SECONDS * 1000;
-  const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-  return left;
+  const deadline = start + deadlineSeconds * 1000;
+  return Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
 }
 
 function formatTime(seconds: number): string {
@@ -18,13 +15,22 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function DraftTimer({ startedAt, leagueSlug }: { startedAt: string; leagueSlug: string }) {
+export function DraftTimer({
+  startedAt,
+  leagueSlug,
+  secondsPerPick = 120,
+}: {
+  startedAt: string;
+  leagueSlug: string;
+  /** For autopick use 5; for live use league time_per_pick_seconds. */
+  secondsPerPick?: number;
+}) {
   const router = useRouter();
-  const [left, setLeft] = useState(() => secondsLeft(startedAt));
+  const [left, setLeft] = useState(() => secondsLeft(startedAt, secondsPerPick));
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const next = secondsLeft(startedAt);
+      const next = secondsLeft(startedAt, secondsPerPick);
       setLeft(next);
       if (next <= 0) {
         clearInterval(interval);
@@ -32,12 +38,20 @@ export function DraftTimer({ startedAt, leagueSlug }: { startedAt: string; leagu
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [startedAt, router]);
+  }, [startedAt, secondsPerPick, router]);
 
   if (left <= 0) return <span style={{ marginLeft: 8 }}>Time’s up — auto-pick in progress…</span>;
   return (
-    <span style={{ marginLeft: 8, fontWeight: 600, color: left <= 30 ? "#c62828" : "#1a73e8" }}>
-      ({formatTime(left)} left)
+    <span
+      style={{
+        fontSize: "1.5rem",
+        fontWeight: 700,
+        fontVariantNumeric: "tabular-nums",
+        color: left <= 10 ? "var(--color-red)" : "var(--color-text)",
+      }}
+      aria-live="polite"
+    >
+      {formatTime(left)}
     </span>
   );
 }

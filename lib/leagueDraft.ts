@@ -4,7 +4,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getLeagueMembers, getRostersForLeague, getRostersForLeagueAdmin } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { isBlocklistedSlug } from "@/lib/draftBlocklist";
 import { addWrestlerToRoster } from "@/lib/leagues";
@@ -322,6 +322,46 @@ export async function getCurrentPick(
 }
 
 type AdminClient = NonNullable<ReturnType<typeof getAdminClient>>;
+
+/** Same as getCurrentPick but uses admin client. Use this during autopick/cron so the correct picker is always read (no RLS/session dependency). */
+async function getCurrentPickUsingAdmin(
+  admin: AdminClient,
+  leagueId: string
+): Promise<{ overall_pick: number; user_id: string } | null> {
+  const { data: league } = await admin
+    .from("leagues")
+    .select("draft_current_pick, draft_status")
+    .eq("id", leagueId)
+    .single();
+
+  if (!league || league.draft_status !== "in_progress" || league.draft_current_pick == null) {
+    return null;
+  }
+
+  const { data: row } = await admin
+    .from("league_draft_order")
+    .select("overall_pick, user_id")
+    .eq("league_id", leagueId)
+    .eq("overall_pick", league.draft_current_pick)
+    .maybeSingle();
+
+  if (!row) return null;
+  return row as { overall_pick: number; user_id: string };
+}
+
+/** Fetch gender for wrestler ids in one query. Returns id -> raw gender string. */
+async function getWrestlerGendersBatch(
+  admin: AdminClient,
+  wrestlerIds: string[]
+): Promise<Record<string, string | null>> {
+  if (wrestlerIds.length === 0) return {};
+  const { data } = await admin
+    .from("wrestlers")
+    .select("id, gender")
+    .in("id", wrestlerIds);
+  const rows = (data ?? []) as { id: string; gender: string | null }[];
+  return Object.fromEntries(rows.map((r) => [r.id, r.gender ?? null]));
+}
 
 /** Get per-user draft state (consecutive auto-picks, takeover). Uses admin client. */
 async function getDraftUserState(
@@ -832,27 +872,48 @@ export function isDraftableWrestlerForDraftTesting(row: DraftPoolRow): boolean {
   return true;
 }
 
+type PointsFallbackOptions = {
+  draftedIds?: Set<string>;
+  /** When set (e.g. from autopick), only consider wrestlers of this gender so roster min F/M rules are satisfied. */
+  requiredGender?: "F" | "M" | null;
+};
+
 /**
  * Returns the available wrestler with the most points to-date (for auto-pick fallback).
  * Uses completed events from LEAGUE_START_DATE; excludes inactive and non-draftable (Front Office, etc.).
+ * When options.requiredGender is set, only considers wrestlers of that gender; if none available, falls back to any.
  */
-export async function getTopAvailableWrestlerByPoints(leagueId: string): Promise<string | null> {
+export async function getTopAvailableWrestlerByPoints(
+  leagueId: string,
+  options?: PointsFallbackOptions
+): Promise<string | null> {
   const supabase = await createClient();
-  const rosters = await getRostersForLeague(leagueId);
-  const draftedIds = new Set<string>();
-  for (const entries of Object.values(rosters)) for (const e of entries) draftedIds.add(e.wrestler_id);
+  const draftedIds = options?.draftedIds ?? (() => {
+    const rosters = await getRostersForLeague(leagueId);
+    const set = new Set<string>();
+    for (const entries of Object.values(rosters)) for (const e of entries) set.add(e.wrestler_id);
+    return set;
+  })();
 
-  let wrestlersRes = await supabase.from("wrestlers").select('id, status, "Status", brand, classification, "Classification"').order("id");
-  let list = ((wrestlersRes.data ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as DraftPoolRow[];
+  const needGender = options?.requiredGender ?? null;
+  const selectCols = needGender
+    ? 'id, gender, status, "Status", brand, classification, "Classification"'
+    : 'id, status, "Status", brand, classification, "Classification"';
+  let wrestlersRes = await supabase.from("wrestlers").select(selectCols).order("id");
+  let list = ((wrestlersRes.data ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   if (wrestlersRes.error && !list.length) {
-    const fallback = await supabase.from("wrestlers").select('id, status, "Status", brand, classification, "Classification"').order("id");
-    list = ((fallback.data ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as DraftPoolRow[];
+    const fallback = await supabase.from("wrestlers").select(selectCols).order("id");
+    list = ((fallback.data ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   }
   if (!list.length) {
-    const noClassification = await supabase.from("wrestlers").select('id, status, "Status", brand').order("id");
-    list = ((noClassification.data ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as DraftPoolRow[];
+    const noClassification = await supabase.from("wrestlers").select(needGender ? "id, gender, status, \"Status\", brand" : 'id, status, "Status", brand').order("id");
+    list = ((noClassification.data ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   }
-  list = list.filter(isDraftableWrestler).filter((w): w is DraftPoolRow & { id: string } => Boolean(w.id));
+  list = list.filter(isDraftableWrestler).filter((w): w is (DraftPoolRow & { id: string; gender?: string | null }) => Boolean(w.id));
+  if (needGender) {
+    const byGender = list.filter((w) => normalizeGender(w.gender) === needGender);
+    if (byGender.length > 0) list = byGender;
+  }
 
   const eventsRes = await supabase
     .from("events")
@@ -887,18 +948,28 @@ type WrestlerWithStats = {
   totalPoints: number;
 };
 
+type RosterOverride = {
+  rosters: Record<string, { wrestler_id: string }[]>;
+  draftedIds: Set<string>;
+};
+
 /**
  * Get the best available wrestler for a user's auto-pick: uses priority list first if set,
  * then strategy_options (focus + point strategy + wrestler strategy) or legacy strategy[], else highest total points.
+ * When opts is provided (e.g. from autopick with admin rosters), uses that data instead of fetching so all teams are considered.
  */
 export async function getTopAvailableWrestlerForUser(
   leagueId: string,
-  userId: string
+  userId: string,
+  opts?: RosterOverride
 ): Promise<string | null> {
   const supabase = await createClient();
-  const rosters = await getRostersForLeague(leagueId);
-  const draftedIds = new Set<string>();
-  for (const entries of Object.values(rosters)) for (const e of entries) draftedIds.add(e.wrestler_id);
+  const rosters = opts?.rosters ?? (await getRostersForLeague(leagueId));
+  const draftedIds = opts?.draftedIds ?? (() => {
+    const set = new Set<string>();
+    for (const entries of Object.values(rosters)) for (const e of entries) set.add(e.wrestler_id);
+    return set;
+  })();
 
   const prefs = await getDraftPreferences(leagueId, userId);
 
@@ -1171,30 +1242,46 @@ async function performOneAutoPick(
   current: { overall_pick: number; user_id: string },
   state: { draft_current_pick: number; total_picks: number }
 ): Promise<{ error?: string; nextPick?: number; totalPicks?: number }> {
-  // When the user has no preferences we already use "all-time, total points, best available" in getTopAvailableWrestlerForUser.
-  // The fallback is for when the user *has* set preferences (e.g. priority list, balanced_gender, high_females) and those
-  // constraints yield no valid wrestler (e.g. "need a female" but none left, or priority list exhausted). Then we pick
-  // best available by total points so the draft does not freeze.
-  let wrestlerId = await getTopAvailableWrestlerForUser(leagueId, current.user_id);
+  // Use admin rosters so we see all teams' picks (RLS would otherwise limit to current user) and assign correctly.
+  const rosters = await getRostersForLeagueAdmin(leagueId);
+  const draftedIds = new Set<string>();
+  for (const entries of Object.values(rosters)) for (const e of entries) draftedIds.add(e.wrestler_id);
+  const currentRoster = rosters[current.user_id] ?? [];
+  const members = await getLeagueMembers(leagueId);
+  const rules = getRosterRulesForLeague(members.length);
+  const rosterGenderCounts: Record<string, number> = { F: 0, M: 0 };
+  if (currentRoster.length > 0) {
+    const genderById = await getWrestlerGendersBatch(admin, currentRoster.map((e) => e.wrestler_id));
+    for (const e of currentRoster) {
+      const g = normalizeGender(genderById[e.wrestler_id]);
+      if (g) rosterGenderCounts[g] = (rosterGenderCounts[g] ?? 0) + 1;
+    }
+  }
+  const currentFemale = rosterGenderCounts.F ?? 0;
+  const currentMale = rosterGenderCounts.M ?? 0;
+  const remainingPicks = rules ? rules.rosterSize - currentRoster.length : 0;
+  const needFemale = rules ? Math.max(0, rules.minFemale - currentFemale) : 0;
+  const needMale = rules ? Math.max(0, rules.minMale - currentMale) : 0;
+  const requiredGender: "F" | "M" | null =
+    rules && remainingPicks > 0
+      ? needFemale > 0 && remainingPicks - 1 < needFemale
+        ? "F"
+        : needMale > 0 && remainingPicks - 1 < needMale
+          ? "M"
+          : null
+      : null;
+
+  let wrestlerId = await getTopAvailableWrestlerForUser(leagueId, current.user_id, { rosters, draftedIds });
   if (!wrestlerId) {
-    wrestlerId = await getTopAvailableWrestlerByPoints(leagueId);
+    wrestlerId = await getTopAvailableWrestlerByPoints(leagueId, { draftedIds, requiredGender });
   }
   if (!wrestlerId) {
     // Pool exhausted: advance without assigning so the draft does not freeze
     return advanceDraftToNextSlot(admin, leagueId, state);
   }
 
-  const members = await getLeagueMembers(leagueId);
-  const rules = getRosterRulesForLeague(members.length);
   if (!rules) return { error: "Invalid league size." };
-
-  const { data: currentRows } = await admin
-    .from("league_rosters")
-    .select("wrestler_id")
-    .eq("league_id", leagueId)
-    .eq("user_id", current.user_id)
-    .is("released_at", null);
-  const currentIds = (currentRows ?? []).map((r: { wrestler_id: string }) => r.wrestler_id);
+  const currentIds = currentRoster.map((e) => e.wrestler_id);
   if (currentIds.includes(wrestlerId)) return { error: "Wrestler already on roster." };
   if (currentIds.length >= rules.rosterSize) return { error: "Roster full." };
 
@@ -1262,7 +1349,8 @@ export async function runAutoPickIfExpired(
     return { didAutoPick: false };
   }
 
-  const current = await getCurrentPick(leagueId);
+  // Use admin so we always get the correct picker (cron has no user session; RLS would otherwise limit who we see).
+  const current = await getCurrentPickUsingAdmin(admin, leagueId);
   if (!current) return { didAutoPick: false };
 
   const userState = await getDraftUserState(admin, leagueId, current.user_id);
