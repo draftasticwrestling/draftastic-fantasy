@@ -245,6 +245,9 @@ export function DraftSettingsSection({
         {state?.error && (
           <p style={{ color: "var(--color-red)", marginBottom: 12 }}>{state.error}</p>
         )}
+        {state && !state.error && (
+          <p style={{ color: "var(--color-success)", marginBottom: 12 }}>Draft settings saved.</p>
+        )}
         <button type="submit" className="app-btn-primary">
           Save Draft Settings
         </button>

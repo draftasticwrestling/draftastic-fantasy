@@ -15,11 +15,11 @@ export function CommissionerDraftActions({
   const [pending, startTransition] = useTransition();
 
   function handleRestart() {
-    if (!confirm("Restart the draft? This will clear all picks and rosters. You’ll need to generate a new draft order.")) return;
+    if (!confirm("Restart the draft? This will clear all picks and rosters. The current draft order will be kept. You can change it under Draft Settings if you want a new order.")) return;
     startTransition(async () => {
       const result = await restartDraftAction(leagueSlug);
       if (result.error) alert(result.error);
-      else router.refresh();
+      else window.location.reload();
     });
   }
 
