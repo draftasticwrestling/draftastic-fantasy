@@ -212,6 +212,35 @@ export async function updateBasicSettingsFormAction(
   return updateBasicSettingsAction(leagueSlug, formData);
 }
 
+/** Commissioner updates the League Manager note shown on the league overview. */
+export async function updateManagerNoteAction(
+  _prevState: { error?: string } | null,
+  formData: FormData
+): Promise<{ error?: string }> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return { error: "League not found." };
+
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || league.commissioner_id !== user.id) {
+    return { error: "Only the commissioner can edit the League Manager note." };
+  }
+
+  const manager_note = (formData.get("manager_note") as string)?.trim() || null;
+
+  const { error } = await supabase
+    .from("leagues")
+    .update({ manager_note })
+    .eq("id", league.id);
+  if (error) return { error: error.message };
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/lm-note`);
+  redirect(`/leagues/${leagueSlug}`);
+}
+
 export async function updateLeagueTypeAction(
   leagueSlug: string,
   formData: FormData

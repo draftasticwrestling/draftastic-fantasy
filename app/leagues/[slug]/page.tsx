@@ -6,6 +6,7 @@ import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
+import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { RemoveManagerButton } from "./RemoveManagerButton";
 import { RostersSection } from "./RostersSection";
 
@@ -161,7 +162,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               <li><Link href="/how-it-works"><span className="lm-quick-link-icon">☰</span> Rules</Link></li>
               <li><Link href={`/leagues/${slug}/ple/wrestlemania`}><span className="lm-quick-link-icon">🏟</span> WrestleMania</Link></li>
               <li><Link href={`/leagues/${slug}/draft`}><span className="lm-quick-link-icon">⚙</span> Draft</Link></li>
-              <li><Link href={`/leagues/${slug}`}><span className="lm-quick-link-icon">👤</span> Wrestlers</Link></li>
+              <li><Link href={`/leagues/${slug}/wrestlers/league-leaders`}><span className="lm-quick-link-icon">👤</span> Wrestlers</Link></li>
               <li><Link href="/"><span className="lm-quick-link-icon">⌂</span> Home</Link></li>
             </ul>
           </div>
@@ -177,8 +178,12 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               <Link href={`/leagues/${slug}/ple/wrestlemania`}>WrestleMania</Link>
               <span className="lm-subnav-sep">|</span>
               <Link href={currentUser ? `/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}` : `/leagues/${slug}/team`}>Roster</Link>
-              <span className="lm-subnav-sep">|</span>
-              <Link href={`/leagues/${slug}/matchups`}>Matchup</Link>
+              {(league?.league_type === "head_to_head" || league?.league_type === "combo") && (
+                <>
+                  <span className="lm-subnav-sep">|</span>
+                  <Link href={`/leagues/${slug}/matchups`}>Matchup</Link>
+                </>
+              )}
               <span className="lm-subnav-sep">|</span>
               <Link href={`/leagues/${slug}`}>Rosters</Link>
             </nav>
@@ -248,10 +253,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             <div className="lm-card">
               <h2 className="lm-card-title">
                 League Manager&apos;s Note
-                {isCommissioner && <Link href={`/leagues/${slug}`} className="lm-card-link">Edit LM Note</Link>}
+                {isCommissioner && <Link href={`/leagues/${slug}/lm-note`} className="lm-card-link">Edit LM Note</Link>}
               </h2>
               <p className="lm-note-text">
-                Welcome to your Draftastic Fantasy league. Your League Manager can post a note to the entire league and it will appear here.
+                {league?.manager_note?.trim() || "Welcome to your Draftastic Fantasy league. Your League Manager can post a note to the entire league and it will appear here."}
               </p>
             </div>
             <div className="lm-card">
@@ -266,53 +271,29 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             </div>
           </div>
 
-          {/* Teams list + Rosters section (same as before) */}
+          {/* Teams / Standings (same look as standings page) + Rosters section */}
           <div className="lm-card">
-            <h2 className="lm-card-title">Teams</h2>
             <p className="lm-league-meta" style={{ marginBottom: 12 }}>
               Click a team to see that owner’s roster and points.
             </p>
-            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 20px", borderTop: "1px solid var(--color-border)" }}>
-              {membersByPoints.map((m) => {
+            <LeagueStandingsTable
+              members={membersByPoints}
+              pointsByUserId={pointsByUserId}
+              leagueSlug={slug}
+              rowExtras={membersByPoints.map((m) => {
                 const teamLabel = (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
-                const pts = pointsByUserId[m.user_id] ?? 0;
                 const draftStarted = (league?.draft_status === "in_progress" || league?.draft_status === "completed");
                 const canRemove = isCommissioner && !draftStarted && m.role !== "commissioner";
-                return (
-                  <li
+                return canRemove ? (
+                  <RemoveManagerButton
                     key={m.id}
-                    style={{
-                      padding: "10px 0",
-                      borderBottom: "1px solid var(--color-border-light)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 16,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <Link
-                      href={`/leagues/${slug}/team/${encodeURIComponent(m.user_id)}`}
-                      style={{ color: "var(--color-blue)", textDecoration: "none", fontWeight: 500 }}
-                    >
-                      {teamLabel}
-                    </Link>
-                    <span style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                      <span style={{ fontWeight: 600, color: "var(--color-red)" }}>
-                        {pts} pts
-                      </span>
-                      {canRemove && (
-                        <RemoveManagerButton
-                          leagueSlug={slug}
-                          userId={m.user_id}
-                          teamLabel={teamLabel}
-                        />
-                      )}
-                    </span>
-                  </li>
-                );
+                    leagueSlug={slug}
+                    userId={m.user_id}
+                    teamLabel={teamLabel}
+                  />
+                ) : null;
               })}
-            </ul>
+            />
             <RostersSection
               leagueId={league.id}
               leagueSlug={slug}

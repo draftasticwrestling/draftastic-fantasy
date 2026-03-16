@@ -26,6 +26,7 @@ export type League = {
   draft_order_method?: DraftOrderMethod | null;
   draft_status?: "not_started" | "in_progress" | "completed";
   draft_current_pick?: number | null;
+  manager_note?: string | null;
   created_at: string;
 };
 
@@ -169,7 +170,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, created_at";
+  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
   let result = await supabase
     .from("leagues")
     .select(fullSelect)
@@ -198,6 +199,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
         draft_status: "not_started",
         draft_current_pick: null,
         auto_reactivate: false,
+        manager_note: null,
       } as typeof league;
     } else {
       league = minimalResult.data;
