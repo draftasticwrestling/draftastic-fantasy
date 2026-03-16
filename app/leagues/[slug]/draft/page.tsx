@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
@@ -82,16 +83,31 @@ export default async function LeagueDraftPage({ params }: Props) {
       getCurrentPick(league.id),
       getRostersForLeague(league.id),
       (async () => {
-        const supabase = await createClient();
         type Row = { id: string; name: string | null; gender: string | null; status?: string | null; brand?: string | null; classification?: string | null; dob?: string | null; image_url?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null };
+        const selectCols = 'id, name, gender, status, "Status", brand, classification, "Classification", dob, image_url, "2K26 rating", "2K25 rating"';
+        const selectColsMinimal = 'id, name, gender, status, "Status", brand, classification, "Classification"';
+        let rawRows: Record<string, unknown>[] = [];
+        const supabase = await createClient();
         const fullResult = await supabase
           .from("wrestlers")
-          .select('id, name, gender, status, "Status", brand, classification, "Classification", dob, image_url, "2K26 rating", "2K25 rating"')
+          .select(selectCols)
           .order("name", { ascending: true });
-        let rawRows: Record<string, unknown>[] = (fullResult.data ?? []) as Record<string, unknown>[];
+        rawRows = (fullResult.data ?? []) as Record<string, unknown>[];
         if (fullResult.error && !rawRows.length) {
-          const fallback = await supabase.from("wrestlers").select('id, name, gender, status, "Status", brand, classification, "Classification"').order("name", { ascending: true });
+          const fallback = await supabase.from("wrestlers").select(selectColsMinimal).order("name", { ascending: true });
           rawRows = (fallback.data ?? []) as Record<string, unknown>[];
+        }
+        // If still empty (e.g. RLS blocks read), use admin client so draft room always has wrestler pool
+        if (!rawRows.length) {
+          const admin = getAdminClient();
+          if (admin) {
+            const adminResult = await admin.from("wrestlers").select(selectCols).order("name", { ascending: true });
+            rawRows = (adminResult.data ?? []) as Record<string, unknown>[];
+            if (adminResult.error && !rawRows.length) {
+              const adminMinimal = await admin.from("wrestlers").select(selectColsMinimal).order("name", { ascending: true });
+              rawRows = (adminMinimal.data ?? []) as Record<string, unknown>[];
+            }
+          }
         }
         const rows = rawRows.map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as Row[];
         return rows.filter((w) => isDraftableWrestler(w));
@@ -625,7 +641,10 @@ export default async function LeagueDraftPage({ params }: Props) {
       )}
     </main>
     );
-  } catch {
+  } catch (e) {
+    // Let Next.js handle notFound() / redirect() so we don't show generic error for 404s
+    const err = e as { digest?: string };
+    if (err?.digest && String(err.digest).startsWith("NEXT_")) throw e;
     return (
       <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 720, margin: "0 auto" }}>
         <p style={{ marginBottom: 24 }}>

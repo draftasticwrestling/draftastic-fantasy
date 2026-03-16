@@ -226,7 +226,11 @@ export function LeagueDraftRoom({
             }}
           >
             {sortedAvailable.length === 0 ? (
-              <p style={{ color: "var(--color-text-muted)", margin: 16 }}>None left</p>
+              <p style={{ color: "var(--color-text-muted)", margin: 16 }}>
+                {wrestlers.length === 0
+                  ? "Wrestler pool could not be loaded. Try refreshing the page."
+                  : "None left"}
+              </p>
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead style={{ position: "sticky", top: 0, background: "var(--color-bg-elevated)", zIndex: 1 }}>
