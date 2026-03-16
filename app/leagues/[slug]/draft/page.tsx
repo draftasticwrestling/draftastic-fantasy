@@ -685,6 +685,7 @@ export default async function LeagueDraftPage({ params }: Props) {
             <DraftPolling isAutopick={league.draft_type === "autopick"} />
           )}
           <LeagueDraftRoom
+            autopickError={autoResult?.error ?? null}
             order={order}
             picksHistory={picksHistory}
             members={members.map((m) => ({ user_id: m.user_id, display_name: m.display_name, team_name: m.team_name }))}

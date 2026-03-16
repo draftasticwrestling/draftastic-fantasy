@@ -521,9 +521,16 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
     }
   }
 
-  await supabase.from("league_draft_order").delete().eq("league_id", leagueId);
+  const admin = getAdminClient();
+  if (!admin) {
+    return {
+      error:
+        "SUPABASE_SERVICE_ROLE_KEY is not set. Draft order must be written with the service role so all teams get correct pick slots. Add it in Netlify environment variables.",
+    };
+  }
+  await admin.from("league_draft_order").delete().eq("league_id", leagueId);
 
-  const { error: insertError } = await supabase.from("league_draft_order").insert(
+  const { error: insertError } = await admin.from("league_draft_order").insert(
     order.map((o) => ({
       league_id: leagueId,
       draft_run_id: runId,
@@ -538,10 +545,7 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
     draft_current_pick: null,
     draft_current_pick_started_at: null,
   };
-  const admin = getAdminClient();
-  const { error: updateError } = admin
-    ? await admin.from("leagues").update(updatePayload).eq("id", leagueId)
-    : await supabase.from("leagues").update(updatePayload).eq("id", leagueId);
+  const { error: updateError } = await admin.from("leagues").update(updatePayload).eq("id", leagueId);
   if (updateError) return { error: updateError.message };
   return {};
 }
@@ -597,9 +601,16 @@ export async function setDraftOrderFromRound1(
     }
   }
 
-  await supabase.from("league_draft_order").delete().eq("league_id", leagueId);
+  const admin = getAdminClient();
+  if (!admin) {
+    return {
+      error:
+        "SUPABASE_SERVICE_ROLE_KEY is not set. Draft order must be written with the service role so all teams get correct pick slots. Add it in Netlify environment variables.",
+    };
+  }
+  await admin.from("league_draft_order").delete().eq("league_id", leagueId);
 
-  const { error: insertError } = await supabase.from("league_draft_order").insert(
+  const { error: insertError } = await admin.from("league_draft_order").insert(
     order.map((o) => ({
       league_id: leagueId,
       draft_run_id: runId,
@@ -614,10 +625,7 @@ export async function setDraftOrderFromRound1(
     draft_current_pick: null,
     draft_current_pick_started_at: null,
   };
-  const admin = getAdminClient();
-  const { error: updateError } = admin
-    ? await admin.from("leagues").update(updatePayload).eq("id", leagueId)
-    : await supabase.from("leagues").update(updatePayload).eq("id", leagueId);
+  const { error: updateError } = await admin.from("leagues").update(updatePayload).eq("id", leagueId);
   if (updateError) return { error: updateError.message };
   return {};
 }
@@ -1372,7 +1380,10 @@ export async function runAutoPickIfExpired(
         : DEFAULT_TIME_PER_PICK_SECONDS;
 
   const startedAt = state.draft_current_pick_started_at;
-  const skipTimer = skipTimerByOption || userState.auto_pick_rest_of_draft;
+  const skipTimer =
+    skipTimerByOption ||
+    userState.auto_pick_rest_of_draft ||
+    (draftType === "autopick" && !startedAt); // Autopick league with no clock: run immediately so draft never gets stuck
   if (!skipTimer) {
     if (!startedAt) return { didAutoPick: false };
     const isFirstPick = state.draft_current_pick === 1;

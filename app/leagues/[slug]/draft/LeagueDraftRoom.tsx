@@ -112,6 +112,8 @@ export type WrestlerPoolDiagnostic = {
 } | null;
 
 type Props = {
+  /** When set, auto-pick failed (e.g. missing service role key); show so user knows why draft is stuck. */
+  autopickError?: string | null;
   order: { overall_pick: number; user_id: string }[];
   picksHistory: { overall_pick: number; user_id: string; wrestler_id: string; wrestler_name: string | null }[];
   members: { user_id: string; display_name?: string | null; team_name?: string | null }[];
@@ -138,6 +140,7 @@ type Props = {
 };
 
 export function LeagueDraftRoom({
+  autopickError = null,
   order,
   picksHistory,
   members,
@@ -298,6 +301,20 @@ export function LeagueDraftRoom({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {autopickError && (
+        <section
+          style={{
+            padding: 16,
+            background: "var(--color-error-bg, #fef2f2)",
+            borderRadius: "var(--radius)",
+            border: "1px solid var(--color-error-muted, #fecaca)",
+          }}
+        >
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--color-red, #b91c1c)" }}>
+            Auto-pick failed: {autopickError} Refresh the page to try again. If the problem continues, the commissioner may need to set SUPABASE_SERVICE_ROLE_KEY in Netlify.
+          </p>
+        </section>
+      )}
       {!isComplete && currentPickSlot != null && (
         <section
           style={{
