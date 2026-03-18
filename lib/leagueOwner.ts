@@ -529,6 +529,16 @@ export async function respondToReleaseProposal(
   if (approve) {
     const res = await removeWrestlerFromRoster(proposal.league_id, proposal.user_id, proposal.wrestler_id);
     if (res.error) return res;
+    const admin = getAdminClient();
+    if (admin) {
+      await admin.from("league_activity").insert({
+        league_id: proposal.league_id,
+        activity_type: "drop",
+        user_id: proposal.user_id,
+        wrestler_id: proposal.wrestler_id,
+        secondary_wrestler_id: null,
+      });
+    }
   }
   return {};
 }
@@ -613,6 +623,16 @@ export async function respondToFreeAgentProposal(
     }
     const addRes = await addWrestlerToRoster(proposal.league_id, proposal.user_id, proposal.wrestler_id, null, true);
     if (addRes.error) return addRes;
+    const admin = getAdminClient();
+    if (admin) {
+      await admin.from("league_activity").insert({
+        league_id: proposal.league_id,
+        activity_type: "fa_add",
+        user_id: proposal.user_id,
+        wrestler_id: proposal.wrestler_id,
+        secondary_wrestler_id: proposal.drop_wrestler_id ?? null,
+      });
+    }
   }
   return {};
 }

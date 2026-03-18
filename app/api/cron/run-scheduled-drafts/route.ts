@@ -26,6 +26,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (process.env.DISABLE_AUTOPICK_DRAFT === "1" || process.env.DISABLE_AUTOPICK_DRAFT === "true") {
+    return NextResponse.json({ ran: 0, orderGenerated: 0, message: "Autopick disabled (DISABLE_AUTOPICK_DRAFT)" });
+  }
+
   const admin = getAdminClient();
   if (!admin) {
     return NextResponse.json(

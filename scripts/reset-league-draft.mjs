@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * One-off: clear draft picks, rosters, and order for a league so the draft can be started over.
- * Usage: node scripts/reset-league-draft.mjs <league-slug> [draft_date] [draft_time]
- * Example: node scripts/reset-league-draft.mjs total-points-test
- * Example: node scripts/reset-league-draft.mjs total-points-test 2026-03-16 16:00
+ * Usage: node scripts/reset-league-draft.mjs <league-slug> [draft_date] [draft_time] [draft_type]
+ * Example: node scripts/reset-league-draft.mjs season-points-test
+ * Example: node scripts/reset-league-draft.mjs season-points-test "" "" offline
  * Requires .env with NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
  */
 
@@ -12,11 +12,12 @@ import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
 const slug = process.argv[2];
-const draftDateArg = process.argv[3]; // YYYY-MM-DD
-const draftTimeArg = process.argv[4]; // HH:MM or HH:MM:SS (24h)
+const draftDateArg = process.argv[3]; // YYYY-MM-DD or "" to skip
+const draftTimeArg = process.argv[4]; // HH:MM or "" to skip
+const draftTypeArg = process.argv[5]; // offline | live | autopick
 
 if (!slug) {
-  console.error("Usage: node scripts/reset-league-draft.mjs <league-slug> [draft_date] [draft_time]");
+  console.error("Usage: node scripts/reset-league-draft.mjs <league-slug> [draft_date] [draft_time] [draft_type]");
   process.exit(1);
 }
 
@@ -106,6 +107,9 @@ async function main() {
       updatePayload.draft_time = draftTimeArg.length === 5 ? draftTimeArg : draftTimeArg.slice(0, 5);
     }
   }
+  if (draftTypeArg && ["offline", "live", "autopick"].includes(draftTypeArg)) {
+    updatePayload.draft_type = draftTypeArg;
+  }
 
   const { error: updateErr } = await supabase
     .from("leagues")
@@ -120,8 +124,11 @@ async function main() {
   if (updatePayload.draft_date) {
     console.log("  Set draft_date:", updatePayload.draft_date, updatePayload.draft_time ? "draft_time: " + updatePayload.draft_time : "");
   }
+  if (updatePayload.draft_type) {
+    console.log("  Set draft_type:", updatePayload.draft_type);
+  }
 
-  console.log("Done. Open the draft page to generate a new draft order; then wait for the scheduled time or click Begin draft.");
+  console.log("Done. For offline draft, enter rosters manually on the league/draft page or via League Settings.");
 }
 
 main();

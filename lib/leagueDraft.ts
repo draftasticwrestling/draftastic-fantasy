@@ -1477,6 +1477,9 @@ export async function runAutoPickIfExpired(
   leagueId: string,
   options?: RunAutoPickOptions
 ): Promise<{ didAutoPick: boolean; error?: string }> {
+  const disabled = process.env.DISABLE_AUTOPICK_DRAFT === "1" || process.env.DISABLE_AUTOPICK_DRAFT === "true";
+  if (disabled) return { didAutoPick: false };
+
   const admin = getAdminClient();
   if (!admin) return { didAutoPick: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
 
@@ -1581,6 +1584,9 @@ export function getScheduledDraftTimeMs(league: {
 export async function runFullAutopickDraftAtScheduledTime(
   leagueId: string
 ): Promise<{ didRun: boolean; error?: string }> {
+  const disabled = process.env.DISABLE_AUTOPICK_DRAFT === "1" || process.env.DISABLE_AUTOPICK_DRAFT === "true";
+  if (disabled) return { didRun: false };
+
   const admin = getAdminClient();
   if (!admin) return { didRun: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
   const { data: league } = await admin

@@ -294,8 +294,17 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                           {item.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                           {" for "}
                           {item.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
-                          {item.status !== "pending" && (
-                            <span style={{ marginLeft: 6, fontWeight: 600 }}>— {item.status}</span>
+                          {(item.status === "gm_approved" || item.status === "accepted") && (
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-success)", fontWeight: 600 }}>✓ Trade approved</span>
+                          )}
+                          {item.status === "gm_rejected" && (
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-text-muted)", fontWeight: 500 }}>Rejected by GM</span>
+                          )}
+                          {item.status === "rejected" && (
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-text-muted)", fontWeight: 500 }}>Declined</span>
+                          )}
+                          {item.status === "awaiting_gm_approval" && (
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-text-muted)", fontWeight: 500 }}>Awaiting GM approval</span>
                           )}
                         </>
                       )}

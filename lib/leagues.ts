@@ -709,7 +709,12 @@ export async function getLeagueScoring(
   const empty = { pointsBySlug: {}, pointsByOwner: {}, pointsByOwnerByWrestler: {} };
   if (!league) return empty;
 
-  const start = (league.draft_date || league.start_date) ?? "";
+  // Use draft_date as start when set so events on the draft day (e.g. RAW same day as draft) count. Otherwise start_date/created_at.
+  const draftStart = league.draft_date ? String(league.draft_date).slice(0, 10) : "";
+  const start =
+    draftStart ||
+    (league.start_date ? String(league.start_date).slice(0, 10) : "") ||
+    "";
   const end = league.end_date ?? "";
   if (!start && !end) return empty;
 
