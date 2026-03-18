@@ -46,6 +46,16 @@ create table if not exists public.league_trade_proposals (
   to_user_drop_ids text[] null
 );
 
+-- If the table already existed, `create table if not exists` will not add the new columns.
+-- This makes the migration idempotent.
+alter table public.league_trade_proposals add column if not exists to_responded_at timestamptz null;
+alter table public.league_trade_proposals add column if not exists accepted_at timestamptz null;
+alter table public.league_trade_proposals add column if not exists gm_responded_at timestamptz null;
+alter table public.league_trade_proposals add column if not exists executed_at timestamptz null;
+alter table public.league_trade_proposals add column if not exists cancelled_at timestamptz null;
+alter table public.league_trade_proposals add column if not exists expired_at timestamptz null;
+alter table public.league_trade_proposals add column if not exists to_user_drop_ids text[] null;
+
 create table if not exists public.league_trade_proposal_items (
   id uuid primary key default gen_random_uuid(),
   proposal_id uuid not null references public.league_trade_proposals on delete cascade,
