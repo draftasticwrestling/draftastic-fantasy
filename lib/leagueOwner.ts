@@ -1212,22 +1212,148 @@ export async function addFreeAgentImmediate(
     .eq("user_id", user.id)
     .maybeSingle();
   if (!member) return { error: "You are not in this league." };
-  if (dropWrestlerId?.trim()) {
-    const dropRes = await removeWrestlerFromRoster(leagueId, user.id, dropWrestlerId.trim(), undefined, true);
-    if (dropRes.error) return dropRes;
-  }
-  const addRes = await addWrestlerToRoster(leagueId, user.id, wrestlerId.trim(), null, true);
-  if (addRes.error) return addRes;
+
+  const widToAdd = wrestlerId.trim();
+  const widToDrop = dropWrestlerId?.trim() || null;
+
+  // Pre-validate combined operation so we don't drop first and then fail the add.
+  // (removeWrestlerFromRoster does not enforce roster minimums; addWrestlerToRoster does.)
   const admin = getAdminClient();
+  if (widToAdd && widToDrop && !admin) {
+    return { error: "Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set." };
+  }
+
+  const { data: rosterRows } = await supabase
+    .from("league_rosters")
+    .select("wrestler_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", user.id)
+    .is("released_at", null);
+
+  const currentIds = (rosterRows ?? []).map((r: { wrestler_id: string }) => r.wrestler_id);
+  if (currentIds.includes(widToAdd)) return { error: "That wrestler is already on your roster." };
+
+  const { count: memberCountResult } = await supabase
+    .from("league_members")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", leagueId);
+  const teamCount = memberCountResult ?? 0;
+  const rules = getRosterRulesForLeague(teamCount);
+  if (!rules) return { error: "League roster rules could not be loaded." };
+
+  const dropGenderRequired = widToDrop ? widToDrop : null;
+  const allIds = [...new Set([...(currentIds ?? []), widToAdd, ...(dropGenderRequired ? [dropGenderRequired] : [])])];
+  const { data: wrestlerRows } = await supabase
+    .from("wrestlers")
+    .select("id, gender")
+    .in("id", allIds);
+
+  const genderById: Record<string, "F" | "M" | null> = {};
+  for (const w of wrestlerRows ?? []) {
+    const row = w as { id: string; gender: string | null };
+    genderById[row.id] = normalizeGender(row.gender);
+  }
+
+  let female = 0;
+  let male = 0;
+  for (const id of currentIds) {
+    const g = genderById[id];
+    if (g === "F") female++;
+    else if (g === "M") male++;
+  }
+
+  if (widToDrop) {
+    if (!currentIds.includes(widToDrop)) return { error: "Selected drop must be on your roster." };
+    const dropGender = genderById[widToDrop];
+    if (dropGender === "F") female -= 1;
+    else if (dropGender === "M") male -= 1;
+  }
+
+  const addGender = genderById[widToAdd];
+  if (addGender === "F") female += 1;
+  else if (addGender === "M") male += 1;
+
+  const afterTotal = currentIds.length + (widToDrop ? 0 : 1);
+  if (afterTotal > rules.rosterSize) {
+    return { error: `Roster full (max ${rules.rosterSize} wrestlers).` };
+  }
+
+  const minTotal = rules.minFemale + rules.minMale;
+  if (afterTotal < minTotal || female < rules.minFemale || male < rules.minMale) {
+    return {
+      error: `Swap would break roster minimums (${rules.minFemale} women, ${rules.minMale} men). No changes were made.`,
+    };
+  }
+
+  // Apply changes: drop (if any), then add. If add fails, rollback the drop.
+  const today = new Date().toISOString().slice(0, 10);
+  let droppedRow: { wrestler_id: string; contract: string | null; acquired_at: string } | null = null;
+
+  if (widToDrop) {
+    const dropFetch = await admin!
+      .from("league_rosters")
+      .select("wrestler_id, contract, acquired_at")
+      .eq("league_id", leagueId)
+      .eq("user_id", user.id)
+      .eq("wrestler_id", widToDrop)
+      .is("released_at", null)
+      .maybeSingle();
+
+    const dropData = dropFetch.data as { wrestler_id: string; contract: string | null; acquired_at: string } | null;
+    if (!dropData) return { error: "Selected drop must be on your roster." };
+    droppedRow = {
+      wrestler_id: dropData.wrestler_id,
+      contract: dropData.contract ?? null,
+      acquired_at: dropData.acquired_at ? String(dropData.acquired_at).slice(0, 10) : today,
+    };
+
+    const { error: dropUpdateErr } = await admin!
+      .from("league_rosters")
+      .update({ released_at: today })
+      .eq("league_id", leagueId)
+      .eq("user_id", user.id)
+      .eq("wrestler_id", widToDrop)
+      .is("released_at", null);
+    if (dropUpdateErr) return { error: dropUpdateErr.message };
+  }
+
+  const addRes = await addWrestlerToRoster(leagueId, user.id, widToAdd, null, true);
+  if (addRes.error) {
+    // Roll back drop so we never end up half-applied.
+    if (widToDrop && droppedRow) {
+      await admin!
+        .from("league_rosters")
+        .insert({
+          league_id: leagueId,
+          user_id: user.id,
+          wrestler_id: droppedRow.wrestler_id,
+          contract: droppedRow.contract,
+          acquired_at: droppedRow.acquired_at,
+          released_at: null,
+        });
+    }
+    return addRes;
+  }
+
   if (admin) {
+    if (widToDrop) {
+      await admin.from("league_activity").insert({
+        league_id: leagueId,
+        activity_type: "drop",
+        user_id: user.id,
+        wrestler_id: widToDrop,
+        secondary_wrestler_id: null,
+      });
+    }
     await admin.from("league_activity").insert({
       league_id: leagueId,
       activity_type: "fa_add",
       user_id: user.id,
-      wrestler_id: wrestlerId.trim(),
-      secondary_wrestler_id: dropWrestlerId?.trim() || null,
+      wrestler_id: widToAdd,
+      secondary_wrestler_id: widToDrop,
     });
   }
+
   return {};
 }
 

@@ -74,9 +74,11 @@ export default async function ProposalsPage({ params }: Props) {
         Trades (pending and completed) and roster moves. When both managers agree, the commissioner must approve the trade. Drops and free agent pickups are first come, first serve.
       </p>
 
-      {isCommissioner && awaitingGmTrades.length > 0 && (
+      {awaitingGmTrades.length > 0 && (
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Trades awaiting your approval</h2>
+          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>
+            Trades awaiting GM approval
+          </h2>
           <p style={{ fontSize: 14, color: "#555", marginBottom: 12 }}>
             Both managers have agreed. Approve or reject to complete the trade.
           </p>
@@ -120,7 +122,7 @@ export default async function ProposalsPage({ params }: Props) {
                       </span>
                     );
                   })()}
-                  <TradeGmActions leagueSlug={slug} proposalId={p.id} />
+                  {isCommissioner && <TradeGmActions leagueSlug={slug} proposalId={p.id} />}
                 </span>
               </li>
             ))}
