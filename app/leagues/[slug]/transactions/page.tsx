@@ -9,6 +9,8 @@ import {
   type TradeProposal,
   type ReleaseProposal,
   type FreeAgentProposal,
+  getLeagueRosterActivity,
+  type LeagueRosterActivityItem,
 } from "@/lib/leagueOwner";
 
 export const dynamic = "force-dynamic";
@@ -52,11 +54,12 @@ export default async function TransactionsPage({
   const { data: { user: currentUser } } = await supabase.auth.getUser();
   if (!currentUser) notFound();
 
-  const [members, tradeProposals, releaseProposals, faProposals] = await Promise.all([
+  const [members, tradeProposals, releaseProposals, faProposals, activity] = await Promise.all([
     getLeagueMembers(league.id),
     getTradeProposalsForLeague(league.id),
     getReleaseProposalsForLeague(league.id),
     getFreeAgentProposalsForLeague(league.id),
+    getLeagueRosterActivity(league.id, 200),
   ]);
 
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
@@ -119,6 +122,33 @@ export default async function TransactionsPage({
       status: statusDisplay,
       sortKey: p.created_at,
     });
+  }
+
+  // Drops and FA adds from league_activity for this user (including instant moves and backfilled approved proposals).
+  for (const a of activity as LeagueRosterActivityItem[]) {
+    if (a.user_id !== currentUser.id) continue;
+    if (a.activity_type === "drop") {
+      const name = wrestlerName[a.wrestler_id] ?? a.wrestler_id;
+      rows.push({
+        date: a.created_at,
+        type: "Release",
+        description: `Released ${name}`,
+        status: "Approved",
+        sortKey: a.created_at,
+      });
+    } else if (a.activity_type === "fa_add") {
+      const addName = wrestlerName[a.wrestler_id] ?? a.wrestler_id;
+      const dropStr = a.secondary_wrestler_id
+        ? ` (dropped ${wrestlerName[a.secondary_wrestler_id] ?? a.secondary_wrestler_id})`
+        : "";
+      rows.push({
+        date: a.created_at,
+        type: "Free Agent",
+        description: `Added ${addName}${dropStr}`,
+        status: "Approved",
+        sortKey: a.created_at,
+      });
+    }
   }
 
   rows.sort((a, b) => (b.sortKey > a.sortKey ? 1 : -1));
