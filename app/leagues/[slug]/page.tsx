@@ -9,6 +9,7 @@ import { getTradeProposalsForLeague, getLeagueRosterActivity } from "@/lib/leagu
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { RostersSection } from "./RostersSection";
+import { TradeProposalRespond } from "./team/TradeProposalRespond";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -148,6 +149,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const myTeamName = (currentUserMember?.team_name?.trim() || currentUserMember?.display_name?.trim() || "My Team").trim() || "My Team";
     const myManagerName = currentUserMember?.display_name?.trim() || "Manager";
 
+    const pendingTradesForMe = currentUser
+      ? tradeProposals.filter((p) => p.status === "pending" && p.to_user_id === currentUser.id)
+      : [];
+
     return (
     <>
       {isCommissioner && showInviteModal && (
@@ -264,6 +269,67 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               </p>
             )}
           </div>
+
+          {pendingTradesForMe.length > 0 && currentUser && (
+            <div className="lm-card" style={{ marginBottom: 24 }}>
+              <h2 className="lm-card-title" style={{ marginBottom: 12 }}>
+                Trade proposals for you
+              </h2>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {pendingTradesForMe.map((p) => {
+                  const rosterSize = rosterRules?.rosterSize ?? (rosters[currentUser.id]?.length ?? 0);
+                  const myRosterEntries = rosters[currentUser.id] ?? [];
+                  const myRosterIds = myRosterEntries.map((e) => e.wrestler_id);
+                  const giveCount = p.items.filter((i) => i.direction === "give").length; // recipient receives
+                  const receiveCount = p.items.filter((i) => i.direction === "receive").length; // recipient gives
+                  const delta = giveCount - receiveCount;
+                  const requiredDropCount = Math.max(0, myRosterIds.length + delta - rosterSize);
+                  const outgoing = new Set(p.items.filter((i) => i.direction === "receive").map((i) => i.wrestler_id));
+                  const dropChoices = myRosterIds
+                    .filter((id) => !outgoing.has(id))
+                    .map((id) => ({ id, name: wrestlerNames[id] ?? id }));
+
+                  return (
+                    <li
+                      key={p.id}
+                      style={{
+                        padding: "12px 0",
+                        borderBottom: "1px solid var(--color-border-light)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span style={{ flex: 1, minWidth: 260 }}>
+                        {memberByUserId[p.from_user_id]?.display_name?.trim() ??
+                          memberByUserId[p.from_user_id]?.team_name?.trim() ??
+                          "Unknown"}{" "}
+                        proposes: you give{" "}
+                        {p.items
+                          .filter((i) => i.direction === "receive")
+                          .map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id)
+                          .join(", ")}{" "}
+                        and receive{" "}
+                        {p.items
+                          .filter((i) => i.direction === "give")
+                          .map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id)
+                          .join(", ")}
+                      </span>
+                      <TradeProposalRespond
+                        leagueSlug={slug}
+                        proposalId={p.id}
+                        proposalFromUserId={p.from_user_id}
+                        requiredDropCount={requiredDropCount}
+                        dropChoices={dropChoices}
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
 
           {/* Two-column: League Manager Note + Recent Activity */}
           <div className="lm-main-grid">
