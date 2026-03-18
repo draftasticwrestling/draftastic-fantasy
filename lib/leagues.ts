@@ -43,23 +43,24 @@ export type LeagueMember = {
 export type LeagueWithRole = League & { role: "commissioner" | "owner" };
 
 /**
- * Date (YYYY-MM-DD) from which the league counts points. Uses the later of start_date and
- * draft_date when both are set (so we never include events before the draft), then
- * start_date ?? draft_date ?? created_at, so "Since League Start" matches matchup logic.
+ * Date (YYYY-MM-DD) from which the league counts points. Matches getLeagueScoring so that
+ * League Leaders, roster tables, and standings all use the same event window: when
+ * draft_date is set we use it (so events on draft day count); otherwise start_date ??
+ * draft_date ?? created_at. This ensures wrestler points show on rosters and League
+ * Leaders when team totals show in standings.
  */
 export function getEffectiveLeagueStartDate(league: {
   start_date: string | null;
   draft_date?: string | null;
   created_at?: string;
 }): string {
-  const start = league.start_date ? league.start_date.slice(0, 10) : null;
   const draft = league.draft_date ? league.draft_date.slice(0, 10) : null;
+  const start = league.start_date ? league.start_date.slice(0, 10) : null;
   const created = league.created_at ? league.created_at.slice(0, 10) : null;
   const raw =
-    (start && draft ? (start > draft ? start : draft) : null) ??
-    start ??
-    draft ??
-    created ??
+    draft ||
+    start ||
+    created ||
     "2025-05-02";
   return raw;
 }
