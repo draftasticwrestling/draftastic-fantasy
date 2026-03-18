@@ -84,7 +84,11 @@ export default async function ProposalsPage({ params }: Props) {
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {awaitingGmTrades.map((p) => (
-              <li key={p.id} style={{ padding: "12px 0", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <li
+                key={p.id}
+                id={`proposal-${p.id}`}
+                style={{ padding: "12px 0", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}
+              >
                 <span style={{ flex: 1, minWidth: 260 }}>
                   {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} ↔ {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
                   {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}

@@ -363,13 +363,37 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                             <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-success)", fontWeight: 600 }}>✓ Trade approved</span>
                           )}
                           {item.status === "gm_rejected" && (
-                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-text-muted)", fontWeight: 500 }}>Rejected by GM</span>
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Rejected by GM</span>
+                          )}
+                          {item.status === "cancelled" && (
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Cancelled</span>
+                          )}
+                          {item.status === "expired" && (
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Expired</span>
                           )}
                           {item.status === "rejected" && (
-                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-text-muted)", fontWeight: 500 }}>Declined</span>
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Declined</span>
                           )}
                           {item.status === "awaiting_gm_approval" && (
-                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-text-muted)", fontWeight: 500 }}>Awaiting GM approval</span>
+                            <>
+                              <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-warning)", fontWeight: 600 }}>Awaiting GM approval</span>
+                              <Link
+                                href={`/leagues/${slug}/proposals#proposal-${item.id}`}
+                                style={{
+                                  marginLeft: 10,
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: "var(--color-blue)",
+                                  textDecoration: "none",
+                                  border: "1px solid var(--color-blue)",
+                                  borderRadius: 999,
+                                  padding: "3px 10px",
+                                  display: "inline-block",
+                                }}
+                              >
+                                Vote
+                              </Link>
+                            </>
                           )}
                         </>
                       )}

@@ -41,6 +41,11 @@
   --color-success-muted: #1b5e20;
   --color-success-bg: rgba(46, 125, 50, 0.12);
 
+  /* Warnings (e.g. awaiting reviews) */
+  --color-warning: #d97706;
+  --color-warning-muted: #b45309;
+  --color-warning-bg: rgba(217, 119, 6, 0.12);
+
   /* Spacing & layout */
   --page-padding-x: 20px;
   --page-padding-x-mobile: 16px;
