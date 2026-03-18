@@ -8,6 +8,8 @@ alter table public.league_trade_proposals
   add constraint league_trade_proposals_status_check
   check (status in (
     'pending',
+    'cancelled',
+    'expired',
     'rejected',
     'accepted',
     'awaiting_gm_approval',
@@ -15,4 +17,4 @@ alter table public.league_trade_proposals
     'gm_rejected'
   ));
 
-comment on column public.league_trade_proposals.status is 'pending=waiting on other owner; rejected=declined; awaiting_gm_approval=accepted, needs GM; gm_approved=executed; gm_rejected=GM declined; accepted=legacy executed.';
+comment on column public.league_trade_proposals.status is 'pending=waiting on other owner; cancelled=withdrawn by proposer; expired=timed out waiting on recipient; rejected=declined; awaiting_gm_approval=accepted, needs GM; gm_approved=executed (GM or auto); gm_rejected=GM declined; accepted=legacy executed.';

@@ -15,6 +15,7 @@ import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
 import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
 import { TradeProposalRespond } from "../TradeProposalRespond";
+import { CancelTradeButton } from "../CancelTradeButton";
 import { RosterTable } from "../../RosterTable";
 import { RosterCardGrid } from "../RosterCardGrid";
 import type { WrestlerRow } from "@/app/wrestlers/WrestlerList";
@@ -472,7 +473,28 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                     .map((i) => wrestlerNamesMap[i.wrestler_id] ?? i.wrestler_id)
                     .join(", ")}
                 </span>
-                <TradeProposalRespond leagueSlug={slug} proposalId={p.id} proposalFromUserId={p.from_user_id} />
+                {(() => {
+                  const rosterRules = getRosterRulesForLeague(members.length);
+                  const myRosterIds = (rosters[currentUser.id] ?? []).map((e) => e.wrestler_id);
+                  const giveCount = p.items.filter((i) => i.direction === "give").length; // recipient receives
+                  const receiveCount = p.items.filter((i) => i.direction === "receive").length; // recipient gives
+                  const delta = giveCount - receiveCount;
+                  const rosterSize = rosterRules?.rosterSize ?? myRosterIds.length;
+                  const requiredDropCount = Math.max(0, myRosterIds.length + delta - rosterSize);
+                  const outgoing = new Set(p.items.filter((i) => i.direction === "receive").map((i) => i.wrestler_id));
+                  const dropChoices = myRosterIds
+                    .filter((id) => !outgoing.has(id))
+                    .map((id) => ({ id, name: wrestlerNamesMap[id] ?? id }));
+                  return (
+                    <TradeProposalRespond
+                      leagueSlug={slug}
+                      proposalId={p.id}
+                      proposalFromUserId={p.from_user_id}
+                      requiredDropCount={requiredDropCount}
+                      dropChoices={dropChoices}
+                    />
+                  );
+                })()}
               </li>
             ))}
           </ul>
@@ -486,15 +508,22 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             {tradeProposals
               .filter((p) => p.from_user_id === currentUser.id)
               .map((p) => (
-                <li key={p.id} style={{ padding: "6px 0", color: "#666" }}>
-                  Trade to {memberByUserId[p.to_user_id]?.display_name ?? memberByUserId[p.to_user_id]?.team_name ?? "another owner"}:{" "}
-                  {p.status === "pending" && "Pending"}
-                  {p.status === "rejected" && "Declined"}
-                  {p.status === "awaiting_gm_approval" && "Accepted — awaiting GM approval"}
-                  {p.status === "gm_approved" && "Approved"}
-                  {p.status === "gm_rejected" && "Rejected by GM"}
-                  {p.status === "accepted" && "Completed"}
-                  {!["pending", "rejected", "awaiting_gm_approval", "gm_approved", "gm_rejected", "accepted"].includes(p.status) && p.status}
+                <li key={p.id} style={{ padding: "8px 0", color: "#666", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <span>
+                    Trade to {memberByUserId[p.to_user_id]?.display_name ?? memberByUserId[p.to_user_id]?.team_name ?? "another owner"}:{" "}
+                    {p.status === "pending" && "Pending"}
+                    {p.status === "cancelled" && "Cancelled"}
+                    {p.status === "expired" && "Expired"}
+                    {p.status === "rejected" && "Declined"}
+                    {p.status === "awaiting_gm_approval" && "Accepted — awaiting GM approval"}
+                    {p.status === "gm_approved" && "Approved"}
+                    {p.status === "gm_rejected" && "Rejected by GM"}
+                    {p.status === "accepted" && "Completed"}
+                    {!["pending", "cancelled", "expired", "rejected", "awaiting_gm_approval", "gm_approved", "gm_rejected", "accepted"].includes(p.status) && p.status}
+                  </span>
+                  {p.status === "pending" && (
+                    <CancelTradeButton leagueSlug={slug} proposalId={p.id} />
+                  )}
                 </li>
               ))}
           </ul>

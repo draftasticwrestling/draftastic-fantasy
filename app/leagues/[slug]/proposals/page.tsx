@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
-import { getTradeProposalsForLeague, getLeagueRosterActivity } from "@/lib/leagueOwner";
+import { getTradeProposalsForLeague, getLeagueRosterActivity, getTradeVoteTotals, getMyTradeVotes } from "@/lib/leagueOwner";
 import { TradeGmActions } from "./TradeGmActions";
+import { TradeVoteControls } from "./TradeVoteControls";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,9 @@ export default async function ProposalsPage({ params }: Props) {
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   const members = await getLeagueMembers(league.id);
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
 
@@ -35,7 +39,6 @@ export default async function ProposalsPage({ params }: Props) {
       getTradeProposalsForLeague(league.id),
       getLeagueRosterActivity(league.id, 50),
     ]);
-    const supabase = await createClient();
     const { data: wrestlers } = await supabase
       .from("wrestlers")
       .select("id, name");
@@ -50,6 +53,12 @@ export default async function ProposalsPage({ params }: Props) {
     p.status === "accepted" || p.status === "rejected" || p.status === "gm_approved" || p.status === "gm_rejected"
   );
   const isCommissioner = league.role === "commissioner";
+
+  const awaitingIds = awaitingGmTrades.map((p) => p.id);
+  const [voteTotals, myVotes] = await Promise.all([
+    awaitingIds.length ? getTradeVoteTotals(awaitingIds) : Promise.resolve({}),
+    awaitingIds.length ? getMyTradeVotes(awaitingIds) : Promise.resolve({}),
+  ]);
 
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 640, margin: "0 auto" }}>
@@ -72,13 +81,45 @@ export default async function ProposalsPage({ params }: Props) {
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {awaitingGmTrades.map((p) => (
               <li key={p.id} style={{ padding: "12px 0", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                <span>
+                <span style={{ flex: 1, minWidth: 260 }}>
                   {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} ↔ {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
                   {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                   {" for "}
                   {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                 </span>
-                <TradeGmActions leagueSlug={slug} proposalId={p.id} />
+                <span style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {(() => {
+                    const acceptedAt = (p as { accepted_at?: string | null }).accepted_at;
+                    const acceptedMs = acceptedAt ? Date.parse(acceptedAt) : NaN;
+                    const windowMs = 48 * 60 * 60 * 1000;
+                    const endsInMs = Number.isFinite(acceptedMs) ? (acceptedMs + windowMs - Date.now()) : NaN;
+                    const hoursLeft = Number.isFinite(endsInMs) ? Math.max(0, Math.ceil(endsInMs / (60 * 60 * 1000))) : null;
+                    const totals = voteTotals[p.id] ?? { up: 0, down: 0 };
+                    const myVote = myVotes[p.id] ?? 0;
+                    const inWindow = Number.isFinite(endsInMs) ? endsInMs > 0 : false;
+                    const disabledReason =
+                      !user ? "Sign in to vote." :
+                      (user.id === p.from_user_id || user.id === p.to_user_id) ? "Trade parties can't vote." :
+                      !inWindow ? "Voting window has ended." : null;
+                    return (
+                      <span style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                        <span style={{ fontSize: 12, color: "#666" }}>
+                          {hoursLeft != null ? <>League review ends in <strong>{hoursLeft}h</strong></> : <>League review</>}
+                        </span>
+                        <TradeVoteControls
+                          leagueSlug={slug}
+                          proposalId={p.id}
+                          up={totals.up}
+                          down={totals.down}
+                          myVote={myVote as -1 | 0 | 1}
+                          disabled={!!disabledReason}
+                          disabledReason={disabledReason}
+                        />
+                      </span>
+                    );
+                  })()}
+                  <TradeGmActions leagueSlug={slug} proposalId={p.id} />
+                </span>
               </li>
             ))}
           </ul>

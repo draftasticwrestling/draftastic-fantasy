@@ -34,7 +34,16 @@ create table if not exists public.league_trade_proposals (
   to_user_id uuid not null references auth.users on delete cascade,
   status text not null default 'pending' check (status in ('pending', 'accepted', 'rejected')),
   created_at timestamptz not null default now(),
-  responded_at timestamptz null
+  responded_at timestamptz null,
+  -- New explicit timestamps for trade timers.
+  to_responded_at timestamptz null,
+  accepted_at timestamptz null,
+  gm_responded_at timestamptz null,
+  executed_at timestamptz null,
+  cancelled_at timestamptz null,
+  expired_at timestamptz null,
+  -- If accepting an unbalanced trade would overflow roster, recipient selects drops.
+  to_user_drop_ids text[] null
 );
 
 create table if not exists public.league_trade_proposal_items (
@@ -60,6 +69,14 @@ create policy "Commissioner or to_user can update (accept/reject)"
     and (auth.uid() = to_user_id or exists (select 1 from public.leagues l where l.id = league_id and l.commissioner_id = auth.uid()))
   );
 
+-- Allow proposer to cancel their own pending proposal.
+create policy "Proposer can cancel pending trade"
+  on public.league_trade_proposals for update to authenticated
+  using (
+    public.current_user_is_league_member(league_id)
+    and auth.uid() = from_user_id
+  );
+
 alter table public.league_trade_proposal_items enable row level security;
 create policy "League members can read trade items"
   on public.league_trade_proposal_items for select to authenticated
@@ -73,6 +90,29 @@ create policy "League members can insert trade items (for own proposal)"
     select 1 from public.league_trade_proposals p
     where p.id = proposal_id and p.from_user_id = auth.uid()
   ));
+
+-- Trade votes (advisory): up/down voting on accepted trades during review window.
+create table if not exists public.league_trade_votes (
+  proposal_id uuid not null references public.league_trade_proposals on delete cascade,
+  league_id uuid not null references public.leagues on delete cascade,
+  user_id uuid not null references auth.users on delete cascade,
+  vote smallint not null check (vote in (-1, 1)),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (proposal_id, user_id)
+);
+
+create index if not exists idx_league_trade_votes_league on public.league_trade_votes (league_id);
+create index if not exists idx_league_trade_votes_proposal on public.league_trade_votes (proposal_id);
+
+alter table public.league_trade_votes enable row level security;
+create policy "League members can read trade votes"
+  on public.league_trade_votes for select to authenticated
+  using (public.current_user_is_league_member(league_id));
+create policy "Owners can manage own trade vote"
+  on public.league_trade_votes for all to authenticated
+  using (auth.uid() = user_id and public.current_user_is_league_member(league_id))
+  with check (auth.uid() = user_id and public.current_user_is_league_member(league_id));
 
 -- Release proposals: owner requests to drop a wrestler (commissioner approves).
 create table if not exists public.league_release_proposals (

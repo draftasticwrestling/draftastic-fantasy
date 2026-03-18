@@ -6,6 +6,8 @@ import {
   createTradeProposal,
   respondToTradeProposal,
   respondToTradeByGm,
+  cancelTradeProposal,
+  upsertTradeVote,
   dropWrestlerImmediate,
   addFreeAgentImmediate,
 } from "@/lib/leagueOwner";
@@ -80,12 +82,36 @@ export async function addFreeAgentAction(
 export async function respondToTradeAction(
   leagueSlug: string,
   proposalId: string,
-  accept: boolean
+  accept: boolean,
+  toUserDropIds?: string[]
 ): Promise<{ error?: string }> {
-  const result = await respondToTradeProposal(proposalId, accept);
+  const result = await respondToTradeProposal(proposalId, accept, toUserDropIds);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
   revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/proposals`);
+  return {};
+}
+
+export async function cancelTradeAction(
+  leagueSlug: string,
+  proposalId: string
+): Promise<{ error?: string }> {
+  const result = await cancelTradeProposal(proposalId);
+  if (result.error) return result;
+  revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/proposals`);
+  return {};
+}
+
+export async function voteOnTradeAction(
+  leagueSlug: string,
+  proposalId: string,
+  vote: -1 | 1
+): Promise<{ error?: string }> {
+  const result = await upsertTradeVote(proposalId, vote);
+  if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/proposals`);
   return {};
 }
