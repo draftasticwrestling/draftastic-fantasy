@@ -141,7 +141,7 @@ body > .site-footer {
   align-items: center;
   gap: 12px;
   padding: 8px var(--page-padding-x);
-  background: #e0e3e7;
+  background: #c0c4cc;
   border-bottom: 1px solid var(--color-border);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;

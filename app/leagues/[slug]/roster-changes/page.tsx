@@ -9,6 +9,8 @@ import {
   type TradeProposal,
   type ReleaseProposal,
   type FreeAgentProposal,
+  getLeagueRosterActivity,
+  type LeagueRosterActivityItem,
 } from "@/lib/leagueOwner";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +26,21 @@ type RosterChangeRow = {
 
 function teamLabel(m: { team_name?: string | null; display_name?: string | null }): string {
   return (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+}
+
+function tradeStatusLabel(status: string): string {
+  switch (status) {
+    case "gm_approved":
+    case "accepted":
+      return "Approved";
+    case "gm_rejected":
+    case "rejected":
+      return "Rejected";
+    case "awaiting_gm_approval":
+      return "Accepted — awaiting GM approval";
+    default:
+      return "Pending";
+  }
 }
 
 export async function generateMetadata({
@@ -49,11 +66,12 @@ export default async function RosterChangesPage({
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const [members, tradeProposals, releaseProposals, faProposals] = await Promise.all([
+  const [members, tradeProposals, releaseProposals, faProposals, activity] = await Promise.all([
     getLeagueMembers(league.id),
     getTradeProposalsForLeague(league.id),
     getReleaseProposalsForLeague(league.id),
     getFreeAgentProposalsForLeague(league.id),
+    getLeagueRosterActivity(league.id, 200),
   ]);
 
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
@@ -82,13 +100,15 @@ export default async function RosterChangesPage({
       type: "Trade",
       teams: `${fromLabel} ↔ ${toLabel}`,
       description: `${fromLabel} traded ${giveStr} to ${toLabel} for ${receiveStr}`,
-      status: p.status === "accepted" ? "Accepted" : p.status === "rejected" ? "Rejected" : "Pending",
+      status: tradeStatusLabel(p.status),
       sortKey: p.created_at,
     });
   }
 
   // All releases in the league
   for (const p of releaseProposals as ReleaseProposal[]) {
+    // Approved releases are reflected in league_activity; show only pending/rejected here.
+    if (p.status === "approved") continue;
     const team = teamLabel(memberByUserId[p.user_id] ?? {});
     const name = wrestlerName[p.wrestler_id] ?? p.wrestler_id;
     rows.push({
@@ -103,6 +123,8 @@ export default async function RosterChangesPage({
 
   // All free agent signings in the league
   for (const p of faProposals as FreeAgentProposal[]) {
+    // Approved FA adds are reflected in league_activity; show only pending/rejected here.
+    if (p.status === "approved") continue;
     const team = teamLabel(memberByUserId[p.user_id] ?? {});
     const addName = wrestlerName[p.wrestler_id] ?? p.wrestler_id;
     const dropStr = p.drop_wrestler_id
@@ -116,6 +138,35 @@ export default async function RosterChangesPage({
       status: p.status === "approved" ? "Approved" : p.status === "rejected" ? "Rejected" : "Pending",
       sortKey: p.created_at,
     });
+  }
+
+  // Completed drops and free-agent adds from league_activity (including historical approved proposals and instant moves).
+  for (const a of activity as LeagueRosterActivityItem[]) {
+    const team = teamLabel(memberByUserId[a.user_id] ?? {});
+    if (a.activity_type === "drop") {
+      const name = wrestlerName[a.wrestler_id] ?? a.wrestler_id;
+      rows.push({
+        date: a.created_at,
+        type: "Release",
+        teams: team,
+        description: `Released ${name}`,
+        status: "Approved",
+        sortKey: a.created_at,
+      });
+    } else if (a.activity_type === "fa_add") {
+      const addName = wrestlerName[a.wrestler_id] ?? a.wrestler_id;
+      const dropStr = a.secondary_wrestler_id
+        ? ` (dropped ${wrestlerName[a.secondary_wrestler_id] ?? a.secondary_wrestler_id})`
+        : "";
+      rows.push({
+        date: a.created_at,
+        type: "Free Agent",
+        teams: team,
+        description: `Added ${addName}${dropStr}`,
+        status: "Approved",
+        sortKey: a.created_at,
+      });
+    }
   }
 
   rows.sort((a, b) => (b.sortKey > a.sortKey ? 1 : -1));
