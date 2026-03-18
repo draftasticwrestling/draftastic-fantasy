@@ -152,11 +152,39 @@ export async function getTradeProposalsForLeague(
   leagueId: string
 ): Promise<TradeProposal[]> {
   const supabase = await createClient();
-  const { data: proposals, error } = await supabase
+  const full = await supabase
     .from("league_trade_proposals")
     .select("id, league_id, from_user_id, to_user_id, status, created_at, responded_at, to_responded_at, accepted_at, gm_responded_at, executed_at, cancelled_at, expired_at, to_user_drop_ids")
     .eq("league_id", leagueId)
     .order("created_at", { ascending: false });
+  let proposals: TradeProposal[] | null = (full.data ?? null) as TradeProposal[] | null;
+  let error = full.error;
+
+  const isColumnError =
+    error &&
+    (error.code === "42703" ||
+      /column.*does not exist/i.test(error.message ?? "") ||
+      /schema cache/i.test(error.message ?? ""));
+  if (isColumnError) {
+    const fallback = await supabase
+      .from("league_trade_proposals")
+      .select("id, league_id, from_user_id, to_user_id, status, created_at, responded_at")
+      .eq("league_id", leagueId)
+      .order("created_at", { ascending: false });
+    proposals = ((fallback.data ?? []) as TradeProposal[]).map((p) => ({
+      ...(p as TradeProposal),
+      to_responded_at: null,
+      accepted_at: null,
+      gm_responded_at: null,
+      executed_at: null,
+      cancelled_at: null,
+      expired_at: null,
+      to_user_drop_ids: null,
+      items: [],
+    }));
+    error = fallback.error;
+  }
+
   if (error || !proposals?.length) return [];
 
   const ids = (proposals as { id: string }[]).map((p) => p.id);
@@ -837,7 +865,7 @@ export async function upsertTradeVote(
   if (!member) return { error: "You are not in this league." };
 
   const now = new Date().toISOString();
-  const { error } = await supabase
+  const res = await supabase
     .from("league_trade_votes")
     .upsert({
       proposal_id: proposalId,
@@ -846,7 +874,14 @@ export async function upsertTradeVote(
       vote,
       updated_at: now,
     }, { onConflict: "proposal_id,user_id" });
-  return error ? { error: error.message } : {};
+  if (res.error) {
+    const e = res.error;
+    const missing =
+      e.code === "42P01" || /relation.*does not exist/i.test(e.message ?? "") || /schema cache/i.test(e.message ?? "");
+    if (missing) return { error: "Trade voting is not enabled yet (missing table). Please try again after the next deploy." };
+    return { error: e.message };
+  }
+  return {};
 }
 
 export async function getTradeVoteTotals(
@@ -855,12 +890,21 @@ export async function getTradeVoteTotals(
   const supabase = await createClient();
   const ids = uniqTrim(proposalIds);
   if (ids.length === 0) return {};
-  const { data } = await supabase
+  const res = await supabase
     .from("league_trade_votes")
     .select("proposal_id, vote")
     .in("proposal_id", ids);
   const out: Record<string, { up: number; down: number }> = {};
   for (const id of ids) out[id] = { up: 0, down: 0 };
+
+  if (res.error) {
+    const e = res.error;
+    const missing =
+      e.code === "42P01" || /relation.*does not exist/i.test(e.message ?? "") || /schema cache/i.test(e.message ?? "");
+    if (missing) return out;
+    return out;
+  }
+  const data = res.data;
   for (const row of data ?? []) {
     const r = row as { proposal_id: string; vote: number };
     if (!out[r.proposal_id]) out[r.proposal_id] = { up: 0, down: 0 };
@@ -878,13 +922,15 @@ export async function getMyTradeVotes(
   if (!user) return {};
   const ids = uniqTrim(proposalIds);
   if (ids.length === 0) return {};
-  const { data } = await supabase
+  const res = await supabase
     .from("league_trade_votes")
     .select("proposal_id, vote")
     .eq("user_id", user.id)
     .in("proposal_id", ids);
   const out: Record<string, -1 | 1 | 0> = {};
   for (const id of ids) out[id] = 0;
+  if (res.error) return out;
+  const data = res.data;
   for (const row of data ?? []) {
     const r = row as { proposal_id: string; vote: number };
     out[r.proposal_id] = (r.vote === -1 ? -1 : 1);

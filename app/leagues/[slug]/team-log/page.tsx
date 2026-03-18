@@ -1,4 +1,4 @@
-import UnderConstruction from "@/app/components/UnderConstruction";
+import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Team Log — Draftastic Fantasy",
@@ -11,5 +11,5 @@ export default async function TeamLogPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <UnderConstruction title="Team Log" leagueSlug={slug} />;
+  redirect(`/leagues/${slug}/transactions`);
 }
