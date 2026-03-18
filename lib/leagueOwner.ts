@@ -266,9 +266,8 @@ export async function validateTradeRosters(
       error: `After this trade your roster would not meet the minimum (${minTotal} wrestlers, ${rules.minFemale} women, ${rules.minMale} men). You would have ${fromTotal} (${fromF} women, ${fromM} men).`,
     };
   }
-  if (toTotal > rules.rosterSize) {
-    return { error: `After this trade the other manager's roster would have ${toTotal} wrestlers. Maximum is ${rules.rosterSize}.` };
-  }
+  // Allow proposals that would put the recipient over roster max (e.g. 2-for-1).
+  // Recipient will be required to choose drops when accepting (see respondToTradeProposal).
   if (toTotal < minTotal || toF < rules.minFemale || toM < rules.minMale) {
     return {
       error: `After this trade the other manager's roster would not meet the minimum (${minTotal} wrestlers, ${rules.minFemale} women, ${rules.minMale} men). Their roster would have ${toTotal} (${toF} women, ${toM} men).`,
