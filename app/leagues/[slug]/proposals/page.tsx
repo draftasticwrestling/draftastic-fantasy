@@ -17,7 +17,7 @@ function tradeStatusLabel(status: string): string {
     case "accepted":
       return "Approved";
     case "gm_rejected":
-      return "Rejected by GM";
+      return "Declined";
     case "rejected":
       return "Declined";
     case "cancelled":
@@ -26,6 +26,54 @@ function tradeStatusLabel(status: string): string {
       return "Expired";
     default: return status;
   }
+}
+
+function tradeStatusColor(status: string): string {
+  switch (status) {
+    case "gm_approved":
+    case "accepted":
+      return "var(--color-success)";
+    case "gm_rejected":
+    case "rejected":
+    case "cancelled":
+    case "expired":
+      return "var(--color-red)";
+    default:
+      return "inherit";
+  }
+}
+
+function formatTradeTimestamp(ts?: string | null): string | null {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getTradeDateForDisplay(p: {
+  created_at: string;
+  responded_at?: string | null;
+  accepted_at?: string | null;
+  gm_responded_at?: string | null;
+  executed_at?: string | null;
+  cancelled_at?: string | null;
+  expired_at?: string | null;
+}): string | null {
+  return (
+    formatTradeTimestamp(p.executed_at) ??
+    formatTradeTimestamp(p.cancelled_at) ??
+    formatTradeTimestamp(p.expired_at) ??
+    formatTradeTimestamp(p.gm_responded_at) ??
+    formatTradeTimestamp(p.responded_at) ??
+    formatTradeTimestamp(p.accepted_at) ??
+    formatTradeTimestamp(p.created_at)
+  );
 }
 
 export default async function ProposalsPage({ params }: Props) {
@@ -59,7 +107,12 @@ export default async function ProposalsPage({ params }: Props) {
   const pendingTrades = tradeProposals.filter((p) => p.status === "pending");
   const awaitingGmTrades = tradeProposals.filter((p) => p.status === "awaiting_gm_approval");
   const completedTrades = tradeProposals.filter((p) =>
-    p.status === "accepted" || p.status === "rejected" || p.status === "gm_approved" || p.status === "gm_rejected"
+    p.status === "accepted" ||
+    p.status === "rejected" ||
+    p.status === "gm_approved" ||
+    p.status === "gm_rejected" ||
+    p.status === "cancelled" ||
+    p.status === "expired"
   );
   const isCommissioner = league.role === "commissioner";
 
@@ -118,6 +171,7 @@ export default async function ProposalsPage({ params }: Props) {
                       !user ? "Sign in to vote." :
                       (user.id === p.from_user_id || user.id === p.to_user_id) ? "Trade parties can't vote." :
                       !inWindow ? "Voting window has ended." : null;
+                    const acceptedAtFormatted = formatTradeTimestamp(acceptedAt) ?? getTradeDateForDisplay(p);
                     return (
                       <span style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
                         <span style={{ fontSize: 12, color: "var(--color-warning)", fontWeight: 700 }}>
@@ -125,6 +179,9 @@ export default async function ProposalsPage({ params }: Props) {
                         </span>
                         <span style={{ fontSize: 12, color: "var(--color-warning)" }}>
                           {hoursLeft != null ? <>League review ends in <strong>{hoursLeft}h</strong></> : <>League review</>}
+                        </span>
+                        <span style={{ fontSize: 11, color: "rgba(100,116,139,0.95)" }}>
+                          {acceptedAtFormatted ? <>Accepted: <strong>{acceptedAtFormatted}</strong></> : <>Accepted</>}
                         </span>
                         <TradeVoteControls
                           leagueSlug={slug}
@@ -152,10 +209,15 @@ export default async function ProposalsPage({ params }: Props) {
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {pendingTrades.map((p) => (
               <li key={p.id} style={{ padding: "12px 0", borderBottom: "1px solid #eee" }}>
-                {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} → {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
-                {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
-                {" for "}
-                {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                <div style={{ fontSize: 14, color: "#555" }}>
+                  {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} → {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
+                  {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                  {" for "}
+                  {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, color: "rgba(100,116,139,0.95)" }}>
+                  {getTradeDateForDisplay(p) ? <>Proposed: <strong>{getTradeDateForDisplay(p)}</strong></> : <>Proposed</>}
+                </div>
               </li>
             ))}
           </ul>
@@ -167,13 +229,18 @@ export default async function ProposalsPage({ params }: Props) {
           <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Completed trades</h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {completedTrades.slice(0, 15).map((p) => (
-              <li key={p.id} style={{ padding: "8px 0", borderBottom: "1px solid #eee", fontSize: 14, color: "#555" }}>
-                {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} ↔ {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
-                {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
-                {" for "}
-                {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
-                {" — "}
-                <span style={{ fontWeight: 600 }}>{tradeStatusLabel(p.status)}</span>
+              <li key={p.id} style={{ padding: "8px 0", borderBottom: "1px solid #eee" }}>
+                <div style={{ fontSize: 14, color: "#555" }}>
+                  {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} ↔ {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
+                  {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                  {" for "}
+                  {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                  {" — "}
+                  <span style={{ fontWeight: 700, color: tradeStatusColor(p.status) }}>{tradeStatusLabel(p.status)}</span>
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, color: "rgba(100,116,139,0.95)" }}>
+                  {getTradeDateForDisplay(p) ? <>{getTradeDateForDisplay(p)}</> : <>Date unavailable</>}
+                </div>
               </li>
             ))}
           </ul>
