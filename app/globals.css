@@ -188,7 +188,8 @@ body > .site-footer {
 }
 
 .event-list-bar-item:hover {
-  background: var(--color-bg-elevated);
+  /* keep hover subtle on black bar */
+  background: rgba(10, 10, 10, 0.95);
 }
 
 .event-list-bar-logo {
