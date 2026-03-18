@@ -360,7 +360,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                           {" for "}
                           {item.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                           {(item.status === "gm_approved" || item.status === "accepted") && (
-                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-success)", fontWeight: 600 }}>✓ Trade approved</span>
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-success)", fontWeight: 600 }}>✓ Approved</span>
                           )}
                           {item.status === "gm_rejected" && (
                             <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Rejected by GM</span>
@@ -383,9 +383,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                                   marginLeft: 10,
                                   fontSize: 12,
                                   fontWeight: 700,
-                                  color: "var(--color-blue)",
+                                  color: "var(--color-warning)",
                                   textDecoration: "none",
-                                  border: "1px solid var(--color-blue)",
+                                  border: "1px solid var(--color-warning)",
                                   borderRadius: 999,
                                   padding: "3px 10px",
                                   display: "inline-block",

@@ -62,8 +62,9 @@ export function LeagueStandingsTable({
         }}
       >
         {members.map((m, idx) => {
-          const teamLabel =
-            (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+          const ownerName = (m.display_name?.trim() || "Unknown").trim() || "Unknown";
+          const hasCustomTeamName = !!m.team_name?.trim();
+          const teamLabel = (m.team_name?.trim() || `${ownerName}'s Team`).trim() || "Unknown";
           const pts = pointsByUserId[m.user_id] ?? 0;
           const isLeader = idx === 0;
           const extra = rowExtras[idx] ?? null;
@@ -122,7 +123,7 @@ export function LeagueStandingsTable({
                       style={{
                         fontWeight: 600,
                         fontSize: 15,
-                        textTransform: "uppercase",
+                        textTransform: hasCustomTeamName ? "uppercase" : "none",
                         letterSpacing: 0.6,
                         whiteSpace: "nowrap",
                         textOverflow: "ellipsis",
@@ -130,6 +131,18 @@ export function LeagueStandingsTable({
                       }}
                     >
                       {teamLabel}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 2,
+                        fontSize: 12,
+                        color: "rgba(229,231,235,0.85)",
+                        whiteSpace: "nowrap",
+                        textOverflow: "ellipsis",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {ownerName}
                     </div>
                   </div>
                 </Link>

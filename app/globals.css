@@ -165,13 +165,13 @@ body > .site-footer {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  min-width: 80px;
-  max-width: 100px;
+  min-width: 92px;
+  max-width: 120px;
   padding: 6px 8px;
   border-radius: var(--radius-sm);
   text-decoration: none;
-  color: var(--color-text);
-  font-size: 11px;
+  color: rgba(249, 250, 251, 0.92);
+  font-size: 12px;
   line-height: 1.2;
   transition: background 0.15s ease;
   background: transparent;
@@ -195,8 +195,8 @@ body > .site-footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 46px;
+  height: 46px;
   flex-shrink: 0;
 }
 
@@ -207,13 +207,13 @@ body > .site-footer {
 }
 
 .event-list-bar-logo-placeholder {
-  font-size: 20px;
-  color: var(--color-text-muted);
+  font-size: 26px;
+  color: rgba(249, 250, 251, 0.75);
 }
 
 .event-list-bar-date {
   font-weight: 600;
-  color: var(--color-text);
+  color: rgba(249, 250, 251, 0.95);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -222,7 +222,7 @@ body > .site-footer {
 }
 
 .event-list-bar-location {
-  color: var(--color-text-muted);
+  color: rgba(229, 231, 235, 0.75);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

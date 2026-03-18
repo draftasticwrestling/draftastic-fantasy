@@ -12,9 +12,18 @@ type Props = { params: Promise<{ slug: string }> };
 
 function tradeStatusLabel(status: string): string {
   switch (status) {
-    case "gm_approved": return "approved";
-    case "gm_rejected": return "rejected by GM";
-    case "accepted": return "completed";
+    case "gm_approved":
+      return "Approved";
+    case "accepted":
+      return "Approved";
+    case "gm_rejected":
+      return "Rejected by GM";
+    case "rejected":
+      return "Declined";
+    case "cancelled":
+      return "Cancelled";
+    case "expired":
+      return "Expired";
     default: return status;
   }
 }
@@ -111,7 +120,10 @@ export default async function ProposalsPage({ params }: Props) {
                       !inWindow ? "Voting window has ended." : null;
                     return (
                       <span style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                        <span style={{ fontSize: 12, color: "#666" }}>
+                        <span style={{ fontSize: 12, color: "var(--color-warning)", fontWeight: 700 }}>
+                          Awaiting GM approval
+                        </span>
+                        <span style={{ fontSize: 12, color: "var(--color-warning)" }}>
                           {hoursLeft != null ? <>League review ends in <strong>{hoursLeft}h</strong></> : <>League review</>}
                         </span>
                         <TradeVoteControls
