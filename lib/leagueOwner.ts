@@ -473,7 +473,7 @@ export async function getReleaseProposalsForLeague(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("league_release_proposals")
-    .select("id, league_id, user_id, wrestler_id, status, created_at")
+    .select("id, league_id, user_id, wrestler_id, status, created_at, responded_at")
     .eq("league_id", leagueId)
     .order("created_at", { ascending: false });
   if (error) return [];
@@ -561,7 +561,7 @@ export async function getFreeAgentProposalsForLeague(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("league_free_agent_proposals")
-    .select("id, league_id, user_id, wrestler_id, drop_wrestler_id, status, created_at")
+    .select("id, league_id, user_id, wrestler_id, drop_wrestler_id, status, created_at, responded_at")
     .eq("league_id", leagueId)
     .order("created_at", { ascending: false });
   if (error) return [];
@@ -759,17 +759,82 @@ export type LeagueRosterActivityItem = {
   created_at: string;
 };
 
+/**
+ * Recent drops and FA signings from league_activity, plus approved release/FA proposals
+ * that were never written to league_activity (e.g. before we added the insert).
+ * Merges and dedupes so the feed shows all drops/adds including historical ones.
+ */
 export async function getLeagueRosterActivity(
   leagueId: string,
   limit = 50
 ): Promise<LeagueRosterActivityItem[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("league_activity")
-    .select("id, league_id, activity_type, user_id, wrestler_id, secondary_wrestler_id, created_at")
-    .eq("league_id", leagueId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) return [];
-  return (data ?? []) as LeagueRosterActivityItem[];
+  const [activityRes, releaseRes, faRes] = await Promise.all([
+    supabase
+      .from("league_activity")
+      .select("id, league_id, activity_type, user_id, wrestler_id, secondary_wrestler_id, created_at")
+      .eq("league_id", leagueId)
+      .order("created_at", { ascending: false })
+      .limit(limit * 2),
+    supabase
+      .from("league_release_proposals")
+      .select("id, user_id, wrestler_id, responded_at, created_at")
+      .eq("league_id", leagueId)
+      .eq("status", "approved")
+      .order("responded_at", { ascending: false, nullsFirst: false })
+      .limit(limit),
+    supabase
+      .from("league_free_agent_proposals")
+      .select("id, user_id, wrestler_id, drop_wrestler_id, responded_at, created_at")
+      .eq("league_id", leagueId)
+      .eq("status", "approved")
+      .order("responded_at", { ascending: false, nullsFirst: false })
+      .limit(limit),
+  ]);
+
+  const activityRows = (activityRes.data ?? []) as LeagueRosterActivityItem[];
+  const seen = new Set(
+    activityRows.map((a) => `${a.activity_type}-${a.user_id}-${a.wrestler_id}-${(a.created_at || "").slice(0, 10)}`)
+  );
+
+  const fromReleases = ((releaseRes.data ?? []) as { id: string; user_id: string; wrestler_id: string; responded_at: string | null; created_at: string }[])
+    .map((r) => {
+      const created_at = r.responded_at || r.created_at;
+      const key = `drop-${r.user_id}-${r.wrestler_id}-${(created_at || "").slice(0, 10)}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+      return {
+        id: `release-${r.id}`,
+        league_id: leagueId,
+        activity_type: "drop" as const,
+        user_id: r.user_id,
+        wrestler_id: r.wrestler_id,
+        secondary_wrestler_id: null as string | null,
+        created_at: created_at || r.created_at,
+      };
+    })
+    .filter(Boolean) as LeagueRosterActivityItem[];
+
+  const fromFa = ((faRes.data ?? []) as { id: string; user_id: string; wrestler_id: string; drop_wrestler_id: string | null; responded_at: string | null; created_at: string }[])
+    .map((f) => {
+      const created_at = f.responded_at || f.created_at;
+      const key = `fa_add-${f.user_id}-${f.wrestler_id}-${(created_at || "").slice(0, 10)}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+      return {
+        id: `fa-${f.id}`,
+        league_id: leagueId,
+        activity_type: "fa_add" as const,
+        user_id: f.user_id,
+        wrestler_id: f.wrestler_id,
+        secondary_wrestler_id: f.drop_wrestler_id ?? null,
+        created_at: created_at || f.created_at,
+      };
+    })
+    .filter(Boolean) as LeagueRosterActivityItem[];
+
+  const merged = [...activityRows, ...fromReleases, ...fromFa].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+  return merged.slice(0, limit);
 }

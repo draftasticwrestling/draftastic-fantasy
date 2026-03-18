@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getLeagueBySlug } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { BasicSettingsSection } from "./BasicSettingsSection";
 import { DraftSettingsSection } from "./DraftSettingsSection";
 import { LeagueTypeSection } from "./LeagueTypeSection";
+import { RemoveOwnerSection } from "./RemoveOwnerSection";
 import { DeleteLeagueSection } from "./DeleteLeagueSection";
 
 export const metadata = {
@@ -22,6 +23,9 @@ export default async function LeagueSettingsPage({
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
+  const isCommissioner = league.role === "commissioner";
+  const members = isCommissioner ? await getLeagueMembers(league.id) : [];
+
   const draftType = league.draft_type ?? (league.draft_style as "snake" | "linear" | undefined) ?? "snake";
   const draftStyle = league.draft_style ?? (draftType === "linear" ? "linear" : "snake");
   const timePerPickSeconds = league.time_per_pick_seconds ?? 120;
@@ -31,7 +35,6 @@ export default async function LeagueSettingsPage({
   const leagueType = league.league_type ?? null;
   const maxTeams = league.max_teams ?? null;
   const autoReactivate = league.auto_reactivate ?? false;
-  const isCommissioner = league.role === "commissioner";
 
   return (
     <main className="app-page" style={{ maxWidth: 720, margin: "0 auto" }}>
@@ -64,6 +67,9 @@ export default async function LeagueSettingsPage({
             draftDate={draftDate}
             draftTime={draftTime}
           />
+          {(league.draft_status !== "in_progress" && league.draft_status !== "completed") && (
+            <RemoveOwnerSection leagueSlug={slug} members={members} />
+          )}
           <DeleteLeagueSection leagueSlug={slug} leagueName={league.name} />
         </>
       ) : (
