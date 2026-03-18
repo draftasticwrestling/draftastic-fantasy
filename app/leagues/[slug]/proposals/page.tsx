@@ -55,9 +55,11 @@ export default async function ProposalsPage({ params }: Props) {
   const isCommissioner = league.role === "commissioner";
 
   const awaitingIds = awaitingGmTrades.map((p) => p.id);
+  const emptyTotals: Record<string, { up: number; down: number }> = {};
+  const emptyMyVotes: Record<string, -1 | 0 | 1> = {};
   const [voteTotals, myVotes] = await Promise.all([
-    awaitingIds.length ? getTradeVoteTotals(awaitingIds) : Promise.resolve({}),
-    awaitingIds.length ? getMyTradeVotes(awaitingIds) : Promise.resolve({}),
+    awaitingIds.length ? getTradeVoteTotals(awaitingIds) : Promise.resolve(emptyTotals),
+    awaitingIds.length ? getMyTradeVotes(awaitingIds) : Promise.resolve(emptyMyVotes),
   ]);
 
   return (
