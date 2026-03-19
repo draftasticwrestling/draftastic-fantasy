@@ -4,6 +4,7 @@ import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
+import { rosterStintMatchesContribSlug } from "@/lib/scoring/rosterStintEventPoints";
 
 export type TeamScoreLedgerRow = {
   eventId: string;
@@ -114,16 +115,8 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     ? await supabase.from("wrestlers").select("id, name").in("id", rosterWrestlerIds)
     : { data: [] as Array<{ id: string; name: string | null }> };
   const wrestlerNameById: Record<string, string> = {};
-  const slugVariantsByWrestlerId: Record<string, string[]> = {};
   for (const w of wrestlerRows ?? []) {
     wrestlerNameById[w.id] = w.name ?? w.id;
-  }
-  for (const wid of rosterWrestlerIds) {
-    const idNorm = normalizeWrestlerName(wid);
-    const nameNorm = wrestlerNameById[wid] ? normalizeWrestlerName(wrestlerNameById[wid]) : "";
-    const variants = [wid, idNorm].filter(Boolean);
-    if (nameNorm && !variants.includes(nameNorm)) variants.push(nameNorm);
-    slugVariantsByWrestlerId[wid] = variants;
   }
 
   const filteredEvents = (events ?? []).filter((e) => {
@@ -211,11 +204,8 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       const activeStintsForEvent = teamStints.filter((s) => {
         if (eventDate < s.acquired_at) return false;
         if (s.released_at != null && eventDate > s.released_at) return false;
-        const variants = slugVariantsByWrestlerId[s.wrestler_id] ?? [
-          s.wrestler_id,
-          normalizeWrestlerName(s.wrestler_id),
-        ].filter(Boolean);
-        return s.wrestler_id === slug || variants.includes(slug);
+        const displayName = wrestlerNameById[s.wrestler_id];
+        return rosterStintMatchesContribSlug(s.wrestler_id, displayName, slug, eventDate);
       });
       if (activeStintsForEvent.length === 0) continue;
 

@@ -3,6 +3,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getDefaultStartEndForSeason } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { eventPointsForRosterStint } from "@/lib/scoring/rosterStintEventPoints";
 
 export type DraftType = "offline" | "linear" | "snake" | "autopick";
 export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
@@ -508,6 +509,17 @@ export async function getRosterStintsForLeague(
   }));
 }
 
+/** Map wrestler id → display name for roster ↔ event slug matching (personas, broadcast names). */
+export async function getWrestlerDisplayNamesByIds(wrestlerIds: string[]): Promise<Record<string, string>> {
+  const uniq = [...new Set(wrestlerIds.filter(Boolean))];
+  if (!uniq.length) return {};
+  const supabase = await createClient();
+  const { data } = await supabase.from("wrestlers").select("id, name").in("id", uniq);
+  return Object.fromEntries(
+    (data ?? []).map((w: { id: string; name: string | null }) => [w.id, w.name ?? w.id])
+  );
+}
+
 /** Sunday of the week (weekStart is Monday YYYY-MM-DD). */
 function getSundayOfWeek(weekStart: string): string {
   const d = new Date(weekStart + "T12:00:00Z");
@@ -734,6 +746,7 @@ export async function getLeagueScoring(
 
   const pointsBySlug = aggregateWrestlerPoints(filtered) as PointsBySlug;
   const stints = await getRosterStintsForLeague(leagueId);
+  const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
   const pointsByOwner: Record<string, number> = {};
   /** Per owner, points from each wrestler (only while on roster). For team page per-wrestler breakdown. */
   const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
@@ -751,7 +764,12 @@ export async function getLeagueScoring(
     for (const stint of stints) {
       if (eventDate < stint.acquired_at) continue;
       if (stint.released_at != null && eventDate > stint.released_at) continue;
-      const pts = eventPoints[stint.wrestler_id] ?? 0;
+      const pts = eventPointsForRosterStint(
+        eventPoints,
+        stint.wrestler_id,
+        wrestlerDisplayNames[stint.wrestler_id],
+        eventDate
+      );
       pointsByOwner[stint.user_id] = (pointsByOwner[stint.user_id] ?? 0) + pts;
       if (pts > 0) {
         if (!pointsByOwnerByWrestler[stint.user_id]) pointsByOwnerByWrestler[stint.user_id] = {};

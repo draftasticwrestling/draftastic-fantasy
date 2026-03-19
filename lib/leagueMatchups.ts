@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
-import { getRosterStintsForLeague, getLeagueScoring } from "@/lib/leagues";
+import { getRosterStintsForLeague, getLeagueScoring, getWrestlerDisplayNamesByIds } from "@/lib/leagues";
 import { getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { eventPointsForRosterStint } from "@/lib/scoring/rosterStintEventPoints";
 import { getWeeklyMatchupStructure } from "@/lib/publicLeagueMatchups";
 import {
   computeEndOfMonthBeltPointsForSingleMonth,
@@ -86,6 +87,7 @@ export async function getPointsByOwnerForLeagueForWeek(
     return (!leagueStart || d >= leagueStart) && (!leagueEnd || d <= leagueEnd);
   });
   const stints = await getRosterStintsForLeague(leagueId);
+  const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
   const pointsByOwner: Record<string, number> = {};
   let kotrCarryOver: Record<string, number> = {};
   for (const event of allInRange) {
@@ -100,7 +102,12 @@ export async function getPointsByOwnerForLeagueForWeek(
     for (const stint of stints) {
       if (eventDate < stint.acquired_at) continue;
       if (stint.released_at != null && eventDate > stint.released_at) continue;
-      const pts = eventPoints[stint.wrestler_id] ?? 0;
+      const pts = eventPointsForRosterStint(
+        eventPoints,
+        stint.wrestler_id,
+        wrestlerDisplayNames[stint.wrestler_id],
+        eventDate
+      );
       pointsByOwner[stint.user_id] = (pointsByOwner[stint.user_id] ?? 0) + pts;
     }
   }
@@ -135,6 +142,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
     return (!leagueStart || d >= leagueStart) && (!leagueEnd || d <= leagueEnd);
   });
   const stints = await getRosterStintsForLeague(leagueId);
+  const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
   const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let kotrCarryOver: Record<string, number> = {};
   for (const event of allInRange) {
@@ -149,7 +157,12 @@ export async function getPointsByOwnerByWrestlerForWeek(
     for (const stint of stints) {
       if (eventDate < stint.acquired_at) continue;
       if (stint.released_at != null && eventDate > stint.released_at) continue;
-      const pts = eventPoints[stint.wrestler_id] ?? 0;
+      const pts = eventPointsForRosterStint(
+        eventPoints,
+        stint.wrestler_id,
+        wrestlerDisplayNames[stint.wrestler_id],
+        eventDate
+      );
       if (pts > 0) {
         if (!pointsByOwnerByWrestler[stint.user_id]) pointsByOwnerByWrestler[stint.user_id] = {};
         pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] =
