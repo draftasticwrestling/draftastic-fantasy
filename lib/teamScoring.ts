@@ -57,6 +57,26 @@ type EventContribution = {
   details: string[];
 };
 
+/** Return shape of scoreEvent() — JS module has no TS types, so we assert locally. */
+type ScoredEventMatch = {
+  isPromo?: boolean;
+  wrestlerPoints?: Array<{
+    wrestler?: string;
+    matchPoints?: number;
+    titlePoints?: number;
+    mainEventPoints?: number;
+    battleRoyalPoints?: number;
+    specialPoints?: number;
+    breakdown?: unknown[];
+    kotrTowardNOC?: number;
+  }>;
+};
+
+type ScoredEvent = {
+  eventType: string;
+  matches?: ScoredEventMatch[];
+};
+
 /**
  * Team-attributed scoring audit:
  * - Per-event ledger rows (who scored, when, and why)
@@ -108,7 +128,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
 
   for (const event of sortedEvents) {
     const eventDate = String(event.date ?? "").slice(0, 10);
-    const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] });
+    const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] }) as ScoredEvent;
     const eventType = scored.eventType;
     const isRS = eventType === EVENT_TYPES.RAW || eventType === EVENT_TYPES.SMACKDOWN;
     const isKOTRPLE =
