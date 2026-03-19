@@ -847,18 +847,11 @@ export async function getLeagueScoring(
     const eventMs = Date.parse(`${eventDate}T23:59:59.999Z`);
     const ACTIVE_MAX_RELEASE_MS = Number.POSITIVE_INFINITY;
     function effectiveAcquiredMs(stint: typeof stints[number]): number {
-      if (stint.acquired_at_ts) {
-        const ms = Date.parse(stint.acquired_at_ts);
-        if (Number.isFinite(ms)) return ms;
-      }
+      // Events are date-only, so clamp roster effective acquisition to the acquired_at date boundary.
       const d = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
       return Date.parse(`${d}T00:00:00.000Z`);
     }
     function effectiveReleasedMs(stint: typeof stints[number]): number | null {
-      if (stint.released_at_ts) {
-        const ms = Date.parse(stint.released_at_ts);
-        if (Number.isFinite(ms)) return ms;
-      }
       if (stint.released_at == null) return null;
       const d = shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
       return Date.parse(`${d}T23:59:59.999Z`);

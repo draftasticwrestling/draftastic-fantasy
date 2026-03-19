@@ -223,18 +223,12 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
 
       const ACTIVE_MAX_RELEASE_MS = Number.POSITIVE_INFINITY;
       function effectiveAcquiredMs(s: (typeof stints)[number]): number {
-        if (s.acquired_at_ts) {
-          const ms = Date.parse(s.acquired_at_ts);
-          if (Number.isFinite(ms)) return ms;
-        }
+        // Events are date-only, so we can't attribute within-day moments reliably.
+        // Clamp roster effective acquisition to the acquired_at *date* boundary.
         const d = shiftYmd(s.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
         return Date.parse(`${d}T00:00:00.000Z`);
       }
       function effectiveReleasedMs(s: (typeof stints)[number]): number | null {
-        if (s.released_at_ts) {
-          const ms = Date.parse(s.released_at_ts);
-          if (Number.isFinite(ms)) return ms;
-        }
         if (s.released_at == null) return null;
         const d = shiftYmd(s.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
         return Date.parse(`${d}T23:59:59.999Z`);

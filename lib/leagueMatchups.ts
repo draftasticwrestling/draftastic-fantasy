@@ -110,11 +110,11 @@ export async function getPointsByOwnerForLeagueForWeek(
     if (!inWeek) continue;
     for (const stint of stints) {
       const acquiredMs = stint.acquired_at_ts
-        ? Date.parse(stint.acquired_at_ts)
+        ? Date.parse(`${shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS)}T00:00:00.000Z`)
         : Date.parse(`${shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS)}T00:00:00.000Z`);
       const releasedMs =
         stint.released_at_ts != null
-          ? Date.parse(stint.released_at_ts)
+          ? Date.parse(`${shiftYmd(stint.released_at!, ROSTER_STINT_DATE_OFFSET_DAYS)}T23:59:59.999Z`)
           : stint.released_at != null
             ? Date.parse(`${shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)}T23:59:59.999Z`)
             : null;
