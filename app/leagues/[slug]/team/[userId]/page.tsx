@@ -481,8 +481,24 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       )}
 
       {tradesForMe.length > 0 && (
-        <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Trade proposals for you</h2>
+        <section
+          style={{
+            marginBottom: 32,
+            padding: 16,
+            borderRadius: 16,
+            background: "linear-gradient(180deg, rgba(34,197,94,0.16) 0%, rgba(34,197,94,0.06) 100%)",
+            border: "1px solid rgba(34,197,94,0.35)",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "1.1rem",
+              marginBottom: 12,
+              color: "rgba(16,185,129,1)",
+            }}
+          >
+            Trade proposals for you
+          </h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {tradesForMe.map((p) => (
               <li
