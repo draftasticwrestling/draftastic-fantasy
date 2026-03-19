@@ -751,6 +751,15 @@ export async function getLeagueScoring(
   /** Per owner, points from each wrestler (only while on roster). For team page per-wrestler breakdown. */
   const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let kotrCarryOver: Record<string, number> = {};
+  // See `lib/teamScoring.ts` for why this is needed (UTC roster dates vs local event dates).
+  const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
+  function shiftYmd(ymd: string, days: number): string {
+    if (!ymd) return ymd;
+    const d = new Date(ymd + "T00:00:00Z");
+    if (Number.isNaN(d.getTime())) return ymd;
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
   const sortedEvents = [...filtered].sort((a, b) =>
     String(a.date ?? "").localeCompare(String(b.date ?? ""))
   );
@@ -762,8 +771,10 @@ export async function getLeagueScoring(
     );
     kotrCarryOver = updatedCarryOver;
     for (const stint of stints) {
-      if (eventDate < stint.acquired_at) continue;
-      if (stint.released_at != null && eventDate > stint.released_at) continue;
+      const effectiveAcquired = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+      const effectiveReleased = stint.released_at != null ? shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS) : null;
+      if (eventDate < effectiveAcquired) continue;
+      if (effectiveReleased != null && eventDate > effectiveReleased) continue;
       const pts = eventPointsForRosterStint(
         eventPoints,
         stint.wrestler_id,

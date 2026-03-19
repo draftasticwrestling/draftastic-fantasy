@@ -42,6 +42,19 @@ export type TeamScoringAudit = {
 
 const ZERO_POINTS: TeamWrestlerPoints = { total: 0, rsPoints: 0, plePoints: 0, beltPoints: 0 };
 
+// Roster acquired/released dates are stored as UTC dates, but event dates are treated as local.
+// In practice this yields a consistent +1 day drift for the events/league you're testing.
+// We apply a -1 day offset for stint window comparisons so points attribute to the intended event day.
+const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
+
+function shiftYmd(ymd: string, days: number): string {
+  if (!ymd) return ymd;
+  const d = new Date(ymd + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return ymd;
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 function addPoints(target: TeamWrestlerPoints, src: TeamWrestlerPoints) {
   target.total += src.total;
   target.rsPoints += src.rsPoints;
@@ -202,8 +215,10 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
 
     for (const [slug, contribution] of Object.entries(contribBySlug)) {
       const activeStintsForEvent = teamStints.filter((s) => {
-        if (eventDate < s.acquired_at) return false;
-        if (s.released_at != null && eventDate > s.released_at) return false;
+        const effectiveAcquired = shiftYmd(s.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+        const effectiveReleased = s.released_at != null ? shiftYmd(s.released_at, ROSTER_STINT_DATE_OFFSET_DAYS) : null;
+        if (eventDate < effectiveAcquired) return false;
+        if (effectiveReleased != null && eventDate > effectiveReleased) return false;
         const displayName = wrestlerNameById[s.wrestler_id];
         return rosterStintMatchesContribSlug(s.wrestler_id, displayName, slug, eventDate);
       });
