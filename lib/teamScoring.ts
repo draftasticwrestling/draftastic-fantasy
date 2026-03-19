@@ -109,6 +109,23 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const teamStints = stints.filter((s) => s.user_id === userId);
   const activeStints = teamStints.filter((s) => s.released_at == null);
 
+  const rosterWrestlerIds = [...new Set(teamStints.map((s) => s.wrestler_id))];
+  const { data: wrestlerRows } = rosterWrestlerIds.length
+    ? await supabase.from("wrestlers").select("id, name").in("id", rosterWrestlerIds)
+    : { data: [] as Array<{ id: string; name: string | null }> };
+  const wrestlerNameById: Record<string, string> = {};
+  const slugVariantsByWrestlerId: Record<string, string[]> = {};
+  for (const w of wrestlerRows ?? []) {
+    wrestlerNameById[w.id] = w.name ?? w.id;
+  }
+  for (const wid of rosterWrestlerIds) {
+    const idNorm = normalizeWrestlerName(wid);
+    const nameNorm = wrestlerNameById[wid] ? normalizeWrestlerName(wrestlerNameById[wid]) : "";
+    const variants = [wid, idNorm].filter(Boolean);
+    if (nameNorm && !variants.includes(nameNorm)) variants.push(nameNorm);
+    slugVariantsByWrestlerId[wid] = variants;
+  }
+
   const filteredEvents = (events ?? []).filter((e) => {
     const d = String(e.date ?? "").slice(0, 10);
     if (!d) return false;
@@ -190,23 +207,27 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       }
     }
 
-    for (const [wrestlerId, contribution] of Object.entries(contribBySlug)) {
+    for (const [slug, contribution] of Object.entries(contribBySlug)) {
       const activeStintsForEvent = teamStints.filter((s) => {
-        if (s.wrestler_id !== wrestlerId) return false;
         if (eventDate < s.acquired_at) return false;
         if (s.released_at != null && eventDate > s.released_at) return false;
-        return true;
+        const variants = slugVariantsByWrestlerId[s.wrestler_id] ?? [
+          s.wrestler_id,
+          normalizeWrestlerName(s.wrestler_id),
+        ].filter(Boolean);
+        return s.wrestler_id === slug || variants.includes(slug);
       });
       if (activeStintsForEvent.length === 0) continue;
 
-      if (!totalsByWrestler[wrestlerId]) totalsByWrestler[wrestlerId] = emptyPoints();
-      addPoints(totalsByWrestler[wrestlerId]!, contribution.points);
+      const primaryWrestlerId = activeStintsForEvent[0]!.wrestler_id;
+      if (!totalsByWrestler[primaryWrestlerId]) totalsByWrestler[primaryWrestlerId] = emptyPoints();
+      addPoints(totalsByWrestler[primaryWrestlerId]!, contribution.points);
 
       ledgerRows.push({
         eventId: String(event.id ?? ""),
         eventName: String(event.name ?? "Unknown event"),
         eventDate,
-        wrestlerId,
+        wrestlerId: primaryWrestlerId,
         points: contribution.points.total,
         rsPoints: contribution.points.rsPoints,
         plePoints: contribution.points.plePoints,

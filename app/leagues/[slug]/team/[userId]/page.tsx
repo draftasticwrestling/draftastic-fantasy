@@ -365,11 +365,11 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         )}
       </section>
 
-      {isOwnTeam && teamScoringAudit.formerStints.length > 0 && (
+      {teamScoringAudit.formerStints.length > 0 && (
         <section style={{ marginBottom: 32 }}>
           <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Former {teamLabel}</h2>
           <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-            Past roster stints and points scored while on your team.
+            Past roster stints and points scored while on this team.
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {teamScoringAudit.formerStints.map((stint) => (
@@ -536,7 +536,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      {tradeProposals.filter((p) => p.from_user_id === currentUser.id).length > 0 && (
+      {isOwnTeam && tradeProposals.filter((p) => p.from_user_id === currentUser.id).length > 0 && (
         <section>
           <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Your trade proposals</h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14 }}>
