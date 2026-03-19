@@ -271,7 +271,16 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           </div>
 
           {pendingTradesForMe.length > 0 && currentUser && (
-            <div className="lm-card" style={{ marginBottom: 24 }}>
+            <div
+              className="lm-card"
+              style={{
+                marginBottom: 24,
+                padding: 16,
+                borderRadius: 16,
+                background: "linear-gradient(180deg, rgba(34,197,94,0.14) 0%, rgba(34,197,94,0.06) 100%)",
+                border: "1px solid rgba(34,197,94,0.35)",
+              }}
+            >
               <h2 className="lm-card-title" style={{ marginBottom: 12 }}>
                 Trade proposals for you
               </h2>
