@@ -770,17 +770,61 @@ export async function getLeagueScoring(
       kotrCarryOver
     );
     kotrCarryOver = updatedCarryOver;
+    // If roster stint windows overlap (from UTC/local date drift), only award points
+    // to a single "best" stint per wrestler_id on this eventDate.
+    const ACTIVE_MAX_RELEASE = "9999-12-31";
+    const bestStintByWrestlerId: Record<string, typeof stints[number]> = {};
     for (const stint of stints) {
       const effectiveAcquired = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      const effectiveReleased = stint.released_at != null ? shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS) : null;
+      const effectiveReleased = stint.released_at != null
+        ? shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)
+        : null;
       if (eventDate < effectiveAcquired) continue;
       if (effectiveReleased != null && eventDate > effectiveReleased) continue;
+
+      const wid = stint.wrestler_id;
+      const currentBest = bestStintByWrestlerId[wid];
+      if (!currentBest) {
+        bestStintByWrestlerId[wid] = stint;
+        continue;
+      }
+
+      const currentBestAcquired = shiftYmd(
+        currentBest.acquired_at,
+        ROSTER_STINT_DATE_OFFSET_DAYS
+      );
+      const currentBestReleased = currentBest.released_at != null
+        ? shiftYmd(currentBest.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)
+        : ACTIVE_MAX_RELEASE;
+      const contenderReleased = effectiveReleased ?? ACTIVE_MAX_RELEASE;
+
+      const releasedCmp = contenderReleased.localeCompare(currentBestReleased);
+      if (releasedCmp < 0) {
+        bestStintByWrestlerId[wid] = stint;
+        continue;
+      }
+      if (releasedCmp === 0 && effectiveAcquired.localeCompare(currentBestAcquired) < 0) {
+        bestStintByWrestlerId[wid] = stint;
+      }
+    }
+
+    for (const stint of stints) {
+      const effectiveAcquired = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+      const effectiveReleased = stint.released_at != null
+        ? shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)
+        : null;
+      if (eventDate < effectiveAcquired) continue;
+      if (effectiveReleased != null && eventDate > effectiveReleased) continue;
+
+      if (bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
+
       const pts = eventPointsForRosterStint(
         eventPoints,
         stint.wrestler_id,
         wrestlerDisplayNames[stint.wrestler_id],
         eventDate
       );
+
       pointsByOwner[stint.user_id] = (pointsByOwner[stint.user_id] ?? 0) + pts;
       if (pts > 0) {
         if (!pointsByOwnerByWrestler[stint.user_id]) pointsByOwnerByWrestler[stint.user_id] = {};

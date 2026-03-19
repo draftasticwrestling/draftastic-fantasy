@@ -123,7 +123,9 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const teamStints = stints.filter((s) => s.user_id === userId);
   const activeStints = teamStints.filter((s) => s.released_at == null);
 
-  const rosterWrestlerIds = [...new Set(teamStints.map((s) => s.wrestler_id))];
+  // We need wrestler display names for ALL stints so scoring slug aliases
+  // can match correctly across team transitions.
+  const rosterWrestlerIds = [...new Set(stints.map((s) => s.wrestler_id))];
   const { data: wrestlerRows } = rosterWrestlerIds.length
     ? await supabase.from("wrestlers").select("id, name").in("id", rosterWrestlerIds)
     : { data: [] as Array<{ id: string; name: string | null }> };
@@ -214,25 +216,56 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     }
 
     for (const [slug, contribution] of Object.entries(contribBySlug)) {
-      const activeStintsForEvent = teamStints.filter((s) => {
-        const effectiveAcquired = shiftYmd(s.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-        const effectiveReleased = s.released_at != null ? shiftYmd(s.released_at, ROSTER_STINT_DATE_OFFSET_DAYS) : null;
-        if (eventDate < effectiveAcquired) return false;
-        if (effectiveReleased != null && eventDate > effectiveReleased) return false;
-        const displayName = wrestlerNameById[s.wrestler_id];
-        return rosterStintMatchesContribSlug(s.wrestler_id, displayName, slug, eventDate);
-      });
-      if (activeStintsForEvent.length === 0) continue;
+      // Choose a single "best" active stint globally for this slug at this eventDate,
+      // so overlapping roster windows don't double-count points across teams.
+      const ACTIVE_MAX_RELEASE = "9999-12-31";
+      let selectedStint: (typeof stints)[number] | null = null;
 
-      const primaryWrestlerId = activeStintsForEvent[0]!.wrestler_id;
-      if (!totalsByWrestler[primaryWrestlerId]) totalsByWrestler[primaryWrestlerId] = emptyPoints();
-      addPoints(totalsByWrestler[primaryWrestlerId]!, contribution.points);
+      for (const s of stints) {
+        const effectiveAcquired = shiftYmd(s.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+        const effectiveReleased =
+          s.released_at != null ? shiftYmd(s.released_at, ROSTER_STINT_DATE_OFFSET_DAYS) : null;
+
+        if (eventDate < effectiveAcquired) continue;
+        if (effectiveReleased != null && eventDate > effectiveReleased) continue;
+
+        const displayName = wrestlerNameById[s.wrestler_id];
+        if (!rosterStintMatchesContribSlug(s.wrestler_id, displayName, slug, eventDate)) continue;
+
+        if (!selectedStint) {
+          selectedStint = s;
+          continue;
+        }
+
+        const selEffectiveAcquired = shiftYmd(
+          selectedStint.acquired_at,
+          ROSTER_STINT_DATE_OFFSET_DAYS
+        );
+        const selEffectiveReleased =
+          selectedStint.released_at != null
+            ? shiftYmd(selectedStint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)
+            : ACTIVE_MAX_RELEASE;
+        const contenderEffectiveReleased = effectiveReleased ?? ACTIVE_MAX_RELEASE;
+
+        const releasedCmp = contenderEffectiveReleased.localeCompare(selEffectiveReleased);
+        if (releasedCmp < 0) selectedStint = s;
+        else if (releasedCmp === 0 && effectiveAcquired.localeCompare(selEffectiveAcquired) < 0) {
+          selectedStint = s;
+        }
+      }
+
+      if (!selectedStint) continue;
+      if (selectedStint.user_id !== userId) continue;
+
+      const wrestlerId = selectedStint.wrestler_id;
+      if (!totalsByWrestler[wrestlerId]) totalsByWrestler[wrestlerId] = emptyPoints();
+      addPoints(totalsByWrestler[wrestlerId]!, contribution.points);
 
       ledgerRows.push({
         eventId: String(event.id ?? ""),
         eventName: String(event.name ?? "Unknown event"),
         eventDate,
-        wrestlerId: primaryWrestlerId,
+        wrestlerId,
         points: contribution.points.total,
         rsPoints: contribution.points.rsPoints,
         plePoints: contribution.points.plePoints,
@@ -240,11 +273,9 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
         details: [...new Set(contribution.details)],
       });
 
-      for (const stint of activeStintsForEvent) {
-        const key = `${stint.wrestler_id}::${stint.acquired_at}::${stint.released_at ?? ""}`;
-        if (!stintPoints.has(key)) stintPoints.set(key, emptyPoints());
-        addPoints(stintPoints.get(key)!, contribution.points);
-      }
+      const key = `${selectedStint.wrestler_id}::${selectedStint.acquired_at}::${selectedStint.released_at ?? ""}`;
+      if (!stintPoints.has(key)) stintPoints.set(key, emptyPoints());
+      addPoints(stintPoints.get(key)!, contribution.points);
     }
   }
 
