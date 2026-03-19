@@ -427,6 +427,10 @@ export type LeagueRosterStint = {
   contract: string | null;
   acquired_at: string; // YYYY-MM-DD
   released_at: string | null; // YYYY-MM-DD
+  /** acquired_at timestamp (timestamptz); when missing, scoring falls back to acquired_at date */
+  acquired_at_ts?: string | null;
+  /** released_at timestamp (timestamptz); when missing, scoring falls back to released_at date end-of-day */
+  released_at_ts?: string | null;
 };
 
 /**
@@ -488,24 +492,62 @@ export async function getRosterStintsForLeague(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("league_rosters")
-    .select("user_id, wrestler_id, contract, acquired_at, released_at")
+    .select(
+      "user_id, wrestler_id, contract, acquired_at, released_at, acquired_at_ts, released_at_ts"
+    )
     .eq("league_id", leagueId)
     .order("acquired_at", { ascending: true });
 
-  if (error) return [];
+  if (error) {
+    // Allow running before the timestamp migration is applied.
+    const isColumnError =
+      /column.*(acquired_at_ts|released_at_ts) does not exist/i.test(error.message ?? "") ||
+      /schema cache/i.test(error.message ?? "");
+    if (!isColumnError) return [];
+
+    const fallback = await supabase
+      .from("league_rosters")
+      .select("user_id, wrestler_id, contract, acquired_at, released_at")
+      .eq("league_id", leagueId)
+      .order("acquired_at", { ascending: true });
+
+    const fbRows = (fallback.data ?? []) as {
+      user_id: string;
+      wrestler_id: string;
+      contract: string | null;
+      acquired_at: string;
+      released_at: string | null;
+    }[];
+
+    return fbRows.map((r) => ({
+      user_id: r.user_id,
+      wrestler_id: r.wrestler_id,
+      contract: r.contract,
+      acquired_at: String(r.acquired_at ?? "").slice(0, 10),
+      released_at: r.released_at ? String(r.released_at).slice(0, 10) : null,
+      acquired_at_ts: null,
+      released_at_ts: null,
+    }));
+  }
+
   const rows = (data ?? []) as {
     user_id: string;
     wrestler_id: string;
     contract: string | null;
     acquired_at: string;
     released_at: string | null;
+    acquired_at_ts?: string | null;
+    released_at_ts?: string | null;
   }[];
+
   return rows.map((r) => ({
     user_id: r.user_id,
     wrestler_id: r.wrestler_id,
     contract: r.contract,
     acquired_at: String(r.acquired_at ?? "").slice(0, 10),
     released_at: r.released_at ? String(r.released_at).slice(0, 10) : null,
+    acquired_at_ts: r.acquired_at_ts ? String(r.acquired_at_ts) : null,
+    released_at_ts: r.released_at_ts ? String(r.released_at_ts) : null,
   }));
 }
 
@@ -678,17 +720,44 @@ export async function removeWrestlerFromRoster(
   const releasedDate =
     (releasedAt && /^\d{4}-\d{2}-\d{2}$/.test(releasedAt.trim()) ? releasedAt.trim() : null) ||
     new Date().toISOString().slice(0, 10);
+  const releasedAtTs = new Date().toISOString();
 
   const client = useServiceRole && getAdminClient() ? getAdminClient()! : supabase;
-  const { data: updated, error } = await client
-    .from("league_rosters")
-    .update({ released_at: releasedDate })
-    .eq("league_id", leagueId)
-    .eq("user_id", userId)
-    .eq("wrestler_id", String(wrestlerId).trim())
-    .is("released_at", null)
-    .select("id")
-    .maybeSingle();
+  let updated: { id: string } | null = null;
+  let error: { message: string } | null = null;
+  try {
+    const res = await client
+      .from("league_rosters")
+      .update({ released_at: releasedDate, released_at_ts: releasedAtTs })
+      .eq("league_id", leagueId)
+      .eq("user_id", userId)
+      .eq("wrestler_id", String(wrestlerId).trim())
+      .is("released_at", null)
+      .select("id")
+      .maybeSingle();
+    updated = (res.data ?? null) as { id: string } | null;
+    error = res.error as { message: string } | null;
+  } catch (e) {
+    error = e as { message: string };
+  }
+
+  // If the timestamp migration hasn't been applied yet, fall back to date-only updates.
+  const isColumnError =
+    error &&
+    /column.*released_at_ts does not exist/i.test(error.message ?? "") ? true : false;
+  if (isColumnError) {
+    const res = await client
+      .from("league_rosters")
+      .update({ released_at: releasedDate })
+      .eq("league_id", leagueId)
+      .eq("user_id", userId)
+      .eq("wrestler_id", String(wrestlerId).trim())
+      .is("released_at", null)
+      .select("id")
+      .maybeSingle();
+    updated = (res.data ?? null) as { id: string } | null;
+    error = res.error as { message: string } | null;
+  }
 
   if (error) return { error: error.message };
   if (!updated) return { error: "Wrestler not on roster or already released." };
@@ -770,17 +839,37 @@ export async function getLeagueScoring(
       kotrCarryOver
     );
     kotrCarryOver = updatedCarryOver;
-    // If roster stint windows overlap (from UTC/local date drift), only award points
-    // to a single "best" stint per wrestler_id on this eventDate.
-    const ACTIVE_MAX_RELEASE = "9999-12-31";
     const bestStintByWrestlerId: Record<string, typeof stints[number]> = {};
+    // Points attribution is point-in-time:
+    // - eventMs is end-of-day UTC for the event's YYYY-MM-DD date
+    // - acquired_at_ts/released_at_ts are used when present
+    // - otherwise we fall back to the legacy date offset semantics
+    const eventMs = Date.parse(`${eventDate}T23:59:59.999Z`);
+    const ACTIVE_MAX_RELEASE_MS = Number.POSITIVE_INFINITY;
+    function effectiveAcquiredMs(stint: typeof stints[number]): number {
+      if (stint.acquired_at_ts) {
+        const ms = Date.parse(stint.acquired_at_ts);
+        if (Number.isFinite(ms)) return ms;
+      }
+      const d = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+      return Date.parse(`${d}T00:00:00.000Z`);
+    }
+    function effectiveReleasedMs(stint: typeof stints[number]): number | null {
+      if (stint.released_at_ts) {
+        const ms = Date.parse(stint.released_at_ts);
+        if (Number.isFinite(ms)) return ms;
+      }
+      if (stint.released_at == null) return null;
+      const d = shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+      return Date.parse(`${d}T23:59:59.999Z`);
+    }
+
+    // If roster stint windows overlap, only award points to a single "best" stint per wrestler_id.
     for (const stint of stints) {
-      const effectiveAcquired = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      const effectiveReleased = stint.released_at != null
-        ? shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)
-        : null;
-      if (eventDate < effectiveAcquired) continue;
-      if (effectiveReleased != null && eventDate > effectiveReleased) continue;
+      const acquiredMs = effectiveAcquiredMs(stint);
+      const releasedMs = effectiveReleasedMs(stint);
+      if (eventMs < acquiredMs) continue;
+      if (releasedMs != null && eventMs > releasedMs) continue;
 
       const wid = stint.wrestler_id;
       const currentBest = bestStintByWrestlerId[wid];
@@ -789,32 +878,28 @@ export async function getLeagueScoring(
         continue;
       }
 
-      const currentBestAcquired = shiftYmd(
-        currentBest.acquired_at,
-        ROSTER_STINT_DATE_OFFSET_DAYS
-      );
-      const currentBestReleased = currentBest.released_at != null
-        ? shiftYmd(currentBest.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)
-        : ACTIVE_MAX_RELEASE;
-      const contenderReleased = effectiveReleased ?? ACTIVE_MAX_RELEASE;
+      const currentBestReleasedMs =
+        effectiveReleasedMs(currentBest) ?? ACTIVE_MAX_RELEASE_MS;
+      const contenderReleasedMs = releasedMs ?? ACTIVE_MAX_RELEASE_MS;
 
-      const releasedCmp = contenderReleased.localeCompare(currentBestReleased);
+      const releasedCmp = contenderReleasedMs - currentBestReleasedMs;
       if (releasedCmp < 0) {
         bestStintByWrestlerId[wid] = stint;
         continue;
       }
-      if (releasedCmp === 0 && effectiveAcquired.localeCompare(currentBestAcquired) < 0) {
-        bestStintByWrestlerId[wid] = stint;
+      if (releasedCmp === 0) {
+        const currentBestAcquiredMs = effectiveAcquiredMs(currentBest);
+        if (acquiredMs < currentBestAcquiredMs) {
+          bestStintByWrestlerId[wid] = stint;
+        }
       }
     }
 
     for (const stint of stints) {
-      const effectiveAcquired = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      const effectiveReleased = stint.released_at != null
-        ? shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)
-        : null;
-      if (eventDate < effectiveAcquired) continue;
-      if (effectiveReleased != null && eventDate > effectiveReleased) continue;
+      const acquiredMs = effectiveAcquiredMs(stint);
+      const releasedMs = effectiveReleasedMs(stint);
+      if (eventMs < acquiredMs) continue;
+      if (releasedMs != null && eventMs > releasedMs) continue;
 
       if (bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
 

@@ -153,6 +153,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
 
   for (const event of sortedEvents) {
     const eventDate = String(event.date ?? "").slice(0, 10);
+    const eventMs = Date.parse(`${eventDate}T23:59:59.999Z`);
     const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] }) as ScoredEvent;
     const eventType = scored.eventType;
     const isRS = eventType === EVENT_TYPES.RAW || eventType === EVENT_TYPES.SMACKDOWN;
@@ -218,16 +219,32 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     for (const [slug, contribution] of Object.entries(contribBySlug)) {
       // Choose a single "best" active stint globally for this slug at this eventDate,
       // so overlapping roster windows don't double-count points across teams.
-      const ACTIVE_MAX_RELEASE = "9999-12-31";
       let selectedStint: (typeof stints)[number] | null = null;
 
-      for (const s of stints) {
-        const effectiveAcquired = shiftYmd(s.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-        const effectiveReleased =
-          s.released_at != null ? shiftYmd(s.released_at, ROSTER_STINT_DATE_OFFSET_DAYS) : null;
+      const ACTIVE_MAX_RELEASE_MS = Number.POSITIVE_INFINITY;
+      function effectiveAcquiredMs(s: (typeof stints)[number]): number {
+        if (s.acquired_at_ts) {
+          const ms = Date.parse(s.acquired_at_ts);
+          if (Number.isFinite(ms)) return ms;
+        }
+        const d = shiftYmd(s.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+        return Date.parse(`${d}T00:00:00.000Z`);
+      }
+      function effectiveReleasedMs(s: (typeof stints)[number]): number | null {
+        if (s.released_at_ts) {
+          const ms = Date.parse(s.released_at_ts);
+          if (Number.isFinite(ms)) return ms;
+        }
+        if (s.released_at == null) return null;
+        const d = shiftYmd(s.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+        return Date.parse(`${d}T23:59:59.999Z`);
+      }
 
-        if (eventDate < effectiveAcquired) continue;
-        if (effectiveReleased != null && eventDate > effectiveReleased) continue;
+      for (const s of stints) {
+        const acquiredMs = effectiveAcquiredMs(s);
+        const releasedMs = effectiveReleasedMs(s);
+        if (eventMs < acquiredMs) continue;
+        if (releasedMs != null && eventMs > releasedMs) continue;
 
         const displayName = wrestlerNameById[s.wrestler_id];
         if (!rosterStintMatchesContribSlug(s.wrestler_id, displayName, slug, eventDate)) continue;
@@ -237,20 +254,15 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
           continue;
         }
 
-        const selEffectiveAcquired = shiftYmd(
-          selectedStint.acquired_at,
-          ROSTER_STINT_DATE_OFFSET_DAYS
-        );
-        const selEffectiveReleased =
-          selectedStint.released_at != null
-            ? shiftYmd(selectedStint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)
-            : ACTIVE_MAX_RELEASE;
-        const contenderEffectiveReleased = effectiveReleased ?? ACTIVE_MAX_RELEASE;
+        const selReleasedMs = effectiveReleasedMs(selectedStint) ?? ACTIVE_MAX_RELEASE_MS;
+        const contenderReleasedMs = releasedMs ?? ACTIVE_MAX_RELEASE_MS;
+        const releasedCmp = contenderReleasedMs - selReleasedMs;
 
-        const releasedCmp = contenderEffectiveReleased.localeCompare(selEffectiveReleased);
-        if (releasedCmp < 0) selectedStint = s;
-        else if (releasedCmp === 0 && effectiveAcquired.localeCompare(selEffectiveAcquired) < 0) {
+        if (releasedCmp < 0) {
           selectedStint = s;
+        } else if (releasedCmp === 0) {
+          const selAcquiredMs = effectiveAcquiredMs(selectedStint);
+          if (acquiredMs < selAcquiredMs) selectedStint = s;
         }
       }
 

@@ -690,6 +690,7 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
     .select("wrestler_id, direction")
     .eq("proposal_id", proposalId);
   const today = new Date().toISOString().slice(0, 10);
+  const nowTs = new Date().toISOString();
 
   // Apply recipient-selected drops first (if any).
   const dropIds = ((proposal as { to_user_drop_ids?: string[] | null }).to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
@@ -708,13 +709,28 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
   });
 
   for (const wid of dropIds) {
-    await admin
+    const { error: dropErr } = await admin
       .from("league_rosters")
-      .update({ released_at: today })
+      .update({ released_at: today, released_at_ts: nowTs })
       .eq("league_id", proposal.league_id)
       .eq("user_id", proposal.to_user_id)
       .eq("wrestler_id", wid)
       .is("released_at", null);
+    if (dropErr) {
+      const isColumnError = /column.*released_at_ts does not exist/i.test(dropErr.message ?? "");
+      if (isColumnError) {
+        const res = await admin
+          .from("league_rosters")
+          .update({ released_at: today })
+          .eq("league_id", proposal.league_id)
+          .eq("user_id", proposal.to_user_id)
+          .eq("wrestler_id", wid)
+          .is("released_at", null);
+        if (res.error) return { error: res.error.message };
+      } else {
+        return { error: dropErr.message };
+      }
+    }
   }
 
   for (const it of items ?? []) {
@@ -729,13 +745,28 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
         .is("released_at", null)
         .maybeSingle();
       if (!row) return { error: `Trade cannot be executed: proposer no longer has ${w.wrestler_id}.` };
-      await admin
+      const { error: releaseGiveErr } = await admin
         .from("league_rosters")
-        .update({ released_at: today })
+        .update({ released_at: today, released_at_ts: nowTs })
         .eq("league_id", proposal.league_id)
         .eq("user_id", proposal.from_user_id)
         .eq("wrestler_id", w.wrestler_id)
         .is("released_at", null);
+      if (releaseGiveErr) {
+        const isColumnError = /column.*released_at_ts does not exist/i.test(releaseGiveErr.message ?? "");
+        if (isColumnError) {
+          const res = await admin
+            .from("league_rosters")
+            .update({ released_at: today })
+            .eq("league_id", proposal.league_id)
+            .eq("user_id", proposal.from_user_id)
+            .eq("wrestler_id", w.wrestler_id)
+            .is("released_at", null);
+          if (res.error) return { error: res.error.message };
+        } else {
+          return { error: releaseGiveErr.message };
+        }
+      }
       await admin.from("league_rosters").insert({
         league_id: proposal.league_id,
         user_id: proposal.to_user_id,
@@ -754,13 +785,28 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
         .is("released_at", null)
         .maybeSingle();
       if (!row) return { error: `Trade cannot be executed: recipient no longer has ${w.wrestler_id}.` };
-      await admin
+      const { error: releaseReceiveErr } = await admin
         .from("league_rosters")
-        .update({ released_at: today })
+        .update({ released_at: today, released_at_ts: nowTs })
         .eq("league_id", proposal.league_id)
         .eq("user_id", proposal.to_user_id)
         .eq("wrestler_id", w.wrestler_id)
         .is("released_at", null);
+      if (releaseReceiveErr) {
+        const isColumnError = /column.*released_at_ts does not exist/i.test(releaseReceiveErr.message ?? "");
+        if (isColumnError) {
+          const res = await admin
+            .from("league_rosters")
+            .update({ released_at: today })
+            .eq("league_id", proposal.league_id)
+            .eq("user_id", proposal.to_user_id)
+            .eq("wrestler_id", w.wrestler_id)
+            .is("released_at", null);
+          if (res.error) return { error: res.error.message };
+        } else {
+          return { error: releaseReceiveErr.message };
+        }
+      }
       await admin.from("league_rosters").insert({
         league_id: proposal.league_id,
         user_id: proposal.from_user_id,

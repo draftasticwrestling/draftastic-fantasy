@@ -100,6 +100,7 @@ export async function getPointsByOwnerForLeagueForWeek(
   let kotrCarryOver: Record<string, number> = {};
   for (const event of allInRange) {
     const eventDate = (event.date ?? "").toString().slice(0, 10);
+    const eventMs = Date.parse(`${eventDate}T23:59:59.999Z`);
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
@@ -108,10 +109,17 @@ export async function getPointsByOwnerForLeagueForWeek(
     kotrCarryOver = updatedCarryOver;
     if (!inWeek) continue;
     for (const stint of stints) {
-      const effectiveAcquired = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      const effectiveReleased = stint.released_at != null ? shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS) : null;
-      if (eventDate < effectiveAcquired) continue;
-      if (effectiveReleased != null && eventDate > effectiveReleased) continue;
+      const acquiredMs = stint.acquired_at_ts
+        ? Date.parse(stint.acquired_at_ts)
+        : Date.parse(`${shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS)}T00:00:00.000Z`);
+      const releasedMs =
+        stint.released_at_ts != null
+          ? Date.parse(stint.released_at_ts)
+          : stint.released_at != null
+            ? Date.parse(`${shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)}T23:59:59.999Z`)
+            : null;
+      if (Number.isFinite(acquiredMs) && eventMs < acquiredMs) continue;
+      if (releasedMs != null && Number.isFinite(releasedMs) && eventMs > releasedMs) continue;
       const pts = eventPointsForRosterStint(
         eventPoints,
         stint.wrestler_id,
@@ -165,6 +173,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
   let kotrCarryOver: Record<string, number> = {};
   for (const event of allInRange) {
     const eventDate = (event.date ?? "").toString().slice(0, 10);
+    const eventMs = Date.parse(`${eventDate}T23:59:59.999Z`);
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
@@ -173,10 +182,17 @@ export async function getPointsByOwnerByWrestlerForWeek(
     kotrCarryOver = updatedCarryOver;
     if (!inWeek) continue;
     for (const stint of stints) {
-      const effectiveAcquired = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      const effectiveReleased = stint.released_at != null ? shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS) : null;
-      if (eventDate < effectiveAcquired) continue;
-      if (effectiveReleased != null && eventDate > effectiveReleased) continue;
+      const acquiredMs = stint.acquired_at_ts
+        ? Date.parse(stint.acquired_at_ts)
+        : Date.parse(`${shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS)}T00:00:00.000Z`);
+      const releasedMs =
+        stint.released_at_ts != null
+          ? Date.parse(stint.released_at_ts)
+          : stint.released_at != null
+            ? Date.parse(`${shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS)}T23:59:59.999Z`)
+            : null;
+      if (Number.isFinite(acquiredMs) && eventMs < acquiredMs) continue;
+      if (releasedMs != null && Number.isFinite(releasedMs) && eventMs > releasedMs) continue;
       const pts = eventPointsForRosterStint(
         eventPoints,
         stint.wrestler_id,
