@@ -5,7 +5,6 @@ import {
   getLeagueBySlug,
   getLeagueMembers,
   getRostersForLeague,
-  getLeagueScoring,
   getEffectiveLeagueStartDate,
 } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
@@ -16,7 +15,6 @@ import { ProposeReleaseForm } from "../ProposeReleaseForm";
 import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
 import { TradeProposalRespond } from "../TradeProposalRespond";
 import { CancelTradeButton } from "../CancelTradeButton";
-import { RosterTable } from "../../RosterTable";
 import { RosterCardGrid } from "../RosterCardGrid";
 import type { WrestlerRow } from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
@@ -34,6 +32,7 @@ import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
+import { getTeamScoringAudit } from "@/lib/teamScoring";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 10000;
@@ -102,11 +101,11 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const { data: { user: currentUser } } = await supabase.auth.getUser();
   if (!currentUser) notFound();
 
-  const [members, rosters, scoring, pointsWithBonuses] = await Promise.all([
+  const [members, rosters, pointsWithBonuses, teamScoringAudit] = await Promise.all([
     getLeagueMembers(league.id),
     getRostersForLeague(league.id),
-    getLeagueScoring(league.id),
     getPointsByOwnerForLeagueWithBonuses(league.id),
+    getTeamScoringAudit(league.id, userId),
   ]);
   const isMember = members.some((m) => m.user_id === currentUser.id);
   if (!isMember) notFound();
@@ -119,8 +118,6 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     (targetMember.team_name?.trim() || targetMember.display_name?.trim() || "Unknown").trim() ||
     "Unknown";
   const rosterEntries = rosters[userId] ?? [];
-  const pointsBySlug = scoring.pointsBySlug;
-  const pointsByOwnerByWrestler = scoring.pointsByOwnerByWrestler ?? {};
   const totalPoints = pointsWithBonuses[userId] ?? 0;
 
   const wrestlers =
@@ -130,17 +127,9 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const wrestlerImageUrl: Record<string, string | null> = Object.fromEntries(
     wrestlers.map((w) => [w.id, w.image_url ?? null])
   );
-  const ownerWrestlerPts = pointsByOwnerByWrestler[userId];
-  const rosterWithPoints = rosterEntries.map((e) => {
-    const p = pointsBySlug[e.wrestler_id] ?? { rsPoints: 0, plePoints: 0, beltPoints: 0 };
-    const fullSeason = p.rsPoints + p.plePoints + p.beltPoints;
-    const wrestlerTotal = ownerWrestlerPts?.[e.wrestler_id] ?? fullSeason;
-    return {
-      wrestler_id: e.wrestler_id,
-      name: wrestlerNamesMap[e.wrestler_id] ?? e.wrestler_id,
-      points: wrestlerTotal,
-    };
-  });
+  const rosterAcquiredAtById: Record<string, string | null> = Object.fromEntries(
+    teamScoringAudit.activeStints.map((s) => [s.wrestler_id, s.acquired_at ?? null])
+  );
 
   const rosterRules = getRosterRulesForLeague(members.length);
   const rosterWrestlers = rosterEntries.map((e) => {
@@ -303,7 +292,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       <p
         style={{
           color: "#555",
-          marginBottom: 32,
+          marginBottom: 12,
           fontSize: 18,
           fontWeight: 600,
           textAlign: "center",
@@ -325,6 +314,14 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           {totalPoints} pts
         </span>
       </p>
+      <p style={{ marginTop: 0, marginBottom: 28, textAlign: "center" }}>
+        <Link
+          href={`/leagues/${slug}/team/${encodeURIComponent(userId)}/scoreboard`}
+          style={{ color: "#1a73e8", textDecoration: "none", fontWeight: 700 }}
+        >
+          View Team Scoreboard
+        </Link>
+      </p>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>
@@ -341,10 +338,11 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               id: w.id,
               name: w.name,
               brand: w.brand,
-              rsPoints: w.rsPoints ?? 0,
-              plePoints: w.plePoints ?? 0,
-              beltPoints: w.beltPoints ?? 0,
-              totalPoints: w.totalPoints ?? 0,
+              acquiredAt: rosterAcquiredAtById[w.id] ?? null,
+              rsPoints: teamScoringAudit.totalsByWrestler[w.id]?.rsPoints ?? 0,
+              plePoints: teamScoringAudit.totalsByWrestler[w.id]?.plePoints ?? 0,
+              beltPoints: teamScoringAudit.totalsByWrestler[w.id]?.beltPoints ?? 0,
+              totalPoints: teamScoringAudit.totalsByWrestler[w.id]?.total ?? 0,
               mw: w.mw ?? 0,
               rating_2k26: w.rating_2k26,
               rating_2k25: w.rating_2k25,
@@ -366,6 +364,43 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           </p>
         )}
       </section>
+
+      {isOwnTeam && teamScoringAudit.formerStints.length > 0 && (
+        <section style={{ marginBottom: 32 }}>
+          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Former {teamLabel}</h2>
+          <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
+            Past roster stints and points scored while on your team.
+          </p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {teamScoringAudit.formerStints.map((stint) => (
+              <li
+                key={`${stint.wrestlerId}-${stint.acquiredAt}-${stint.releasedAt}`}
+                style={{
+                  padding: "10px 0",
+                  borderBottom: "1px solid #eee",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, color: "#1f2937" }}>
+                    {wrestlerNamesMap[stint.wrestlerId] ?? stint.wrestlerId}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>
+                    {stint.acquiredAt} - {stint.releasedAt}
+                  </div>
+                </div>
+                <div style={{ fontWeight: 700, color: "#111827" }}>
+                  {stint.points.total} pts
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {isOwnTeam && (
         <>

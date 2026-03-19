@@ -443,10 +443,21 @@ export function getCurrentWeekStart(leagueStart: string, leagueEnd: string): str
 export async function getPointsByOwnerForLeagueWithBonuses(
   leagueId: string
 ): Promise<Record<string, number>> {
-  const [scoring, bonuses] = await Promise.all([
-    getLeagueScoring(leagueId),
-    getWeeklyBonusesByOwner(leagueId),
-  ]);
+  const supabase = await createClient();
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("league_type")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const leagueType = (league as { league_type?: string | null } | null)?.league_type ?? null;
+
+  const scoring = await getLeagueScoring(leagueId);
+  // Season-overall leagues should use pure event points (no weekly matchup bonuses).
+  if (leagueType === "season_overall") {
+    return scoring.pointsByOwner ?? {};
+  }
+
+  const bonuses = await getWeeklyBonusesByOwner(leagueId);
   const base = scoring.pointsByOwner ?? {};
   const out: Record<string, number> = {};
   const allIds = new Set([...Object.keys(base), ...Object.keys(bonuses)]);

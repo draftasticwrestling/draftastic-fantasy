@@ -20,6 +20,7 @@ export type RosterCardWrestler = {
   id: string;
   name: string | null;
   brand?: string | null;
+  acquiredAt?: string | null;
   rsPoints: number;
   plePoints: number;
   beltPoints: number;
@@ -68,6 +69,15 @@ function WrestlerCard({
   onDropClick?: () => void;
   onTradeClick?: () => void;
 }) {
+  const acquiredLabel = w.acquiredAt && /^\d{4}-\d{2}-\d{2}$/.test(w.acquiredAt)
+    ? (() => {
+        const [year, month, day] = w.acquiredAt.split("-");
+        const mm = Number(month);
+        const dd = Number(day);
+        if (!Number.isFinite(mm) || !Number.isFinite(dd)) return null;
+        return `${mm}/${dd}`;
+      })()
+    : null;
   const rating = w.rating_2k26 ?? w.rating_2k25 ?? null;
   const ppm = w.mw > 0 ? w.totalPoints / w.mw : 0;
   const profileHref = `/wrestlers/${encodeURIComponent(w.id)}?league=${encodeURIComponent(leagueSlug)}&from=team`;
@@ -285,7 +295,7 @@ function WrestlerCard({
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           padding: "6px 10px 8px",
           background: "#0d0d0d",
           borderTop: "2px solid #c00",
@@ -316,6 +326,21 @@ function WrestlerCard({
             {displayName}
           </span>
         </div>
+        {acquiredLabel && (
+          <span
+            style={{
+              marginLeft: 8,
+              fontSize: 11,
+              fontWeight: 800,
+              color: "#e11d48",
+              letterSpacing: 0.4,
+              whiteSpace: "nowrap",
+              paddingTop: 6,
+            }}
+          >
+            ACQ {acquiredLabel}
+          </span>
+        )}
       </div>
 
       {/* Stats grid */}
