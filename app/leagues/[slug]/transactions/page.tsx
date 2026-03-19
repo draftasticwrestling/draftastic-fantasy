@@ -83,7 +83,14 @@ export default async function TransactionsPage({
       p.from_user_id === currentUser.id
         ? `Traded ${giveStr} to ${toLabel} for ${receiveStr}`
         : `Received ${receiveStr} from ${fromLabel} for ${giveStr}`;
-    const statusDisplay = p.status === "gm_approved" || p.status === "accepted" ? "Approved" : p.status === "rejected" || p.status === "gm_rejected" ? "Rejected" : "Pending";
+    const statusDisplay =
+      p.status === "gm_approved" || p.status === "accepted"
+        ? "Approved"
+        : p.status === "rejected"
+          ? "Cancelled"
+          : p.status === "gm_rejected"
+            ? "Declined"
+            : "Pending";
     rows.push({
       date: p.created_at,
       type: "Trade",

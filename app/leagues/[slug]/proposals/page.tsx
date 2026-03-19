@@ -19,7 +19,7 @@ function tradeStatusLabel(status: string): string {
     case "gm_rejected":
       return "Declined";
     case "rejected":
-      return "Declined";
+      return "Cancelled";
     case "cancelled":
       return "Cancelled";
     case "expired":
@@ -149,54 +149,58 @@ export default async function ProposalsPage({ params }: Props) {
               <li
                 key={p.id}
                 id={`proposal-${p.id}`}
-                style={{ padding: "12px 0", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}
+                style={{ padding: "12px 0", borderBottom: "1px solid #eee" }}
               >
-                <span style={{ flex: 1, minWidth: 260 }}>
-                  {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} ↔ {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
-                  {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
-                  {" for "}
-                  {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
-                </span>
-                <span style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  {(() => {
-                    const acceptedAt = (p as { accepted_at?: string | null }).accepted_at;
-                    const acceptedMs = acceptedAt ? Date.parse(acceptedAt) : NaN;
-                    const windowMs = 48 * 60 * 60 * 1000;
-                    const endsInMs = Number.isFinite(acceptedMs) ? (acceptedMs + windowMs - Date.now()) : NaN;
-                    const hoursLeft = Number.isFinite(endsInMs) ? Math.max(0, Math.ceil(endsInMs / (60 * 60 * 1000))) : null;
-                    const totals = voteTotals[p.id] ?? { up: 0, down: 0 };
-                    const myVote = myVotes[p.id] ?? 0;
-                    const inWindow = Number.isFinite(endsInMs) ? endsInMs > 0 : false;
-                    const disabledReason =
-                      !user ? "Sign in to vote." :
-                      (user.id === p.from_user_id || user.id === p.to_user_id) ? "Trade parties can't vote." :
-                      !inWindow ? "Voting window has ended." : null;
-                    const acceptedAtFormatted = formatTradeTimestamp(acceptedAt) ?? getTradeDateForDisplay(p);
-                    return (
-                      <span style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                        <span style={{ fontSize: 12, color: "var(--color-warning)", fontWeight: 700 }}>
-                          Awaiting GM approval
-                        </span>
-                        <span style={{ fontSize: 12, color: "var(--color-warning)" }}>
-                          {hoursLeft != null ? <>League review ends in <strong>{hoursLeft}h</strong></> : <>League review</>}
-                        </span>
-                        <span style={{ fontSize: 11, color: "rgba(100,116,139,0.95)" }}>
-                          {acceptedAtFormatted ? <>Accepted: <strong>{acceptedAtFormatted}</strong></> : <>Accepted</>}
-                        </span>
-                        <TradeVoteControls
-                          leagueSlug={slug}
-                          proposalId={p.id}
-                          up={totals.up}
-                          down={totals.down}
-                          myVote={myVote as -1 | 0 | 1}
-                          disabled={!!disabledReason}
-                          disabledReason={disabledReason}
-                        />
-                      </span>
-                    );
-                  })()}
-                  {isCommissioner && <TradeGmActions leagueSlug={slug} proposalId={p.id} />}
-                </span>
+                {(() => {
+                  const acceptedAt = (p as { accepted_at?: string | null }).accepted_at;
+                  const acceptedMs = acceptedAt ? Date.parse(acceptedAt) : NaN;
+                  const windowMs = 48 * 60 * 60 * 1000;
+                  const endsInMs = Number.isFinite(acceptedMs) ? (acceptedMs + windowMs - Date.now()) : NaN;
+                  const hoursLeft = Number.isFinite(endsInMs) ? Math.max(0, Math.ceil(endsInMs / (60 * 60 * 1000))) : null;
+                  const totals = voteTotals[p.id] ?? { up: 0, down: 0 };
+                  const myVote = myVotes[p.id] ?? 0;
+                  const inWindow = Number.isFinite(endsInMs) ? endsInMs > 0 : false;
+                  const disabledReason =
+                    !user ? "Sign in to vote." :
+                    (user.id === p.from_user_id || user.id === p.to_user_id) ? "Trade parties can't vote." :
+                    !inWindow ? "Voting window has ended." : null;
+                  const acceptedAtFormatted = formatTradeTimestamp(acceptedAt) ?? getTradeDateForDisplay(p);
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ fontSize: 14, color: "#1f2937" }}>
+                        {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} ↔ {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
+                        {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                        {" for "}
+                        {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 12, color: "var(--color-warning)", fontWeight: 700 }}>
+                            Awaiting GM approval
+                          </span>
+                          <span style={{ fontSize: 12, color: "#6b7280" }}>
+                            {hoursLeft != null ? <>Review ends in <strong>{hoursLeft}h</strong></> : <>League review</>}
+                          </span>
+                          <span style={{ fontSize: 12, color: "#6b7280" }}>
+                            {acceptedAtFormatted ? <>Accepted <strong>{acceptedAtFormatted}</strong></> : <>Accepted</>}
+                          </span>
+                        </div>
+                        {isCommissioner && <TradeGmActions leagueSlug={slug} proposalId={p.id} />}
+                      </div>
+
+                      <TradeVoteControls
+                        leagueSlug={slug}
+                        proposalId={p.id}
+                        up={totals.up}
+                        down={totals.down}
+                        myVote={myVote as -1 | 0 | 1}
+                        disabled={!!disabledReason}
+                        disabledReason={disabledReason}
+                      />
+                    </div>
+                  );
+                })()}
               </li>
             ))}
           </ul>

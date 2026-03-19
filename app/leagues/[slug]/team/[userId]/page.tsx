@@ -514,7 +514,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                     {p.status === "pending" && "Pending"}
                     {p.status === "cancelled" && "Cancelled"}
                     {p.status === "expired" && "Expired"}
-                    {p.status === "rejected" && "Declined"}
+                    {p.status === "rejected" && "Cancelled"}
                     {p.status === "awaiting_gm_approval" && "Accepted — awaiting GM approval"}
                     {p.status === "gm_approved" && "Approved"}
                     {p.status === "gm_rejected" && "Rejected by GM"}

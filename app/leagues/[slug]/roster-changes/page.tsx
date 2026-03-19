@@ -34,8 +34,9 @@ function tradeStatusLabel(status: string): string {
     case "accepted":
       return "Approved";
     case "gm_rejected":
+      return "Declined";
     case "rejected":
-      return "Rejected";
+      return "Cancelled";
     case "awaiting_gm_approval":
       return "Accepted — awaiting GM approval";
     default:

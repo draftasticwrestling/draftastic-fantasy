@@ -372,7 +372,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                             <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Expired</span>
                           )}
                           {item.status === "rejected" && (
-                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Declined</span>
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Cancelled</span>
                           )}
                           {item.status === "awaiting_gm_approval" && (
                             <>
