@@ -689,16 +689,33 @@ export async function addWrestlerToRoster(
   const acquiredDate =
     (acquiredAt && /^\d{4}-\d{2}-\d{2}$/.test(acquiredAt.trim()) ? acquiredAt.trim() : null) ||
     new Date().toISOString().slice(0, 10);
+  const acquiredAtTs = new Date().toISOString();
   const { error } = await insertClient.from("league_rosters").insert({
     league_id: leagueId,
     user_id: userId,
     wrestler_id: wid,
     contract: contract?.trim() || null,
     acquired_at: acquiredDate,
+    acquired_at_ts: acquiredAtTs,
     released_at: null,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    const isColumnError = /column.*acquired_at_ts does not exist/i.test(error.message ?? "");
+    if (isColumnError) {
+      const { error: error2 } = await insertClient.from("league_rosters").insert({
+        league_id: leagueId,
+        user_id: userId,
+        wrestler_id: wid,
+        contract: contract?.trim() || null,
+        acquired_at: acquiredDate,
+        released_at: null,
+      });
+      if (error2) return { error: error2.message };
+      return {};
+    }
+    return { error: error.message };
+  }
   return {};
 }
 
@@ -800,11 +817,24 @@ export async function getLeagueScoring(
   const end = league.end_date ?? "";
   if (!start && !end) return empty;
 
-  const { data: events } = await supabase
+  const eventsSelectWithStart = supabase
     .from("events")
-    .select("id, name, date, matches")
+    .select("id, name, date, broadcast_start_ts, matches")
     .eq("status", "completed")
     .order("date", { ascending: true });
+
+  const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
+  const events =
+    eventsWithStart ??
+    (eventsErr && /column.*broadcast_start_ts does not exist/i.test(eventsErr.message ?? "")
+      ? (
+          await supabase
+            .from("events")
+            .select("id, name, date, matches")
+            .eq("status", "completed")
+            .order("date", { ascending: true })
+        ).data ?? []
+      : []);
 
   const filtered = (events ?? []).filter((e) => {
     const d = (e.date ?? "").toString().slice(0, 10);
@@ -844,17 +874,39 @@ export async function getLeagueScoring(
     // - eventMs is end-of-day UTC for the event's YYYY-MM-DD date
     // - acquired_at_ts/released_at_ts are used when present
     // - otherwise we fall back to the legacy date offset semantics
-    const eventMs = Date.parse(`${eventDate}T23:59:59.999Z`);
+    const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
+    const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
+      ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
+      : NaN;
+    const useExactTimes = Number.isFinite(eventStartMs);
+    const eventMs = useExactTimes ? eventStartMs : eventEndOfDayMs;
     const ACTIVE_MAX_RELEASE_MS = Number.POSITIVE_INFINITY;
+    function ymdFromMs(ms: number): string {
+      return new Date(ms).toISOString().slice(0, 10);
+    }
     function effectiveAcquiredMs(stint: typeof stints[number]): number {
-      // Events are date-only, so clamp roster effective acquisition to the acquired_at date boundary.
-      const d = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      return Date.parse(`${d}T00:00:00.000Z`);
+      // When we have a broadcast_start_ts, use exact acquired_at_ts/released_at_ts
+      // only if their UTC date aligns with the roster's acquired_at date (after offset shift).
+      // Otherwise clamp to the roster's date boundary to avoid losing points due to legacy drift.
+      const expectedYmd = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+      if (useExactTimes && stint.acquired_at_ts) {
+        const tsMs = Date.parse(String(stint.acquired_at_ts));
+        if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedYmd) {
+          return tsMs;
+        }
+      }
+      return Date.parse(`${expectedYmd}T00:00:00.000Z`);
     }
     function effectiveReleasedMs(stint: typeof stints[number]): number | null {
       if (stint.released_at == null) return null;
-      const d = shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      return Date.parse(`${d}T23:59:59.999Z`);
+      const expectedYmd = shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+      if (useExactTimes && stint.released_at_ts != null) {
+        const tsMs = Date.parse(String(stint.released_at_ts));
+        if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedYmd) {
+          return tsMs;
+        }
+      }
+      return Date.parse(`${expectedYmd}T23:59:59.999Z`);
     }
 
     // If roster stint windows overlap, only award points to a single "best" stint per wrestler_id.

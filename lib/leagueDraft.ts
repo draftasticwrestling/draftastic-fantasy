@@ -1411,16 +1411,33 @@ async function performOneAutoPick(
   if (currentIds.includes(wrestlerId)) return { error: "Wrestler already on roster." };
   if (currentIds.length >= rules.rosterSize) return { error: "Roster full." };
 
-  const draftDate = new Date().toISOString().slice(0, 10);
+  const nowTs = new Date().toISOString();
+  const draftDate = nowTs.slice(0, 10);
   const { error: rosterErr } = await admin.from("league_rosters").insert({
     league_id: leagueId,
     user_id: current.user_id,
     wrestler_id: wrestlerId,
     contract: null,
     acquired_at: draftDate,
+    acquired_at_ts: nowTs,
     released_at: null,
   });
-  if (rosterErr) return { error: rosterErr.message };
+  if (rosterErr) {
+    const isColumnError = /column.*acquired_at_ts does not exist/i.test(rosterErr.message ?? "");
+    if (isColumnError) {
+      const { error: rosterErr2 } = await admin.from("league_rosters").insert({
+        league_id: leagueId,
+        user_id: current.user_id,
+        wrestler_id: wrestlerId,
+        contract: null,
+        acquired_at: draftDate,
+        released_at: null,
+      });
+      if (rosterErr2) return { error: rosterErr2.message };
+    } else {
+      return { error: rosterErr.message };
+    }
+  }
 
   const { data: orderRow } = await admin
     .from("league_draft_order")

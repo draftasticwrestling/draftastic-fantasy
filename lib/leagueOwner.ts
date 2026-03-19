@@ -767,14 +767,40 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
           return { error: releaseGiveErr.message };
         }
       }
-      await admin.from("league_rosters").insert({
+      const insertGivePayload: {
+        league_id: string;
+        user_id: string;
+        wrestler_id: string;
+        contract: string | null;
+        acquired_at: string;
+        released_at: null;
+        acquired_at_ts?: string;
+      } = {
         league_id: proposal.league_id,
         user_id: proposal.to_user_id,
         wrestler_id: w.wrestler_id,
         contract: (row as { contract: string | null }).contract,
         acquired_at: today,
         released_at: null,
-      });
+        acquired_at_ts: nowTs,
+      };
+      const { error: insertGiveErr } = await admin.from("league_rosters").insert(insertGivePayload);
+      if (insertGiveErr) {
+        const isColumnError = /column.*acquired_at_ts does not exist/i.test(insertGiveErr.message ?? "");
+        if (isColumnError) {
+          const { error: insertGiveErr2 } = await admin.from("league_rosters").insert({
+            league_id: proposal.league_id,
+            user_id: proposal.to_user_id,
+            wrestler_id: w.wrestler_id,
+            contract: (row as { contract: string | null }).contract,
+            acquired_at: today,
+            released_at: null,
+          });
+          if (insertGiveErr2) return { error: insertGiveErr2.message };
+        } else {
+          return { error: insertGiveErr.message };
+        }
+      }
     } else {
       const { data: row } = await admin
         .from("league_rosters")
@@ -807,14 +833,40 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
           return { error: releaseReceiveErr.message };
         }
       }
-      await admin.from("league_rosters").insert({
+      const insertReceivePayload: {
+        league_id: string;
+        user_id: string;
+        wrestler_id: string;
+        contract: string | null;
+        acquired_at: string;
+        released_at: null;
+        acquired_at_ts?: string;
+      } = {
         league_id: proposal.league_id,
         user_id: proposal.from_user_id,
         wrestler_id: w.wrestler_id,
         contract: (row as { contract: string | null }).contract,
         acquired_at: today,
         released_at: null,
-      });
+        acquired_at_ts: nowTs,
+      };
+      const { error: insertReceiveErr } = await admin.from("league_rosters").insert(insertReceivePayload);
+      if (insertReceiveErr) {
+        const isColumnError = /column.*acquired_at_ts does not exist/i.test(insertReceiveErr.message ?? "");
+        if (isColumnError) {
+          const { error: insertReceiveErr2 } = await admin.from("league_rosters").insert({
+            league_id: proposal.league_id,
+            user_id: proposal.from_user_id,
+            wrestler_id: w.wrestler_id,
+            contract: (row as { contract: string | null }).contract,
+            acquired_at: today,
+            released_at: null,
+          });
+          if (insertReceiveErr2) return { error: insertReceiveErr2.message };
+        } else {
+          return { error: insertReceiveErr.message };
+        }
+      }
     }
   }
 

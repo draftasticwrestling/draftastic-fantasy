@@ -371,6 +371,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                           {(item.status === "gm_approved" || item.status === "accepted") && (
                             <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-success)", fontWeight: 600 }}>✓ Approved</span>
                           )}
+                          {item.status === "pending" && (
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "#6b7280", fontWeight: 600 }}>Pending</span>
+                          )}
                           {item.status === "gm_rejected" && (
                             <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Rejected by GM</span>
                           )}

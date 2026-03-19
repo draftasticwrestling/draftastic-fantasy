@@ -111,14 +111,26 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const leagueStart = getEffectiveLeagueStartDate(league);
   const leagueEnd = league.end_date ? String(league.end_date).slice(0, 10) : "";
 
-  const [{ data: events }, stints] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, name, date, matches")
-      .eq("status", "completed")
-      .order("date", { ascending: true }),
-    getRosterStintsForLeague(leagueId),
-  ]);
+  const stints = await getRosterStintsForLeague(leagueId);
+
+  const eventsSelectWithStart = supabase
+    .from("events")
+    .select("id, name, date, broadcast_start_ts, matches")
+    .eq("status", "completed")
+    .order("date", { ascending: true });
+
+  const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
+  const events =
+    eventsWithStart ??
+    (eventsErr && /column.*broadcast_start_ts does not exist/i.test(eventsErr.message ?? "")
+      ? (
+          await supabase
+            .from("events")
+            .select("id, name, date, matches")
+            .eq("status", "completed")
+            .order("date", { ascending: true })
+        ).data ?? []
+      : []);
 
   const teamStints = stints.filter((s) => s.user_id === userId);
   const activeStints = teamStints.filter((s) => s.released_at == null);
@@ -153,7 +165,12 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
 
   for (const event of sortedEvents) {
     const eventDate = String(event.date ?? "").slice(0, 10);
-    const eventMs = Date.parse(`${eventDate}T23:59:59.999Z`);
+    const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
+    const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
+      ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
+      : NaN;
+    const useExactTimes = Number.isFinite(eventStartMs);
+    const eventMs = useExactTimes ? eventStartMs : eventEndOfDayMs;
     const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] }) as ScoredEvent;
     const eventType = scored.eventType;
     const isRS = eventType === EVENT_TYPES.RAW || eventType === EVENT_TYPES.SMACKDOWN;
@@ -222,16 +239,28 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       let selectedStint: (typeof stints)[number] | null = null;
 
       const ACTIVE_MAX_RELEASE_MS = Number.POSITIVE_INFINITY;
+      function ymdFromMs(ms: number): string {
+        return new Date(ms).toISOString().slice(0, 10);
+      }
       function effectiveAcquiredMs(s: (typeof stints)[number]): number {
-        // Events are date-only, so we can't attribute within-day moments reliably.
-        // Clamp roster effective acquisition to the acquired_at *date* boundary.
-        const d = shiftYmd(s.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-        return Date.parse(`${d}T00:00:00.000Z`);
+        // When we have a broadcast_start_ts, use exact acquired_at_ts/released_at_ts
+        // only if their UTC date aligns with the roster's acquired_at date (after offset shift).
+        // Otherwise clamp to the roster's date boundary to avoid losing points due to legacy drift.
+        const expectedYmd = shiftYmd(s.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+        if (useExactTimes && s.acquired_at_ts) {
+          const tsMs = Date.parse(String(s.acquired_at_ts));
+          if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedYmd) return tsMs;
+        }
+        return Date.parse(`${expectedYmd}T00:00:00.000Z`);
       }
       function effectiveReleasedMs(s: (typeof stints)[number]): number | null {
         if (s.released_at == null) return null;
-        const d = shiftYmd(s.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-        return Date.parse(`${d}T23:59:59.999Z`);
+        const expectedYmd = shiftYmd(s.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
+        if (useExactTimes && s.released_at_ts != null) {
+          const tsMs = Date.parse(String(s.released_at_ts));
+          if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedYmd) return tsMs;
+        }
+        return Date.parse(`${expectedYmd}T23:59:59.999Z`);
       }
 
       for (const s of stints) {
