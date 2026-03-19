@@ -114,7 +114,9 @@ export default async function ProposalsPage({ params }: Props) {
     p.status === "cancelled" ||
     p.status === "expired"
   );
-  const isCommissioner = league.role === "commissioner";
+  // Prefer membership role, but fall back to commissioner_id to avoid role mismatches.
+  const isCommissioner =
+    league.role === "commissioner" || (!!user && league.commissioner_id === user.id);
 
   const awaitingIds = awaitingGmTrades.map((p) => p.id);
   const emptyTotals: Record<string, { up: number; down: number }> = {};
