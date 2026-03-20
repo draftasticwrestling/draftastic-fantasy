@@ -4,6 +4,10 @@ import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getDefaultStartEndForSeason } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { eventPointsForRosterStint } from "@/lib/scoring/rosterStintEventPoints";
+import {
+  compareStintsForEventTieBreak,
+  rosterStintActiveForEvent,
+} from "@/lib/scoring/rosterStintEventWindow";
 
 export type DraftType = "offline" | "linear" | "snake" | "autopick";
 export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
@@ -870,51 +874,31 @@ export async function getLeagueScoring(
     );
     kotrCarryOver = updatedCarryOver;
     const bestStintByWrestlerId: Record<string, typeof stints[number]> = {};
-    // Points attribution is point-in-time:
-    // - eventMs is end-of-day UTC for the event's YYYY-MM-DD date
-    // - acquired_at_ts/released_at_ts are used when present
-    // - otherwise we fall back to the legacy date offset semantics
+    // When `broadcast_start_ts` exists: stint counts if event calendar date is within
+    // [acquired_at, released_at] (plain YYYY-MM-DD). Avoids comparing ET broadcast instant to UTC release end.
+    // When absent: legacy end-of-event-day UTC vs shifted stint boundaries (+ optional ts alignment).
     const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
     const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
       ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
       : NaN;
-    const useExactTimes = Number.isFinite(eventStartMs);
-    const eventMs = useExactTimes ? eventStartMs : eventEndOfDayMs;
-    const ACTIVE_MAX_RELEASE_MS = Number.POSITIVE_INFINITY;
-    function ymdFromMs(ms: number): string {
-      return new Date(ms).toISOString().slice(0, 10);
-    }
-    function effectiveAcquiredMs(stint: typeof stints[number]): number {
-      // When we have a broadcast_start_ts, use exact acquired_at_ts/released_at_ts
-      // only if their UTC date aligns with the roster's acquired_at date (after offset shift).
-      // Otherwise clamp to the roster's date boundary to avoid losing points due to legacy drift.
-      const expectedYmd = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      if (useExactTimes && stint.acquired_at_ts) {
-        const tsMs = Date.parse(String(stint.acquired_at_ts));
-        if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedYmd) {
-          return tsMs;
-        }
-      }
-      return Date.parse(`${expectedYmd}T00:00:00.000Z`);
-    }
-    function effectiveReleasedMs(stint: typeof stints[number]): number | null {
-      if (stint.released_at == null) return null;
-      const expectedYmd = shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      if (useExactTimes && stint.released_at_ts != null) {
-        const tsMs = Date.parse(String(stint.released_at_ts));
-        if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedYmd) {
-          return tsMs;
-        }
-      }
-      return Date.parse(`${expectedYmd}T23:59:59.999Z`);
-    }
+    const useBroadcastStart = Number.isFinite(eventStartMs);
+    // Legacy path compares this (end of event UTC day) to shifted stint boundaries.
+    // When useBroadcastStart, `rosterStintActiveForEvent` uses calendar dates only (eventMs ignored).
+    const eventMs = eventEndOfDayMs;
 
     // If roster stint windows overlap, only award points to a single "best" stint per wrestler_id.
     for (const stint of stints) {
-      const acquiredMs = effectiveAcquiredMs(stint);
-      const releasedMs = effectiveReleasedMs(stint);
-      if (eventMs < acquiredMs) continue;
-      if (releasedMs != null && eventMs > releasedMs) continue;
+      if (
+        !rosterStintActiveForEvent({
+          eventDate,
+          eventMs,
+          useBroadcastStart,
+          stint,
+          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+        })
+      ) {
+        continue;
+      }
 
       const wid = stint.wrestler_id;
       const currentBest = bestStintByWrestlerId[wid];
@@ -923,28 +907,23 @@ export async function getLeagueScoring(
         continue;
       }
 
-      const currentBestReleasedMs =
-        effectiveReleasedMs(currentBest) ?? ACTIVE_MAX_RELEASE_MS;
-      const contenderReleasedMs = releasedMs ?? ACTIVE_MAX_RELEASE_MS;
-
-      const releasedCmp = contenderReleasedMs - currentBestReleasedMs;
-      if (releasedCmp < 0) {
+      if (compareStintsForEventTieBreak(stint, currentBest, useBroadcastStart, ROSTER_STINT_DATE_OFFSET_DAYS) < 0) {
         bestStintByWrestlerId[wid] = stint;
-        continue;
-      }
-      if (releasedCmp === 0) {
-        const currentBestAcquiredMs = effectiveAcquiredMs(currentBest);
-        if (acquiredMs < currentBestAcquiredMs) {
-          bestStintByWrestlerId[wid] = stint;
-        }
       }
     }
 
     for (const stint of stints) {
-      const acquiredMs = effectiveAcquiredMs(stint);
-      const releasedMs = effectiveReleasedMs(stint);
-      if (eventMs < acquiredMs) continue;
-      if (releasedMs != null && eventMs > releasedMs) continue;
+      if (
+        !rosterStintActiveForEvent({
+          eventDate,
+          eventMs,
+          useBroadcastStart,
+          stint,
+          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+        })
+      ) {
+        continue;
+      }
 
       if (bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
 

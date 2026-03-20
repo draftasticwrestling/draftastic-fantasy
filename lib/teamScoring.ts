@@ -5,6 +5,10 @@ import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { rosterStintMatchesContribSlug } from "@/lib/scoring/rosterStintEventPoints";
+import {
+  compareStintsForEventTieBreak,
+  rosterStintActiveForEvent,
+} from "@/lib/scoring/rosterStintEventWindow";
 
 export type TeamScoreLedgerRow = {
   eventId: string;
@@ -46,14 +50,6 @@ const ZERO_POINTS: TeamWrestlerPoints = { total: 0, rsPoints: 0, plePoints: 0, b
 // In practice this yields a consistent +1 day drift for the events/league you're testing.
 // We apply a -1 day offset for stint window comparisons so points attribute to the intended event day.
 const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
-
-function shiftYmd(ymd: string, days: number): string {
-  if (!ymd) return ymd;
-  const d = new Date(ymd + "T00:00:00Z");
-  if (Number.isNaN(d.getTime())) return ymd;
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 function addPoints(target: TeamWrestlerPoints, src: TeamWrestlerPoints) {
   target.total += src.total;
@@ -169,8 +165,8 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
       ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
       : NaN;
-    const useExactTimes = Number.isFinite(eventStartMs);
-    const eventMs = useExactTimes ? eventStartMs : eventEndOfDayMs;
+    const useBroadcastStart = Number.isFinite(eventStartMs);
+    const eventMs = eventEndOfDayMs;
     const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] }) as ScoredEvent;
     const eventType = scored.eventType;
     const isRS = eventType === EVENT_TYPES.RAW || eventType === EVENT_TYPES.SMACKDOWN;
@@ -238,36 +234,18 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       // so overlapping roster windows don't double-count points across teams.
       let selectedStint: (typeof stints)[number] | null = null;
 
-      const ACTIVE_MAX_RELEASE_MS = Number.POSITIVE_INFINITY;
-      function ymdFromMs(ms: number): string {
-        return new Date(ms).toISOString().slice(0, 10);
-      }
-      function effectiveAcquiredMs(s: (typeof stints)[number]): number {
-        // When we have a broadcast_start_ts, use exact acquired_at_ts/released_at_ts
-        // only if their UTC date aligns with the roster's acquired_at date (after offset shift).
-        // Otherwise clamp to the roster's date boundary to avoid losing points due to legacy drift.
-        const expectedYmd = shiftYmd(s.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-        if (useExactTimes && s.acquired_at_ts) {
-          const tsMs = Date.parse(String(s.acquired_at_ts));
-          if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedYmd) return tsMs;
-        }
-        return Date.parse(`${expectedYmd}T00:00:00.000Z`);
-      }
-      function effectiveReleasedMs(s: (typeof stints)[number]): number | null {
-        if (s.released_at == null) return null;
-        const expectedYmd = shiftYmd(s.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-        if (useExactTimes && s.released_at_ts != null) {
-          const tsMs = Date.parse(String(s.released_at_ts));
-          if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedYmd) return tsMs;
-        }
-        return Date.parse(`${expectedYmd}T23:59:59.999Z`);
-      }
-
       for (const s of stints) {
-        const acquiredMs = effectiveAcquiredMs(s);
-        const releasedMs = effectiveReleasedMs(s);
-        if (eventMs < acquiredMs) continue;
-        if (releasedMs != null && eventMs > releasedMs) continue;
+        if (
+          !rosterStintActiveForEvent({
+            eventDate,
+            eventMs,
+            useBroadcastStart,
+            stint: s,
+            rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+          })
+        ) {
+          continue;
+        }
 
         const displayName = wrestlerNameById[s.wrestler_id];
         if (!rosterStintMatchesContribSlug(s.wrestler_id, displayName, slug, eventDate)) continue;
@@ -277,15 +255,15 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
           continue;
         }
 
-        const selReleasedMs = effectiveReleasedMs(selectedStint) ?? ACTIVE_MAX_RELEASE_MS;
-        const contenderReleasedMs = releasedMs ?? ACTIVE_MAX_RELEASE_MS;
-        const releasedCmp = contenderReleasedMs - selReleasedMs;
-
-        if (releasedCmp < 0) {
+        if (
+          compareStintsForEventTieBreak(
+            { ...s, user_id: s.user_id },
+            { ...selectedStint, user_id: selectedStint.user_id },
+            useBroadcastStart,
+            ROSTER_STINT_DATE_OFFSET_DAYS
+          ) < 0
+        ) {
           selectedStint = s;
-        } else if (releasedCmp === 0) {
-          const selAcquiredMs = effectiveAcquiredMs(selectedStint);
-          if (acquiredMs < selAcquiredMs) selectedStint = s;
         }
       }
 

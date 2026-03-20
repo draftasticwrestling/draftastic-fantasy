@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getRosterStintsForLeague, getLeagueScoring, getWrestlerDisplayNamesByIds } from "@/lib/leagues";
 import { getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { eventPointsForRosterStint } from "@/lib/scoring/rosterStintEventPoints";
+import { rosterStintActiveForEvent } from "@/lib/scoring/rosterStintEventWindow";
 import { getWeeklyMatchupStructure } from "@/lib/publicLeagueMatchups";
 import {
   computeEndOfMonthBeltPointsForSingleMonth,
@@ -65,13 +66,6 @@ export async function getPointsByOwnerForLeagueForWeek(
   weekStartMonday: string
 ): Promise<Record<string, number>> {
   const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
-  function shiftYmd(ymd: string, days: number): string {
-    if (!ymd) return ymd;
-    const d = new Date(ymd + "T00:00:00Z");
-    if (Number.isNaN(d.getTime())) return ymd;
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0, 10);
-  }
   const weekEndSunday = getSundayOfWeek(weekStartMonday);
   const supabase = await createClient();
   const { data: league } = await supabase
@@ -116,8 +110,8 @@ export async function getPointsByOwnerForLeagueForWeek(
     const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
       ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
       : NaN;
-    const useExactTimes = Number.isFinite(eventStartMs);
-    const eventMs = useExactTimes ? eventStartMs : eventEndOfDayMs;
+    const useBroadcastStart = Number.isFinite(eventStartMs);
+    const eventMs = eventEndOfDayMs;
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
@@ -126,26 +120,17 @@ export async function getPointsByOwnerForLeagueForWeek(
     kotrCarryOver = updatedCarryOver;
     if (!inWeek) continue;
     for (const stint of stints) {
-      const ymdFromMs = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-
-      const expectedAcquiredYmd = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      let acquiredMs = Date.parse(`${expectedAcquiredYmd}T00:00:00.000Z`);
-      if (useExactTimes && stint.acquired_at_ts) {
-        const tsMs = Date.parse(String(stint.acquired_at_ts));
-        if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedAcquiredYmd) acquiredMs = tsMs;
+      if (
+        !rosterStintActiveForEvent({
+          eventDate,
+          eventMs,
+          useBroadcastStart,
+          stint,
+          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+        })
+      ) {
+        continue;
       }
-
-      let releasedMs: number | null = null;
-      if (stint.released_at != null) {
-        const expectedReleasedYmd = shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-        releasedMs = Date.parse(`${expectedReleasedYmd}T23:59:59.999Z`);
-        if (useExactTimes && stint.released_at_ts != null) {
-          const tsMs = Date.parse(String(stint.released_at_ts));
-          if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedReleasedYmd) releasedMs = tsMs;
-        }
-      }
-      if (Number.isFinite(acquiredMs) && eventMs < acquiredMs) continue;
-      if (releasedMs != null && Number.isFinite(releasedMs) && eventMs > releasedMs) continue;
       const pts = eventPointsForRosterStint(
         eventPoints,
         stint.wrestler_id,
@@ -164,13 +149,6 @@ export async function getPointsByOwnerByWrestlerForWeek(
   weekStartMonday: string
 ): Promise<Record<string, Record<string, number>>> {
   const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
-  function shiftYmd(ymd: string, days: number): string {
-    if (!ymd) return ymd;
-    const d = new Date(ymd + "T00:00:00Z");
-    if (Number.isNaN(d.getTime())) return ymd;
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0, 10);
-  }
   const weekEndSunday = getSundayOfWeek(weekStartMonday);
   const supabase = await createClient();
   const { data: league } = await supabase
@@ -215,8 +193,8 @@ export async function getPointsByOwnerByWrestlerForWeek(
     const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
       ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
       : NaN;
-    const useExactTimes = Number.isFinite(eventStartMs);
-    const eventMs = useExactTimes ? eventStartMs : eventEndOfDayMs;
+    const useBroadcastStart = Number.isFinite(eventStartMs);
+    const eventMs = eventEndOfDayMs;
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
@@ -225,26 +203,17 @@ export async function getPointsByOwnerByWrestlerForWeek(
     kotrCarryOver = updatedCarryOver;
     if (!inWeek) continue;
     for (const stint of stints) {
-      const ymdFromMs = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-
-      const expectedAcquiredYmd = shiftYmd(stint.acquired_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-      let acquiredMs = Date.parse(`${expectedAcquiredYmd}T00:00:00.000Z`);
-      if (useExactTimes && stint.acquired_at_ts) {
-        const tsMs = Date.parse(String(stint.acquired_at_ts));
-        if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedAcquiredYmd) acquiredMs = tsMs;
+      if (
+        !rosterStintActiveForEvent({
+          eventDate,
+          eventMs,
+          useBroadcastStart,
+          stint,
+          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+        })
+      ) {
+        continue;
       }
-
-      let releasedMs: number | null = null;
-      if (stint.released_at != null) {
-        const expectedReleasedYmd = shiftYmd(stint.released_at, ROSTER_STINT_DATE_OFFSET_DAYS);
-        releasedMs = Date.parse(`${expectedReleasedYmd}T23:59:59.999Z`);
-        if (useExactTimes && stint.released_at_ts != null) {
-          const tsMs = Date.parse(String(stint.released_at_ts));
-          if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedReleasedYmd) releasedMs = tsMs;
-        }
-      }
-      if (Number.isFinite(acquiredMs) && eventMs < acquiredMs) continue;
-      if (releasedMs != null && Number.isFinite(releasedMs) && eventMs > releasedMs) continue;
       const pts = eventPointsForRosterStint(
         eventPoints,
         stint.wrestler_id,
