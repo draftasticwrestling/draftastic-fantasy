@@ -8,7 +8,7 @@ import {
   getEffectiveLeagueStartDate,
 } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
-import { getTradeProposalsForLeague } from "@/lib/leagueOwner";
+import { getTradeProposalsForLeague, getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
@@ -263,6 +263,15 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     (p) => p.status === "pending" && p.to_user_id === currentUser.id
   );
 
+  let tradeLockedWrestlerIds: string[] = [];
+  if (isOwnTeam) {
+    try {
+      tradeLockedWrestlerIds = await getWrestlerIdsLockedByPendingTrades(league.id, currentUser.id);
+    } catch {
+      tradeLockedWrestlerIds = [];
+    }
+  }
+
   return (
     <main
       style={{
@@ -355,6 +364,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             showDrop={isOwnTeam}
             showTrade
             isOwnTeam={isOwnTeam}
+            tradeLockedWrestlerIds={isOwnTeam ? tradeLockedWrestlerIds : undefined}
           />
         ) : (
           <p style={{ color: "#666", fontSize: 14 }}>
@@ -446,6 +456,23 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
               Drop a wrestler from your roster. Takes effect immediately (first come, first serve).
             </p>
+            {tradeLockedWrestlerIds.length > 0 && (
+              <p
+                style={{
+                  fontSize: 14,
+                  color: "#9a3412",
+                  background: "rgba(251, 191, 36, 0.15)",
+                  border: "1px solid rgba(217, 119, 6, 0.45)",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  marginBottom: 12,
+                }}
+              >
+                <strong>Pending trade:</strong> wrestlers involved in a trade that isn’t finished yet (including
+                someone you picked to drop to make room for a trade you accepted) can’t be dropped until that
+                trade is cancelled or completes.
+              </p>
+            )}
             {rosterWrestlers.length === 0 ? (
               <p style={{ color: "#666" }}>Your roster is empty.</p>
             ) : (
@@ -455,6 +482,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 rosterRules={rosterRules}
                 freeAgents={freeAgents.map((w) => ({ id: w.id, name: w.name ?? w.id }))}
                 pendingReleaseIds={[]}
+                tradeLockedWrestlerIds={tradeLockedWrestlerIds}
               />
             )}
           </section>
@@ -464,6 +492,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
               Add a wrestler who isn’t on any roster. If your roster is full, drop one to make room. Takes effect immediately (first come, first serve).
             </p>
+            {tradeLockedWrestlerIds.length > 0 && rosterRules && rosterWrestlers.length >= rosterRules.rosterSize && (
+              <p style={{ fontSize: 13, color: "#92400e", marginBottom: 10 }}>
+                If you need to drop someone to sign a free agent, you can’t choose wrestlers that are tied to a pending
+                trade (see note under Drop wrestler).
+              </p>
+            )}
             {freeAgents.length === 0 ? (
               <p style={{ color: "#666" }}>No free agents available.</p>
             ) : (
@@ -474,6 +508,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 rosterSize={rosterRules?.rosterSize ?? 0}
                 pendingFaIds={[]}
                 initialWrestlerId={addFa}
+                tradeLockedWrestlerIds={tradeLockedWrestlerIds}
               />
             )}
           </section>

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 import { WrestlerTableLegend } from "./WrestlerTableLegend";
+import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
 
 export type WrestlerRow = {
   id: string;
@@ -473,6 +474,8 @@ export default function WrestlerList({
   const [includedRosters, setIncludedRosters] = useState<Set<string>>(
     () => (hideRosterFilter ? new Set(ALL_ROSTER_VALUES) : new Set(["Raw", "SmackDown"]))
   );
+  const [includeMale, setIncludeMale] = useState(true);
+  const [includeFemale, setIncludeFemale] = useState(true);
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>(
     defaultPointsPeriod ?? "sinceStart"
   );
@@ -499,9 +502,18 @@ export default function WrestlerList({
 
   const selectAllRosters = () => setIncludedRosters(new Set(ALL_ROSTER_VALUES));
   const clearAllRosters = () => setIncludedRosters(new Set());
+  const selectAllGenders = () => {
+    setIncludeMale(true);
+    setIncludeFemale(true);
+  };
+  const clearAllGenders = () => {
+    setIncludeMale(false);
+    setIncludeFemale(false);
+  };
 
   const filteredAndSorted = useMemo(() => {
     let list = wrestlers.filter((w) => includedRosters.has(normalizeRoster(w.brand)));
+    list = list.filter((w) => passesGenderFilter(w, includeMale, includeFemale));
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -515,11 +527,12 @@ export default function WrestlerList({
       return cmp !== 0 ? cmp : byName(a, b);
     });
     return list;
-  }, [wrestlers, sortColumn, sortDir, search, includedRosters, pointsPeriod]);
+  }, [wrestlers, sortColumn, sortDir, search, includedRosters, includeMale, includeFemale, pointsPeriod]);
 
   /** Rank by total points (selected period) among filtered wrestlers; 1 = highest. */
   const rankByWrestlerId = useMemo(() => {
     let list = wrestlers.filter((w) => includedRosters.has(normalizeRoster(w.brand)));
+    list = list.filter((w) => passesGenderFilter(w, includeMale, includeFemale));
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -534,7 +547,7 @@ export default function WrestlerList({
     const map = new Map<string, number>();
     sorted.forEach((w, i) => map.set(w.id, i + 1));
     return map;
-  }, [wrestlers, includedRosters, search, pointsPeriod]);
+  }, [wrestlers, includedRosters, includeMale, includeFemale, search, pointsPeriod]);
 
   const flatList = filteredAndSorted;
   const totalCount = wrestlers.length;
@@ -571,6 +584,37 @@ export default function WrestlerList({
             </div>
           </div>
         )}
+        <div className="wrestler-list-roster-filters wrestler-list-gender-filters">
+          <span className="wrestler-list-roster-label">Gender:</span>
+          <div className="wrestler-list-roster-checkboxes" role="group" aria-label="Filter by gender">
+            <label className="wrestler-list-roster-check">
+              <input
+                type="checkbox"
+                checked={includeMale}
+                onChange={() => setIncludeMale((v) => !v)}
+                aria-label="Include male wrestlers"
+              />
+              <span>Male</span>
+            </label>
+            <label className="wrestler-list-roster-check">
+              <input
+                type="checkbox"
+                checked={includeFemale}
+                onChange={() => setIncludeFemale((v) => !v)}
+                aria-label="Include female wrestlers"
+              />
+              <span>Female</span>
+            </label>
+          </div>
+          <div className="wrestler-list-roster-actions">
+            <button type="button" className="wrestler-list-reset" onClick={selectAllGenders}>
+              All
+            </button>
+            <button type="button" className="wrestler-list-reset" onClick={clearAllGenders}>
+              None
+            </button>
+          </div>
+        </div>
         {hasPointsPeriodFilter && (
           <div className="wrestler-list-filter-row">
             <label htmlFor="wrestler-points-period">Period</label>
@@ -608,6 +652,7 @@ export default function WrestlerList({
           onClick={() => {
             setSearch("");
             selectAllRosters();
+            selectAllGenders();
           }}
         >
           Reset filters

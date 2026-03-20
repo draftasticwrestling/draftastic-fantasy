@@ -52,6 +52,8 @@ type Props = {
   showTrade?: boolean;
   /** Whether this page is the viewer's own team */
   isOwnTeam?: boolean;
+  /** Wrestlers that can't be dropped while tied to an unfinished trade */
+  tradeLockedWrestlerIds?: string[];
 };
 
 function WrestlerCard({
@@ -59,6 +61,7 @@ function WrestlerCard({
   leagueSlug,
   canDrop,
   canTrade,
+  dropTradeLocked,
   onDropClick,
   onTradeClick,
 }: {
@@ -66,6 +69,8 @@ function WrestlerCard({
   leagueSlug: string;
   canDrop: boolean;
   canTrade: boolean;
+  /** True when this wrestler is reserved for a pending / in-review trade */
+  dropTradeLocked?: boolean;
   onDropClick?: () => void;
   onTradeClick?: () => void;
 }) {
@@ -178,7 +183,7 @@ function WrestlerCard({
                 Trade
               </button>
             )}
-            {canDrop && (
+            {canDrop && !dropTradeLocked && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -200,6 +205,24 @@ function WrestlerCard({
               >
                 Drop
               </button>
+            )}
+            {canDrop && dropTradeLocked && (
+              <span
+                title="In a pending trade or reserved as your drop for an accepted trade. Cancel or complete the trade first."
+                style={{
+                  padding: "2px 6px",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  border: "1px solid #92400e",
+                  background: "linear-gradient(135deg, #78350f 0%, #451a03 100%)",
+                  color: "#fde68a",
+                  whiteSpace: "nowrap",
+                  cursor: "help",
+                }}
+              >
+                Trade hold
+              </span>
             )}
           </div>
         ) : (
@@ -412,10 +435,15 @@ export function RosterCardGrid({
   showDrop = false,
   showTrade = false,
   isOwnTeam = false,
+  tradeLockedWrestlerIds,
 }: Props) {
   const router = useRouter();
   const [sortBy, setSortBy] = useState<SortKey>("total");
   const [sortDesc, setSortDesc] = useState(true);
+  const tradeLockedSet = useMemo(
+    () => new Set((tradeLockedWrestlerIds ?? []).map((id) => String(id).trim()).filter(Boolean)),
+    [tradeLockedWrestlerIds]
+  );
 
   const sortedWrestlers = useMemo(() => {
     const list = [...wrestlers];
@@ -430,6 +458,12 @@ export function RosterCardGrid({
 
   function handleDrop(w: RosterCardWrestler) {
     if (!showDrop) return;
+    if (tradeLockedSet.has(w.id)) {
+      window.alert(
+        "This wrestler is tied to a pending trade or reserved as your roster cut for a trade you accepted. Cancel or complete that trade before dropping them."
+      );
+      return;
+    }
     const name = w.name ?? w.id;
     if (typeof window !== "undefined") {
       // Simple confirmation before routing to the release section
@@ -516,6 +550,7 @@ export function RosterCardGrid({
             leagueSlug={leagueSlug}
             canDrop={showDrop}
             canTrade={showTrade}
+            dropTradeLocked={tradeLockedSet.has(w.id)}
             onDropClick={() => handleDrop(w)}
             onTradeClick={() => handleTrade(w)}
           />

@@ -39,15 +39,19 @@ export function ProposeReleaseForm(props: {
   rosterRules: RosterRules | null;
   freeAgents: { id: string; name: string | null }[];
   pendingReleaseIds: string[];
+  /** Wrestlers reserved for an unfinished trade — cannot drop until trade completes or is cancelled */
+  tradeLockedWrestlerIds?: string[];
 }) {
-  const { leagueSlug, rosterWrestlers, rosterRules, freeAgents } = props;
+  const { leagueSlug, rosterWrestlers, rosterRules, freeAgents, tradeLockedWrestlerIds = [] } = props;
+  const tradeLocked = new Set(tradeLockedWrestlerIds.map((id) => String(id).trim()).filter(Boolean));
   const [wrestlerId, setWrestlerId] = useState("");
   const [freeAgentId, setFreeAgentId] = useState("");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const minTotal = rosterRules ? rosterRules.minFemale + rosterRules.minMale : 8;
-  const canDropOnly = wrestlerId.trim() && (
+  const selectedLocked = !!(wrestlerId.trim() && tradeLocked.has(wrestlerId.trim()));
+  const canDropOnly = wrestlerId.trim() && !selectedLocked && (
     !rosterRules || wouldBeCompliantAfterDrop(rosterWrestlers, wrestlerId.trim(), rosterRules)
   );
   const mustAddFa =
@@ -57,7 +61,7 @@ export function ProposeReleaseForm(props: {
 
   const handleDropOnly = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wrestlerId.trim() || !canDropOnly) return;
+    if (!wrestlerId.trim() || !canDropOnly || tradeLocked.has(wrestlerId.trim())) return;
     setMessage(null);
     startTransition(async () => {
       const result = await dropWrestlerAction(leagueSlug, wrestlerId.trim());
@@ -73,6 +77,7 @@ export function ProposeReleaseForm(props: {
     e.preventDefault();
     if (!wrestlerId.trim() || !freeAgentId.trim()) return;
     if (mustAddFa && !freeAgentId.trim()) return;
+    if (tradeLocked.has(wrestlerId.trim())) return;
     setMessage(null);
     startTransition(async () => {
       const result = await addFreeAgentAction(
@@ -106,12 +111,19 @@ export function ProposeReleaseForm(props: {
         >
           <option value="">Select…</option>
           {rosterWrestlers.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name ?? w.id}
+            <option key={w.id} value={w.id} disabled={tradeLocked.has(w.id)}>
+              {tradeLocked.has(w.id) ? `${w.name ?? w.id} (pending trade)` : (w.name ?? w.id)}
             </option>
           ))}
         </select>
       </div>
+
+      {wrestlerId.trim() && selectedLocked && (
+        <p style={{ margin: 0, fontSize: 14, color: "#b45309" }}>
+          This wrestler is tied to a pending trade or was chosen as your roster cut for a trade awaiting the
+          commissioner. You can’t drop them until that trade is cancelled or processed.
+        </p>
+      )}
 
       {wrestlerId.trim() && (
         <>
@@ -174,7 +186,7 @@ export function ProposeReleaseForm(props: {
             <button
               type="button"
               onClick={handleDropAndAdd}
-              disabled={pending || !freeAgentId.trim()}
+              disabled={pending || !freeAgentId.trim() || selectedLocked}
               style={{
                 padding: "8px 16px",
                 background: "#1a73e8",

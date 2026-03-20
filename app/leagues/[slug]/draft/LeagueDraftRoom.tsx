@@ -6,6 +6,7 @@ import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { makeDraftPickWithStateAction } from "./actions";
 import { DraftTimer } from "./DraftTimer";
+import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
 
 const RATING_WEIGHT = 1.5;
 const BRAND_STYLES: Record<string, { showBg: string; label: string }> = {
@@ -167,6 +168,8 @@ export function LeagueDraftRoom({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("allTime");
   const [includedRosters, setIncludedRosters] = useState<Set<string>>(() => new Set(["Raw", "SmackDown"]));
+  const [includeMale, setIncludeMale] = useState(true);
+  const [includeFemale, setIncludeFemale] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   const memberByUserId = useMemo(
@@ -193,7 +196,9 @@ export function LeagueDraftRoom({
   }, [pointsPeriod, pointsBySlug, points2025BySlug, points2026BySlug, pointsAllTimeBySlug]);
 
   const availableWithStats = useMemo(() => {
-    const filtered = available.filter((w) => includedRosters.has(normalizeRoster(w.brand)));
+    const filtered = available
+      .filter((w) => includedRosters.has(normalizeRoster(w.brand)))
+      .filter((w) => passesGenderFilter(w, includeMale, includeFemale));
     return filtered
       .map((w) => {
         const pts = getPointsForWrestler(
@@ -215,7 +220,7 @@ export function LeagueDraftRoom({
       })
       .sort((a, b) => b.composite - a.composite || (a.wrestler.name ?? "").localeCompare(b.wrestler.name ?? ""))
       .map((row, i) => ({ ...row, rank: i + 1 }));
-  }, [available, pointsMapForPeriod, includedRosters]);
+  }, [available, pointsMapForPeriod, includedRosters, includeMale, includeFemale]);
 
   const sortedAvailable = useMemo(() => {
     const list = [...availableWithStats];
@@ -401,6 +406,47 @@ export function LeagueDraftRoom({
                 None
               </button>
             </div>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Gender:</span>
+              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={includeMale}
+                  onChange={() => setIncludeMale((v) => !v)}
+                  aria-label="Include male wrestlers"
+                />
+                <span>Male</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={includeFemale}
+                  onChange={() => setIncludeFemale((v) => !v)}
+                  aria-label="Include female wrestlers"
+                />
+                <span>Female</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setIncludeMale(true);
+                  setIncludeFemale(true);
+                }}
+                style={{ fontSize: 11, padding: "2px 6px", background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", borderRadius: "var(--radius)", cursor: "pointer" }}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIncludeMale(false);
+                  setIncludeFemale(false);
+                }}
+                style={{ fontSize: 11, padding: "2px 6px", background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", borderRadius: "var(--radius)", cursor: "pointer" }}
+              >
+                None
+              </button>
+            </div>
             <div style={{ marginBottom: 10 }}>
               <input
                 type="search"
@@ -438,6 +484,8 @@ export function LeagueDraftRoom({
               <div style={{ padding: 16, color: "var(--color-text-muted)", fontSize: 14 }}>
                 {available.length > 0 && includedRosters.size === 0 ? (
                   <p style={{ margin: 0 }}>No rosters selected. Use the Include checkboxes above to show Raw, SmackDown, NXT, etc.</p>
+                ) : available.length > 0 && !includeMale && !includeFemale ? (
+                  <p style={{ margin: 0 }}>No genders selected. Check Male and/or Female above, or click Gender: All.</p>
                 ) : wrestlers.length === 0 ? (
                   <>
                     <p style={{ margin: "0 0 12px", fontWeight: 600 }}>Wrestler pool could not be loaded.</p>

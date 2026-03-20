@@ -971,6 +971,11 @@ body > .site-footer {
   flex-shrink: 0;
 }
 
+/* Second toolbar row: Male / Female (same layout as Include brands) */
+.wrestler-list-gender-filters {
+  margin-top: -4px;
+}
+
 .wrestler-list-filter-row {
   display: flex;
   flex-wrap: wrap;

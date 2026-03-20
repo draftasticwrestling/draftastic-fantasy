@@ -207,6 +207,127 @@ export async function getTradeProposalsForLeague(
   }));
 }
 
+/** Statuses where roster spots are still committed to a trade until it executes or is cancelled. */
+const ACTIVE_TRADE_LOCK_STATUSES = ["pending", "awaiting_gm_approval", "gm_approved"] as const;
+
+/**
+ * Shown when a manager tries to drop (or FA-drop) a wrestler tied to an unfinished trade.
+ */
+export const TRADE_DROP_LOCK_MESSAGE =
+  "This wrestler is part of a trade that's still pending or waiting on the commissioner (including someone you chose to drop to make room for that trade). Cancel that trade or wait until it completes before dropping them.";
+
+/**
+ * Wrestler IDs the owner must not drop while those trades are unfinished:
+ * - As trade proposer: every wrestler you're giving (`direction === "give"`).
+ * - As trade recipient: every wrestler you're trading away (`direction === "receive"`) plus any
+ *   `to_user_drop_ids` chosen when you accepted (roster cuts for that deal).
+ */
+export async function getWrestlerIdsLockedByPendingTrades(
+  leagueId: string,
+  userId: string
+): Promise<string[]> {
+  const supabase = await createClient();
+
+  type TradeLockProposalRow = {
+    id: string;
+    from_user_id: string;
+    to_user_id: string;
+    status: string;
+    to_user_drop_ids?: string[] | null;
+    executed_at?: string | null;
+  };
+  let proposals: TradeLockProposalRow[] = [];
+
+  const selectFull =
+    "id, from_user_id, to_user_id, status, to_user_drop_ids, executed_at" as const;
+  let full = await supabase
+    .from("league_trade_proposals")
+    .select(selectFull)
+    .eq("league_id", leagueId)
+    .in("status", [...ACTIVE_TRADE_LOCK_STATUSES]);
+
+  const isColError = (e: typeof full.error) =>
+    !!e &&
+    (e.code === "42703" ||
+      /column.*does not exist/i.test(e.message ?? "") ||
+      /schema cache/i.test(e.message ?? ""));
+
+  if (full.error && isColError(full.error)) {
+    const minimal = await supabase
+      .from("league_trade_proposals")
+      .select("id, from_user_id, to_user_id, status")
+      .eq("league_id", leagueId)
+      .in("status", ["pending", "awaiting_gm_approval"]);
+    if (minimal.error || !minimal.data?.length) return [];
+    const md = minimal.data as { id: string; from_user_id: string; to_user_id: string; status: string }[];
+    proposals = md.map((p) => ({
+      ...p,
+      to_user_drop_ids: null,
+      executed_at: null,
+    }));
+  } else if (full.error || !full.data?.length) {
+    return [];
+  } else {
+    proposals = full.data as TradeLockProposalRow[];
+  }
+
+  const unfinished = proposals.filter((p) => {
+    const ex = p.executed_at;
+    return ex == null || String(ex).trim() === "";
+  });
+  const ids = unfinished.map((p) => p.id);
+  if (ids.length === 0) return [];
+
+  const { data: items } = await supabase
+    .from("league_trade_proposal_items")
+    .select("proposal_id, wrestler_id, direction")
+    .in("proposal_id", ids);
+
+  const byProposal: Record<string, { wrestler_id: string; direction: string }[]> = {};
+  for (const it of items ?? []) {
+    const row = it as { proposal_id: string; wrestler_id: string; direction: string };
+    if (!byProposal[row.proposal_id]) byProposal[row.proposal_id] = [];
+    byProposal[row.proposal_id].push({
+      wrestler_id: row.wrestler_id,
+      direction: row.direction,
+    });
+  }
+
+  const locked = new Set<string>();
+  for (const p of unfinished) {
+    const pit = byProposal[p.id] ?? [];
+    if (p.from_user_id === userId) {
+      for (const it of pit) {
+        if (it.direction === "give") locked.add(String(it.wrestler_id).trim());
+      }
+    }
+    if (p.to_user_id === userId) {
+      for (const it of pit) {
+        if (it.direction === "receive") locked.add(String(it.wrestler_id).trim());
+      }
+      const drops = (p.to_user_drop_ids ?? []) as string[];
+      for (const d of drops) {
+        const t = String(d).trim();
+        if (t) locked.add(t);
+      }
+    }
+  }
+  return [...locked];
+}
+
+/** Block roster drops that would break a pending / in-flight trade (server-side). */
+export async function assertWrestlerNotTradeLocked(
+  leagueId: string,
+  rosterOwnerUserId: string,
+  wrestlerId: string
+): Promise<{ error?: string }> {
+  const wid = String(wrestlerId).trim();
+  if (!wid) return {};
+  const locked = new Set(await getWrestlerIdsLockedByPendingTrades(leagueId, rosterOwnerUserId));
+  if (locked.has(wid)) return { error: TRADE_DROP_LOCK_MESSAGE };
+  return {};
+}
+
 /** Validate that after the trade both rosters would meet min/max and gender rules. */
 export async function validateTradeRosters(
   leagueId: string,
@@ -1318,6 +1439,9 @@ export async function dropWrestlerImmediate(
   if (!member) return { error: "You are not in this league." };
 
   const wid = wrestlerId.trim();
+  const tradeLock = await assertWrestlerNotTradeLocked(leagueId, user.id, wid);
+  if (tradeLock.error) return tradeLock;
+
   const { count: memberCount } = await supabase
     .from("league_members")
     .select("*", { count: "exact", head: true })
@@ -1395,6 +1519,11 @@ export async function addFreeAgentImmediate(
 
   const widToAdd = wrestlerId.trim();
   const widToDrop = dropWrestlerId?.trim() || null;
+
+  if (widToDrop) {
+    const tradeLock = await assertWrestlerNotTradeLocked(leagueId, user.id, widToDrop);
+    if (tradeLock.error) return tradeLock;
+  }
 
   // Pre-validate combined operation so we don't drop first and then fail the add.
   // (removeWrestlerFromRoster does not enforce roster minimums; addWrestlerToRoster does.)

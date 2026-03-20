@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { DraftOrderMethod, DraftType } from "@/lib/leagues";
 import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster } from "@/lib/leagues";
+import { assertWrestlerNotTradeLocked } from "@/lib/leagueOwner";
 
 export type AddRosterState = { error?: string };
 
@@ -47,6 +48,9 @@ export async function removeRosterEntryAction(formData: FormData): Promise<{ err
   if (!leagueSlug || !leagueId || !userId || !wrestlerId) {
     return { error: "Missing parameters." };
   }
+
+  const tradeLock = await assertWrestlerNotTradeLocked(leagueId, userId, wrestlerId);
+  if (tradeLock.error) return tradeLock;
 
   const result = await removeWrestlerFromRoster(leagueId, userId, wrestlerId);
   if (result.error) return { error: result.error };

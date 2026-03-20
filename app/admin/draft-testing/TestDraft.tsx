@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { isBlocklistedSlug } from "@/lib/draftBlocklist";
+import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
 
 export type WrestlerDraftRow = {
   id: string;
@@ -222,6 +223,8 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
   const [tableSortColumn, setTableSortColumn] = useState<DraftTableSortColumn>("rank");
   const [tableSortDir, setTableSortDir] = useState<SortDir>("asc");
   const [includedRosters, setIncludedRosters] = useState<Set<string>>(() => new Set(["Raw", "SmackDown"]));
+  const [includeMale, setIncludeMale] = useState(true);
+  const [includeFemale, setIncludeFemale] = useState(true);
   /** Per-team auto-draft preferences. Used when clock hits 0. */
   const [teamPreferences, setTeamPreferences] = useState<
     Record<number, { focus: AutoDraftFocus; pointStrategy: AutoDraftPointStrategy; wrestlerStrategy: AutoDraftWrestlerStrategy }>
@@ -383,6 +386,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
       includedRosters.size === 0
         ? []
         : availableWithStats.filter((row) => includedRosters.has(rosterCategory(row.wrestler.brand)));
+    list = list.filter((row) => passesGenderFilter(row.wrestler, includeMale, includeFemale));
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       list = list.filter((row) => {
@@ -439,7 +443,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
       return out * dir;
     });
     return list;
-  }, [availableWithStats, includedRosters, searchQuery, tableSortColumn, tableSortDir]);
+  }, [availableWithStats, includedRosters, includeMale, includeFemale, searchQuery, tableSortColumn, tableSortDir]);
 
   const handleSort = useCallback(
     (col: DraftTableSortColumn) => {
@@ -801,6 +805,64 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
                   None
                 </button>
               </div>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 14, color: "var(--color-text)", fontWeight: 600 }}>Gender:</span>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }} role="group" aria-label="Filter by gender">
+                  <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={includeMale}
+                      onChange={() => setIncludeMale((v) => !v)}
+                      aria-label="Include male wrestlers"
+                    />
+                    <span>Male</span>
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={includeFemale}
+                      onChange={() => setIncludeFemale((v) => !v)}
+                      aria-label="Include female wrestlers"
+                    />
+                    <span>Female</span>
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIncludeMale(true);
+                    setIncludeFemale(true);
+                  }}
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: 12,
+                    color: "var(--color-primary)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIncludeMale(false);
+                    setIncludeFemale(false);
+                  }}
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: 12,
+                    color: "var(--color-text)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  None
+                </button>
+              </div>
               <div style={{ marginBottom: 10 }}>
                 <input
                   type="search"
@@ -828,7 +890,13 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
                 }}
               >
                 {rankedAvailable.length === 0 ? (
-                  <p style={{ color: "var(--color-text-muted)", margin: 16 }}>None left</p>
+                  <p style={{ color: "var(--color-text-muted)", margin: 16 }}>
+                    {includedRosters.size === 0
+                      ? "No rosters selected. Use the Include checkboxes above."
+                      : !includeMale && !includeFemale
+                        ? "No genders selected. Check Male and/or Female, or click Gender: All."
+                        : "None left"}
+                  </p>
                 ) : (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead style={{ position: "sticky", top: 0, background: "var(--color-bg-elevated)", zIndex: 1 }}>
