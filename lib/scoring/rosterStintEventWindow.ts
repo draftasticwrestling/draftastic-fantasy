@@ -1,3 +1,6 @@
+import { normalizeWrestlerName } from "./parsers/participantParser.js";
+import { resolvePersonaToCanonical } from "./personaResolution.js";
+
 /**
  * Decide if a roster stint receives fantasy points for an event.
  *
@@ -110,10 +113,28 @@ export function rosterStintSortKeyForTieBreak(
   return { acquiredMs, releasedMs };
 }
 
-export type StintWithUser = RosterStintWindowInput & { user_id: string };
+export type StintWithUser = RosterStintWindowInput & { user_id: string; wrestler_id: string };
+
+/**
+ * When the same event points are keyed under a canonical slug (e.g. chad-gable) but multiple
+ * roster rows match (e.g. original-el-grande-americano → chad-gable), prefer the **persona /
+ * alias roster id** over the plain canonical id so the team that drafted "Original El Grande
+ * Americano" is not beaten by another team that drafted "Chad Gable" for the same points bucket.
+ * Lower rank wins.
+ */
+function personaAliasTieRank(stint: StintWithUser, contribSlug: string, eventDate: string): number {
+  const wid = normalizeWrestlerName(String(stint.wrestler_id || ""));
+  if (!wid) return 2;
+  const resolved = resolvePersonaToCanonical(wid, eventDate) ?? wid;
+  if (resolved !== contribSlug) return 99;
+  if (wid === contribSlug) return 1;
+  return 0;
+}
 
 /**
  * When two stints could both score the same wrestler for one event, pick one deterministically.
+ * If contribSlug + eventDate are passed (team scoreboard / slug-level attribution), persona rows
+ * beat canonical ids when both map to the same scoring slug.
  * Broadcast mode: earliest acquired_at wins (team that had them first on the calendar).
  * Legacy: earlier effective release wins; if tie, earlier acquisition wins.
  */
@@ -121,8 +142,15 @@ export function compareStintsForEventTieBreak(
   a: StintWithUser,
   b: StintWithUser,
   useBroadcastStart: boolean,
-  rosterStintDateOffsetDays: number
+  rosterStintDateOffsetDays: number,
+  contribSlug?: string,
+  eventDate?: string
 ): number {
+  if (contribSlug && eventDate) {
+    const ra = personaAliasTieRank(a, contribSlug, eventDate);
+    const rb = personaAliasTieRank(b, contribSlug, eventDate);
+    if (ra !== rb) return ra - rb;
+  }
   if (useBroadcastStart) {
     const acqCmp = String(a.acquired_at).slice(0, 10).localeCompare(String(b.acquired_at).slice(0, 10));
     if (acqCmp !== 0) return acqCmp;

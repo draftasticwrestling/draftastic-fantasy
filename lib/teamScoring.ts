@@ -257,10 +257,12 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
 
         if (
           compareStintsForEventTieBreak(
-            { ...s, user_id: s.user_id },
-            { ...selectedStint, user_id: selectedStint.user_id },
+            { ...s, user_id: s.user_id, wrestler_id: s.wrestler_id },
+            { ...selectedStint, user_id: selectedStint.user_id, wrestler_id: selectedStint.wrestler_id },
             useBroadcastStart,
-            ROSTER_STINT_DATE_OFFSET_DAYS
+            ROSTER_STINT_DATE_OFFSET_DAYS,
+            slug,
+            eventDate
           ) < 0
         ) {
           selectedStint = s;
