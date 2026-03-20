@@ -884,6 +884,88 @@ export async function executeTradeWithServiceRole(
   return await executeTrade(proposalId);
 }
 
+const TRADE_TIMER_FORTY_EIGHT_H_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * Trade timer maintenance (same rules as GET /api/cron/process-trades):
+ * - Expire `pending` proposals with no response for 48h.
+ * - Auto-execute `awaiting_gm_approval` when GM has not acted for 48h after both owners accepted
+ *   (treated as approval).
+ *
+ * Call from the cron route and opportunistically from league/trade pages so trades still complete
+ * if scheduled cron is not configured.
+ */
+export async function processTradeTimerDeadlines(): Promise<{
+  expired: number;
+  autoExecuted: number;
+  expireErrors: string[];
+  execErrors: string[];
+}> {
+  const admin = getAdminClient();
+  const empty = { expired: 0, autoExecuted: 0, expireErrors: [] as string[], execErrors: [] as string[] };
+  if (!admin) return empty;
+
+  const nowMs = Date.now();
+  const cutoffIso = new Date(nowMs - TRADE_TIMER_FORTY_EIGHT_H_MS).toISOString();
+
+  const { data: pendingOld } = await admin
+    .from("league_trade_proposals")
+    .select("id")
+    .eq("status", "pending")
+    .lt("created_at", cutoffIso);
+
+  let expired = 0;
+  const expireErrors: string[] = [];
+  for (const row of pendingOld ?? []) {
+    const id = (row as { id: string }).id;
+    const { error } = await admin
+      .from("league_trade_proposals")
+      .update({ status: "expired", expired_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("status", "pending");
+    if (error) expireErrors.push(`${id}: ${error.message}`);
+    else expired += 1;
+  }
+
+  const { data: awaitingOld } = await admin
+    .from("league_trade_proposals")
+    .select("id, accepted_at, executed_at")
+    .eq("status", "awaiting_gm_approval")
+    .lt("accepted_at", cutoffIso);
+
+  let autoExecuted = 0;
+  const execErrors: string[] = [];
+  const sortedAwaiting = [...(awaitingOld ?? [])].sort((a, b) =>
+    String((a as { accepted_at?: string | null }).accepted_at ?? "").localeCompare(
+      String((b as { accepted_at?: string | null }).accepted_at ?? "")
+    )
+  );
+  for (const row of sortedAwaiting) {
+    const r = row as { id: string; accepted_at: string | null; executed_at: string | null };
+    if (r.executed_at) continue;
+
+    const nowIso = new Date().toISOString();
+    const { error: claimErr } = await admin
+      .from("league_trade_proposals")
+      .update({ status: "gm_approved", gm_responded_at: nowIso, responded_at: nowIso })
+      .eq("id", r.id)
+      .eq("status", "awaiting_gm_approval");
+    if (claimErr) {
+      execErrors.push(`${r.id}: ${claimErr.message}`);
+      continue;
+    }
+
+    const exec = await executeTradeWithServiceRole(r.id);
+    if (exec.error) {
+      execErrors.push(`${r.id}: ${exec.error}`);
+      continue;
+    }
+    autoExecuted += 1;
+  }
+
+  return { expired, autoExecuted, expireErrors, execErrors };
+}
+
 /** Commissioner approves or rejects a trade that was accepted by the other owner. */
 export async function respondToTradeByGm(
   proposalId: string,

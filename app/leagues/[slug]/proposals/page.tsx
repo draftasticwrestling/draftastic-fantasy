@@ -2,7 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
-import { getTradeProposalsForLeague, getLeagueRosterActivity, getTradeVoteTotals, getMyTradeVotes } from "@/lib/leagueOwner";
+import {
+  getTradeProposalsForLeague,
+  getLeagueRosterActivity,
+  getTradeVoteTotals,
+  getMyTradeVotes,
+  processTradeTimerDeadlines,
+} from "@/lib/leagueOwner";
 import { TradeGmActions } from "./TradeGmActions";
 import { TradeVoteControls } from "./TradeVoteControls";
 
@@ -80,6 +86,8 @@ export default async function ProposalsPage({ params }: Props) {
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
+
+  await processTradeTimerDeadlines();
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

@@ -7,6 +7,9 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Trade timer cron: `netlify/functions/process-trade-deadlines.ts` runs every 15m and calls
+# GET /api/cron/process-trades with header x-cron-secret. Set CRON_SECRET (and URL) in Netlify env.
+
 # Force correct MIME type for Next.js CSS (avoids "text/plain" / strict MIME refusal)
 [[headers]]
   for = "/*.css"

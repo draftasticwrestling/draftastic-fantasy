@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug } from "@/lib/leagues";
+import { processTradeTimerDeadlines } from "@/lib/leagueOwner";
 
 export async function generateMetadata({
   params,
@@ -24,6 +25,8 @@ export default async function PendingTransactionsPage({
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
+
+  await processTradeTimerDeadlines();
 
   return (
     <main className="app-page">

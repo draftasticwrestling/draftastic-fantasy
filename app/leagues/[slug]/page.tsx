@@ -5,7 +5,7 @@ import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/le
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
-import { getTradeProposalsForLeague, getLeagueRosterActivity } from "@/lib/leagueOwner";
+import { getTradeProposalsForLeague, getLeagueRosterActivity, processTradeTimerDeadlines } from "@/lib/leagueOwner";
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { RostersSection } from "./RostersSection";
@@ -84,6 +84,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
   try {
     league = await getLeagueBySlug(slug);
     if (!league) notFound();
+
+    await processTradeTimerDeadlines();
 
     const supabase = await createClient();
     const { data: { user: currentUser } } = await supabase.auth.getUser();
