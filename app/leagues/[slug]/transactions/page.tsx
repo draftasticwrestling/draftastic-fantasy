@@ -12,6 +12,7 @@ import {
   getLeagueRosterActivity,
   type LeagueRosterActivityItem,
 } from "@/lib/leagueOwner";
+import { appendRecipientCutsToDescription } from "@/lib/tradeDisplay";
 
 export const dynamic = "force-dynamic";
 
@@ -79,10 +80,15 @@ export default async function TransactionsPage({
     const receive = (p.items ?? []).filter((i) => i.direction === "receive").map((i) => wrestlerName[i.wrestler_id] ?? i.wrestler_id);
     const giveStr = give.length ? give.join(", ") : "—";
     const receiveStr = receive.length ? receive.join(", ") : "—";
-    const description =
+    const dropNames = (p.to_user_drop_ids ?? [])
+      .map((x) => String(x).trim())
+      .filter(Boolean)
+      .map((id) => wrestlerName[id] ?? id);
+    const baseDescription =
       p.from_user_id === currentUser.id
         ? `Traded ${giveStr} to ${toLabel} for ${receiveStr}`
         : `Received ${receiveStr} from ${fromLabel} for ${giveStr}`;
+    const description = appendRecipientCutsToDescription(baseDescription, toLabel, dropNames);
     const statusDisplay =
       p.status === "gm_approved" || p.status === "accepted"
         ? "Approved"

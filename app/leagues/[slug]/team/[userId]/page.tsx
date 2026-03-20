@@ -9,6 +9,7 @@ import {
 } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getTradeProposalsForLeague, getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
+import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
@@ -375,42 +376,74 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         )}
       </section>
 
-      {teamScoringAudit.formerStints.length > 0 && (
-        <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Former {teamLabel}</h2>
-          <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-            Past roster stints and points scored while on this team.
-          </p>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {teamScoringAudit.formerStints.map((stint) => (
-              <li
-                key={`${stint.wrestlerId}-${stint.acquiredAt}-${stint.releasedAt}`}
-                style={{
-                  padding: "10px 0",
-                  borderBottom: "1px solid #eee",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  flexWrap: "wrap",
-                }}
+      {teamScoringAudit.formerStints.length > 0 && (() => {
+        const allFormer = teamScoringAudit.formerStints;
+        const formerWithPoints = allFormer.filter((s) => s.points.total > 0);
+        const formerLogHref = `/leagues/${slug}/team/${encodeURIComponent(userId)}/former-roster`;
+        return (
+          <section style={{ marginBottom: 32 }}>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "baseline",
+                gap: "8px 16px",
+                marginBottom: 12,
+              }}
+            >
+              <h2 style={{ fontSize: "1.1rem", margin: 0 }}>Former {teamLabel}</h2>
+              <Link
+                href={formerLogHref}
+                style={{ fontSize: 14, color: "#1a73e8", textDecoration: "none", fontWeight: 600 }}
               >
-                <div>
-                  <div style={{ fontWeight: 700, color: "#1f2937" }}>
-                    {wrestlerNamesMap[stint.wrestlerId] ?? stint.wrestlerId}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    {stint.acquiredAt} - {stint.releasedAt}
-                  </div>
-                </div>
-                <div style={{ fontWeight: 700, color: "#111827" }}>
-                  {stint.points.total} pts
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+                See full log of former {teamLabel}
+              </Link>
+            </div>
+            <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
+              Past roster stints where this team earned fantasy points. Zero-point stays are hidden here but kept in
+              the full log.
+            </p>
+            {formerWithPoints.length > 0 ? (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {formerWithPoints.map((stint) => (
+                  <li
+                    key={`${stint.wrestlerId}-${stint.acquiredAt}-${stint.releasedAt}`}
+                    style={{
+                      padding: "10px 0",
+                      borderBottom: "1px solid #eee",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, color: "#1f2937" }}>
+                        {wrestlerNamesMap[stint.wrestlerId] ?? stint.wrestlerId}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>
+                        {stint.acquiredAt} - {stint.releasedAt}
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 700, color: "#111827" }}>
+                      {stint.points.total} pts
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>
+                No former roster members scored points while on this team yet.{" "}
+                <Link href={formerLogHref} style={{ color: "#1a73e8", fontWeight: 600 }}>
+                  See full log
+                </Link>{" "}
+                for every add and drop.
+              </p>
+            )}
+          </section>
+        );
+      })()}
 
       {isOwnTeam && (
         <>
@@ -606,6 +639,21 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                     {p.status === "gm_rejected" && "Rejected by GM"}
                     {p.status === "accepted" && "Completed"}
                     {!["pending", "cancelled", "expired", "rejected", "awaiting_gm_approval", "gm_approved", "gm_rejected", "accepted"].includes(p.status) && p.status}
+                    {(() => {
+                      const dropIds = (p.to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
+                      if (dropIds.length === 0) return null;
+                      const toName =
+                        memberByUserId[p.to_user_id]?.display_name?.trim() ??
+                        memberByUserId[p.to_user_id]?.team_name?.trim() ??
+                        "Recipient";
+                      const line = formatRecipientRosterCutsLine(
+                        toName,
+                        dropIds.map((id) => wrestlerNamesMap[id] ?? id)
+                      );
+                      return line ? (
+                        <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#64748b" }}>{line}</span>
+                      ) : null;
+                    })()}
                   </span>
                   {p.status === "pending" && (
                     <CancelTradeButton leagueSlug={slug} proposalId={p.id} />

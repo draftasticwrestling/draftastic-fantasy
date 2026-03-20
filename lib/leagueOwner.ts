@@ -512,6 +512,134 @@ function computeRosterCounts(ids: Iterable<string>, genderById: Record<string, "
   return { total, f, m };
 }
 
+type AdminSupabase = NonNullable<ReturnType<typeof getAdminClient>>;
+
+/**
+ * Validates that the trade can still run with current active rosters: trade pieces present,
+ * agreed recipient roster cuts still on the recipient's roster, and post-trade roster rules met.
+ * Prevents executing when the recipient dropped their chosen cut early or roster size changed.
+ */
+async function assertTradeExecutable(
+  admin: AdminSupabase,
+  proposalId: string
+): Promise<{ error?: string }> {
+  const { data: proposal } = await admin
+    .from("league_trade_proposals")
+    .select("league_id, from_user_id, to_user_id, to_user_drop_ids")
+    .eq("id", proposalId)
+    .single();
+  if (!proposal) return { error: "Proposal not found." };
+
+  const { data: items } = await admin
+    .from("league_trade_proposal_items")
+    .select("wrestler_id, direction")
+    .eq("proposal_id", proposalId);
+
+  const giveIds = uniqTrim((items ?? []).filter((i) => (i as { direction: string }).direction === "give").map((i) => (i as { wrestler_id: string }).wrestler_id));
+  const receiveIds = uniqTrim((items ?? []).filter((i) => (i as { direction: string }).direction === "receive").map((i) => (i as { wrestler_id: string }).wrestler_id));
+  const dropIds = uniqTrim(((proposal as { to_user_drop_ids?: string[] | null }).to_user_drop_ids ?? []) as string[]);
+
+  const { count: memberCount } = await admin
+    .from("league_members")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", proposal.league_id);
+  const rules = getRosterRulesForLeague(memberCount ?? 0);
+  if (!rules) return { error: "League roster rules could not be loaded." };
+  const minTotal = rules.minFemale + rules.minMale;
+  const rosterSize = rules.rosterSize;
+
+  const [{ data: fromRows }, { data: toRows }] = await Promise.all([
+    admin
+      .from("league_rosters")
+      .select("wrestler_id")
+      .eq("league_id", proposal.league_id)
+      .eq("user_id", proposal.from_user_id)
+      .is("released_at", null),
+    admin
+      .from("league_rosters")
+      .select("wrestler_id")
+      .eq("league_id", proposal.league_id)
+      .eq("user_id", proposal.to_user_id)
+      .is("released_at", null),
+  ]);
+
+  const fromRoster = new Set((fromRows ?? []).map((r: { wrestler_id: string }) => r.wrestler_id));
+  const toRoster = new Set((toRows ?? []).map((r: { wrestler_id: string }) => r.wrestler_id));
+
+  for (const id of giveIds) {
+    if (!fromRoster.has(id))
+      return { error: "Trade cannot execute: proposer no longer has a traded wrestler on their active roster." };
+  }
+  for (const id of receiveIds) {
+    if (!toRoster.has(id))
+      return { error: "Trade cannot execute: recipient no longer has a traded wrestler on their active roster." };
+  }
+
+  const delta = giveIds.length - receiveIds.length;
+  const wouldBeWithoutDrops = toRoster.size + delta;
+  const requiredDropCount = Math.max(0, wouldBeWithoutDrops - rosterSize);
+
+  if (requiredDropCount !== dropIds.length) {
+    if (requiredDropCount > dropIds.length) {
+      return {
+        error: `Trade cannot execute: recipient needs ${requiredDropCount} roster cut(s) to stay at or under ${rosterSize} after the swap, but this trade only records ${dropIds.length}. The recipient's roster may have changed after accepting.`,
+      };
+    }
+    return {
+      error:
+        dropIds.length > 0
+          ? `Trade cannot execute: recipient roster no longer requires the recorded roster cut(s) for this swap. The roster may have changed after accepting.`
+          : `Trade cannot execute: recipient roster cut count no longer matches (need ${requiredDropCount}, have ${dropIds.length}).`,
+    };
+  }
+
+  for (const id of dropIds) {
+    if (!toRoster.has(id)) {
+      return {
+        error:
+          "Trade cannot execute: the recipient's agreed roster cut is not on their active roster (they may have dropped that wrestler or replaced them).",
+      };
+    }
+    if (receiveIds.includes(id)) {
+      return { error: "Trade cannot execute: invalid state — roster cut overlaps a wrestler being traded away." };
+    }
+  }
+
+  const allIds = [...new Set([...fromRoster, ...toRoster, ...giveIds, ...receiveIds, ...dropIds])];
+  const { data: wrestlerRows } = await admin.from("wrestlers").select("id, gender").in("id", allIds);
+  const genderById: Record<string, "F" | "M" | null> = {};
+  for (const w of wrestlerRows ?? []) {
+    genderById[(w as { id: string }).id] = normalizeGender((w as { gender: string | null }).gender);
+  }
+
+  const fromAfter = new Set(fromRoster);
+  giveIds.forEach((id) => fromAfter.delete(id));
+  receiveIds.forEach((id) => fromAfter.add(id));
+
+  const toAfter = new Set(toRoster);
+  receiveIds.forEach((id) => toAfter.delete(id));
+  giveIds.forEach((id) => toAfter.add(id));
+  dropIds.forEach((id) => toAfter.delete(id));
+
+  const fromCounts = computeRosterCounts(fromAfter, genderById);
+  const toCounts = computeRosterCounts(toAfter, genderById);
+
+  if (fromCounts.total > rosterSize) {
+    return { error: `Trade cannot execute: proposer would exceed the roster limit (${rosterSize}).` };
+  }
+  if (toCounts.total > rosterSize) {
+    return { error: `Trade cannot execute: recipient would exceed the roster limit (${rosterSize}).` };
+  }
+  if (fromCounts.total < minTotal || fromCounts.f < rules.minFemale || fromCounts.m < rules.minMale) {
+    return { error: "Trade cannot execute: proposer would violate roster minimums after the swap." };
+  }
+  if (toCounts.total < minTotal || toCounts.f < rules.minFemale || toCounts.m < rules.minMale) {
+    return { error: "Trade cannot execute: recipient would violate roster minimums after the swap." };
+  }
+
+  return {};
+}
+
 async function cancelConflictingTradeProposals(
   admin: ReturnType<typeof getAdminClient>,
   params: {
@@ -806,6 +934,9 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
     return { error: `Trade is not executable in status '${status}'.` };
   }
 
+  const preflight = await assertTradeExecutable(admin, proposalId);
+  if (preflight.error) return preflight;
+
   const { data: items } = await admin
     .from("league_trade_proposal_items")
     .select("wrestler_id, direction")
@@ -830,13 +961,14 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
   });
 
   for (const wid of dropIds) {
-    const { error: dropErr } = await admin
+    const { data: dropRows, error: dropErr } = await admin
       .from("league_rosters")
       .update({ released_at: today, released_at_ts: nowTs })
       .eq("league_id", proposal.league_id)
       .eq("user_id", proposal.to_user_id)
       .eq("wrestler_id", wid)
-      .is("released_at", null);
+      .is("released_at", null)
+      .select("id");
     if (dropErr) {
       const isColumnError = /column.*released_at_ts does not exist/i.test(dropErr.message ?? "");
       if (isColumnError) {
@@ -846,11 +978,23 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
           .eq("league_id", proposal.league_id)
           .eq("user_id", proposal.to_user_id)
           .eq("wrestler_id", wid)
-          .is("released_at", null);
+          .is("released_at", null)
+          .select("id");
         if (res.error) return { error: res.error.message };
+        if (!res.data?.length) {
+          return {
+            error:
+              "Trade cannot execute: agreed roster cut was not released (wrestler no longer on recipient's active roster).",
+          };
+        }
       } else {
         return { error: dropErr.message };
       }
+    } else if (!dropRows?.length) {
+      return {
+        error:
+          "Trade cannot execute: agreed roster cut was not released (wrestler no longer on recipient's active roster).",
+      };
     }
   }
 
@@ -1066,6 +1210,19 @@ export async function processTradeTimerDeadlines(): Promise<{
     if (r.executed_at) continue;
 
     const nowIso = new Date().toISOString();
+
+    const preflight = await assertTradeExecutable(admin, r.id);
+    if (preflight.error) {
+      const { error: voidErr } = await admin
+        .from("league_trade_proposals")
+        .update({ status: "cancelled", cancelled_at: nowIso })
+        .eq("id", r.id)
+        .eq("status", "awaiting_gm_approval");
+      if (voidErr) execErrors.push(`${r.id}: ${preflight.error} (also failed to void: ${voidErr.message})`);
+      else execErrors.push(`${r.id}: ${preflight.error} (trade voided)`);
+      continue;
+    }
+
     const { error: claimErr } = await admin
       .from("league_trade_proposals")
       .update({ status: "gm_approved", gm_responded_at: nowIso, responded_at: nowIso })
@@ -1078,6 +1235,11 @@ export async function processTradeTimerDeadlines(): Promise<{
 
     const exec = await executeTradeWithServiceRole(r.id);
     if (exec.error) {
+      await admin
+        .from("league_trade_proposals")
+        .update({ status: "awaiting_gm_approval", gm_responded_at: null })
+        .eq("id", r.id)
+        .eq("status", "gm_approved");
       execErrors.push(`${r.id}: ${exec.error}`);
       continue;
     }
@@ -1115,6 +1277,14 @@ export async function respondToTradeByGm(
   if (league?.commissioner_id !== user.id) return { error: "Only the commissioner can approve or reject trades." };
 
   const now = new Date().toISOString();
+
+  if (approve) {
+    const admin = getAdminClient();
+    if (!admin) return { error: "Server configuration error (cannot validate trade)." };
+    const preflight = await assertTradeExecutable(admin, proposalId);
+    if (preflight.error) return preflight;
+  }
+
   const status = approve ? "gm_approved" : "gm_rejected";
   const { error: updateErr } = await supabase
     .from("league_trade_proposals")
@@ -1124,7 +1294,13 @@ export async function respondToTradeByGm(
 
   if (approve) {
     const exec = await executeTrade(proposalId);
-    if (exec.error) return exec;
+    if (exec.error) {
+      await supabase
+        .from("league_trade_proposals")
+        .update({ status: "awaiting_gm_approval", gm_responded_at: null })
+        .eq("id", proposalId);
+      return exec;
+    }
   }
   return {};
 }

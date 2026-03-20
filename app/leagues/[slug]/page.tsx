@@ -6,6 +6,7 @@ import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { getTradeProposalsForLeague, getLeagueRosterActivity, processTradeTimerDeadlines } from "@/lib/leagueOwner";
+import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { RostersSection } from "./RostersSection";
@@ -129,11 +130,29 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     }
     const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
     type FeedItem =
-      | { type: "trade"; id: string; created_at: string; from_user_id: string; to_user_id: string; status: string; items: { wrestler_id: string; direction: string }[] }
+      | {
+          type: "trade";
+          id: string;
+          created_at: string;
+          from_user_id: string;
+          to_user_id: string;
+          status: string;
+          items: { wrestler_id: string; direction: string }[];
+          to_user_drop_ids: string[] | null | undefined;
+        }
       | { type: "drop"; id: string; created_at: string; user_id: string; wrestler_id: string }
       | { type: "fa_add"; id: string; created_at: string; user_id: string; wrestler_id: string; secondary_wrestler_id: string | null };
     const feedItems: FeedItem[] = [
-      ...tradeProposals.map((p) => ({ type: "trade" as const, id: p.id, created_at: p.created_at, from_user_id: p.from_user_id, to_user_id: p.to_user_id, status: p.status, items: p.items })),
+      ...tradeProposals.map((p) => ({
+        type: "trade" as const,
+        id: p.id,
+        created_at: p.created_at,
+        from_user_id: p.from_user_id,
+        to_user_id: p.to_user_id,
+        status: p.status,
+        items: p.items,
+        to_user_drop_ids: p.to_user_drop_ids,
+      })),
       ...rosterActivity.map((a) => ({ type: a.activity_type as "drop" | "fa_add", id: a.id, created_at: a.created_at, user_id: a.user_id, wrestler_id: a.wrestler_id, secondary_wrestler_id: a.secondary_wrestler_id })),
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 12);
 
@@ -370,6 +389,25 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                           {item.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                           {" for "}
                           {item.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                          {(() => {
+                            const dropIds = (item.to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
+                            const toName =
+                              memberByUserId[item.to_user_id]?.display_name?.trim() ??
+                              memberByUserId[item.to_user_id]?.team_name?.trim() ??
+                              "Recipient";
+                            const cuts =
+                              dropIds.length > 0
+                                ? formatRecipientRosterCutsLine(
+                                    toName,
+                                    dropIds.map((id) => wrestlerNames[id] ?? id)
+                                  )
+                                : null;
+                            return cuts ? (
+                              <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "var(--color-text-muted)" }}>
+                                {cuts}
+                              </span>
+                            ) : null;
+                          })()}
                           {(item.status === "gm_approved" || item.status === "accepted") && (
                             <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-success)", fontWeight: 600 }}>✓ Approved</span>
                           )}

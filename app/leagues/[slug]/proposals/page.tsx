@@ -9,6 +9,7 @@ import {
   getMyTradeVotes,
   processTradeTimerDeadlines,
 } from "@/lib/leagueOwner";
+import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { TradeGmActions } from "./TradeGmActions";
 import { TradeVoteControls } from "./TradeVoteControls";
 
@@ -182,6 +183,17 @@ export default async function ProposalsPage({ params }: Props) {
                         {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                         {" for "}
                         {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
+                        {(() => {
+                          const dropIds = (p.to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
+                          const toName = memberByUserId[p.to_user_id]?.display_name ?? "Unknown";
+                          const line = formatRecipientRosterCutsLine(
+                            toName,
+                            dropIds.map((id) => wrestlerNames[id] ?? id)
+                          );
+                          return line ? (
+                            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{line}</div>
+                          ) : null;
+                        })()}
                       </div>
 
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -251,6 +263,17 @@ export default async function ProposalsPage({ params }: Props) {
                   {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                   {" — "}
                   <span style={{ fontWeight: 700, color: tradeStatusColor(p.status) }}>{tradeStatusLabel(p.status)}</span>
+                  {(() => {
+                    const dropIds = (p.to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
+                    const toName = memberByUserId[p.to_user_id]?.display_name ?? "Unknown";
+                    const line = formatRecipientRosterCutsLine(
+                      toName,
+                      dropIds.map((id) => wrestlerNames[id] ?? id)
+                    );
+                    return line ? (
+                      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{line}</div>
+                    ) : null;
+                  })()}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 12, color: "rgba(100,116,139,0.95)" }}>
                   {getTradeDateForDisplay(p) ? <>{getTradeDateForDisplay(p)}</> : <>Date unavailable</>}

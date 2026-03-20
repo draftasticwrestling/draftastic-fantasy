@@ -12,6 +12,7 @@ import {
   getLeagueRosterActivity,
   type LeagueRosterActivityItem,
 } from "@/lib/leagueOwner";
+import { appendRecipientCutsToDescription } from "@/lib/tradeDisplay";
 
 export const dynamic = "force-dynamic";
 
@@ -96,11 +97,16 @@ export default async function RosterChangesPage({
       .map((i) => wrestlerName[i.wrestler_id] ?? i.wrestler_id);
     const giveStr = give.length ? give.join(", ") : "—";
     const receiveStr = receive.length ? receive.join(", ") : "—";
+    const dropNames = (p.to_user_drop_ids ?? [])
+      .map((x) => String(x).trim())
+      .filter(Boolean)
+      .map((id) => wrestlerName[id] ?? id);
+    const baseDesc = `${fromLabel} traded ${giveStr} to ${toLabel} for ${receiveStr}`;
     rows.push({
       date: p.created_at,
       type: "Trade",
       teams: `${fromLabel} ↔ ${toLabel}`,
-      description: `${fromLabel} traded ${giveStr} to ${toLabel} for ${receiveStr}`,
+      description: appendRecipientCutsToDescription(baseDesc, toLabel, dropNames),
       status: tradeStatusLabel(p.status),
       sortKey: p.created_at,
     });
