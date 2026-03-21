@@ -8,6 +8,7 @@ import { getLeagueMembers, getRostersForLeague, getRostersForLeagueAdmin, getLea
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { isBlocklistedSlug } from "@/lib/draftBlocklist";
 import { addWrestlerToRoster } from "@/lib/leagues";
+import { timestamptzForAcquiredAtDate } from "@/lib/rosterTimestamps";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 
 const LEAGUE_START_DATE = "2025-05-02";
@@ -1411,15 +1412,16 @@ async function performOneAutoPick(
   if (currentIds.includes(wrestlerId)) return { error: "Wrestler already on roster." };
   if (currentIds.length >= rules.rosterSize) return { error: "Roster full." };
 
-  const nowTs = new Date().toISOString();
-  const draftDate = nowTs.slice(0, 10);
+  const clock = new Date();
+  const draftDate = clock.toISOString().slice(0, 10);
+  const acquiredAtTs = timestamptzForAcquiredAtDate(draftDate, clock);
   const { error: rosterErr } = await admin.from("league_rosters").insert({
     league_id: leagueId,
     user_id: current.user_id,
     wrestler_id: wrestlerId,
     contract: null,
     acquired_at: draftDate,
-    acquired_at_ts: nowTs,
+    acquired_at_ts: acquiredAtTs,
     released_at: null,
   });
   if (rosterErr) {

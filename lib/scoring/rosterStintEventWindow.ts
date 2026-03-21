@@ -4,14 +4,12 @@ import { resolvePersonaToCanonical } from "./personaResolution.js";
 /**
  * Decide if a roster stint receives fantasy points for an event.
  *
- * When `events.broadcast_start_ts` exists we first require calendar overlap with
- * `acquired_at` / `released_at`, then compare **broadcast start** to `acquired_at_ts` /
- * `released_at_ts` when present (always use the real instant, not only when its UTC date
- * matches a shifted calendar row). That fixes same-show drops after airtime whose release
- * timestamp falls on the next UTC calendar day.
+ * When `events.broadcast_start_ts` exists: require calendar overlap, then compare roster
+ * `acquired_at_ts` / `released_at_ts` to broadcast start when those timestamps are present
+ * (always use the stored instant — keep `*_at_ts` aligned to `acquired_at` / `released_at`
+ * calendar dates in the DB; see `lib/rosterTimestamps.ts`).
  *
- * When broadcast start is absent, we keep legacy behavior: compare `eventMs` (end of event
- * date UTC) to shifted day boundaries for acquisition/release.
+ * When broadcast start is absent: legacy `eventMs` vs shifted day boundaries.
  */
 
 export type RosterStintWindowInput = {
@@ -47,8 +45,8 @@ export function stintCoversEventCalendarDate(
 }
 
 /**
- * @param eventMs - for legacy mode: end-of-event-day UTC; for broadcast mode ignored when useBroadcastStart + broadcastStartMs
- * @param broadcastStartMs - when set with useBroadcastStart, compares roster acquired_at_ts / released_at_ts to show start so same-day drops/trades before airtime don't score for the wrong team
+ * @param eventMs - legacy mode: end-of-event-day UTC
+ * @param broadcastStartMs - with useBroadcastStart: compare roster timestamps to show start
  * @param rosterStintDateOffsetDays - typically -1 for legacy UTC drift fix
  */
 export function rosterStintActiveForEvent(params: {
@@ -65,10 +63,6 @@ export function rosterStintActiveForEvent(params: {
     if (!stintCoversEventCalendarDate(eventDate, stint)) return false;
     if (broadcastStartMs != null && Number.isFinite(broadcastStartMs)) {
       const off = rosterStintDateOffsetDays;
-      // When timestamps exist, always use them vs broadcast (do not require ymd === shifted
-      // calendar row). Otherwise a UTC release after the show can sit on the "next" UTC day
-      // while released_at is still the US air date — the old ymd gate picked the wrong
-      // fallback end-of-day and marked the stint inactive before broadcast.
       let acqMs: number;
       if (stint.acquired_at_ts) {
         const tsMs = Date.parse(String(stint.acquired_at_ts));

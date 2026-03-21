@@ -8,6 +8,7 @@ import {
   compareStintsForEventTieBreak,
   rosterStintActiveForEvent,
 } from "@/lib/scoring/rosterStintEventWindow";
+import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 
 export type DraftType = "offline" | "linear" | "snake" | "autopick";
 export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
@@ -693,7 +694,8 @@ export async function addWrestlerToRoster(
   const acquiredDate =
     (acquiredAt && /^\d{4}-\d{2}-\d{2}$/.test(acquiredAt.trim()) ? acquiredAt.trim() : null) ||
     new Date().toISOString().slice(0, 10);
-  const acquiredAtTs = new Date().toISOString();
+  const clock = new Date();
+  const acquiredAtTs = timestamptzForAcquiredAtDate(acquiredDate, clock);
   const { error } = await insertClient.from("league_rosters").insert({
     league_id: leagueId,
     user_id: userId,
@@ -741,7 +743,8 @@ export async function removeWrestlerFromRoster(
   const releasedDate =
     (releasedAt && /^\d{4}-\d{2}-\d{2}$/.test(releasedAt.trim()) ? releasedAt.trim() : null) ||
     new Date().toISOString().slice(0, 10);
-  const releasedAtTs = new Date().toISOString();
+  const clock = new Date();
+  const releasedAtTs = timestamptzForReleasedAtDate(releasedDate, clock);
 
   const client = useServiceRole && getAdminClient() ? getAdminClient()! : supabase;
   let updated: { id: string } | null = null;
@@ -874,16 +877,13 @@ export async function getLeagueScoring(
     );
     kotrCarryOver = updatedCarryOver;
     const bestStintByWrestlerId: Record<string, typeof stints[number]> = {};
-    // When `broadcast_start_ts` exists: require calendar stint overlap, then if acquired/released
-    // timestamps exist, wrestler must be on roster at broadcast start (same-day drops/trades before airtime).
+    // When `broadcast_start_ts` exists: calendar overlap + timestamp vs broadcast (see rosterStintEventWindow).
     // When absent: legacy end-of-event-day UTC vs shifted stint boundaries (+ optional ts alignment).
     const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
     const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
       ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
       : NaN;
     const useBroadcastStart = Number.isFinite(eventStartMs);
-    // Legacy path compares this (end of event UTC day) to shifted stint boundaries.
-    // When useBroadcastStart + eventStartMs, roster timestamps are vs broadcast start (same-day drops before airtime).
     const eventMs = eventEndOfDayMs;
     const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
 

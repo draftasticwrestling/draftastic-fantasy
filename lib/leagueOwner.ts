@@ -9,6 +9,7 @@ import { getActivePerEvent } from "@/lib/leagueStructure";
 import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 import { removeWrestlerFromRoster } from "@/lib/leagues";
 import { addWrestlerToRoster } from "@/lib/leagues";
+import { timestamptzForAcquiredAtDate } from "@/lib/rosterTimestamps";
 
 function normalizeGender(g: string | null | undefined): "F" | "M" | null {
   if (g == null || typeof g !== "string") return null;
@@ -1047,7 +1048,7 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
         contract: (row as { contract: string | null }).contract,
         acquired_at: today,
         released_at: null,
-        acquired_at_ts: nowTs,
+        acquired_at_ts: timestamptzForAcquiredAtDate(today),
       };
       const { error: insertGiveErr } = await admin.from("league_rosters").insert(insertGivePayload);
       if (insertGiveErr) {
@@ -1113,7 +1114,7 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
         contract: (row as { contract: string | null }).contract,
         acquired_at: today,
         released_at: null,
-        acquired_at_ts: nowTs,
+        acquired_at_ts: timestamptzForAcquiredAtDate(today),
       };
       const { error: insertReceiveErr } = await admin.from("league_rosters").insert(insertReceivePayload);
       if (insertReceiveErr) {
