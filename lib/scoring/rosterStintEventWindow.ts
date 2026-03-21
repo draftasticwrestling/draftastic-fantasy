@@ -4,11 +4,11 @@ import { resolvePersonaToCanonical } from "./personaResolution.js";
 /**
  * Decide if a roster stint receives fantasy points for an event.
  *
- * When `events.broadcast_start_ts` exists we compare the event's **calendar date** to
- * `acquired_at` / `released_at` only (YYYY-MM-DD). That matches the product rule:
- * "you get points for a show if you had the wrestler on that **show date**" and avoids a
- * bug where RAW 8pm ET (often 00:00+ UTC the next calendar day) is compared to
- * `released_at` end-of-day UTC, which wrongly excludes drops dated the day *after* the show.
+ * When `events.broadcast_start_ts` exists we first require calendar overlap with
+ * `acquired_at` / `released_at`, then compare **broadcast start** to `acquired_at_ts` /
+ * `released_at_ts` when present (always use the real instant, not only when its UTC date
+ * matches a shifted calendar row). That fixes same-show drops after airtime whose release
+ * timestamp falls on the next UTC calendar day.
  *
  * When broadcast start is absent, we keep legacy behavior: compare `eventMs` (end of event
  * date UTC) to shifted day boundaries for acquisition/release.
@@ -65,21 +65,38 @@ export function rosterStintActiveForEvent(params: {
     if (!stintCoversEventCalendarDate(eventDate, stint)) return false;
     if (broadcastStartMs != null && Number.isFinite(broadcastStartMs)) {
       const off = rosterStintDateOffsetDays;
-      const expectedAcqYmd = shiftYmd(String(stint.acquired_at ?? "").slice(0, 10), off);
-      let acqMs = Date.parse(`${expectedAcqYmd}T00:00:00.000Z`);
+      // When timestamps exist, always use them vs broadcast (do not require ymd === shifted
+      // calendar row). Otherwise a UTC release after the show can sit on the "next" UTC day
+      // while released_at is still the US air date — the old ymd gate picked the wrong
+      // fallback end-of-day and marked the stint inactive before broadcast.
+      let acqMs: number;
       if (stint.acquired_at_ts) {
         const tsMs = Date.parse(String(stint.acquired_at_ts));
-        if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedAcqYmd) acqMs = tsMs;
+        if (Number.isFinite(tsMs)) {
+          acqMs = tsMs;
+        } else {
+          const expectedAcqYmd = shiftYmd(String(stint.acquired_at ?? "").slice(0, 10), off);
+          acqMs = Date.parse(`${expectedAcqYmd}T00:00:00.000Z`);
+        }
+      } else {
+        const expectedAcqYmd = shiftYmd(String(stint.acquired_at ?? "").slice(0, 10), off);
+        acqMs = Date.parse(`${expectedAcqYmd}T00:00:00.000Z`);
       }
+
       let relMs: number | null = null;
       if (stint.released_at != null) {
-        const expectedRelYmd = shiftYmd(String(stint.released_at).slice(0, 10), off);
-        relMs = Date.parse(`${expectedRelYmd}T23:59:59.999Z`);
         if (stint.released_at_ts != null) {
           const tsMs = Date.parse(String(stint.released_at_ts));
-          if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedRelYmd) relMs = tsMs;
+          if (Number.isFinite(tsMs)) {
+            relMs = tsMs;
+          }
+        }
+        if (relMs == null) {
+          const expectedRelYmd = shiftYmd(String(stint.released_at).slice(0, 10), off);
+          relMs = Date.parse(`${expectedRelYmd}T23:59:59.999Z`);
         }
       }
+
       if (!Number.isFinite(acqMs)) return true;
       if (acqMs > broadcastStartMs) return false;
       if (relMs != null && Number.isFinite(relMs) && relMs <= broadcastStartMs) return false;
