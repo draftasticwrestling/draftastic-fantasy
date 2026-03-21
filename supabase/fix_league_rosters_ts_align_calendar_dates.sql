@@ -21,3 +21,9 @@ where lr.released_at is not null
     is distinct from
     lr.released_at::date
   );
+
+-- Backfill missing released_at_ts (e.g. code paths that only set released_at).
+update public.league_rosters lr
+set released_at_ts = (lr.released_at::text || 'T23:59:59.999+00')::timestamptz
+where lr.released_at is not null
+  and lr.released_at_ts is null;

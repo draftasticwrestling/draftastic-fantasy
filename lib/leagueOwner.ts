@@ -9,7 +9,7 @@ import { getActivePerEvent } from "@/lib/leagueStructure";
 import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 import { removeWrestlerFromRoster } from "@/lib/leagues";
 import { addWrestlerToRoster } from "@/lib/leagues";
-import { timestamptzForAcquiredAtDate } from "@/lib/rosterTimestamps";
+import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 
 function normalizeGender(g: string | null | undefined): "F" | "M" | null {
   if (g == null || typeof g !== "string") return null;
@@ -1793,14 +1793,26 @@ export async function addFreeAgentImmediate(
       acquired_at: dropData.acquired_at ? String(dropData.acquired_at).slice(0, 10) : today,
     };
 
+    const releasedAtTs = timestamptzForReleasedAtDate(today, new Date());
     const { error: dropUpdateErr } = await admin!
       .from("league_rosters")
-      .update({ released_at: today })
+      .update({ released_at: today, released_at_ts: releasedAtTs })
       .eq("league_id", leagueId)
       .eq("user_id", user.id)
       .eq("wrestler_id", widToDrop)
       .is("released_at", null);
-    if (dropUpdateErr) return { error: dropUpdateErr.message };
+    if (dropUpdateErr) {
+      const isColumnError = /column.*released_at_ts does not exist/i.test(dropUpdateErr.message ?? "");
+      if (!isColumnError) return { error: dropUpdateErr.message };
+      const { error: drop2 } = await admin!
+        .from("league_rosters")
+        .update({ released_at: today })
+        .eq("league_id", leagueId)
+        .eq("user_id", user.id)
+        .eq("wrestler_id", widToDrop)
+        .is("released_at", null);
+      if (drop2) return { error: drop2.message };
+    }
   }
 
   const addRes = await addWrestlerToRoster(leagueId, user.id, widToAdd, null, true);
