@@ -47,20 +47,45 @@ export function stintCoversEventCalendarDate(
 }
 
 /**
- * @param eventMs - for legacy mode: end-of-event-day UTC; for broadcast mode: broadcast start instant (unused when useBroadcastStart)
+ * @param eventMs - for legacy mode: end-of-event-day UTC; for broadcast mode ignored when useBroadcastStart + broadcastStartMs
+ * @param broadcastStartMs - when set with useBroadcastStart, compares roster acquired_at_ts / released_at_ts to show start so same-day drops/trades before airtime don't score for the wrong team
  * @param rosterStintDateOffsetDays - typically -1 for legacy UTC drift fix
  */
 export function rosterStintActiveForEvent(params: {
   eventDate: string;
   eventMs: number;
+  broadcastStartMs?: number;
   useBroadcastStart: boolean;
   stint: RosterStintWindowInput;
   rosterStintDateOffsetDays: number;
 }): boolean {
-  const { eventDate, eventMs, useBroadcastStart, stint, rosterStintDateOffsetDays } = params;
+  const { eventDate, eventMs, useBroadcastStart, stint, rosterStintDateOffsetDays, broadcastStartMs } = params;
 
   if (useBroadcastStart) {
-    return stintCoversEventCalendarDate(eventDate, stint);
+    if (!stintCoversEventCalendarDate(eventDate, stint)) return false;
+    if (broadcastStartMs != null && Number.isFinite(broadcastStartMs)) {
+      const off = rosterStintDateOffsetDays;
+      const expectedAcqYmd = shiftYmd(String(stint.acquired_at ?? "").slice(0, 10), off);
+      let acqMs = Date.parse(`${expectedAcqYmd}T00:00:00.000Z`);
+      if (stint.acquired_at_ts) {
+        const tsMs = Date.parse(String(stint.acquired_at_ts));
+        if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedAcqYmd) acqMs = tsMs;
+      }
+      let relMs: number | null = null;
+      if (stint.released_at != null) {
+        const expectedRelYmd = shiftYmd(String(stint.released_at).slice(0, 10), off);
+        relMs = Date.parse(`${expectedRelYmd}T23:59:59.999Z`);
+        if (stint.released_at_ts != null) {
+          const tsMs = Date.parse(String(stint.released_at_ts));
+          if (Number.isFinite(tsMs) && ymdFromMs(tsMs) === expectedRelYmd) relMs = tsMs;
+        }
+      }
+      if (!Number.isFinite(acqMs)) return true;
+      if (acqMs > broadcastStartMs) return false;
+      if (relMs != null && Number.isFinite(relMs) && relMs <= broadcastStartMs) return false;
+      return true;
+    }
+    return true;
   }
 
   const off = rosterStintDateOffsetDays;

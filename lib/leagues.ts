@@ -874,8 +874,8 @@ export async function getLeagueScoring(
     );
     kotrCarryOver = updatedCarryOver;
     const bestStintByWrestlerId: Record<string, typeof stints[number]> = {};
-    // When `broadcast_start_ts` exists: stint counts if event calendar date is within
-    // [acquired_at, released_at] (plain YYYY-MM-DD). Avoids comparing ET broadcast instant to UTC release end.
+    // When `broadcast_start_ts` exists: require calendar stint overlap, then if acquired/released
+    // timestamps exist, wrestler must be on roster at broadcast start (same-day drops/trades before airtime).
     // When absent: legacy end-of-event-day UTC vs shifted stint boundaries (+ optional ts alignment).
     const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
     const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
@@ -883,8 +883,9 @@ export async function getLeagueScoring(
       : NaN;
     const useBroadcastStart = Number.isFinite(eventStartMs);
     // Legacy path compares this (end of event UTC day) to shifted stint boundaries.
-    // When useBroadcastStart, `rosterStintActiveForEvent` uses calendar dates only (eventMs ignored).
+    // When useBroadcastStart + eventStartMs, roster timestamps are vs broadcast start (same-day drops before airtime).
     const eventMs = eventEndOfDayMs;
+    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
 
     // If roster stint windows overlap, only award points to a single "best" stint per wrestler_id.
     for (const stint of stints) {
@@ -892,6 +893,7 @@ export async function getLeagueScoring(
         !rosterStintActiveForEvent({
           eventDate,
           eventMs,
+          broadcastStartMs,
           useBroadcastStart,
           stint,
           rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
@@ -917,6 +919,7 @@ export async function getLeagueScoring(
         !rosterStintActiveForEvent({
           eventDate,
           eventMs,
+          broadcastStartMs,
           useBroadcastStart,
           stint,
           rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,

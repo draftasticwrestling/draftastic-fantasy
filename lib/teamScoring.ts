@@ -167,6 +167,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       : NaN;
     const useBroadcastStart = Number.isFinite(eventStartMs);
     const eventMs = eventEndOfDayMs;
+    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
     const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] }) as ScoredEvent;
     const eventType = scored.eventType;
     const isRS = eventType === EVENT_TYPES.RAW || eventType === EVENT_TYPES.SMACKDOWN;
@@ -239,6 +240,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
           !rosterStintActiveForEvent({
             eventDate,
             eventMs,
+            broadcastStartMs,
             useBroadcastStart,
             stint: s,
             rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,

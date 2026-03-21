@@ -112,6 +112,7 @@ export async function getPointsByOwnerForLeagueForWeek(
       : NaN;
     const useBroadcastStart = Number.isFinite(eventStartMs);
     const eventMs = eventEndOfDayMs;
+    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
@@ -124,6 +125,7 @@ export async function getPointsByOwnerForLeagueForWeek(
         !rosterStintActiveForEvent({
           eventDate,
           eventMs,
+          broadcastStartMs,
           useBroadcastStart,
           stint,
           rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
@@ -195,6 +197,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
       : NaN;
     const useBroadcastStart = Number.isFinite(eventStartMs);
     const eventMs = eventEndOfDayMs;
+    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
@@ -207,6 +210,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
         !rosterStintActiveForEvent({
           eventDate,
           eventMs,
+          broadcastStartMs,
           useBroadcastStart,
           stint,
           rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
