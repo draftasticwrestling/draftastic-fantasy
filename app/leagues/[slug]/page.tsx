@@ -11,6 +11,7 @@ import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { RostersSection } from "./RostersSection";
 import { TradeProposalRespond } from "./team/TradeProposalRespond";
+import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -494,6 +495,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             />
           </div>
         </div>
+
+        <aside className="lm-season-rail" aria-label="League season timeline">
+          <SeasonTimelineRail leagueSlug={slug} />
+        </aside>
       </div>
     </main>
     </>

@@ -1597,9 +1597,9 @@ body > .site-footer {
 
 .lm-layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 260px minmax(0, 1fr) 280px;
   gap: 24px;
-  max-width: 1200px;
+  max-width: 1520px;
   margin: 0 auto;
   align-items: start;
 }
@@ -1610,6 +1610,12 @@ body > .site-footer {
   gap: 20px;
   position: sticky;
   top: calc(var(--page-padding-y) + 8px);
+}
+
+.lm-season-rail {
+  position: sticky;
+  top: calc(var(--page-padding-y) + 8px);
+  min-width: 0;
 }
 
 .lm-card {
@@ -1989,6 +1995,10 @@ body > .site-footer {
   }
 
   .lm-sidebar {
+    position: static;
+  }
+
+  .lm-season-rail {
     position: static;
   }
 
