@@ -1,0 +1,126 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import type { LeagueSeasonTimelinePayload } from "@/lib/leagueSeasonTimeline";
+import styles from "./SeasonTimelineRail.module.css";
+
+function formatShortDate(ymd: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  const [y, m, d] = ymd.split("-");
+  return `${Number(m)}/${Number(d)}/${y.slice(2)}`;
+}
+
+export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string }) {
+  const [data, setData] = useState<LeagueSeasonTimelinePayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/leagues/${encodeURIComponent(leagueSlug)}/season-timeline`, {
+      credentials: "same-origin",
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error((j as { error?: string }).error || res.statusText);
+        }
+        return res.json() as Promise<LeagueSeasonTimelinePayload>;
+      })
+      .then((json) => {
+        if (!cancelled) setData(json);
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setError(e.message || "Failed to load");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leagueSlug]);
+
+  if (loading) {
+    return (
+      <div className={styles.rail} aria-busy="true" aria-label="Season timeline loading">
+        <div className={styles.skeletonTitle} />
+        <div className={styles.skeletonLine} />
+        <div className={styles.skeletonLine} />
+        <div className={styles.skeletonLine} />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return null;
+  }
+
+  const { seasonPhase, steps, finales } = data;
+
+  return (
+    <nav className={styles.rail} aria-label="League season progress">
+      <h2 className={styles.heading}>{seasonPhase.title}</h2>
+      <p className={styles.sub}>
+        From {formatShortDate(data.windowStart)}
+        {data.windowEnd === "2099-12-31"
+          ? " · no league end date set"
+          : ` · through ${formatShortDate(data.windowEnd)}`}
+      </p>
+
+      {steps.length === 0 && finales.length === 0 ? (
+        <p className={styles.empty}>No scheduled TV or finale events in this league window yet.</p>
+      ) : (
+        <ol className={styles.trackList}>
+          {steps.map((step, i) => {
+            const last = i === steps.length - 1;
+            return (
+              <li key={step.id} className={styles.trackItem}>
+                <div className={styles.trackCol}>
+                  {!last && <div className={styles.trackLine} aria-hidden />}
+                  <div
+                    className={
+                      step.completed
+                        ? styles.circleDone
+                        : step.isNext
+                          ? styles.circleNext
+                          : styles.circleUpcoming
+                    }
+                    aria-hidden
+                  >
+                    <span className={styles.circleNum}>{step.index}</span>
+                  </div>
+                </div>
+                <div className={styles.labelCol}>
+                  <span className={step.completed ? styles.labelDone : styles.labelUpcoming}>
+                    {step.kind === "ple" && (
+                      <span className={styles.pleBadge} title="Premium Live Event">
+                        PLE
+                      </span>
+                    )}
+                    {step.name} {formatShortDate(step.date)}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {finales.length > 0 && (
+        <div className={styles.finaleBlock}>
+          <h3 className={styles.finaleHeading}>Season finale</h3>
+          <ul className={styles.finaleList}>
+            {finales.map((f) => (
+              <li key={f.id} className={f.completed ? styles.finaleDone : styles.finaleUpcoming}>
+                {f.name} {formatShortDate(f.date)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </nav>
+  );
+}
