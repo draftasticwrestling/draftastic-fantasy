@@ -7,7 +7,7 @@ type RouteContext = { params: Promise<{ slug: string }> };
 
 /**
  * GET /api/leagues/[slug]/season-timeline
- * Member-only. Raw/SmackDown + season finale PLEs between effective league start (draft-first) and end_date.
+ * Member-only. Raw, SmackDown, and all PLEs (including finales) between effective start and end_date.
  */
 export async function GET(_request: Request, context: RouteContext) {
   const { slug } = await context.params;

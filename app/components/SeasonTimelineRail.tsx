@@ -58,7 +58,7 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
     return null;
   }
 
-  const { seasonPhase, steps, finales } = data;
+  const { seasonPhase, steps } = data;
 
   return (
     <nav className={styles.rail} aria-label="League season progress">
@@ -70,8 +70,8 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
           : ` · through ${formatShortDate(data.windowEnd)}`}
       </p>
 
-      {steps.length === 0 && finales.length === 0 ? (
-        <p className={styles.empty}>No scheduled TV or finale events in this league window yet.</p>
+      {steps.length === 0 ? (
+        <p className={styles.empty}>No scheduled TV or PLE events in this league window yet.</p>
       ) : (
         <ol className={styles.trackList}>
           {steps.map((step, i) => {
@@ -94,7 +94,12 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
                   </div>
                 </div>
                 <div className={styles.labelCol}>
-                  <span className={step.completed ? styles.labelDone : styles.labelUpcoming}>
+                  <span
+                    className={
+                      (step.completed ? styles.labelDone : styles.labelUpcoming) +
+                      (step.isFinale ? ` ${styles.labelFinale}` : "")
+                    }
+                  >
                     {step.kind === "ple" && (
                       <span className={styles.pleBadge} title="Premium Live Event">
                         PLE
@@ -107,19 +112,6 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
             );
           })}
         </ol>
-      )}
-
-      {finales.length > 0 && (
-        <div className={styles.finaleBlock}>
-          <h3 className={styles.finaleHeading}>Season finale</h3>
-          <ul className={styles.finaleList}>
-            {finales.map((f) => (
-              <li key={f.id} className={f.completed ? styles.finaleDone : styles.finaleUpcoming}>
-                {f.name} {formatShortDate(f.date)}
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
     </nav>
   );

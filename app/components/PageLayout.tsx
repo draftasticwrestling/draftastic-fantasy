@@ -29,8 +29,8 @@ export default function PageLayout({ children }: { children: React.ReactNode }) 
       <div className={styles.columns}>
         <div className={styles.main}>{children}</div>
         <aside className={styles.sidebar}>
-          <div className={styles.sidebarAd}>Ad placeholder (sidebar)</div>
           {leagueSlug ? <SeasonTimelineRail leagueSlug={leagueSlug} /> : null}
+          <div className={styles.sidebarAd}>Ad placeholder (sidebar)</div>
           <div className={styles.sidebarAd}>Ad placeholder (sidebar)</div>
         </aside>
       </div>

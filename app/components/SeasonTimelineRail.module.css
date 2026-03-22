@@ -123,6 +123,10 @@
   color: var(--color-text);
 }
 
+.labelFinale {
+  font-weight: 800;
+}
+
 .pleBadge {
   display: inline-block;
   font-size: 9px;
@@ -134,42 +138,6 @@
   padding: 1px 5px;
   margin-right: 6px;
   vertical-align: middle;
-}
-
-.finaleBlock {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-border-light);
-}
-
-.finaleHeading {
-  margin: 0 0 8px;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-}
-
-.finaleList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.finaleList li {
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.45;
-  margin-bottom: 6px;
-}
-
-.finaleDone {
-  color: var(--color-text-muted);
-}
-
-.finaleUpcoming {
-  color: var(--color-text);
 }
 
 .skeletonTitle {

@@ -1,6 +1,6 @@
 /**
- * League sidebar season timeline: Raw/SmackDown + intermediate PLEs in one chronological
- * track; season-capping shows in a separate finale block.
+ * League sidebar season timeline: one chronological numbered track — Raw, SmackDown,
+ * all PLEs including season finales (WrestleMania nights, SummerSlam, Survivor Series).
  */
 
 import {
@@ -21,7 +21,7 @@ export type SeasonPhaseInfo = {
 
 const WEEKLY_TIMELINE_TYPES = new Set<string>([EVENT_TYPES.RAW, EVENT_TYPES.SMACKDOWN]);
 
-/** Season-capping PLE rows shown in the unnumbered finale block. */
+/** Season-capping shows — bold in the UI. */
 const FINALE_EVENT_TYPES = new Set<string>([
   EVENT_TYPES.WRESTLEMANIA_NIGHT_1,
   EVENT_TYPES.WRESTLEMANIA_NIGHT_2,
@@ -46,14 +46,8 @@ export type TimelineStep = {
   isNext: boolean;
   /** Weekly TV vs premium live event (for styling). */
   kind: "weekly" | "ple";
-};
-
-export type TimelineFinale = {
-  id: string;
-  name: string;
-  date: string;
-  completed: boolean;
-  isNext: boolean;
+  /** WrestleMania / SummerSlam / Survivor Series caps — emphasize in UI. */
+  isFinale: boolean;
 };
 
 export type LeagueSeasonTimelinePayload = {
@@ -61,7 +55,6 @@ export type LeagueSeasonTimelinePayload = {
   windowStart: string;
   windowEnd: string;
   steps: TimelineStep[];
-  finales: TimelineFinale[];
   /** YYYY-MM-DD server-ish “today” for client display consistency */
   today: string;
 };
@@ -126,51 +119,33 @@ export function buildLeagueSeasonTimeline(params: {
     return compareYmd(da, db);
   });
 
-  const mainTrackRows: { row: RawEventRow; kind: "weekly" | "ple" }[] = [];
-  const finaleRows: RawEventRow[] = [];
+  const mainTrackRows: { row: RawEventRow; kind: "weekly" | "ple"; isFinale: boolean }[] = [];
 
   for (const row of sorted) {
     const t = classifyEventType(row.name ?? "", row.id);
     if (t === EVENT_TYPES.UNKNOWN) continue;
-    if (FINALE_EVENT_TYPES.has(t)) {
-      finaleRows.push(row);
-      continue;
-    }
     if (WEEKLY_TIMELINE_TYPES.has(t)) {
-      mainTrackRows.push({ row, kind: "weekly" });
+      mainTrackRows.push({ row, kind: "weekly", isFinale: false });
     } else if (isPLE(t)) {
-      mainTrackRows.push({ row, kind: "ple" });
+      mainTrackRows.push({ row, kind: "ple", isFinale: FINALE_EVENT_TYPES.has(t) });
     }
   }
 
-  const steps: Omit<TimelineStep, "isNext">[] = mainTrackRows.map(({ row, kind }, i) => ({
+  const steps: Omit<TimelineStep, "isNext">[] = mainTrackRows.map(({ row, kind, isFinale }, i) => ({
     index: i + 1,
     id: row.id,
     name: row.name ?? "Event",
     date: row.date!.slice(0, 10),
     completed: completed(row),
     kind,
+    isFinale,
   }));
 
-  const finales: Omit<TimelineFinale, "isNext">[] = finaleRows.map((row) => ({
-    id: row.id,
-    name: row.name ?? "Event",
-    date: row.date!.slice(0, 10),
-    completed: completed(row),
-  }));
-
-  const firstIncompleteMain = steps.findIndex((s) => !s.completed);
-  const mainDone = firstIncompleteMain === -1;
-  const firstIncompleteFinale = mainDone ? finales.findIndex((f) => !f.completed) : -1;
+  const firstIncomplete = steps.findIndex((s) => !s.completed);
 
   const stepsOut: TimelineStep[] = steps.map((s, i) => ({
     ...s,
-    isNext: i === firstIncompleteMain && firstIncompleteMain >= 0,
-  }));
-
-  const finalesOut: TimelineFinale[] = finales.map((f, i) => ({
-    ...f,
-    isNext: mainDone && i === firstIncompleteFinale && firstIncompleteFinale >= 0,
+    isNext: i === firstIncomplete && firstIncomplete >= 0,
   }));
 
   return {
@@ -178,7 +153,6 @@ export function buildLeagueSeasonTimeline(params: {
     windowStart,
     windowEnd: endDateYmd && /^\d{4}-\d{2}-\d{2}$/.test(endDateYmd) ? endDateYmd : windowEnd,
     steps: stepsOut,
-    finales: finalesOut,
     today: todayYmd,
   };
 }
