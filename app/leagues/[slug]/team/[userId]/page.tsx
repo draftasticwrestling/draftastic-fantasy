@@ -118,6 +118,20 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const teamLabel =
     (targetMember.team_name?.trim() || targetMember.display_name?.trim() || "Unknown").trim() ||
     "Unknown";
+
+  const factionNavUserIds = members.map((m) => m.user_id);
+  const factionNavIndex = factionNavUserIds.indexOf(userId);
+  const canNavigateFactions = factionNavUserIds.length > 1 && factionNavIndex >= 0;
+  const prevFactionUserId = canNavigateFactions
+    ? factionNavUserIds[(factionNavIndex - 1 + factionNavUserIds.length) % factionNavUserIds.length]
+    : null;
+  const nextFactionUserId = canNavigateFactions
+    ? factionNavUserIds[(factionNavIndex + 1) % factionNavUserIds.length]
+    : null;
+  function labelForFactionNav(uid: string): string {
+    const m = members.find((x) => x.user_id === uid);
+    return (m?.team_name?.trim() || m?.display_name?.trim() || "Faction").trim() || "Faction";
+  }
   const rosterEntries = rosters[userId] ?? [];
   const totalPoints = pointsWithBonuses[userId] ?? 0;
 
@@ -289,16 +303,80 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           ← {league.name}
         </Link>
       </p>
-      <h1
+      <div
         style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 12,
           marginBottom: 6,
-          fontSize: "2rem",
-          fontWeight: 700,
-          textAlign: "center",
+          flexWrap: "wrap",
         }}
       >
-        {teamLabel}
-      </h1>
+        {prevFactionUserId != null && (
+          <Link
+            href={`/leagues/${slug}/team/${encodeURIComponent(prevFactionUserId)}`}
+            aria-label={`Previous faction: ${labelForFactionNav(prevFactionUserId)}`}
+            title={`Previous: ${labelForFactionNav(prevFactionUserId)}`}
+            style={{
+              flexShrink: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 44,
+              height: 44,
+              borderRadius: 10,
+              color: "#1a73e8",
+              textDecoration: "none",
+              fontSize: "1.75rem",
+              fontWeight: 700,
+              lineHeight: 1,
+              border: "1px solid rgba(26, 115, 232, 0.35)",
+              background: "rgba(26, 115, 232, 0.06)",
+            }}
+          >
+            ‹
+          </Link>
+        )}
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "2rem",
+            fontWeight: 700,
+            textAlign: "center",
+            flex: "1 1 auto",
+            minWidth: 0,
+            maxWidth: "100%",
+          }}
+        >
+          {teamLabel}
+        </h1>
+        {nextFactionUserId != null && (
+          <Link
+            href={`/leagues/${slug}/team/${encodeURIComponent(nextFactionUserId)}`}
+            aria-label={`Next faction: ${labelForFactionNav(nextFactionUserId)}`}
+            title={`Next: ${labelForFactionNav(nextFactionUserId)}`}
+            style={{
+              flexShrink: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 44,
+              height: 44,
+              borderRadius: 10,
+              color: "#1a73e8",
+              textDecoration: "none",
+              fontSize: "1.75rem",
+              fontWeight: 700,
+              lineHeight: 1,
+              border: "1px solid rgba(26, 115, 232, 0.35)",
+              background: "rgba(26, 115, 232, 0.06)",
+            }}
+          >
+            ›
+          </Link>
+        )}
+      </div>
       <p
         style={{
           color: "#555",

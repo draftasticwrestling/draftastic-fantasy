@@ -344,7 +344,7 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: null, label: "", minW: 76, align: "center", section: "PLAYER" },
   { key: "name", label: "Name", minW: 160, align: "left", section: "PLAYER" },
   { key: null, label: "Titles", minW: 64, align: "center", section: "PLAYER" },
-  { key: null, label: "STATUS", minW: 96, align: "center", section: "STATUS" },
+  { key: null, label: "Faction", minW: 96, align: "center", section: "STATUS" },
   { key: "gender", label: "Gender", minW: 68, align: "center", section: "INFO" },
   { key: "age", label: "Age", minW: 52, align: "center", section: "INFO" },
   { key: "rating2k", label: "2K", minW: 48, align: "center", section: "INFO" },
@@ -456,6 +456,64 @@ function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, fro
   const params = new URLSearchParams({ league: leagueSlug });
   if (from) params.set("from", from);
   return `${base}?${params.toString()}`;
+}
+
+function SortableColumnHeader({
+  label,
+  column,
+  sortColumn,
+  sortDir,
+  onSort,
+  align,
+  highlightTOT,
+}: {
+  label: string;
+  column: SortColumn;
+  sortColumn: SortColumn;
+  sortDir: SortDir;
+  onSort: (c: SortColumn) => void;
+  align: "left" | "center";
+  highlightTOT?: boolean;
+}) {
+  const isActive = sortColumn === column;
+  return (
+    <button
+      type="button"
+      className="wrestler-list-sort-btn"
+      onClick={() => onSort(column)}
+      title={`Sort by ${label}`}
+      aria-label={
+        isActive
+          ? `${label}, sorted ${sortDir === "asc" ? "ascending" : "descending"}. Click to reverse order.`
+          : `Sort table by ${label}`
+      }
+      aria-pressed={isActive}
+      style={{
+        width: "100%",
+        padding: "2px 4px",
+        margin: -2,
+        border: "none",
+        background: "none",
+        color: highlightTOT ? "#fff" : isActive ? "var(--color-blue)" : "inherit",
+        font: "inherit",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: align === "center" ? "center" : "flex-start",
+        gap: 4,
+      }}
+    >
+      <span>{label}</span>
+      <span
+        aria-hidden
+        className="wrestler-list-sort-glyph"
+        data-active={isActive ? "true" : "false"}
+        data-on-dark={highlightTOT ? "true" : "false"}
+      >
+        {isActive ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
+      </span>
+    </button>
+  );
 }
 
 export default function WrestlerList({
@@ -659,6 +717,10 @@ export default function WrestlerList({
         </button>
       </div>
 
+      <p className="wrestler-list-sort-hint" role="note">
+        Column headings with a ↕ control sort the table. Click once to sort, again to reverse. (Image and Titles columns are not sortable.)
+      </p>
+
       {/* Mobile: card list (no truncated headers or rotated text) */}
       <div className="wrestler-list-cards">
         {flatList.length === 0 ? null : flatList.map((w) => {
@@ -758,15 +820,18 @@ export default function WrestlerList({
             <div style={{ gridColumn: 1, gridRow: 2, display: "grid", gridTemplateColumns: "56px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
               {HEADER_CONFIG.slice(0, 6).map((h, i) => {
                 const isSortable = h.key != null;
-                const isActive = sortColumn === h.key;
                 const style: React.CSSProperties = { ...thBase, textAlign: h.align, borderRight: cellBorder, borderBottom: "none", display: "flex", alignItems: "center" };
                 if (!isSortable) return <div key={i} style={style}>{h.label}</div>;
                 return (
                   <div key={i} style={style}>
-                    <button type="button" onClick={() => handleSort(h.key as SortColumn)} style={{ width: "100%", padding: 0, border: "none", background: "none", color: isActive ? "var(--color-blue)" : "inherit", font: "inherit", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: h.align === "center" ? "center" : "flex-start", gap: 4 }}>
-                      <span>{h.label}</span>
-                      {isActive && <span style={{ opacity: 0.9 }}>{sortDir === "asc" ? "↑" : "↓"}</span>}
-                    </button>
+                    <SortableColumnHeader
+                      label={h.label}
+                      column={h.key as SortColumn}
+                      sortColumn={sortColumn}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      align={h.align}
+                    />
                   </div>
                 );
               })}
@@ -865,17 +930,21 @@ export default function WrestlerList({
                 <div style={{ gridRow: 2, display: "grid", gridTemplateColumns: scrollCols, borderBottom: cellBorder }}>
                   {SCROLL_HEADERS.map((h, i) => {
                     const isSortable = h.key != null;
-                    const isActive = sortColumn === h.key;
                     const idx = i + STICKY_COLUMN_COUNT;
                     const highlightTOT = wrestlerProfileFrom === "team" && h.key === "totalPoints";
                     const style: React.CSSProperties = { ...thBase, minWidth: h.minW, textAlign: h.align, borderRight: idx === HEADER_CONFIG.length - 1 ? cellBorder : cellBorder, borderBottom: cellBorder, display: "flex", alignItems: "center", ...(h.section === "POINTS" && idx === 9 ? { borderLeft: SECTION_BORDER } : {}), ...(h.section === "POINTS" && idx === 13 ? { borderRight: SECTION_BORDER } : {}), ...(h.section === "MATCHES" && idx === 14 ? { borderLeft: SECTION_BORDER } : {}), ...(highlightTOT ? TOT_HIGHLIGHT_STYLE : {}) };
                     if (!isSortable) return <div key={i} style={style}>{h.label}</div>;
                     return (
                       <div key={i} style={style}>
-                        <button type="button" onClick={() => handleSort(h.key as SortColumn)} style={{ width: "100%", padding: 0, border: "none", background: "none", color: highlightTOT ? "#fff" : isActive ? "var(--color-blue)" : "inherit", font: "inherit", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: h.align === "center" ? "center" : "flex-start", gap: 4 }}>
-                          <span>{h.label}</span>
-                          {isActive && <span style={{ opacity: 0.9 }}>{sortDir === "asc" ? "↑" : "↓"}</span>}
-                        </button>
+                        <SortableColumnHeader
+                          label={h.label}
+                          column={h.key as SortColumn}
+                          sortColumn={sortColumn}
+                          sortDir={sortDir}
+                          onSort={handleSort}
+                          align={h.align}
+                          highlightTOT={highlightTOT}
+                        />
                       </div>
                     );
                   })}

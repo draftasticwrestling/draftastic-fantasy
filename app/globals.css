@@ -915,6 +915,60 @@ body > .site-footer {
   border-bottom-color: var(--color-red);
 }
 
+/* Wrestler table: sortable column affordance */
+.wrestler-list-sort-hint {
+  display: none;
+  margin: 0 0 12px 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted, #555);
+  background: var(--color-bg-elevated, #f1f3f5);
+  border: 1px solid var(--color-border, #e0e0e0);
+  border-radius: 8px;
+}
+
+@media (min-width: 769px) {
+  .wrestler-list-sort-hint {
+    display: block;
+  }
+}
+
+.wrestler-list-sort-btn {
+  border-radius: 4px;
+}
+
+.wrestler-list-sort-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wrestler-list-sort-btn:focus-visible {
+  outline: 2px solid var(--color-blue, #1a73e8);
+  outline-offset: 2px;
+}
+
+.wrestler-list-sort-glyph {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+  color: #64748b;
+}
+
+.wrestler-list-sort-glyph[data-active="true"] {
+  color: var(--color-blue, #1a73e8);
+}
+
+.wrestler-list-sort-glyph[data-on-dark="true"] {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.wrestler-list-sort-glyph[data-on-dark="true"][data-active="true"] {
+  color: #fff;
+}
+
 /* Wrestler list filters (Roster checkboxes, Search, Reset) */
 .wrestler-list-toolbar {
   display: flex;
