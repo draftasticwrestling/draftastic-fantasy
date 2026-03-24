@@ -60,6 +60,8 @@ export async function dropWrestlerAction(
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
   revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/proposals`);
+  revalidatePath(`/leagues/${leagueSlug}/transactions`);
   return {};
 }
 
@@ -76,6 +78,8 @@ export async function addFreeAgentAction(
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
   revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/proposals`);
+  revalidatePath(`/leagues/${leagueSlug}/transactions`);
   return {};
 }
 

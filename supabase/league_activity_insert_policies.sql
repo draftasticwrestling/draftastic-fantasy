@@ -1,5 +1,5 @@
--- Roster activity feed (drops + free-agent adds) for Recent Activity / Faction Log.
--- Trades stay in league_trade_proposals. Safe to re-run (idempotent policies).
+-- Deprecated as a separate step: this file now matches league_activity.sql.
+-- Run the full script below once in Supabase SQL Editor (creates table if missing + all policies).
 
 create table if not exists public.league_activity (
   id uuid primary key default gen_random_uuid(),
@@ -25,7 +25,6 @@ create policy "League members can read league activity"
   to authenticated
   using (public.current_user_is_league_member(league_id));
 
--- Members log their own instant drops / FA adds (user session + RLS).
 drop policy if exists "Members can insert own league roster activity" on public.league_activity;
 create policy "Members can insert own league roster activity"
   on public.league_activity for insert
@@ -36,7 +35,6 @@ create policy "Members can insert own league roster activity"
     and public.current_user_is_league_member(league_id)
   );
 
--- GM can log activity when approving release / FA proposals for a member.
 drop policy if exists "GM can insert league roster activity for members" on public.league_activity;
 create policy "GM can insert league roster activity for members"
   on public.league_activity for insert

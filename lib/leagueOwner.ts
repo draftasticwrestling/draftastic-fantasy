@@ -2,6 +2,7 @@
  * Owner features: next event, lineups (active wrestlers per event), trade/release/free-agent proposals.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
@@ -17,6 +18,32 @@ function normalizeGender(g: string | null | undefined): "F" | "M" | null {
   if (lower === "female" || lower === "f") return "F";
   if (lower === "male" || lower === "m") return "M";
   return null;
+}
+
+type LeagueActivityInsert = {
+  league_id: string;
+  activity_type: "drop" | "fa_add";
+  user_id: string;
+  wrestler_id: string;
+  secondary_wrestler_id: string | null;
+};
+
+/**
+ * Persist a roster feed row. Prefer the caller's session (RLS policies on league_activity);
+ * fall back to service role if needed. Logs failures — roster mutations already succeeded.
+ */
+async function insertLeagueActivityRow(userClient: SupabaseClient, row: LeagueActivityInsert): Promise<void> {
+  const { error } = await userClient.from("league_activity").insert(row);
+  if (!error) return;
+  const admin = getAdminClient();
+  if (admin) {
+    const { error: e2 } = await admin.from("league_activity").insert(row);
+    if (e2) {
+      console.error("[league_activity] insert failed (user then admin):", error.message, "|", e2.message);
+    }
+    return;
+  }
+  console.error("[league_activity] insert failed (no service role fallback):", error.message);
 }
 
 export type UpcomingEvent = { id: string; name: string; date: string; eventType: string };
@@ -1489,16 +1516,13 @@ export async function respondToReleaseProposal(
   if (approve) {
     const res = await removeWrestlerFromRoster(proposal.league_id, proposal.user_id, proposal.wrestler_id);
     if (res.error) return res;
-    const admin = getAdminClient();
-    if (admin) {
-      await admin.from("league_activity").insert({
-        league_id: proposal.league_id,
-        activity_type: "drop",
-        user_id: proposal.user_id,
-        wrestler_id: proposal.wrestler_id,
-        secondary_wrestler_id: null,
-      });
-    }
+    await insertLeagueActivityRow(supabase, {
+      league_id: proposal.league_id,
+      activity_type: "drop",
+      user_id: proposal.user_id,
+      wrestler_id: proposal.wrestler_id,
+      secondary_wrestler_id: null,
+    });
   }
   return {};
 }
@@ -1583,16 +1607,13 @@ export async function respondToFreeAgentProposal(
     }
     const addRes = await addWrestlerToRoster(proposal.league_id, proposal.user_id, proposal.wrestler_id, null, true);
     if (addRes.error) return addRes;
-    const admin = getAdminClient();
-    if (admin) {
-      await admin.from("league_activity").insert({
-        league_id: proposal.league_id,
-        activity_type: "fa_add",
-        user_id: proposal.user_id,
-        wrestler_id: proposal.wrestler_id,
-        secondary_wrestler_id: proposal.drop_wrestler_id ?? null,
-      });
-    }
+    await insertLeagueActivityRow(supabase, {
+      league_id: proposal.league_id,
+      activity_type: "fa_add",
+      user_id: proposal.user_id,
+      wrestler_id: proposal.wrestler_id,
+      secondary_wrestler_id: proposal.drop_wrestler_id ?? null,
+    });
   }
   return {};
 }
@@ -1664,16 +1685,13 @@ export async function dropWrestlerImmediate(
 
   const res = await removeWrestlerFromRoster(leagueId, user.id, wid, undefined, true);
   if (res.error) return res;
-  const admin = getAdminClient();
-  if (admin) {
-    await admin.from("league_activity").insert({
-      league_id: leagueId,
-      activity_type: "drop",
-      user_id: user.id,
-      wrestler_id: wid,
-      secondary_wrestler_id: null,
-    });
-  }
+  await insertLeagueActivityRow(supabase, {
+    league_id: leagueId,
+    activity_type: "drop",
+    user_id: user.id,
+    wrestler_id: wid,
+    secondary_wrestler_id: null,
+  });
   return {};
 }
 
@@ -1833,24 +1851,22 @@ export async function addFreeAgentImmediate(
     return addRes;
   }
 
-  if (admin) {
-    if (widToDrop) {
-      await admin.from("league_activity").insert({
-        league_id: leagueId,
-        activity_type: "drop",
-        user_id: user.id,
-        wrestler_id: widToDrop,
-        secondary_wrestler_id: null,
-      });
-    }
-    await admin.from("league_activity").insert({
+  if (widToDrop) {
+    await insertLeagueActivityRow(supabase, {
       league_id: leagueId,
-      activity_type: "fa_add",
+      activity_type: "drop",
       user_id: user.id,
-      wrestler_id: widToAdd,
-      secondary_wrestler_id: widToDrop,
+      wrestler_id: widToDrop,
+      secondary_wrestler_id: null,
     });
   }
+  await insertLeagueActivityRow(supabase, {
+    league_id: leagueId,
+    activity_type: "fa_add",
+    user_id: user.id,
+    wrestler_id: widToAdd,
+    secondary_wrestler_id: widToDrop,
+  });
 
   return {};
 }
@@ -1867,15 +1883,16 @@ export type LeagueRosterActivityItem = {
 
 /**
  * Recent drops and FA signings from league_activity, plus approved release/FA proposals
- * that were never written to league_activity (e.g. before we added the insert).
- * Merges and dedupes so the feed shows all drops/adds including historical ones.
+ * that were never written to league_activity, plus roster rows with released_at (backfill
+ * for drops that never got an activity row). Dedupes by user/wrestler/day where possible.
+ * Note: roster-derived drops can include wrestlers removed via trades, not only releases.
  */
 export async function getLeagueRosterActivity(
   leagueId: string,
   limit = 50
 ): Promise<LeagueRosterActivityItem[]> {
   const supabase = await createClient();
-  const [activityRes, releaseRes, faRes] = await Promise.all([
+  const [activityRes, releaseRes, faRes, rosterReleasesRes] = await Promise.all([
     supabase
       .from("league_activity")
       .select("id, league_id, activity_type, user_id, wrestler_id, secondary_wrestler_id, created_at")
@@ -1896,6 +1913,13 @@ export async function getLeagueRosterActivity(
       .eq("status", "approved")
       .order("responded_at", { ascending: false, nullsFirst: false })
       .limit(limit),
+    supabase
+      .from("league_rosters")
+      .select("id, user_id, wrestler_id, released_at")
+      .eq("league_id", leagueId)
+      .not("released_at", "is", null)
+      .order("released_at", { ascending: false })
+      .limit(Math.max(limit * 6, 120)),
   ]);
 
   const activityRows = (activityRes.data ?? []) as LeagueRosterActivityItem[];
@@ -1939,7 +1963,31 @@ export async function getLeagueRosterActivity(
     })
     .filter(Boolean) as LeagueRosterActivityItem[];
 
-  const merged = [...activityRows, ...fromReleases, ...fromFa].sort(
+  const fromRosterReleases = ((rosterReleasesRes.data ?? []) as {
+    id: string;
+    user_id: string;
+    wrestler_id: string;
+    released_at: string;
+  }[])
+    .map((row) => {
+      const d = (row.released_at || "").slice(0, 10);
+      const key = `drop-${row.user_id}-${row.wrestler_id}-${d}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+      const created_at = d.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T12:00:00.000Z` : row.released_at;
+      return {
+        id: `roster-drop-${row.id}`,
+        league_id: leagueId,
+        activity_type: "drop" as const,
+        user_id: row.user_id,
+        wrestler_id: row.wrestler_id,
+        secondary_wrestler_id: null as string | null,
+        created_at,
+      };
+    })
+    .filter(Boolean) as LeagueRosterActivityItem[];
+
+  const merged = [...activityRows, ...fromReleases, ...fromFa, ...fromRosterReleases].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
   return merged.slice(0, limit);
