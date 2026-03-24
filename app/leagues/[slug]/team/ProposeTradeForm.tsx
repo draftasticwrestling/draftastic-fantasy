@@ -38,7 +38,7 @@ export function ProposeTradeForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!toUserId || (giveIds.length === 0 && receiveIds.length === 0)) {
-      setMessage({ type: "err", text: "Select an owner and add at least one wrestler to give or receive." });
+      setMessage({ type: "err", text: "Select a manager and add at least one wrestler to give or receive." });
       return;
     }
     setMessage(null);
@@ -65,7 +65,7 @@ export function ProposeTradeForm({
           onChange={(e) => setToUserId(e.target.value)}
           style={{ padding: "8px 12px", minWidth: 180 }}
         >
-          <option value="">Select owner…</option>
+          <option value="">Select manager…</option>
           {otherMembers.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}

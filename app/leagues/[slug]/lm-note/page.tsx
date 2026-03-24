@@ -4,7 +4,7 @@ import { getLeagueBySlug } from "@/lib/leagues";
 import { EditManagerNoteForm } from "../EditManagerNoteForm";
 
 export const metadata = {
-  title: "Edit League Manager Note — Draftastic Fantasy",
+  title: "Edit GM Note — Draftastic Fantasy",
   description: "Edit the note shown to league members",
 };
 
@@ -27,7 +27,7 @@ export default async function EditManagerNotePage({
           ← {league.name}
         </Link>
       </p>
-      <h1 style={{ fontSize: "1.35rem", marginBottom: 8 }}>Edit League Manager Note</h1>
+      <h1 style={{ fontSize: "1.35rem", marginBottom: 8 }}>Edit GM Note</h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 0 }}>
         This note is shown to all league members on the league overview.
       </p>

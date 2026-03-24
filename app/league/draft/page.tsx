@@ -4,7 +4,7 @@ import { getDraftPicksByOwner, getPickLabel, DEFAULT_SEASON } from "@/lib/draftP
 
 export const metadata = {
   title: `Draft — ${EXAMPLE_LEAGUE.name} — Draftastic Fantasy`,
-  description: "Assign wrestlers to owners and set contract lengths.",
+  description: "Assign wrestlers to managers' factions and set contract lengths.",
 };
 
 export default async function LeagueDraftPage() {
@@ -14,7 +14,7 @@ export default async function LeagueDraftPage() {
     <>
       <h1 style={{ marginBottom: 8 }}>Draft assignment</h1>
       <p style={{ color: "#555", marginBottom: 32 }}>
-        Assign wrestlers to owners and set contract lengths. Season {DEFAULT_SEASON} draft picks (round + discovery) are shown below for reference.
+        Assign wrestlers to managers' factions and set contract lengths. Season {DEFAULT_SEASON} draft picks (round + discovery) are shown below for reference.
       </p>
 
       <RosterManager />

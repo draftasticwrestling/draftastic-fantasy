@@ -185,7 +185,7 @@ export default async function TransactionsPage({
         Transactions
       </h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24 }}>
-        Trades, releases, and free agent signings for your team.
+        Trades, releases, and free agent signings for your faction.
       </p>
 
       {rows.length === 0 ? (

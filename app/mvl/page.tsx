@@ -31,26 +31,26 @@ const ROADMAP_ITEMS: RoadmapItem[] = [
     description: "Multiple draft options:",
     subItems: [
       "a) Live draft — hosted on the website with a real-time draft room.",
-      "b) Auto-draft — owners set wrestler rankings and the site drafts teams automatically.",
-      "c) Commissioner manual input — leagues run an off-line draft and the commissioner enters everyone's roster.",
+      "b) Auto-draft — managers set wrestler rankings and the site drafts factions automatically.",
+      "c) GM manual input — leagues run an off-line draft and the GM enters everyone's roster.",
     ],
   },
   {
     id: 4,
     title: "Drop wrestlers & sign free agents",
     description:
-      "Owners can drop wrestlers from their roster and sign free agents (waiver / free-agent pool).",
+      "Managers can drop wrestlers from their roster and sign free agents (waiver / free-agent pool).",
   },
   {
     id: 5,
-    title: "Trades between owners",
-    description: "System for owners to propose and complete trades with other owners in the league.",
+    title: "Trades between managers",
+    description: "System for managers to propose and complete trades with other managers in the league.",
   },
   {
     id: 6,
     title: "Weekly matchups",
     description:
-      "Weekly head-to-head matchups (owner vs owner) that award additional points.",
+      "Weekly head-to-head matchups (manager vs manager) that award additional points.",
   },
 ];
 

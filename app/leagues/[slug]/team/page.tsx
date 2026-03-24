@@ -10,13 +10,13 @@ export async function generateMetadata({ params }: Props) {
   try {
     const { slug } = await params;
     const league = await getLeagueBySlug(slug);
-    if (!league) return { title: "My team — Draftastic Fantasy" };
+    if (!league) return { title: "My faction — Draftastic Fantasy" };
     return {
-      title: `My team — ${league.name} — Draftastic Fantasy`,
+      title: `My faction — ${league.name} — Draftastic Fantasy`,
       description: `Your roster, lineup, and proposals for ${league.name}`,
     };
   } catch {
-    return { title: "My team — Draftastic Fantasy" };
+    return { title: "My faction — Draftastic Fantasy" };
   }
 }
 

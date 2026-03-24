@@ -215,7 +215,7 @@ const ACTIVE_TRADE_LOCK_STATUSES = ["pending", "awaiting_gm_approval", "gm_appro
  * Shown when a manager tries to drop (or FA-drop) a wrestler tied to an unfinished trade.
  */
 export const TRADE_DROP_LOCK_MESSAGE =
-  "This wrestler is part of a trade that's still pending or waiting on the commissioner (including someone you chose to drop to make room for that trade). Cancel that trade or wait until it completes before dropping them.";
+  "This wrestler is part of a trade that's still pending or waiting on the GM (including someone you chose to drop to make room for that trade). Cancel that trade or wait until it completes before dropping them.";
 
 /**
  * Wrestler IDs the owner must not drop while those trades are unfinished:
@@ -1275,7 +1275,7 @@ export async function respondToTradeByGm(
     .select("commissioner_id")
     .eq("id", proposal.league_id)
     .single();
-  if (league?.commissioner_id !== user.id) return { error: "Only the commissioner can approve or reject trades." };
+  if (league?.commissioner_id !== user.id) return { error: "Only the GM can approve or reject trades." };
 
   const now = new Date().toISOString();
 
@@ -1478,7 +1478,7 @@ export async function respondToReleaseProposal(
     .select("commissioner_id")
     .eq("id", proposal.league_id)
     .single();
-  if (league?.commissioner_id !== user.id) return { error: "Only the commissioner can respond." };
+  if (league?.commissioner_id !== user.id) return { error: "Only the GM can respond." };
 
   const status = approve ? "approved" : "rejected";
   const { error: updateErr } = await supabase
@@ -1568,7 +1568,7 @@ export async function respondToFreeAgentProposal(
     .select("commissioner_id")
     .eq("id", proposal.league_id)
     .single();
-  if (league?.commissioner_id !== user.id) return { error: "Only the commissioner can respond." };
+  if (league?.commissioner_id !== user.id) return { error: "Only the GM can respond." };
 
   const status = approve ? "approved" : "rejected";
   const { error: updateErr } = await supabase

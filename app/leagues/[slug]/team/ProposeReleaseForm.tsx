@@ -121,7 +121,7 @@ export function ProposeReleaseForm(props: {
       {wrestlerId.trim() && selectedLocked && (
         <p style={{ margin: 0, fontSize: 14, color: "#b45309" }}>
           This wrestler is tied to a pending trade or was chosen as your roster cut for a trade awaiting the
-          commissioner. You can’t drop them until that trade is cancelled or processed.
+          GM. You can’t drop them until that trade is cancelled or processed.
         </p>
       )}
 

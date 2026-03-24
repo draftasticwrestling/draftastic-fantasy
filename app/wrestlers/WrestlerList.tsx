@@ -417,7 +417,7 @@ const thBase = {
   fontSize: "13px",
 } as const;
 
-/** When on My Team roster, highlight the TOT column. */
+/** When on My Faction roster, highlight the TOT column. */
 const TOT_HIGHLIGHT_STYLE: React.CSSProperties = { background: "#1a1a1a", color: "#fff", fontWeight: 700 };
 
 const ALL_ROSTER_VALUES = ROSTER_CATEGORIES.map((c) => c.value);
@@ -446,7 +446,7 @@ type WrestlerListProps = {
   wrestlerProfileFrom?: "league-leaders" | "free-agents" | "team" | null;
   /** Wrestler id -> owner info. When set, Status shows owner name + propose trade for rostered; else FA + add/flag. */
   rosterByWrestler?: Record<string, RosterOwnerInfo> | null;
-  /** When true, hide the Include (roster/brand) filter row. Used e.g. on My Team roster where the list is already just that roster. */
+  /** When true, hide the Include (roster/brand) filter row. Used e.g. on My Faction roster where the list is already just that roster. */
   hideRosterFilter?: boolean;
 };
 
@@ -845,7 +845,7 @@ export default function WrestlerList({
                       <>
                         <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>FA</div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                          <Link href={leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}/team?addFa=${encodeURIComponent(w.id)}` : `/wrestlers/${encodeURIComponent(w.id)}`} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-blue)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontWeight: 700, fontSize: 18, lineHeight: 1 }} title={leagueSlug ? "Sign free agent (go to My Team)" : "View wrestler"} aria-label={leagueSlug ? `Sign ${w.name || w.id} as free agent` : `View ${w.name || w.id}`}>+</Link>
+                          <Link href={leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}/team?addFa=${encodeURIComponent(w.id)}` : `/wrestlers/${encodeURIComponent(w.id)}`} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-blue)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontWeight: 700, fontSize: 18, lineHeight: 1 }} title={leagueSlug ? "Sign free agent (go to My Faction)" : "View wrestler"} aria-label={leagueSlug ? `Sign ${w.name || w.id} as free agent` : `View ${w.name || w.id}`}>+</Link>
                           <Link href={leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}/watchlist?add=${encodeURIComponent(w.id)}` : `/wrestlers/watch?add=${encodeURIComponent(w.id)}`} style={{ width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "1px solid " + BORDER_TABLE, color: "var(--color-text)", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: 14 }} title="Watchlist" aria-label="Add to watch list">⚑</Link>
                         </div>
                       </>

@@ -74,7 +74,7 @@ export function RostersSection({
         {rulesText}
       </p>
       <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 16 }}>
-        Season-only rosters (no long-term contracts). Commissioner can run a live draft (set type, generate order) or add or remove wrestlers manually.
+        Season-only rosters (no long-term contracts). The GM can run a live draft (set type, generate order) or add or remove wrestlers manually.
       </p>
 
       {isCommissioner && (
@@ -111,7 +111,7 @@ export function RostersSection({
                 <span style={{ fontWeight: 600, color: "var(--color-text)" }}>
                   {member.display_name?.trim() || "Unknown"}
                   {member.role === "commissioner" ? (
-                    <span style={{ fontSize: 14, color: "var(--color-text-muted)", fontWeight: 400 }}> (Commissioner)</span>
+                    <span style={{ fontSize: 14, color: "var(--color-text-muted)", fontWeight: 400 }}> (GM)</span>
                   ) : null}
                 </span>
                 {rosterRules && (

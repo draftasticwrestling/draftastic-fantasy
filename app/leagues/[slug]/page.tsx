@@ -160,7 +160,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const isCommissioner = league.role === "commissioner";
     const currentUserMember = currentUser ? members.find((m) => m.user_id === currentUser.id) : null;
     const commissionerMember = members.find((m) => m.role === "commissioner");
-    const creatorLabel = commissionerMember?.display_name?.trim() || commissionerMember?.team_name?.trim() || "Commissioner";
+    const creatorLabel = commissionerMember?.display_name?.trim() || commissionerMember?.team_name?.trim() || "GM";
     const maxTeams = league.max_teams ?? 12;
     const leagueNotFull = members.length < maxTeams;
     const hasDraftDate = !!(league.draft_date && String(league.draft_date).trim().slice(0, 10));
@@ -168,7 +168,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       (!league.draft_status || league.draft_status === "not_started") && !hasDraftDate;
     const showAlert = isCommissioner && (leagueNotFull || draftNotScheduled);
 
-    const myTeamName = (currentUserMember?.team_name?.trim() || currentUserMember?.display_name?.trim() || "My Team").trim() || "My Team";
+    const myTeamName = (currentUserMember?.team_name?.trim() || currentUserMember?.display_name?.trim() || "My Faction").trim() || "My Faction";
     const myManagerName = currentUserMember?.display_name?.trim() || "Manager";
 
     const pendingTradesForMe = currentUser
@@ -189,10 +189,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       <Link href="/leagues" className="lm-dashboard-back">← My leagues</Link>
 
       <div className="lm-layout">
-        {/* Left sidebar: My Team + Quick Links */}
+        {/* Left sidebar: My Faction + Quick Links */}
         <aside className="lm-sidebar">
           <div className="lm-card">
-            <h2 className="lm-card-title">My Team</h2>
+            <h2 className="lm-card-title">My Faction</h2>
             <div className="lm-myteam-avatar" aria-hidden>🏆</div>
             <p className="lm-myteam-name">{myTeamName}</p>
             <p className="lm-myteam-manager">{myManagerName}</p>
@@ -223,7 +223,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           <div className="lm-card lm-league-card">
             <h1 className="lm-card-title" style={{ fontSize: "1.35rem", marginBottom: 8 }}>{league.name}</h1>
             <nav className="lm-subnav" aria-label="League sections">
-              <Link href={currentUser ? `/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}` : `/leagues/${slug}/team`}>My Roster</Link>
+              <Link href={currentUser ? `/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}` : `/leagues/${slug}/team`}>My Faction</Link>
               <span className="lm-subnav-sep">|</span>
               <Link href={`/leagues/${slug}/standings`}>Standings</Link>
               <span className="lm-subnav-sep">|</span>
@@ -232,9 +232,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               <Link href={`/leagues/${slug}/draft`}>Draft</Link>
             </nav>
             <p className="lm-league-meta">
-              <span>Creator: {creatorLabel}</span>
+              <span>GM: {creatorLabel}</span>
               <span>Format: {formatLeagueType(league.league_type)}</span>
-              <span>Teams: {members.length}{maxTeams ? ` / ${maxTeams}` : ""}</span>
+              <span>Factions: {members.length}{maxTeams ? ` / ${maxTeams}` : ""}</span>
             </p>
             {showAlert && (
               <div className="lm-alert" role="alert">
@@ -362,15 +362,15 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             </div>
           )}
 
-          {/* Two-column: League Manager Note + Recent Activity */}
+          {/* Two-column: GM Note + Recent Activity */}
           <div className="lm-main-grid">
             <div className="lm-card">
               <h2 className="lm-card-title">
-                League Manager&apos;s Note
-                {isCommissioner && <Link href={`/leagues/${slug}/lm-note`} className="lm-card-link">Edit LM Note</Link>}
+                GM&apos;s Note
+                {isCommissioner && <Link href={`/leagues/${slug}/lm-note`} className="lm-card-link">Edit GM Note</Link>}
               </h2>
               <p className="lm-note-text">
-                {league?.manager_note?.trim() || "Welcome to your Draftastic Fantasy league. Your League Manager can post a note to the entire league and it will appear here."}
+                {league?.manager_note?.trim() || "Welcome to your Draftastic Fantasy league. Your GM can post a note to the entire league and it will appear here."}
               </p>
             </div>
             <div className="lm-card">
@@ -476,7 +476,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           {/* Teams / Standings (same look as standings page) + Rosters section */}
           <div className="lm-card">
             <p className="lm-league-meta" style={{ marginBottom: 12 }}>
-              Click a team to see that owner’s roster and points.
+              Click a faction to see that manager’s roster and points.
             </p>
             <LeagueStandingsTable
               members={membersByPoints}

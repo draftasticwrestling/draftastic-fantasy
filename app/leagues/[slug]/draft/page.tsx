@@ -545,7 +545,7 @@ export default async function LeagueDraftPage({ params }: Props) {
             Auto-draft readiness
           </h2>
           <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
-            Before the draft runs at the scheduled time, confirm each owner has set preferences. If not set, the default is used.
+            Before the draft runs at the scheduled time, confirm each manager has set preferences. If not set, the default is used.
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
             {allMembersPrefs.map((entry) => (
@@ -593,7 +593,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           <p style={{ marginBottom: 16 }}>
             {league.draft_order_method === "manual_by_gm"
               ? "No draft order yet. The General Manager can set the pick order manually."
-              : "No draft order yet. The commissioner can generate a randomized order (uses draft type from League Settings)."}
+              : "No draft order yet. The GM can generate a randomized order (uses draft type from League Settings)."}
           </p>
           {isCommissioner && league.draft_order_method === "manual_by_gm" && (
             <p style={{ marginBottom: 16 }}>
@@ -625,7 +625,7 @@ export default async function LeagueDraftPage({ params }: Props) {
       {draftStatus === "not_started" && order.length > 0 && (
         <>
           <p style={{ marginBottom: 8, color: "#555" }}>
-            Draft order is set. When all owners are ready, the commissioner can begin the draft.
+            Draft order is set. When all managers are ready, the GM can begin the draft.
           </p>
           {scheduledDraftMessage && (
             <p style={{ marginBottom: 8, fontSize: 13, color: "var(--color-text-muted)" }}>
@@ -694,7 +694,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           )}
           {!isCommissioner && (
             <p style={{ marginBottom: 24, fontSize: 14, color: "#666" }}>
-              Waiting for the commissioner to start the draft.
+              Waiting for the GM to start the draft.
             </p>
           )}
           <section style={{ marginBottom: 24 }}>

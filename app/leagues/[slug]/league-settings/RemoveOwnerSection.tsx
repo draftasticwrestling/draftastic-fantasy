@@ -9,7 +9,7 @@ type Props = {
 };
 
 /**
- * GM Tools only. Lists non-commissioner members with Remove owner action.
+ * GM Tools only. Lists non-GM members with Remove manager action.
  * Only shown when draft has not started (caller hides section when draft started).
  */
 export function RemoveOwnerSection({ leagueSlug, members }: Props) {
@@ -17,12 +17,12 @@ export function RemoveOwnerSection({ leagueSlug, members }: Props) {
   if (owners.length === 0) return null;
 
   return (
-    <section aria-labelledby="remove-owner-heading" style={{ marginBottom: 32 }}>
-      <h2 id="remove-owner-heading" style={{ fontSize: "1.25rem", marginBottom: 12 }}>
-        Remove owner
+    <section aria-labelledby="remove-manager-heading" style={{ marginBottom: 32 }}>
+      <h2 id="remove-manager-heading" style={{ fontSize: "1.25rem", marginBottom: 12 }}>
+        Remove manager
       </h2>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 12 }}>
-        Remove an owner from the league. Their slot can be refilled by someone else. This is only available before the draft starts.
+        Remove a manager from the league. Their slot can be refilled by someone else. This is only available before the draft starts.
       </p>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {owners.map((m) => {

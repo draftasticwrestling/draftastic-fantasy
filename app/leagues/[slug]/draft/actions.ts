@@ -120,7 +120,7 @@ export async function clearDraftOrderAction(leagueSlug: string): Promise<{ error
   if (!league) return { error: "League not found." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || league.commissioner_id !== user.id) return { error: "Only the commissioner can clear the draft order." };
+  if (!user || league.commissioner_id !== user.id) return { error: "Only the GM can clear the draft order." };
   const result = await clearDraftOrder(league.id);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);
@@ -144,7 +144,7 @@ export async function restartDraftAction(leagueSlug: string): Promise<{ error?: 
   if (!league) return { error: "League not found." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || league.commissioner_id !== user.id) return { error: "Only the commissioner can restart the draft." };
+  if (!user || league.commissioner_id !== user.id) return { error: "Only the GM can restart the draft." };
   const result = await restartDraft(league.id);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);
@@ -159,7 +159,7 @@ export async function clearLastPickAction(leagueSlug: string): Promise<{ error?:
   if (!league) return { error: "League not found." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || league.commissioner_id !== user.id) return { error: "Only the commissioner can clear a pick." };
+  if (!user || league.commissioner_id !== user.id) return { error: "Only the GM can clear a pick." };
   const result = await clearLastPick(league.id);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);

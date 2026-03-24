@@ -74,7 +74,7 @@ export async function updateDraftDateAction(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can set the draft date." };
+    return { error: "Only the GM can set the draft date." };
   }
 
   const draft_date = (formData.get("draft_date") as string)?.trim() || null;
@@ -111,7 +111,7 @@ export async function updateDraftSettingsAction(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can change draft settings." };
+    return { error: "Only the GM can change draft settings." };
   }
 
   const draft_type_ui = (formData.get("draft_type_ui") as string)?.trim();
@@ -185,7 +185,7 @@ export async function updateBasicSettingsAction(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can change basic settings." };
+    return { error: "Only the GM can change basic settings." };
   }
 
   const name = (formData.get("league_name") as string)?.trim();
@@ -198,7 +198,7 @@ export async function updateBasicSettingsAction(
       : null;
 
   if (league.league_type === "head_to_head" && max_teams != null && max_teams < 4) {
-    return { error: "Head-to-Head leagues require at least 4 teams." };
+    return { error: "Head-to-Head leagues require at least 4 factions." };
   }
 
   const auto_reactivate = formData.get("auto_reactivate") === "yes";
@@ -220,7 +220,7 @@ export async function updateBasicSettingsFormAction(
   return updateBasicSettingsAction(leagueSlug, formData);
 }
 
-/** Commissioner updates the League Manager note shown on the league overview. */
+/** GM updates the league note shown on the league overview. */
 export async function updateManagerNoteAction(
   _prevState: { error?: string } | null,
   formData: FormData
@@ -234,7 +234,7 @@ export async function updateManagerNoteAction(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can edit the League Manager note." };
+    return { error: "Only the GM can edit the GM note." };
   }
 
   const manager_note = (formData.get("manager_note") as string)?.trim() || null;
@@ -259,7 +259,7 @@ export async function updateLeagueTypeAction(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can change league type." };
+    return { error: "Only the GM can change league type." };
   }
 
   const league_type = (formData.get("league_type") as string)?.trim() || null;
@@ -294,10 +294,10 @@ export async function removeMemberFromLeagueAction(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can remove a manager." };
+    return { error: "Only the GM can remove a manager." };
   }
   if (userId === league.commissioner_id) {
-    return { error: "You cannot remove yourself as commissioner." };
+    return { error: "You cannot remove yourself as GM." };
   }
   const status = league.draft_status ?? "not_started";
   if (status === "in_progress" || status === "completed") {
@@ -342,7 +342,7 @@ export async function deleteLeagueAction(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can delete the league." };
+    return { error: "Only the GM can delete the league." };
   }
 
   const confirmCheck = formData.get("confirm_irreversible") === "on";

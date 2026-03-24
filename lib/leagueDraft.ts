@@ -539,7 +539,7 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
     .single();
 
   if (!league || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can generate draft order." };
+    return { error: "Only the GM can generate draft order." };
   }
 
   const members = await getLeagueMembers(leagueId);
@@ -674,7 +674,7 @@ export async function setDraftOrderFromRound1(
     .single();
 
   if (!league || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can set draft order." };
+    return { error: "Only the GM can set draft order." };
   }
 
   const members = await getLeagueMembers(leagueId);
@@ -749,7 +749,7 @@ export async function startDraft(leagueId: string): Promise<{ error?: string }> 
     .eq("id", leagueId)
     .single();
   if (!league || league.commissioner_id !== user.id) {
-    return { error: "Only the commissioner can start the draft." };
+    return { error: "Only the GM can start the draft." };
   }
 
   const { count } = await supabase

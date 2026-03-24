@@ -267,7 +267,7 @@ export default async function WrestlersFreeAgentsPage({
       </p>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Free Agents</h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24 }}>
-        Wrestlers not on any team in this league. Same table and filters as League Leaders; add them from your team page (Roster) or during the draft.
+        Wrestlers not on any faction in this league. Same table and filters as League Leaders; add them from your faction page (Roster) or during the draft.
       </p>
 
       {error && (
@@ -278,7 +278,7 @@ export default async function WrestlersFreeAgentsPage({
 
       {rows.length === 0 && !error && (
         <p style={{ color: "var(--color-text-muted)" }}>
-          No free agents. Every wrestler in the pool is already on a team in this league.
+          No free agents. Every wrestler in the pool is already on a faction in this league.
         </p>
       )}
 

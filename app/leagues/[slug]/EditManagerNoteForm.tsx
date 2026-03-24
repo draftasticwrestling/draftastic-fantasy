@@ -4,7 +4,7 @@ import { useFormState } from "react-dom";
 import { updateManagerNoteAction } from "./actions";
 
 const DEFAULT_PLACEHOLDER =
-  "Welcome to your Draftastic Fantasy league. Your League Manager can post a note to the entire league and it will appear here.";
+  "Welcome to your Draftastic Fantasy league. Your GM can post a note to the entire league and it will appear here.";
 
 export function EditManagerNoteForm(props: {
   leagueSlug: string;

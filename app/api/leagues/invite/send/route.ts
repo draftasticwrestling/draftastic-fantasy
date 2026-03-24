@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       .single();
 
     if (!league || league.commissioner_id !== user.id) {
-      return NextResponse.json({ error: "Only the league commissioner can send invites." }, { status: 403 });
+      return NextResponse.json({ error: "Only the GM can send invites." }, { status: 403 });
     }
 
     const apiKey = process.env.RESEND_API_KEY;
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   </p>
   <p style="font-size:14px;color:#666;">If the button doesn't work, copy and paste this link into your browser:</p>
   <p style="font-size:14px;word-break:break-all;color:#1a73e8;">${escapeHtml(inviteUrl)}</p>
-  <p style="margin-top:32px;font-size:12px;color:#999;">Sent via Draftastic Fantasy. Reply to this email to contact the league commissioner.</p>
+  <p style="margin-top:32px;font-size:12px;color:#999;">Sent via Draftastic Fantasy. Reply to this email to contact the league GM.</p>
 </body>
 </html>
 `;

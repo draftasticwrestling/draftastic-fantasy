@@ -27,7 +27,7 @@ export default async function TeamScoreboardPage({ params }: Props) {
   if (!teamMember) notFound();
 
   const teamLabel =
-    (teamMember.team_name?.trim() || teamMember.display_name?.trim() || "Team").trim() || "Team";
+    (teamMember.team_name?.trim() || teamMember.display_name?.trim() || "Faction").trim() || "Faction";
   const audit = await getTeamScoringAudit(league.id, userId);
 
   const wrestlerIds = [...new Set(audit.ledgerRows.map((r) => r.wrestlerId).concat(audit.formerStints.map((s) => s.wrestlerId)))];
@@ -43,13 +43,13 @@ export default async function TeamScoreboardPage({ params }: Props) {
           ← Back to {teamLabel}
         </Link>
       </p>
-      <h1 style={{ margin: "0 0 8px", fontSize: "1.6rem" }}>Team Scoreboard</h1>
+      <h1 style={{ margin: "0 0 8px", fontSize: "1.6rem" }}>Faction Scoreboard</h1>
       <p style={{ margin: "0 0 18px", color: "#4b5563" }}>
         {teamLabel} total: <strong>{audit.teamTotal} pts</strong>
       </p>
 
       <section style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: "1.05rem", marginBottom: 10 }}>Points by wrestler (team-attributed)</h2>
+        <h2 style={{ fontSize: "1.05rem", marginBottom: 10 }}>Points by wrestler (faction-attributed)</h2>
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {Object.entries(audit.totalsByWrestler)
             .sort((a, b) => b[1].total - a[1].total)
@@ -80,7 +80,7 @@ export default async function TeamScoreboardPage({ params }: Props) {
       <section>
         <h2 style={{ fontSize: "1.05rem", marginBottom: 10 }}>Point-by-point ledger</h2>
         <p style={{ fontSize: 13, color: "#6b7280", marginTop: 0, marginBottom: 12 }}>
-          Every event contribution that counts toward this team’s score.
+          Every event contribution that counts toward this faction’s score.
         </p>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -116,7 +116,7 @@ export default async function TeamScoreboardPage({ params }: Props) {
               {audit.ledgerRows.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ padding: "10px", color: "#6b7280" }}>
-                    No scored events yet for this team.
+                    No scored events yet for this faction.
                   </td>
                 </tr>
               )}

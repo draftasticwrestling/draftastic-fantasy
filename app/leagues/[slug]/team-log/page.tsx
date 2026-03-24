@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Team Log — Draftastic Fantasy",
+  title: "Faction Log — Draftastic Fantasy",
   description: "Team activity log",
 };
 

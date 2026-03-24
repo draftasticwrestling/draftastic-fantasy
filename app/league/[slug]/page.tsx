@@ -182,7 +182,7 @@ export default async function TeamPage({
               No wrestlers on this roster yet.
             </p>
             <p style={{ margin: 0, fontSize: 15, color: "#555" }}>
-              Go to the <Link href="/league/draft" style={{ color: "#1a73e8" }}>Draft</Link> page to assign wrestlers to this owner with contract lengths.
+              Go to the <Link href="/league/draft" style={{ color: "#1a73e8" }}>Draft</Link> page to assign wrestlers to this manager’s faction with contract lengths.
             </p>
           </div>
         ) : (
@@ -226,7 +226,7 @@ export default async function TeamPage({
         >
           {draftPicks.length === 0 ? (
             <p style={{ margin: 0 }}>
-              No draft picks on record for this owner. Run the script in <code style={{ fontSize: 14 }}>supabase/draft_picks.sql</code> in your Supabase SQL editor to create the table and seed Season 3 picks.
+              No draft picks on record for this manager. Run the script in <code style={{ fontSize: 14 }}>supabase/draft_picks.sql</code> in your Supabase SQL editor to create the table and seed Season 3 picks.
             </p>
           ) : (
             <>

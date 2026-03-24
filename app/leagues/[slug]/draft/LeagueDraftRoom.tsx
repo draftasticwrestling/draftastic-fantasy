@@ -316,7 +316,7 @@ export function LeagueDraftRoom({
           }}
         >
           <p style={{ margin: 0, fontWeight: 600, color: "var(--color-red, #b91c1c)" }}>
-            Auto-pick failed: {autopickError} Refresh the page to try again. If the problem continues, the commissioner may need to set SUPABASE_SERVICE_ROLE_KEY in Netlify.
+            Auto-pick failed: {autopickError} Refresh the page to try again. If the problem continues, the GM may need to set SUPABASE_SERVICE_ROLE_KEY in Netlify.
           </p>
         </section>
       )}

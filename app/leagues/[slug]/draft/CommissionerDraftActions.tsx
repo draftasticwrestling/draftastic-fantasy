@@ -34,7 +34,7 @@ export function CommissionerDraftActions({
 
   return (
     <section style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--color-border)" }}>
-      <h3 style={{ fontSize: "1rem", marginBottom: 12, color: "var(--color-text-muted)" }}>Commissioner</h3>
+      <h3 style={{ fontSize: "1rem", marginBottom: 12, color: "var(--color-text-muted)" }}>GM</h3>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
         {canClearLastPick && (
           <button

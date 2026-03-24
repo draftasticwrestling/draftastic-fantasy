@@ -155,7 +155,7 @@ export default function TradeManager() {
       .filter(Boolean) as Array<{ from_owner_slug: string; to_owner_slug: string; wrestler_id: string | null; draft_pick_id: string | null }>;
 
     if (!payload.length) {
-      setMessage({ type: "err", text: "Add at least one leg (wrestler or draft pick) with different from/to owners." });
+      setMessage({ type: "err", text: "Add at least one leg (wrestler or draft pick) with different from/to managers." });
       return;
     }
 
@@ -203,7 +203,7 @@ export default function TradeManager() {
         <div style={{ marginBottom: 12 }}>
           <span style={{ fontWeight: 600 }}>Legs</span>
           <p style={{ margin: "4px 0 8px 0", color: "#555", fontSize: 14 }}>
-            For each item moving, choose from owner, to owner, and either a wrestler or a draft pick.
+            For each item moving, choose from manager, to manager, and either a wrestler or a draft pick.
           </p>
         </div>
 

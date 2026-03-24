@@ -10,7 +10,7 @@ import type { DraftOrderMethod } from "@/lib/leagues";
 const DRAFT_TYPE_OPTIONS: { value: "offline" | "live" | "autopick"; label: string; description: string }[] = [
   { value: "offline", label: "Offline", description: "Your league conducts its own offline draft. You submit the results manually." },
   { value: "live", label: "Live", description: "Schedule a day and time and host your draft live on the site." },
-  { value: "autopick", label: "Autopick", description: "Your league's rosters are automatically drafted based on each team's pre-draft rankings list. Each team owner will receive an email upon the draft's completion." },
+  { value: "autopick", label: "Autopick", description: "Your league's rosters are automatically drafted based on each manager's pre-draft rankings list. Each manager will receive an email upon the draft's completion." },
 ];
 
 /** Draft Style: only when type is Live. Stored as draft_type (linear/snake) + draft_style. */

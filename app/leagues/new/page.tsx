@@ -23,7 +23,7 @@ export default async function NewLeaguePage() {
         </Link>
         <h1>Create a League</h1>
         <p style={{ margin: "0 0 24px", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
-          You will be the commissioner. Name your league, set the size and format, then invite your friends.
+          You will be the GM. Name your league, set the size and format, then invite your friends.
         </p>
         <CreateLeagueForm />
       </div>

@@ -45,7 +45,7 @@ export default async function LeagueSettingsPage({
       </p>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>League Settings</h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 32 }}>
-        Configure your league. Only the commissioner can change these settings.
+        Configure your league. Only the GM can change these settings.
       </p>
 
       {isCommissioner ? (
@@ -79,7 +79,7 @@ export default async function LeagueSettingsPage({
               Basic Settings
             </h2>
             <p style={{ color: "var(--color-text-muted)" }}>
-              League: <strong>{league.name}</strong>. Teams: {maxTeams ?? "—"}. Auto-reactivate: {autoReactivate ? "Yes" : "No"}.
+              League: <strong>{league.name}</strong>. Factions: {maxTeams ?? "—"}. Auto-reactivate: {autoReactivate ? "Yes" : "No"}.
             </p>
           </section>
           <section aria-labelledby="league-type-heading" style={{ marginBottom: 32 }}>
@@ -95,7 +95,7 @@ export default async function LeagueSettingsPage({
               Draft
             </h2>
             <p style={{ color: "var(--color-text-muted)" }}>
-              Only the league commissioner can change draft settings. Current settings:{" "}
+              Only the GM can change draft settings. Current settings:{" "}
               <strong>{draftType}</strong> draft, {timePerPickSeconds === 60 ? "1 minute" : `${timePerPickSeconds} seconds`} per pick,
               {draftOrderMethod === "manual_by_gm" ? " order set by General Manager" : " order randomized one hour before draft"}.
               {draftDate && ` Draft date: ${draftDate}.`}

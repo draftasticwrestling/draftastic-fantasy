@@ -4,7 +4,7 @@ const TABLE_LEGEND_ITEMS: { abbr: string; full: string }[] = [
   { abbr: "Roster", full: "Brand/show (Raw, SmackDown, NXT, etc.)" },
   { abbr: "Rank", full: "Standing by total points in this view" },
   { abbr: "Titles", full: "Current championship(s)" },
-  { abbr: "STATUS", full: "League owner name or Free Agent" },
+  { abbr: "STATUS", full: "Manager (faction) name or Free Agent" },
   { abbr: "Gender", full: "Male / Female" },
   { abbr: "Age", full: "Age in years" },
   { abbr: "2K", full: "WWE 2K game rating (from Pro Wrestling Boxscore)" },

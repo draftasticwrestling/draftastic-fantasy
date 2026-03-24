@@ -62,7 +62,7 @@ export function AddRosterForm({ leagueId, leagueSlug, members, wrestlers }: Prop
             {members.map((m) => (
               <option key={m.id} value={m.user_id}>
                 {m.display_name?.trim() || "Unknown"}
-                {m.role === "commissioner" ? " (Commissioner)" : ""}
+                {m.role === "commissioner" ? " (GM)" : ""}
               </option>
             ))}
           </select>

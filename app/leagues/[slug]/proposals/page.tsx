@@ -144,7 +144,7 @@ export default async function ProposalsPage({ params }: Props) {
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Recent Activity</h1>
       <p style={{ color: "#555", marginBottom: 24 }}>
-        Trades (pending and completed) and roster moves. When both managers agree, the commissioner must approve the trade. Drops and free agent pickups are first come, first serve.
+        Trades (pending and completed) and roster moves. When both managers agree, the GM must approve the trade. Drops and free agent pickups are first come, first serve.
       </p>
 
       {awaitingGmTrades.length > 0 && (

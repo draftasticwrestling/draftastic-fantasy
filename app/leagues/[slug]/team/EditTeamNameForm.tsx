@@ -18,7 +18,7 @@ export function EditTeamNameForm(props: {
     startTransition(async () => {
       const result = await updateTeamNameAction(leagueSlug, value.trim() || null);
       if (result.error) setMessage({ type: "err", text: result.error });
-      else setMessage({ type: "ok", text: "Team name saved." });
+      else setMessage({ type: "ok", text: "Faction name saved." });
     });
   };
 
@@ -34,7 +34,7 @@ export function EditTeamNameForm(props: {
       }}
     >
       <label htmlFor="team-name" style={{ display: "block", fontSize: 14, marginBottom: 8 }}>
-        Team name
+        Faction name
       </label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
         <input
@@ -42,7 +42,7 @@ export function EditTeamNameForm(props: {
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Your team name"
+          placeholder="Your faction name"
           style={{
             padding: "8px 12px",
             fontSize: 14,

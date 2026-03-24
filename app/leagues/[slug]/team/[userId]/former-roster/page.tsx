@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props) {
     if (!league) return { title: "Former roster — Draftastic Fantasy" };
     const members = await getLeagueMembers(league.id);
     const m = members.find((x) => x.user_id === userId);
-    const name = m?.team_name?.trim() || m?.display_name?.trim() || "Team";
+    const name = m?.team_name?.trim() || m?.display_name?.trim() || "Faction";
     return {
       title: `Full former roster log — ${name} — ${league.name} — Draftastic Fantasy`,
       description: `Complete history of past roster stints for ${name}, including zero-point stays.`,
@@ -47,7 +47,7 @@ export default async function TeamFormerRosterPage({ params }: Props) {
   if (!teamMember) notFound();
 
   const teamLabel =
-    (teamMember.team_name?.trim() || teamMember.display_name?.trim() || "Team").trim() || "Team";
+    (teamMember.team_name?.trim() || teamMember.display_name?.trim() || "Faction").trim() || "Faction";
 
   const audit = await getTeamScoringAudit(league.id, userId);
   const formerStints = audit.formerStints;
@@ -69,7 +69,7 @@ export default async function TeamFormerRosterPage({ params }: Props) {
       </p>
       <h1 style={{ margin: "0 0 8px", fontSize: "1.5rem" }}>Full log — Former {teamLabel}</h1>
       <p style={{ margin: "0 0 20px", fontSize: 14, color: "#666" }}>
-        Every past roster stint for this team, including adds and drops with no fantasy points during the stay.
+        Every past roster stint for this faction, including adds and drops with no fantasy points during the stay.
       </p>
 
       {formerStints.length === 0 ? (

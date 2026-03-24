@@ -77,16 +77,16 @@ export async function generateMetadata({ params }: Props) {
   try {
     const { slug, userId } = await params;
     const league = await getLeagueBySlug(slug);
-    if (!league) return { title: "Team — Draftastic Fantasy" };
+    if (!league) return { title: "Faction — Draftastic Fantasy" };
     const members = await getLeagueMembers(league.id);
     const m = members.find((x) => x.user_id === userId);
-    const name = m?.team_name?.trim() || m?.display_name?.trim() || "Team";
+    const name = m?.team_name?.trim() || m?.display_name?.trim() || "Faction";
     return {
       title: `${name} — ${league.name} — Draftastic Fantasy`,
       description: `Roster and points for ${name}`,
     };
   } catch {
-    return { title: "Team — Draftastic Fantasy" };
+    return { title: "Faction — Draftastic Fantasy" };
   }
 }
 
@@ -244,7 +244,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const rosterByWrestlerForTable: Record<string, { ownerName: string; ownerUserId: string }> = {};
   if (rosterTableRows.length > 0) {
     for (const w of rosterTableRows) {
-      rosterByWrestlerForTable[w.id] = { ownerName: targetMember.team_name?.trim() || targetMember.display_name?.trim() || "My team", ownerUserId: userId };
+      rosterByWrestlerForTable[w.id] = { ownerName: targetMember.team_name?.trim() || targetMember.display_name?.trim() || "My faction", ownerUserId: userId };
     }
   }
 
@@ -329,13 +329,13 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           href={`/leagues/${slug}/team/${encodeURIComponent(userId)}/scoreboard`}
           style={{ color: "#1a73e8", textDecoration: "none", fontWeight: 700 }}
         >
-          View Team Scoreboard
+          View Faction Scoreboard
         </Link>
       </p>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>
-          {isOwnTeam ? "My roster" : "Roster"}
+          {isOwnTeam ? "My faction roster" : "Roster"}
         </h2>
         {rosterRules && (
           <p style={{ fontSize: 14, color: "#666", marginBottom: 24 }}>
@@ -371,7 +371,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           <p style={{ color: "#666", fontSize: 14 }}>
             {isOwnTeam
               ? "No wrestlers on your roster yet. Add wrestlers via the draft or free agent signings."
-              : "This team has no wrestlers on the roster yet."}
+              : "This faction has no wrestlers on the roster yet."}
           </p>
         )}
       </section>
@@ -400,7 +400,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               </Link>
             </div>
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Past roster stints where this team earned fantasy points. Zero-point stays are hidden here but kept in
+              Past roster stints where this faction earned fantasy points. Zero-point stays are hidden here but kept in
               the full log.
             </p>
             {formerWithPoints.length > 0 ? (
@@ -434,7 +434,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               </ul>
             ) : (
               <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>
-                No former roster members scored points while on this team yet.{" "}
+                No former roster members scored points while on this faction yet.{" "}
                 <Link href={formerLogHref} style={{ color: "#1a73e8", fontWeight: 600 }}>
                   See full log
                 </Link>{" "}
@@ -460,7 +460,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               );
             })()}
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Offer wrestlers to another owner and request wrestlers in return. They can accept, decline, or counter. If both agree, the commissioner must approve the trade.
+              Offer wrestlers to another manager and request wrestlers in return. They can accept, decline, or counter. If both agree, the GM must approve the trade.
             </p>
             {otherMembers.length === 0 ? (
               <p style={{ color: "#666" }}>No other members in the league.</p>
@@ -629,7 +629,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               .map((p) => (
                 <li key={p.id} style={{ padding: "8px 0", color: "#666", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <span>
-                    Trade to {memberByUserId[p.to_user_id]?.display_name ?? memberByUserId[p.to_user_id]?.team_name ?? "another owner"}:{" "}
+                    Trade to {memberByUserId[p.to_user_id]?.display_name ?? memberByUserId[p.to_user_id]?.team_name ?? "another manager"}:{" "}
                     {p.status === "pending" && "Pending"}
                     {p.status === "cancelled" && "Cancelled"}
                     {p.status === "expired" && "Expired"}

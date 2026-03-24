@@ -374,7 +374,7 @@ export async function createLeagueInvite(
     .single();
 
   if (!league || league.commissioner_id !== user.id) {
-    return { url: "", token: "", error: "Not the commissioner" };
+    return { url: "", token: "", error: "Not the GM" };
   }
 
   const token = crypto.randomUUID().replace(/-/g, "").slice(0, 24);

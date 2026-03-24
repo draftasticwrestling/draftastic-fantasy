@@ -39,7 +39,7 @@ type ChampionshipReign = {
 
 export const metadata = {
   title: `Free Agents — ${EXAMPLE_LEAGUE.name} — Draftastic Fantasy`,
-  description: "Wrestlers not assigned to any league owner.",
+  description: "Wrestlers not assigned to any manager's faction.",
 };
 
 export default async function LeagueFreeAgentsPage() {
@@ -129,7 +129,7 @@ export default async function LeagueFreeAgentsPage() {
     <>
       <h1 style={{ marginBottom: 8 }}>Free agents</h1>
       <p style={{ color: "#555", marginBottom: 32 }}>
-        Wrestlers in the pool who are not currently assigned to any owner. Use the Draft page to add them to a roster.
+        Wrestlers in the pool who are not currently assigned to any manager’s faction. Use the Draft page to add them to a roster.
       </p>
 
       {rows.length === 0 ? (
@@ -138,7 +138,7 @@ export default async function LeagueFreeAgentsPage() {
         <>
           <WrestlerList wrestlers={rows} />
           <p style={{ marginTop: 24, color: "#666" }}>
-            Total: {rows.length} free agents. Use the Draft page to assign them to an owner.
+            Total: {rows.length} free agents. Use the Draft page to assign them to a manager.
           </p>
         </>
       )}

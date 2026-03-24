@@ -12,10 +12,10 @@ export async function generateMetadata({
 }) {
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
-  if (!league) return { title: "Edit Team Info — Draftastic Fantasy" };
+  if (!league) return { title: "Edit Faction Info — Draftastic Fantasy" };
   return {
-    title: `Edit Team Info — ${league.name} — Draftastic Fantasy`,
-    description: "Edit your team details",
+    title: `Edit Faction Info — ${league.name} — Draftastic Fantasy`,
+    description: "Edit your faction details",
   };
 }
 
@@ -47,10 +47,10 @@ export default async function EditTeamInfoPage({
         </Link>
       </p>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8, color: "var(--color-text)" }}>
-        Edit Team Info
+        Edit Faction Info
       </h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24 }}>
-        Choose a team name for this league. It will appear in standings, matchups, and on your roster.
+        Choose a faction name for this league. It will appear in standings, matchups, and on your roster.
       </p>
       <EditTeamNameForm leagueSlug={slug} initialTeamName={currentTeamName} />
 

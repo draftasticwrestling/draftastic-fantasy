@@ -172,7 +172,7 @@ export default function RosterManager() {
   if (loading) {
     return (
       <section style={{ marginTop: 32 }}>
-        <h2 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Assign wrestlers to owners</h2>
+        <h2 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Assign wrestlers to managers</h2>
         <p style={{ color: "#666" }}>Loading…</p>
       </section>
     );
@@ -188,9 +188,9 @@ export default function RosterManager() {
         borderRadius: 12,
       }}
     >
-      <h2 style={{ fontSize: "1.25rem", marginBottom: 8 }}>Assign wrestlers to owners</h2>
+      <h2 style={{ fontSize: "1.25rem", marginBottom: 8 }}>Assign wrestlers to managers</h2>
       <p style={{ color: "#555", marginBottom: 20, fontSize: 15 }}>
-        Assign wrestlers to each owner and set contract length. These appear on each team page.
+        Assign wrestlers to each manager’s faction and set contract length. These appear on each faction page.
       </p>
 
       {message && (
@@ -210,7 +210,7 @@ export default function RosterManager() {
 
       <div style={{ marginBottom: 20 }}>
         <label style={{ display: "block", fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
-          Owner
+          Manager
         </label>
         <select
           value={selectedOwner}

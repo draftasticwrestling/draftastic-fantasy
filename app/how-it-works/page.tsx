@@ -223,10 +223,10 @@ export default function HowItWorksPage() {
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>League types</h2>
         <ul style={{ listStyle: "none", paddingLeft: 0 }}>
           <li style={{ marginBottom: 16 }}>
-            <strong>Total Season Points</strong> — Compete against your whole league all season. The team with the most overall points wins!
+            <strong>Total Season Points</strong> — Compete against your whole league all season. The faction with the most overall points wins!
           </li>
           <li style={{ marginBottom: 16 }}>
-            <strong>Head-to-Head</strong> — Minimum 4 teams, maximum 16. Weekly matchups during the Road to SummerSlam; the team with the best win-loss-draw record wins the league and the Draftastic Championship Belt.
+            <strong>Head-to-Head</strong> — Minimum 4 factions, maximum 16. Weekly matchups during the Road to SummerSlam; the faction with the best win-loss-draw record wins the league and the Draftastic Championship Belt.
           </li>
           <li style={{ marginBottom: 16 }}>
             <strong>Combo League (H2H + Total Season Points)</strong> — <em>Coming soon.</em>

@@ -208,9 +208,9 @@ export default function Nav() {
   const myTeamSub = currentLeagueSlug
     ? [
         { href: rosterHref, label: "Roster" },
-        { href: `/leagues/${currentLeagueSlug}/transactions`, label: "Team Log" },
+        { href: `/leagues/${currentLeagueSlug}/transactions`, label: "Faction Log" },
         { href: `/leagues/${currentLeagueSlug}/watchlist`, label: "Watchlist" },
-        { href: `/leagues/${currentLeagueSlug}/edit-team-info`, label: "Edit Team Info" },
+        { href: `/leagues/${currentLeagueSlug}/edit-team-info`, label: "Edit Faction Info" },
       ]
     : [];
   const leagueSub = currentLeagueSlug
@@ -466,7 +466,7 @@ export default function Nav() {
                   href={myTeamSub[0]?.href ?? rosterHref}
                   className={`nav-primary-link ${activePrimary === "my-team" ? "is-active" : ""}`}
                 >
-                  My Team
+                  My Faction
                 </Link>
               </li>
               <li onMouseEnter={(e) => handlePrimaryEnter("wrestlers", e)}>

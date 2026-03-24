@@ -82,11 +82,11 @@ export default async function LeagueTeamsPage() {
         Legacy League — multi-year contracts, discovery picks, and full scoring. For the MVL season-only format, use <Link href="/leagues" style={{ color: "#1a73e8" }}>Private Leagues</Link>.
       </p>
       <p style={{ color: "#555", marginBottom: 32 }}>
-        Owners and links to their rosters.
+        Managers and links to their faction rosters.
       </p>
 
       <section>
-        <h2 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Teams</h2>
+        <h2 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Factions</h2>
         <ul style={{ listStyle: "none", padding: 0 }}>
           {LEAGUE_MEMBERS.map((member) => (
             <li

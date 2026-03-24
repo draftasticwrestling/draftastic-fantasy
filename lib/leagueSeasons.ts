@@ -1,6 +1,6 @@
 /**
  * Private Leagues (MVL): standard season options.
- * Commissioners can choose one of these when creating a league (or set custom dates).
+ * GMs can choose one of these when creating a league (or set custom dates).
  */
 
 export type SeasonOption = {

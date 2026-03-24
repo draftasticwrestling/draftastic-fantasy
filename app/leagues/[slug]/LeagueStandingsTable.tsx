@@ -50,7 +50,7 @@ export function LeagueStandingsTable({
   return (
     <section style={{ ...sectionStyle, marginTop: 0 }}>
       <header style={headerStyle}>
-        <h2 style={headerTitleStyle}>Teams</h2>
+        <h2 style={headerTitleStyle}>Factions</h2>
         <span style={headerPointsStyle}>Total points</span>
       </header>
       <ul
@@ -64,7 +64,7 @@ export function LeagueStandingsTable({
         {members.map((m, idx) => {
           const ownerName = (m.display_name?.trim() || "Unknown").trim() || "Unknown";
           const hasCustomTeamName = !!m.team_name?.trim();
-          const teamLabel = (m.team_name?.trim() || `${ownerName}'s Team`).trim() || "Unknown";
+          const teamLabel = (m.team_name?.trim() || `${ownerName}'s Faction`).trim() || "Unknown";
           const pts = pointsByUserId[m.user_id] ?? 0;
           const isLeader = idx === 0;
           const extra = rowExtras[idx] ?? null;
@@ -142,7 +142,7 @@ export function LeagueStandingsTable({
                         overflow: "hidden",
                       }}
                     >
-                      {ownerName}
+                      Manager · {ownerName}
                     </div>
                   </div>
                 </Link>
