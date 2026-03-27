@@ -1,3 +1,4 @@
+import { factionDisplayName } from "@/lib/factionName";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +26,7 @@ type TransactionRow = {
 };
 
 function teamLabel(m: { team_name?: string | null; display_name?: string | null }): string {
-  return (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+  return factionDisplayName(m, "Unknown");
 }
 
 export async function generateMetadata({

@@ -28,6 +28,7 @@ import {
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
+import { factionDisplayName } from "@/lib/factionName";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
@@ -176,7 +177,7 @@ export default async function WrestlerProfilePage({
         const m = members?.find((x) => x.user_id === uid);
         rosterOwner = {
           userId: uid,
-          label: (m?.team_name?.trim() || m?.display_name?.trim() || "Unknown").trim() || "Unknown",
+          label: factionDisplayName(m, "Unknown"),
         };
         break;
       }

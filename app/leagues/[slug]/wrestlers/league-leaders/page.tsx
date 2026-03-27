@@ -21,6 +21,7 @@ function firstMonthEndOnOrAfter(startDate: string): string {
   const lastDay = new Date(year, month + 1, 0);
   return lastDay.toISOString().slice(0, 10);
 }
+import { factionDisplayName } from "@/lib/factionName";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
@@ -142,8 +143,7 @@ export default async function LeagueLeadersPage({
   const memberByUserId = Object.fromEntries((members ?? []).map((m) => [m.user_id, m]));
   const rosterByWrestler: Record<string, { ownerName: string; ownerUserId: string }> = {};
   for (const [uid, entries] of Object.entries(rosters ?? {})) {
-    const ownerName =
-      (memberByUserId[uid]?.team_name?.trim() || memberByUserId[uid]?.display_name?.trim()) || "Manager";
+    const ownerName = factionDisplayName(memberByUserId[uid], "Manager");
     for (const e of entries) {
       rosterByWrestler[e.wrestler_id] = { ownerName, ownerUserId: uid };
     }

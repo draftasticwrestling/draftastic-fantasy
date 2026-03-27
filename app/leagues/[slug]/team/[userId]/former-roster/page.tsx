@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { factionDisplayName } from "@/lib/factionName";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
 
 type Props = {
@@ -17,7 +18,7 @@ export async function generateMetadata({ params }: Props) {
     if (!league) return { title: "Former roster — Draftastic Fantasy" };
     const members = await getLeagueMembers(league.id);
     const m = members.find((x) => x.user_id === userId);
-    const name = m?.team_name?.trim() || m?.display_name?.trim() || "Faction";
+    const name = factionDisplayName(m, "Faction");
     return {
       title: `Full former roster log — ${name} — ${league.name} — Draftastic Fantasy`,
       description: `Complete history of past roster stints for ${name}, including zero-point stays.`,
@@ -46,8 +47,7 @@ export default async function TeamFormerRosterPage({ params }: Props) {
   const teamMember = members.find((m) => m.user_id === userId);
   if (!teamMember) notFound();
 
-  const teamLabel =
-    (teamMember.team_name?.trim() || teamMember.display_name?.trim() || "Faction").trim() || "Faction";
+  const teamLabel = factionDisplayName(teamMember, "Faction");
 
   const audit = await getTeamScoringAudit(league.id, userId);
   const formerStints = audit.formerStints;

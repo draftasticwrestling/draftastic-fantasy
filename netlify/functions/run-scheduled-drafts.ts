@@ -1,14 +1,18 @@
 /**
- * Netlify Scheduled Function: runs every 10 minutes (UTC) and triggers the app's
- * cron API to start any autopick drafts whose scheduled time has passed.
+ * Netlify function: calls the app's cron API to start autopick drafts whose scheduled
+ * time has passed (order generation + kicking off due drafts).
  *
- * Set CRON_SECRET in Netlify env and ensure it matches the value used by the API route.
- * The site URL is provided by Netlify as URL (e.g. https://your-site.netlify.app).
+ * Scheduled runs are OFF while no leagues use scheduled drafts — avoids 15‑minute
+ * invocations. Re-enable: export config with schedule every 15 minutes (cron: star/15 * * * *).
+ * and `import type { Config } from "@netlify/functions"`.
+ *
+ * Manual run: Netlify Dashboard → Functions → run-scheduled-drafts, or any GET to
+ * `/api/cron/run-scheduled-drafts` with `x-cron-secret: <CRON_SECRET>`.
+ *
+ * Set CRON_SECRET in Netlify env; URL from Netlify as URL / SITE_URL.
  *
  * @see https://docs.netlify.com/build/functions/scheduled-functions/
  */
-
-import type { Config } from "@netlify/functions";
 
 export default async (req: Request) => {
   const secret = process.env.CRON_SECRET;
@@ -37,8 +41,4 @@ export default async (req: Request) => {
   } catch (err) {
     console.error("run-scheduled-drafts fetch failed:", err);
   }
-};
-
-export const config: Config = {
-  schedule: "*/10 * * * *", // Every 10 minutes (UTC)
 };

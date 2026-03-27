@@ -1,5 +1,6 @@
 "use client";
 
+import { factionDisplayName } from "@/lib/factionName";
 import type { LeagueMember } from "@/lib/leagues";
 import { RemoveManagerButton } from "../RemoveManagerButton";
 
@@ -26,7 +27,7 @@ export function RemoveOwnerSection({ leagueSlug, members }: Props) {
       </p>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {owners.map((m) => {
-          const teamLabel = (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+          const teamLabel = factionDisplayName(m, "Unknown");
           return (
             <li
               key={m.id}

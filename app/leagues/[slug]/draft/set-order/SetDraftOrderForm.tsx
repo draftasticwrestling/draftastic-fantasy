@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { factionDisplayName } from "@/lib/factionName";
 import { setDraftOrderAction } from "../actions";
 
 type Member = { user_id: string; display_name: string | null; team_name?: string | null };
@@ -61,7 +62,7 @@ export function SetDraftOrderForm({
       <ul style={{ listStyle: "none", padding: 0, margin: "0 0 24px", border: "1px solid var(--color-border)", borderRadius: "var(--radius)", overflow: "hidden", background: "var(--color-bg-surface)" }}>
         {order.map((userId, index) => {
           const m = byUserId[userId];
-          const label = m?.team_name?.trim() || m?.display_name?.trim() || userId;
+          const label = factionDisplayName(m, userId);
           return (
             <li
               key={userId}

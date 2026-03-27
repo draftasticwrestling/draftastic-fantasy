@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { factionDisplayName } from "@/lib/factionName";
 
 export type DraftPickRow = {
   overall_pick: number;
@@ -29,8 +30,7 @@ type Props = {
 };
 
 function teamLabel(m: MemberRow): string {
-  const name = m.team_name?.trim() || m.display_name?.trim();
-  return name || "Unknown";
+  return factionDisplayName(m, "Unknown");
 }
 
 export function DraftHistoryView({

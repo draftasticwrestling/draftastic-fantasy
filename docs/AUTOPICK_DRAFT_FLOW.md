@@ -13,14 +13,14 @@ This doc describes how the auto-pick draft works so the feature can be verified 
 ### 1. Draft order (who picks when)
 
 - **Randomize one hour before draft time** (`draft_order_method = random_one_hour_before`):  
-  The cron job (`/api/cron/run-scheduled-drafts`) runs every 10 minutes. When a league’s draft time is **50–70 minutes in the future**, the cron generates the draft order with the **service role** so every team gets the correct pick slots (no RLS rewriting `user_id`).
+  The cron API (`/api/cron/run-scheduled-drafts`), when invoked, handles leagues in the **50–70 minutes before draft** window and generates the draft order with the **service role** so every team gets the correct pick slots (no RLS rewriting `user_id`). **Netlify’s 15‑minute schedule for this job is currently disabled** in `netlify/functions/run-scheduled-drafts.ts` when no scheduled drafts are in use; call the endpoint manually or restore the `schedule` export to turn automation back on.
 - **Manual by GM** (`draft_order_method = manual_by_gm`):  
   Commissioner sets round 1 order; the app builds the full snake/linear order. Order is written with the **service role** when the commissioner clicks Generate/Set order.
 - **Restarting the draft** does **not** change the order: `restartDraft` clears picks and rosters but **keeps** `league_draft_order`. The same order is used when the draft is started again.
 
 ### 2. When the draft runs (no user required)
 
-- **Cron**: Netlify Scheduled Function calls `GET /api/cron/run-scheduled-drafts` every 10 minutes (see `netlify/functions/run-scheduled-drafts.ts`).
+- **Cron API**: `GET /api/cron/run-scheduled-drafts` (see `netlify/functions/run-scheduled-drafts.ts`). The Netlify **schedule** is optional; when enabled it calls this every 15 minutes. With the schedule removed, trigger manually (Netlify function test or authenticated GET) before you rely on unattended autopick.
 - For each league where:
   - `draft_type = autopick`
   - `draft_status = not_started`

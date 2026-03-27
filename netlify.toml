@@ -3,6 +3,9 @@
 
 [build]
   command = "npm run build"
+  # Skip the build (and 15-credit deploy) when only docs, supabase SQL, root notes, etc. changed.
+  # https://docs.netlify.com/configure-builds/ignore-builds/
+  ignore = "bash scripts/netlify-ignore-build.sh"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

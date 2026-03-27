@@ -34,6 +34,7 @@ import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromCh
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
+import { factionDisplayName } from "@/lib/factionName";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 10000;
@@ -80,7 +81,7 @@ export async function generateMetadata({ params }: Props) {
     if (!league) return { title: "Faction — Draftastic Fantasy" };
     const members = await getLeagueMembers(league.id);
     const m = members.find((x) => x.user_id === userId);
-    const name = m?.team_name?.trim() || m?.display_name?.trim() || "Faction";
+    const name = factionDisplayName(m, "Faction");
     return {
       title: `${name} — ${league.name} — Draftastic Fantasy`,
       description: `Roster and points for ${name}`,
@@ -115,9 +116,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   if (!targetMember) notFound();
 
   const isOwnTeam = currentUser.id === userId;
-  const teamLabel =
-    (targetMember.team_name?.trim() || targetMember.display_name?.trim() || "Unknown").trim() ||
-    "Unknown";
+  const teamLabel = factionDisplayName(targetMember, "Unknown");
 
   const factionNavUserIds = members.map((m) => m.user_id);
   const factionNavIndex = factionNavUserIds.indexOf(userId);
@@ -130,7 +129,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     : null;
   function labelForFactionNav(uid: string): string {
     const m = members.find((x) => x.user_id === uid);
-    return (m?.team_name?.trim() || m?.display_name?.trim() || "Faction").trim() || "Faction";
+    return factionDisplayName(m, "Faction");
   }
   const rosterEntries = rosters[userId] ?? [];
   const totalPoints = pointsWithBonuses[userId] ?? 0;
@@ -258,7 +257,10 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const rosterByWrestlerForTable: Record<string, { ownerName: string; ownerUserId: string }> = {};
   if (rosterTableRows.length > 0) {
     for (const w of rosterTableRows) {
-      rosterByWrestlerForTable[w.id] = { ownerName: targetMember.team_name?.trim() || targetMember.display_name?.trim() || "My faction", ownerUserId: userId };
+      rosterByWrestlerForTable[w.id] = {
+        ownerName: factionDisplayName(targetMember, "My faction"),
+        ownerUserId: userId,
+      };
     }
   }
 
@@ -530,7 +532,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             {proposeTradeTo && (() => {
               const target = otherMembers.find((m) => m.user_id === proposeTradeTo);
               if (!target) return null;
-              const name = target.team_name?.trim() || target.display_name?.trim() || "this manager";
+              const name = factionDisplayName(target, "this manager");
               return (
                 <p style={{ fontSize: 14, color: "var(--color-blue)", fontWeight: 600, marginBottom: 12 }}>
                   Propose a trade with {name} (selected below).
@@ -548,7 +550,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 myRosterWrestlers={rosterWrestlers}
                 otherMembers={otherMembers.map((m) => ({
                   id: m.user_id,
-                  name: (m.team_name?.trim() || m.display_name?.trim()) ?? "Unknown",
+                  name: factionDisplayName(m, "Unknown"),
                 }))}
                 otherRosters={Object.fromEntries(
                   otherMembers.map((m) => [
@@ -659,7 +661,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 }}
               >
                 <span>
-                  {memberByUserId[p.from_user_id]?.display_name?.trim() ?? "Unknown"} offers: you give{" "}
+                  {factionDisplayName(memberByUserId[p.from_user_id], "Unknown")} offers: you give{" "}
                   {p.items
                     .filter((i) => i.direction === "receive")
                     .map((i) => wrestlerNamesMap[i.wrestler_id] ?? i.wrestler_id)
@@ -707,7 +709,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               .map((p) => (
                 <li key={p.id} style={{ padding: "8px 0", color: "#666", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <span>
-                    Trade to {memberByUserId[p.to_user_id]?.display_name ?? memberByUserId[p.to_user_id]?.team_name ?? "another manager"}:{" "}
+                    Trade to {factionDisplayName(memberByUserId[p.to_user_id], "another manager")}:{" "}
                     {p.status === "pending" && "Pending"}
                     {p.status === "cancelled" && "Cancelled"}
                     {p.status === "expired" && "Expired"}
@@ -720,10 +722,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                     {(() => {
                       const dropIds = (p.to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
                       if (dropIds.length === 0) return null;
-                      const toName =
-                        memberByUserId[p.to_user_id]?.display_name?.trim() ??
-                        memberByUserId[p.to_user_id]?.team_name?.trim() ??
-                        "Recipient";
+                      const toName = factionDisplayName(memberByUserId[p.to_user_id], "Recipient");
                       const line = formatRecipientRosterCutsLine(
                         toName,
                         dropIds.map((id) => wrestlerNamesMap[id] ?? id)

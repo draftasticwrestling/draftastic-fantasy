@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { factionEmojiForDisplay } from "@/lib/factionEmoji";
+import { factionStandingsLabel, truncateFactionDisplay } from "@/lib/factionName";
 import type { LeagueMember } from "@/lib/leagues";
 
 const sectionStyle = {
@@ -62,9 +64,11 @@ export function LeagueStandingsTable({
         }}
       >
         {members.map((m, idx) => {
-          const ownerName = (m.display_name?.trim() || "Unknown").trim() || "Unknown";
           const hasCustomTeamName = !!m.team_name?.trim();
-          const teamLabel = (m.team_name?.trim() || `${ownerName}'s Faction`).trim() || "Unknown";
+          const teamLabel = factionStandingsLabel(m);
+          const managerDisplay = truncateFactionDisplay(
+            (m.display_name?.trim() || "Unknown").trim() || "Unknown"
+          );
           const pts = pointsByUserId[m.user_id] ?? 0;
           const isLeader = idx === 0;
           const extra = rowExtras[idx] ?? null;
@@ -91,7 +95,7 @@ export function LeagueStandingsTable({
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 12,
+                    gap: 10,
                     minWidth: 0,
                     flex: 1,
                     textDecoration: "none",
@@ -118,6 +122,24 @@ export function LeagueStandingsTable({
                   >
                     {idx + 1}
                   </span>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      border: "1px solid rgba(248,250,252,0.15)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 22,
+                      lineHeight: 1,
+                      background: "rgba(255,255,255,0.06)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {factionEmojiForDisplay(m)}
+                  </span>
                   <div style={{ minWidth: 0 }}>
                     <div
                       style={{
@@ -142,7 +164,7 @@ export function LeagueStandingsTable({
                         overflow: "hidden",
                       }}
                     >
-                      Manager · {ownerName}
+                      Manager · {managerDisplay}
                     </div>
                   </div>
                 </Link>

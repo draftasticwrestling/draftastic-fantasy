@@ -78,7 +78,12 @@ export default async function LeagueDraftPage({ params }: Props) {
     if (!league) notFound();
 
     const autopickDisabled = process.env.DISABLE_AUTOPICK_DRAFT === "1" || process.env.DISABLE_AUTOPICK_DRAFT === "true";
-    const autoResult = autopickDisabled ? { didAutoPick: false as const } : await runAutoPickIfExpired(league.id);
+    // Only run when a draft is live — avoids admin round-trips on every poll/refresh for not_started/completed.
+    const draftStatusEarly = league.draft_status ?? "not_started";
+    const autoResult =
+      autopickDisabled || draftStatusEarly !== "in_progress"
+        ? { didAutoPick: false as const }
+        : await runAutoPickIfExpired(league.id);
     if (autoResult.didAutoPick) redirect(`/leagues/${slug}/draft`);
 
     // Do not auto-start autopick on page load: let the commissioner change draft order after

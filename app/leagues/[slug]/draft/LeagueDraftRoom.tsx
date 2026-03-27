@@ -7,6 +7,7 @@ import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.j
 import { makeDraftPickWithStateAction } from "./actions";
 import { DraftTimer } from "./DraftTimer";
 import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
+import { factionDisplayName } from "@/lib/factionName";
 
 const RATING_WEIGHT = 1.5;
 const BRAND_STYLES: Record<string, { showBg: string; label: string }> = {
@@ -178,9 +179,7 @@ export function LeagueDraftRoom({
   );
   const currentManagerName =
     currentPickerUserId != null
-      ? (memberByUserId[currentPickerUserId]?.team_name?.trim() ||
-          memberByUserId[currentPickerUserId]?.display_name?.trim() ||
-          "Unknown")
+      ? factionDisplayName(memberByUserId[currentPickerUserId], "Unknown")
       : null;
 
   const available = useMemo(
@@ -654,7 +653,7 @@ export function LeagueDraftRoom({
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {uniqueOrderUserIds.map((userId) => {
               const member = memberByUserId[userId];
-              const name = (member?.team_name?.trim() || member?.display_name?.trim() || "Unknown").trim() || "Unknown";
+              const name = factionDisplayName(member, "Unknown");
               const picks = rosterByUserId[userId] ?? [];
               const isCurrent = currentPickerUserId === userId && !isComplete;
               return (

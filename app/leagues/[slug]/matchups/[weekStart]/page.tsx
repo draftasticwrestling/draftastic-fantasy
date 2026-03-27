@@ -10,6 +10,7 @@ import {
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
 } from "@/lib/leagueMatchups";
+import { factionDisplayName } from "@/lib/factionName";
 
 type Props = { params: Promise<{ slug: string; weekStart: string }> };
 
@@ -57,7 +58,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   const weekEnd = getSundayOfWeek(weekStartDecoded);
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const teamLabel = (m: { team_name?: string | null; display_name?: string | null }) =>
-    (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+    factionDisplayName(m, "Unknown");
   const wrestlerNames: Record<string, string> = Object.fromEntries(
     (wrestlersRows.data ?? []).map((w) => [w.id, w.name ?? w.id])
   );

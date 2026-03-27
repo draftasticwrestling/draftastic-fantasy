@@ -9,6 +9,8 @@ import {
   rosterStintActiveForEvent,
 } from "@/lib/scoring/rosterStintEventWindow";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
+import { validateFactionNameForSave } from "@/lib/factionName";
+import { validateFactionEmojiForSave } from "@/lib/factionEmoji";
 
 export type DraftType = "offline" | "linear" | "snake" | "autopick";
 export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
@@ -44,6 +46,8 @@ export type LeagueMember = {
   joined_at: string;
   display_name?: string | null;
   team_name?: string | null;
+  /** Allowlisted emoji; null → default 🏆 in UI */
+  faction_emoji?: string | null;
 };
 
 export type LeagueWithRole = League & { role: "commissioner" | "owner" };
@@ -262,31 +266,67 @@ export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
  */
 export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]> {
   const supabase = await createClient();
-  const { data: rows, error } = await supabase
+  const full = await supabase
     .from("league_members")
-    .select("id, league_id, user_id, role, joined_at, team_name")
+    .select("id, league_id, user_id, role, joined_at, team_name, faction_emoji")
     .eq("league_id", leagueId)
     .order("joined_at", { ascending: true });
 
-  if (error) {
-    const fallback = await supabase
-      .from("league_members")
-      .select("id, league_id, user_id, role, joined_at")
-      .eq("league_id", leagueId)
-      .order("joined_at", { ascending: true });
-    if (fallback.error || !fallback.data?.length) return [];
-    const rows2 = fallback.data as { id: string; league_id: string; user_id: string; role: string; joined_at: string }[];
-    const userIds = [...new Set(rows2.map((r) => r.user_id))];
-    const { data: profiles } = await supabase.from("profiles").select("id, display_name").in("id", userIds);
-    const nameByUserId = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.display_name]));
-    return rows2.map((r) => ({
-      ...r,
-      display_name: nameByUserId[r.user_id] ?? null,
-      team_name: null,
-    })) as LeagueMember[];
-  }
+  let rowsList: {
+    id: string;
+    league_id: string;
+    user_id: string;
+    role: string;
+    joined_at: string;
+    team_name?: string | null;
+    faction_emoji?: string | null;
+  }[];
 
-  const rowsList = (rows ?? []) as { id: string; league_id: string; user_id: string; role: string; joined_at: string; team_name?: string | null }[];
+  if (full.error) {
+    const msg = full.error.message ?? "";
+    if (msg.includes("faction_emoji")) {
+      const partial = await supabase
+        .from("league_members")
+        .select("id, league_id, user_id, role, joined_at, team_name")
+        .eq("league_id", leagueId)
+        .order("joined_at", { ascending: true });
+      if (partial.error) {
+        const minimal = await supabase
+          .from("league_members")
+          .select("id, league_id, user_id, role, joined_at")
+          .eq("league_id", leagueId)
+          .order("joined_at", { ascending: true });
+        if (minimal.error || !minimal.data?.length) return [];
+        rowsList = (minimal.data as { id: string; league_id: string; user_id: string; role: string; joined_at: string }[]).map(
+          (r) => ({ ...r, team_name: null as string | null, faction_emoji: null as string | null })
+        );
+      } else {
+        rowsList = ((partial.data ?? []) as { id: string; league_id: string; user_id: string; role: string; joined_at: string; team_name?: string | null }[]).map(
+          (r) => ({ ...r, faction_emoji: null as string | null })
+        );
+      }
+    } else {
+      const fallback = await supabase
+        .from("league_members")
+        .select("id, league_id, user_id, role, joined_at")
+        .eq("league_id", leagueId)
+        .order("joined_at", { ascending: true });
+      if (fallback.error || !fallback.data?.length) return [];
+      rowsList = (fallback.data as { id: string; league_id: string; user_id: string; role: string; joined_at: string }[]).map(
+        (r) => ({ ...r, team_name: null as string | null, faction_emoji: null as string | null })
+      );
+    }
+  } else {
+    rowsList = (full.data ?? []) as {
+      id: string;
+      league_id: string;
+      user_id: string;
+      role: string;
+      joined_at: string;
+      team_name?: string | null;
+      faction_emoji?: string | null;
+    }[];
+  }
   if (!rowsList.length) return [];
 
   const userIds = [...new Set(rowsList.map((r) => r.user_id))];
@@ -303,6 +343,7 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
     ...r,
     display_name: nameByUserId[r.user_id] ?? null,
     team_name: r.team_name ?? null,
+    faction_emoji: r.faction_emoji ?? null,
   })) as LeagueMember[];
 }
 
@@ -327,24 +368,38 @@ export async function getLeagueMemberUserIdsForAdmin(leagueId: string): Promise<
 }
 
 /**
- * Update the current user's team name for a league. Only the member themselves can update.
+ * Update the current user's faction name and emoji for a league. Only the member themselves can update.
  */
-export async function updateLeagueMemberTeamName(
+export async function updateLeagueMemberFactionInfo(
   leagueId: string,
-  teamName: string | null
+  payload: { teamName: string | null; factionEmoji: string | null }
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
+  const validatedName = validateFactionNameForSave(payload.teamName);
+  if (!validatedName.ok) return { error: validatedName.error };
+  const validatedEmoji = validateFactionEmojiForSave(payload.factionEmoji);
+  if (!validatedEmoji.ok) return { error: validatedEmoji.error };
+
   const { error } = await supabase
     .from("league_members")
-    .update({ team_name: teamName?.trim() || null })
+    .update({
+      team_name: validatedName.value,
+      faction_emoji: validatedEmoji.value,
+    })
     .eq("league_id", leagueId)
     .eq("user_id", user.id);
 
   if (error) {
     const msg = error.message ?? "";
+    if (msg.includes("faction_emoji") && (msg.includes("schema cache") || msg.includes("column"))) {
+      return {
+        error:
+          "Faction logo could not be saved. Run supabase/league_members_faction_emoji.sql in the Supabase SQL Editor.",
+      };
+    }
     if (msg.includes("team_name") && (msg.includes("schema cache") || msg.includes("column"))) {
       return {
         error:

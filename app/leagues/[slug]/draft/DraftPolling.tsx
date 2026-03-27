@@ -1,21 +1,55 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-const POLL_INTERVAL_MS = 5000;
-// Autopick: keep high enough for UX, low enough to avoid burning Netlify function invocations (each refresh = 1 serverless call).
-const AUTOPICK_POLL_INTERVAL_MS = 8000;
+/** Live draft: balance freshness vs serverless/RSC invocations (each refresh = full draft page render). */
+const LIVE_POLL_INTERVAL_MS = 18_000;
+
+/** Autopick: cron + server advance picks; UI only needs periodic catch-up. */
+const AUTOPICK_POLL_INTERVAL_MS = 45_000;
 
 export function DraftPolling({ isAutopick = false }: { isAutopick?: boolean }) {
   const router = useRouter();
-  const intervalMs = isAutopick ? AUTOPICK_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
+  const intervalMs = isAutopick ? AUTOPICK_POLL_INTERVAL_MS : LIVE_POLL_INTERVAL_MS;
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    const clear = () => {
+      if (intervalRef.current != null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+
+    const refresh = () => {
       router.refresh();
-    }, intervalMs);
-    return () => clearInterval(interval);
+    };
+
+    const start = () => {
+      clear();
+      intervalRef.current = setInterval(refresh, intervalMs);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        clear();
+        return;
+      }
+      refresh();
+      start();
+    };
+
+    if (document.visibilityState === "visible") {
+      refresh();
+      start();
+    }
+
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      clear();
+    };
   }, [router, intervalMs]);
 
   return null;

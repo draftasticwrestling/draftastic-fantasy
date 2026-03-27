@@ -191,11 +191,15 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
-.pleMemberTotal {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.65);
-  font-weight: 500;
-  margin-top: 2px;
+.pleNightHeaderRow td {
+  background: rgba(255, 255, 255, 0.08) !important;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.95);
+  padding: 14px 14px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .noMatches {

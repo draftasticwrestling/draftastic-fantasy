@@ -134,20 +134,22 @@ export async function respondToTradeByGmAction(
   return {};
 }
 
-export async function updateTeamNameAction(
+export async function updateFactionInfoAction(
   leagueSlug: string,
-  teamName: string | null
+  teamName: string | null,
+  factionEmoji: string | null
 ): Promise<{ error?: string }> {
-  const { getLeagueBySlug, updateLeagueMemberTeamName } = await import("@/lib/leagues");
+  const { getLeagueBySlug, updateLeagueMemberFactionInfo } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
   const supabase = await (await import("@/lib/supabase/server")).createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const result = await updateLeagueMemberTeamName(league.id, teamName);
+  const result = await updateLeagueMemberFactionInfo(league.id, { teamName, factionEmoji });
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/team`);
   revalidatePath(`/leagues/${leagueSlug}/edit-team-info`);
+  revalidatePath(`/leagues/${leagueSlug}/standings`);
   if (user) revalidatePath(`/leagues/${leagueSlug}/team/${user.id}`);
   return {};
 }

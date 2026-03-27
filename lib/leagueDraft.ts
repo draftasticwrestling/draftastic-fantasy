@@ -10,6 +10,7 @@ import { isBlocklistedSlug } from "@/lib/draftBlocklist";
 import { addWrestlerToRoster } from "@/lib/leagues";
 import { timestamptzForAcquiredAtDate } from "@/lib/rosterTimestamps";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { factionDisplayName } from "@/lib/factionName";
 
 const LEAGUE_START_DATE = "2025-05-02";
 const DEFAULT_TIME_PER_PICK_SECONDS = 2 * 60;
@@ -111,8 +112,7 @@ export async function getDraftPreferencesForAllMembers(
   };
   const out: { user_id: string; display_name: string; hasPreferences: boolean; summary: string }[] = [];
   for (const m of members) {
-    const name =
-      (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+    const name = factionDisplayName(m, "Unknown");
     const prefs = await getDraftPreferences(leagueId, m.user_id);
     const hasPreferences =
       prefs != null &&

@@ -50,9 +50,14 @@ export default async function EditTeamInfoPage({
         Edit Faction Info
       </h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24 }}>
-        Choose a faction name for this league. It will appear in standings, matchups, and on your roster.
+        Pick a logo and faction name for this league. Names are up to 25 characters and appear in standings, matchups, and on your roster.
+        If you skip a custom name, we show your profile name (shortened if it&apos;s very long).
       </p>
-      <EditTeamNameForm leagueSlug={slug} initialTeamName={currentTeamName} />
+      <EditTeamNameForm
+        leagueSlug={slug}
+        initialTeamName={currentTeamName}
+        initialFactionEmoji={member.faction_emoji ?? null}
+      />
 
       <section
         aria-labelledby="edit-team-auto-draft-heading"

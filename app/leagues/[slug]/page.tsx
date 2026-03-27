@@ -12,6 +12,8 @@ import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { RostersSection } from "./RostersSection";
 import { TradeProposalRespond } from "./team/TradeProposalRespond";
 import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
+import { factionEmojiForDisplay } from "@/lib/factionEmoji";
+import { factionDisplayName, truncateFactionDisplay } from "@/lib/factionName";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -160,7 +162,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const isCommissioner = league.role === "commissioner";
     const currentUserMember = currentUser ? members.find((m) => m.user_id === currentUser.id) : null;
     const commissionerMember = members.find((m) => m.role === "commissioner");
-    const creatorLabel = commissionerMember?.display_name?.trim() || commissionerMember?.team_name?.trim() || "GM";
+    const creatorLabel = factionDisplayName(commissionerMember, "GM");
     const maxTeams = league.max_teams ?? 12;
     const leagueNotFull = members.length < maxTeams;
     const hasDraftDate = !!(league.draft_date && String(league.draft_date).trim().slice(0, 10));
@@ -168,8 +170,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       (!league.draft_status || league.draft_status === "not_started") && !hasDraftDate;
     const showAlert = isCommissioner && (leagueNotFull || draftNotScheduled);
 
-    const myTeamName = (currentUserMember?.team_name?.trim() || currentUserMember?.display_name?.trim() || "My Faction").trim() || "My Faction";
-    const myManagerName = currentUserMember?.display_name?.trim() || "Manager";
+    const myTeamName = factionDisplayName(currentUserMember, "My Faction");
+    const myManagerName = truncateFactionDisplay(
+      currentUserMember?.display_name?.trim() || "Manager"
+    );
 
     const pendingTradesForMe = currentUser
       ? tradeProposals.filter((p) => p.status === "pending" && p.to_user_id === currentUser.id)
@@ -193,7 +197,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         <aside className="lm-sidebar">
           <div className="lm-card">
             <h2 className="lm-card-title">My Faction</h2>
-            <div className="lm-myteam-avatar" aria-hidden>🏆</div>
+            <div className="lm-myteam-avatar" aria-hidden>
+              {factionEmojiForDisplay(currentUserMember)}
+            </div>
             <p className="lm-myteam-name">{myTeamName}</p>
             <p className="lm-myteam-manager">{myManagerName}</p>
             {currentUser ? (
@@ -334,9 +340,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                       }}
                     >
                       <span style={{ flex: 1, minWidth: 260 }}>
-                        {memberByUserId[p.from_user_id]?.display_name?.trim() ??
-                          memberByUserId[p.from_user_id]?.team_name?.trim() ??
-                          "Unknown"}{" "}
+                        {factionDisplayName(memberByUserId[p.from_user_id], "Unknown")}{" "}
                         proposes: you give{" "}
                         {p.items
                           .filter((i) => i.direction === "receive")
@@ -386,16 +390,13 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                     <li key={`${item.type}-${item.id}`} style={{ padding: "6px 0", borderBottom: "1px solid var(--color-border-light)" }}>
                       {item.type === "trade" && (
                         <>
-                          {memberByUserId[item.from_user_id]?.display_name?.trim() ?? "Unknown"} ↔ {memberByUserId[item.to_user_id]?.display_name?.trim() ?? "Unknown"}:{" "}
+                          {factionDisplayName(memberByUserId[item.from_user_id], "Unknown")} ↔ {factionDisplayName(memberByUserId[item.to_user_id], "Unknown")}:{" "}
                           {item.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                           {" for "}
                           {item.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                           {(() => {
                             const dropIds = (item.to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
-                            const toName =
-                              memberByUserId[item.to_user_id]?.display_name?.trim() ??
-                              memberByUserId[item.to_user_id]?.team_name?.trim() ??
-                              "Recipient";
+                            const toName = factionDisplayName(memberByUserId[item.to_user_id], "Recipient");
                             const cuts =
                               dropIds.length > 0
                                 ? formatRecipientRosterCutsLine(
@@ -452,12 +453,12 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                       )}
                       {item.type === "drop" && (
                         <>
-                          {memberByUserId[item.user_id]?.display_name?.trim() ?? memberByUserId[item.user_id]?.team_name?.trim() ?? "Unknown"} dropped {wrestlerNames[item.wrestler_id] ?? item.wrestler_id}
+                          {factionDisplayName(memberByUserId[item.user_id], "Unknown")} dropped {wrestlerNames[item.wrestler_id] ?? item.wrestler_id}
                         </>
                       )}
                       {item.type === "fa_add" && (
                         <>
-                          {memberByUserId[item.user_id]?.display_name?.trim() ?? memberByUserId[item.user_id]?.team_name?.trim() ?? "Unknown"} added {wrestlerNames[item.wrestler_id] ?? item.wrestler_id}
+                          {factionDisplayName(memberByUserId[item.user_id], "Unknown")} added {wrestlerNames[item.wrestler_id] ?? item.wrestler_id}
                           {item.secondary_wrestler_id && (
                             <> (dropped {wrestlerNames[item.secondary_wrestler_id] ?? item.secondary_wrestler_id})</>
                           )}

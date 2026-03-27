@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { factionDisplayName } from "@/lib/factionName";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
 
 type Props = {
@@ -26,8 +27,7 @@ export default async function TeamScoreboardPage({ params }: Props) {
   const teamMember = members.find((m) => m.user_id === userId);
   if (!teamMember) notFound();
 
-  const teamLabel =
-    (teamMember.team_name?.trim() || teamMember.display_name?.trim() || "Faction").trim() || "Faction";
+  const teamLabel = factionDisplayName(teamMember, "Faction");
   const audit = await getTeamScoringAudit(league.id, userId);
 
   const wrestlerIds = [...new Set(audit.ledgerRows.map((r) => r.wrestlerId).concat(audit.formerStints.map((s) => s.wrestlerId)))];

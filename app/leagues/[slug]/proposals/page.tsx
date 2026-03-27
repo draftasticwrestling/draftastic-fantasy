@@ -12,6 +12,7 @@ import {
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { TradeGmActions } from "./TradeGmActions";
 import { TradeVoteControls } from "./TradeVoteControls";
+import { factionDisplayName } from "@/lib/factionName";
 
 export const dynamic = "force-dynamic";
 
@@ -179,13 +180,13 @@ export default async function ProposalsPage({ params }: Props) {
                   return (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={{ fontSize: 14, color: "#1f2937" }}>
-                        {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} ↔ {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
+                        {factionDisplayName(memberByUserId[p.from_user_id], "Unknown")} ↔ {factionDisplayName(memberByUserId[p.to_user_id], "Unknown")}:{" "}
                         {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                         {" for "}
                         {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                         {(() => {
                           const dropIds = (p.to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
-                          const toName = memberByUserId[p.to_user_id]?.display_name ?? "Unknown";
+                          const toName = factionDisplayName(memberByUserId[p.to_user_id], "Unknown");
                           const line = formatRecipientRosterCutsLine(
                             toName,
                             dropIds.map((id) => wrestlerNames[id] ?? id)
@@ -236,7 +237,7 @@ export default async function ProposalsPage({ params }: Props) {
             {pendingTrades.map((p) => (
               <li key={p.id} style={{ padding: "12px 0", borderBottom: "1px solid #eee" }}>
                 <div style={{ fontSize: 14, color: "#555" }}>
-                  {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} → {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
+                  {factionDisplayName(memberByUserId[p.from_user_id], "Unknown")} → {factionDisplayName(memberByUserId[p.to_user_id], "Unknown")}:{" "}
                   {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                   {" for "}
                   {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
@@ -257,7 +258,7 @@ export default async function ProposalsPage({ params }: Props) {
             {completedTrades.slice(0, 15).map((p) => (
               <li key={p.id} style={{ padding: "8px 0", borderBottom: "1px solid #eee" }}>
                 <div style={{ fontSize: 14, color: "#555" }}>
-                  {memberByUserId[p.from_user_id]?.display_name ?? "Unknown"} ↔ {memberByUserId[p.to_user_id]?.display_name ?? "Unknown"}:{" "}
+                  {factionDisplayName(memberByUserId[p.from_user_id], "Unknown")} ↔ {factionDisplayName(memberByUserId[p.to_user_id], "Unknown")}:{" "}
                   {p.items.filter((i) => i.direction === "give").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                   {" for "}
                   {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
@@ -265,7 +266,7 @@ export default async function ProposalsPage({ params }: Props) {
                   <span style={{ fontWeight: 700, color: tradeStatusColor(p.status) }}>{tradeStatusLabel(p.status)}</span>
                   {(() => {
                     const dropIds = (p.to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
-                    const toName = memberByUserId[p.to_user_id]?.display_name ?? "Unknown";
+                    const toName = factionDisplayName(memberByUserId[p.to_user_id], "Unknown");
                     const line = formatRecipientRosterCutsLine(
                       toName,
                       dropIds.map((id) => wrestlerNames[id] ?? id)
@@ -292,12 +293,12 @@ export default async function ProposalsPage({ params }: Props) {
               <li key={a.id} style={{ padding: "8px 0", borderBottom: "1px solid #eee" }}>
                 {a.activity_type === "drop" && (
                   <>
-                    {memberByUserId[a.user_id]?.display_name ?? memberByUserId[a.user_id]?.team_name ?? "Unknown"} dropped {wrestlerNames[a.wrestler_id] ?? a.wrestler_id}
+                    {factionDisplayName(memberByUserId[a.user_id], "Unknown")} dropped {wrestlerNames[a.wrestler_id] ?? a.wrestler_id}
                   </>
                 )}
                 {a.activity_type === "fa_add" && (
                   <>
-                    {memberByUserId[a.user_id]?.display_name ?? memberByUserId[a.user_id]?.team_name ?? "Unknown"} added {wrestlerNames[a.wrestler_id] ?? a.wrestler_id}
+                    {factionDisplayName(memberByUserId[a.user_id], "Unknown")} added {wrestlerNames[a.wrestler_id] ?? a.wrestler_id}
                     {a.secondary_wrestler_id && (
                       <> (dropped {wrestlerNames[a.secondary_wrestler_id] ?? a.secondary_wrestler_id})</>
                     )}

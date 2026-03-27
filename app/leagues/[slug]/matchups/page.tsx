@@ -12,6 +12,7 @@ import {
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
 } from "@/lib/leagueMatchups";
+import { factionDisplayName } from "@/lib/factionName";
 import { MatchupWeekSelector } from "./MatchupWeekSelector";
 
 type Props = {
@@ -156,7 +157,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
 
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const teamLabel = (m: { team_name?: string | null; display_name?: string | null }) =>
-    (m.team_name?.trim() || m.display_name?.trim() || "Unknown").trim() || "Unknown";
+    factionDisplayName(m, "Unknown");
 
   const weeks = leagueStart && leagueEnd ? getWeeksInRange(leagueStart, leagueEnd) : [];
   const currentWeek = getCurrentWeekStart(leagueStart, leagueEnd);
