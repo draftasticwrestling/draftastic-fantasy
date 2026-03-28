@@ -2,6 +2,12 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { EventMatchCard } from "@/app/components/event-results/EventMatchCard";
+import { formatSlug, replaceSlugsInString } from "@/lib/event-results/displayStrings";
+import { getMatchTabContent } from "@/lib/event-results/rawMatchExtras";
+import { isWrestlerWinner } from "@/lib/event-results/winnerUtils";
+import type { ScoredEvent } from "@/lib/scoring/types";
+
 // Always compute fresh so King/Queen points and prior carryover are correct
 export const dynamic = "force-dynamic";
 
@@ -57,40 +63,6 @@ function formatDate(dateStr: string | null): string {
   return dateStr;
 }
 
-/** Turn slug into display name when we don't have it in the wrestlers table */
-function formatSlug(slug: string): string {
-  if (!slug) return slug;
-  return slug
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
-
-/** Replace slugs in a string with display names; longest slugs first to avoid partial matches */
-function replaceSlugsInString(
-  str: string | string[] | null | undefined,
-  slugToName: Map<string, string>
-): string {
-  if (str == null) return "";
-  const out =
-    typeof str === "string" ? str : Array.isArray(str) ? str.join(", ") : String(str);
-  if (typeof out !== "string") return "";
-  let result = out;
-  const sortedSlugs = [...slugToName.keys()].sort(
-    (a, b) => b.length - a.length
-  );
-  for (const slug of sortedSlugs) {
-    const name = slugToName.get(slug)!;
-    const regex = new RegExp(`\\b${escapeRegex(slug)}\\b`, "gi");
-    result = result.replace(regex, name);
-  }
-  return result;
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 type RawMatchKOTR = {
   order?: number;
   matchType?: string;
@@ -102,8 +74,6 @@ type RawMatchKOTR = {
   stage?: string;
   Stipulation?: string;
 };
-
-import type { ScoredEvent } from "@/lib/scoring/types";
 
 /** Same combined string as calculator: matchType, stipulation/Stipulation, title, round/stage. */
 function getKOTRCombined(rawMatch: RawMatchKOTR | null): string {
@@ -881,145 +851,63 @@ export default async function EventResultsPage({
       {scored.matches.length === 0 ? (
         <p>No matches in this event.</p>
       ) : (
-        <section style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-          {scored.matches.map((match) => (
-            <article
-              key={match.order}
-              style={{
-                background: "#f8f8f8",
-                border: "1px solid #e0e0e0",
-                borderRadius: 8,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  padding: "12px 16px",
-                  background: (match as { isPromo?: boolean }).isPromo ? "#e8e8e8" : "#eee",
-                  borderBottom: "1px solid #e0e0e0",
-                  fontWeight: 600,
-                  fontSize: 14,
-                }}
-              >
-                Match {match.order}
-                {(match as { isPromo?: boolean }).isPromo && (
-                  <span style={{ marginLeft: 8, color: "#888", fontWeight: "normal" }}>
-                    — Promo (no points awarded)
-                  </span>
-                )}
-                {match.title && match.title !== "None" && match.title !== "" && !(match as { isPromo?: boolean }).isPromo && (
-                  <span style={{ marginLeft: 8, color: "#555" }}>
-                    — {String(match.title)}
-                  </span>
-                )}
-              </div>
-              <div style={{ padding: 16 }}>
-                <p style={{ margin: "0 0 4px 0", fontWeight: 600 }}>
-                  {replaceSlugsInString(match.participants, slugToName) || match.participants}
-                </p>
-                {match.result && (
-                  <p style={{ margin: "0 0 12px 0", color: "#444", fontSize: 14 }}>
-                    {replaceSlugsInString(match.result, slugToName) || match.result}
-                    {match.method && (
-                      <span style={{ color: "#888" }}> · {match.method}</span>
-                    )}
-                  </p>
-                )}
-                {match.titleOutcome && match.titleOutcome !== "None" && (
-                  <p style={{ margin: "0 0 12px 0", fontSize: 13, color: "#666" }}>
-                    {match.titleOutcome}
-                  </p>
-                )}
-
-                {(match as { isPromo?: boolean }).isPromo ? (
-                  <p style={{ margin: "12px 0 0 0", fontSize: 13, color: "#888" }}>
-                    No fantasy points are awarded for promo segments.
-                  </p>
-                ) : (
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 14,
-                  }}
-                >
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #ccc" }}>
-                      <th
-                        style={{
-                          textAlign: "left",
-                          padding: "8px 12px 8px 0",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Wrestler
-                      </th>
-                      <th
-                        style={{
-                          textAlign: "right",
-                          padding: "8px 0",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Points
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(match.wrestlerPoints ?? []).map((wp) => {
-                      const kotrTowardNOC = (wp as { kotrTowardNOC?: number }).kotrTowardNOC ?? 0;
-                      return (
-                        <tr key={wp.wrestler} style={{ borderBottom: "1px solid #eee" }}>
-                          <td style={{ padding: "10px 12px 10px 0", verticalAlign: "top" }}>
-                            <strong>{displayName(wp.wrestler)}</strong>
-                            {wp.breakdown && wp.breakdown.length > 0 && (
-                              <ul
-                                style={{
-                                  margin: "4px 0 0 0",
-                                  paddingLeft: 18,
-                                  color: "#555",
-                                  fontSize: 12,
-                                  fontWeight: "normal",
-                                }}
-                              >
-                                {wp.breakdown.map((line, i) => (
-                                  <li key={i}>{line}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </td>
-                          <td
-                            style={{
-                              padding: "10px 0",
-                              textAlign: "right",
-                              fontWeight: 600,
-                              whiteSpace: "nowrap",
-                              verticalAlign: "top",
-                            }}
-                          >
-                            <div>{wp.total} pts</div>
-                            {kotrTowardNOC > 0 && !isRSEvent && (
-                              <div
-                                style={{
-                                  marginTop: 4,
-                                  fontSize: 12,
-                                  fontWeight: "normal",
-                                  color: "#666",
-                                }}
-                              >
-                                +{kotrTowardNOC} toward NOC
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                )}
-              </div>
-            </article>
-          ))}
+        <section style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+          {scored.matches.map((match) => {
+            const rawMatch =
+              rawMatches.find((m) => m.order === match.order) ?? null;
+            const tabs = getMatchTabContent(rawMatch);
+            const isPromo = Boolean((match as { isPromo?: boolean }).isPromo);
+            const titleStr =
+              match.title && match.title !== "None" && match.title !== ""
+                ? String(match.title)
+                : null;
+            const rows = (match.wrestlerPoints ?? []).map((wp) => ({
+              wrestlerKey: wp.wrestler,
+              displayName: displayName(wp.wrestler),
+              points: wp.total ?? 0,
+              breakdown: wp.breakdown ?? [],
+              kotrTowardNOC: (wp as { kotrTowardNOC?: number }).kotrTowardNOC ?? 0,
+              isWinner: isWrestlerWinner(
+                wp.wrestler,
+                (match as { winners?: unknown[] }).winners,
+                normalizeWrestlerName
+              ),
+            }));
+            return (
+              <EventMatchCard
+                key={match.order}
+                order={match.order ?? 0}
+                contextLabel={!isPromo ? titleStr : null}
+                isPromo={isPromo}
+                participantLine={
+                  replaceSlugsInString(match.participants, slugToName) ||
+                  (typeof match.participants === "string"
+                    ? match.participants
+                    : Array.isArray(match.participants)
+                      ? match.participants.join(", ")
+                    : "") ||
+                  ""
+                }
+                resultLine={
+                  match.result
+                    ? replaceSlugsInString(match.result, slugToName) ||
+                      (typeof match.result === "string" ? match.result : "")
+                    : null
+                }
+                method={match.method ? String(match.method) : null}
+                titleOutcome={
+                  match.titleOutcome && match.titleOutcome !== "None"
+                    ? String(match.titleOutcome)
+                    : null
+                }
+                rows={rows}
+                tabSummary={tabs.summary}
+                tabCommentary={tabs.commentary}
+                tabStatistics={tabs.statistics}
+                isRSEvent={isRSEvent}
+              />
+            );
+          })}
         </section>
       )}
     </main>

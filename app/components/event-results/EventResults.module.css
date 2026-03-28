@@ -1,0 +1,250 @@
+/* Event results — Boxscore-inspired match cards */
+.matchCard {
+  background: linear-gradient(180deg, #2a2f38 0%, #232830 100%);
+  border: 1px solid #3d4450;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.matchCardPromo {
+  opacity: 0.95;
+}
+
+.matchCardHead {
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid #c6a04f;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #f1f5f9;
+  letter-spacing: 0.02em;
+}
+
+.matchCardHeadMuted {
+  color: #94a3b8;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.matchCardHeadContext {
+  color: #cbd5e1;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.matchCardBody {
+  padding: 16px 18px 18px;
+  color: #e2e8f0;
+}
+
+.matchParticipantLine {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+.matchResultLine {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  color: #e2e8f0;
+}
+
+.matchMethodInline {
+  color: #94a3b8;
+}
+
+.matchTitleOutcome {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.matchDual {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px 16px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.matchDualSide {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.matchDualSideLeft {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.matchDualSideRight {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.matchDualName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.matchWinnerMark {
+  color: #fbbf24;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.matchDualPts {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #86efac;
+  font-variant-numeric: tabular-nums;
+}
+
+.matchDualCenter {
+  text-align: center;
+  padding: 8px 10px;
+  border-left: 1px solid #3d4450;
+  border-right: 1px solid #3d4450;
+  min-width: 88px;
+}
+
+.matchMethodPill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #c6a04f;
+}
+
+.matchStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.matchStackRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid #3d4450;
+}
+
+.matchStackRowWinner {
+  border-color: #a16207;
+  box-shadow: inset 3px 0 0 #fbbf24;
+}
+
+.matchStackName {
+  flex: 1;
+  min-width: 140px;
+}
+
+.matchStackNameInner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.matchStackPts {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #86efac;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.matchBreakdown {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.matchPromoNote {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.matchTabs {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed #3d4450;
+}
+
+.matchTabBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.matchTab,
+.matchTabActive {
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #c6a04f;
+  background: transparent;
+  color: #c6a04f;
+}
+
+.matchTabActive {
+  background: rgba(198, 160, 79, 0.15);
+  color: #fcd34d;
+}
+
+.matchTabPanel {
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+}
+
+.matchTabPara {
+  margin: 0 0 10px;
+}
+
+.matchTabPara:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 560px) {
+  .matchDual {
+    grid-template-columns: 1fr;
+  }
+  .matchDualCenter {
+    border-left: none;
+    border-right: none;
+    border-top: 1px solid #3d4450;
+    border-bottom: 1px solid #3d4450;
+    padding: 10px 0;
+    order: 2;
+  }
+  .matchDualSideLeft {
+    order: 1;
+  }
+  .matchDualSideRight {
+    order: 3;
+    align-items: flex-start;
+    text-align: left;
+  }
+}
