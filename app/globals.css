@@ -2754,3 +2754,14 @@ body > .site-footer {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Markdown editor (admin articles) */
+.admin-article-md-wrap {
+  margin-top: 6px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+.admin-article-md-wrap .w-md-editor {
+  box-shadow: none;
+}

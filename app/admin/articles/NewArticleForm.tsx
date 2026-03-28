@@ -2,9 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { createArticleAction } from "./actions";
+import { ArticleMarkdownEditor } from "./ArticleMarkdownEditor";
 
 export function NewArticleForm() {
   const [error, setError] = useState<string | null>(null);
+  const [body, setBody] = useState("");
   const [pending, startTransition] = useTransition();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -46,10 +48,11 @@ export function NewArticleForm() {
         Excerpt (optional)
         <textarea name="excerpt" rows={2} className="admin-article-textarea" disabled={pending} />
       </label>
-      <label className="admin-article-label">
-        Body (Markdown)
-        <textarea name="body" rows={16} className="admin-article-textarea mono" disabled={pending} />
-      </label>
+      <div className="admin-article-label">
+        <span>Body (Markdown)</span>
+        <ArticleMarkdownEditor value={body} onChange={setBody} disabled={pending} />
+        <input type="hidden" name="body" value={body} />
+      </div>
       <label className="admin-article-label inline">
         <span>Status</span>
         <select name="status" className="admin-article-select" disabled={pending}>

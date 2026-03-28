@@ -4,10 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ArticleRow } from "@/lib/articles";
 import { updateArticleAction, deleteArticleAction } from "./actions";
+import { ArticleMarkdownEditor } from "./ArticleMarkdownEditor";
 
 export function EditArticleForm({ article }: { article: ArticleRow }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [body, setBody] = useState(article.body);
   const [pending, startTransition] = useTransition();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -79,16 +81,11 @@ export function EditArticleForm({ article }: { article: ArticleRow }) {
           defaultValue={article.excerpt ?? ""}
         />
       </label>
-      <label className="admin-article-label">
-        Body (Markdown)
-        <textarea
-          name="body"
-          rows={16}
-          className="admin-article-textarea mono"
-          disabled={pending}
-          defaultValue={article.body}
-        />
-      </label>
+      <div className="admin-article-label">
+        <span>Body (Markdown)</span>
+        <ArticleMarkdownEditor value={body} onChange={setBody} disabled={pending} />
+        <input type="hidden" name="body" value={body} />
+      </div>
       <label className="admin-article-label inline">
         <span>Status</span>
         <select
