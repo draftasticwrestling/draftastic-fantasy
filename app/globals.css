@@ -2400,6 +2400,7 @@ body > .site-footer {
   margin: 0 auto;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 28px;
   flex-wrap: wrap;
 }
@@ -2408,6 +2409,10 @@ body > .site-footer {
   height: auto;
   flex-shrink: 0;
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
+}
+.hub-hero-copy {
+  text-align: center;
+  max-width: 40rem;
 }
 .hub-hero-copy h1 {
   margin: 0 0 8px;
@@ -2425,6 +2430,7 @@ body > .site-footer {
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
+  justify-content: center;
 }
 .hub-hero-btn {
   display: inline-flex;
