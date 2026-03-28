@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getRecentEvents } from "@/lib/eventsRecent";
+import { listPublishedArticles } from "@/lib/articles";
 
 export const metadata = {
   title: "Draftastic Pro Wrestling — Results & News",
@@ -42,11 +43,21 @@ export default async function HubHomePage() {
     matchLines = matches.slice(0, 5).map((m, i) => matchLine(m, i));
   }
 
-  const placeholderHeadlines = [
-    { href: "/news", label: "Articles coming soon — fantasy takes on the week in wrestling" },
+  const articles = await listPublishedArticles(5);
+  const staticHeadlines = [
     { href: "/fantasy", label: "Play Draftastic Fantasy — create a league with friends" },
     { href: "/event-results", label: "Browse all completed events and fantasy scoring" },
   ];
+  const headlines = [
+    ...articles.map((a) => ({
+      href: `/news/${encodeURIComponent(a.slug)}`,
+      label: a.title,
+    })),
+    ...(articles.length === 0
+      ? [{ href: "/news", label: "News — fantasy takes on the week in wrestling" }]
+      : []),
+    ...staticHeadlines,
+  ].slice(0, 8);
 
   return (
     <>
@@ -129,7 +140,7 @@ export default async function HubHomePage() {
         <aside className="hub-col hub-col-side" aria-label="Headlines">
           <h2 className="hub-col-title">Top headlines</h2>
           <ul className="hub-headlines">
-            {placeholderHeadlines.map((h) => (
+            {headlines.map((h) => (
               <li key={h.href}>
                 <Link href={h.href}>{h.label}</Link>
               </li>

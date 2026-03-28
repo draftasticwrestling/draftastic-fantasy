@@ -13,6 +13,7 @@ const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 type LeagueItem = { slug: string; name: string; role: "commissioner" | "owner"; league_type?: string | null };
 
 const ADMIN_LINKS = [
+  { href: "/admin/articles", label: "Articles" },
   { href: "/league/teams", label: "Legacy League" },
   { href: "/mvl", label: "MVL Example" },
   { href: "/admin/draft-testing", label: "Draft Testing" },
