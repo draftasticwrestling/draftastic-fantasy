@@ -12,6 +12,8 @@
 
 # Trade timer cron: `netlify/functions/process-trade-deadlines.ts` runs every 15m and calls
 # GET /api/cron/process-trades with header x-cron-secret. Set CRON_SECRET (and URL) in Netlify env.
+# Wrestler stats cache cron: `netlify/functions/recompute-wrestler-stats-cache.ts` runs every 6h and calls
+# GET /api/cron/recompute-wrestler-stats-cache with header x-cron-secret.
 
 # Force correct MIME type for Next.js CSS (avoids "text/plain" / strict MIME refusal)
 [[headers]]
