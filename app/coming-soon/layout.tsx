@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import "./layout.css";
+import { siteLogoHref } from "@/lib/siteLogo";
 
 export const metadata: Metadata = {
   title: "Coming Soon — Draftastic Fantasy Pro Wrestling",
@@ -15,12 +16,13 @@ export default function ComingSoonLayout({
     <div className="coming-soon-root">
       <header className="coming-soon-header">
         <Image
-          src="/draftastic_belt_logo.png"
+          src={siteLogoHref()}
           alt=""
           width={120}
           height={60}
           className="coming-soon-belt-logo"
           priority
+          unoptimized
         />
         <span className="coming-soon-logo">Draftastic Fantasy Pro Wrestling</span>
       </header>

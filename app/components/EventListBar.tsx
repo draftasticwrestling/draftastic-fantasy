@@ -4,6 +4,7 @@ import Link from "next/link";
 import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 import { getEventLogoUrl } from "@/lib/howItWorksImages";
 import type { RecentEvent } from "@/lib/eventsRecent";
+import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
 
 function formatEventDate(dateStr: string | null): string {
   if (!dateStr || !dateStr.trim()) return "—";
@@ -25,7 +26,7 @@ export default function EventListBar({ events }: Props) {
         {events.map((event) => {
           const eventType = classifyEventType(event.name ?? "", event.id);
           const logoUrl = getEventLogoUrl(eventType);
-          const href = `/event-results/${encodeURIComponent(event.id)}`;
+          const href = eventResultsHref(event);
           const dateDisplay = formatEventDate(event.date);
           const locationDisplay = event.location?.trim() || "—";
           return (

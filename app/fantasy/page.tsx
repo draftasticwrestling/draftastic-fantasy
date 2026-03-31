@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { getLeaguesForUser } from "@/lib/leagues";
+import { siteLogoHref } from "@/lib/siteLogo";
 
 const IMG = "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/draftastic-screenshots";
 
@@ -21,7 +22,7 @@ export default async function FantasyHomePage() {
         <section className="home-hero">
           <div className="home-hero-inner">
             <img
-              src="/draftastic_belt_logo.png"
+              src={siteLogoHref()}
               alt=""
               className="home-hero-logo"
             />

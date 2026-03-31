@@ -1,10 +1,22 @@
 import { supabase } from "@/lib/supabase";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
-import { EventMatchCard } from "@/app/components/event-results/EventMatchCard";
-import { formatSlug, replaceSlugsInString } from "@/lib/event-results/displayStrings";
-import { getMatchTabContent } from "@/lib/event-results/rawMatchExtras";
+import { EventPageHeader } from "@/components/boxscore-port/EventPageHeader";
+import EventBoxscoreMatchList from "@/components/boxscore-port/EventBoxscoreMatchList";
+import {
+  buildEventHeaderMetaDescription,
+  buildEventSeoTitle,
+  buildTitleShow,
+  formatBroadcastDateTime,
+  formatEventHeaderDateLong,
+} from "@/lib/boxscore/eventShowHeader";
+import { buildWrestlerMap } from "@/lib/boxscore/normalizeWrestlerForCard";
+import { formatSlug } from "@/lib/event-results/displayStrings";
+import {
+  buildEventResultsSlug,
+  buildProWrestlingBoxscoreEventUrl,
+  getEventForResultsRoute,
+} from "@/lib/event-results/eventResultsRoute";
 import { isWrestlerWinner } from "@/lib/event-results/winnerUtils";
 import type { ScoredEvent } from "@/lib/scoring/types";
 
@@ -17,50 +29,21 @@ export async function generateMetadata({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const { data: event } = await supabase
-    .from("events")
-    .select("name, date")
-    .eq("id", eventId)
-    .single();
-  const title = event?.name
-    ? `${event.name} — Results`
-    : "Event results — Draftastic Fantasy";
-  return { title };
-}
-
-function formatEventType(type: string): string {
-  const labels: Record<string, string> = {
-    raw: "RAW",
-    smackdown: "SmackDown",
-    "wrestlemania-night-1": "WrestleMania Night 1",
-    "wrestlemania-night-2": "WrestleMania Night 2",
-    "summerslam-night-1": "SummerSlam Night 1",
-    "summerslam-night-2": "SummerSlam Night 2",
-    "survivor-series": "Survivor Series",
-    "royal-rumble": "Royal Rumble",
-    "elimination-chamber": "Elimination Chamber",
-    "crown-jewel": "Crown Jewel",
-    "night-of-champions": "Night of Champions",
-    "money-in-the-bank": "Money in the Bank",
-    "saturday-nights-main-event": "Saturday Night's Main Event",
-    backlash: "Backlash",
-    evolution: "Evolution",
-    "clash-in-paris": "Clash at the Castle",
-    wrestlepalooza: "Wrestlepalooza",
-  };
-  return labels[type] || type;
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [y, m, d] = dateStr.split("-");
-    const month = new Date(Number(y), Number(m) - 1, 1).toLocaleString("en-US", {
-      month: "long",
-    });
-    return `${month} ${d}, ${y}`;
+  const event = await getEventForResultsRoute(eventId);
+  if (!event?.name) {
+    return {
+      title: "Event results — Draftastic Fantasy",
+      description: "Fantasy scoring for WWE events.",
+    };
   }
-  return dateStr;
+  const canonicalSlug = buildEventResultsSlug(event);
+  return {
+    title: buildEventSeoTitle(event),
+    description: buildEventHeaderMetaDescription(event),
+    alternates: {
+      canonical: `/event-results/${canonicalSlug}`,
+    },
+  };
 }
 
 type RawMatchKOTR = {
@@ -153,25 +136,35 @@ export default async function EventResultsPage({
   const search = await searchParams;
   const debugKotr = search?.debug === "kotr" || search?.debug === "1";
 
-  const [{ data: event, error }, { data: wrestlers }] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, name, date, location, matches")
-      .eq("id", eventId)
-      .single(),
-    supabase.from("wrestlers").select("id, name"),
-  ]);
-
-  if (error || !event) {
+  const event = await getEventForResultsRoute(eventId);
+  if (!event) {
     notFound();
   }
+
+  const canonicalSlug = buildEventResultsSlug(event);
+  const decodedParam = decodeURIComponent(eventId.trim());
+  if (decodedParam !== canonicalSlug) {
+    permanentRedirect(`/event-results/${canonicalSlug}`);
+  }
+
+  const [{ data: wrestlerRows }, { data: eventsForStats }] = await Promise.all([
+    supabase
+      .from("wrestlers")
+      .select("id, name, image_url, full_body_image_url, nationality, dob"),
+    supabase
+      .from("events")
+      .select("id, name, date, status, matches")
+      .eq("status", "completed")
+      .order("date", { ascending: false })
+      .limit(180),
+  ]);
 
   const { scoreEvent } = await import("@/lib/scoring/scoreEvent.js");
   const { EVENT_TYPES } = await import("@/lib/scoring/parsers/eventClassifier.js");
   const { normalizeWrestlerName } = await import("@/lib/scoring/parsers/participantParser.js");
   const slugToName = new Map<string, string>();
   const slugToCanonical = new Map<string, string>();
-  for (const w of wrestlers ?? []) {
+  for (const w of wrestlerRows ?? []) {
     const id = (w.id ?? "").toString().trim();
     const name = (w.name ?? "").toString().trim();
     if (id) {
@@ -184,6 +177,14 @@ export default async function EventResultsPage({
   }
   function toCanonicalSlug(slug: string): string {
     return slugToCanonical.get(slug) ?? slug;
+  }
+
+  const wrestlerMap = buildWrestlerMap(wrestlerRows ?? []);
+
+  const statsEventIds = new Set((eventsForStats ?? []).map((e) => String(e.id ?? "")));
+  const statsEventsMerged = [...(eventsForStats ?? [])];
+  if (event?.id != null && !statsEventIds.has(String(event.id))) {
+    statsEventsMerged.push(event);
   }
 
   const scored = scoreEvent(event) as ScoredEvent;
@@ -568,12 +569,49 @@ export default async function EventResultsPage({
   const displayName = (slug: string) =>
     slugToName.get(slug) ?? formatSlug(slug);
 
+  const fantasyPointsBySlugByOrder: Record<
+    number,
+    Record<string, { points: number; isWinner: boolean; breakdown: string[] }>
+  > = {};
+  for (const match of scored.matches) {
+    const order = match.order ?? 0;
+    fantasyPointsBySlugByOrder[order] = {};
+    if (!match.wrestlerPoints) continue;
+    for (const wp of match.wrestlerPoints ?? []) {
+      const slug = normalizeWrestlerName(wp.wrestler) || wp.wrestler;
+      const canon = toCanonicalSlug(slug);
+      const raw = String(wp.wrestler ?? "").trim();
+      const bd = (wp as { breakdown?: unknown }).breakdown;
+      const breakdown = Array.isArray(bd) ? bd.filter((x): x is string => typeof x === "string") : [];
+      const entry = {
+        points: wp.total ?? 0,
+        isWinner: isWrestlerWinner(
+          wp.wrestler,
+          (match as { winners?: unknown[] }).winners,
+          normalizeWrestlerName
+        ),
+        breakdown,
+      };
+      fantasyPointsBySlugByOrder[order][canon] = entry;
+      if (slug && slug !== canon) fantasyPointsBySlugByOrder[order][slug] = entry;
+      if (raw && raw !== canon && raw !== slug) fantasyPointsBySlugByOrder[order][raw] = entry;
+    }
+  }
+
   /** Canonical 16 Queen of the Ring participants for NOC — table shows only these, in this order (then sorted by total desc). */
   const QUEEN_OF_THE_RING_PARTICIPANTS = [
     "Jade Cargill", "Asuka", "Alexa Bliss", "Roxanne Perez", "Charlotte Flair", "Alba Fyre",
     "Candice LeRae", "Stephanie Vaquer", "Raquel Rodriguez", "Ivy Nile", "Kairi Sane",
     "Liv Morgan", "Rhea Ripley", "Michin", "Piper Niven", "Nia Jax",
   ];
+
+  const evExtras = event as typeof event & {
+    preview?: string | null;
+    recap?: string | null;
+    broadcast_start_ts?: string | null;
+  };
+  const formattedHeaderDate = formatEventHeaderDateLong(event.date);
+  const titleShowLine = buildTitleShow(event);
 
   return (
     <main
@@ -582,41 +620,24 @@ export default async function EventResultsPage({
         padding: 24,
         maxWidth: 1200,
         margin: "0 auto",
+        background: "#181511",
+        minHeight: "100vh",
+        color: "#e8e8e8",
       }}
     >
-      <p style={{ marginBottom: 24 }}>
-        <Link href="/event-results">← Event Results</Link>
-        {" · "}
-        <Link href="/">Home</Link>
-      </p>
-
-      <header
-        style={{
-          borderBottom: "2px solid #C6A04F",
-          paddingBottom: 16,
-          marginBottom: 24,
-        }}
-      >
-        <h1 style={{ margin: "0 0 4px 0", fontSize: 28 }}>
-          {scored.eventName}
-        </h1>
-        <p style={{ margin: 0, color: "#666", fontSize: 15 }}>
-          {formatDate(scored.date ?? null)}
-          {scored.eventType && scored.eventType !== "unknown" && (
-            <> · {formatEventType(scored.eventType)}</>
-          )}
-        </p>
-        <p style={{ margin: "8px 0 0", fontSize: 14 }}>
-          <a
-            href={`https://prowrestlingboxscore.com/event/${encodeURIComponent(eventId)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "#1a73e8", textDecoration: "none" }}
-          >
-            View Full Event Results on Pro Wrestling Boxscore
-          </a>
-        </p>
-      </header>
+      <EventPageHeader
+        eventName={event.name ?? "Event"}
+        h1Text={`${titleShowLine} Results — ${formattedHeaderDate}`}
+        metaLine={buildEventHeaderMetaDescription(event)}
+        formattedDateLong={formattedHeaderDate}
+        location={event.location?.trim() || null}
+        broadcastFormatted={formatBroadcastDateTime(evExtras.broadcast_start_ts ?? null)}
+        preview={evExtras.preview ?? null}
+        recap={evExtras.recap ?? null}
+        statusIsCompleted={(event.status || "") === "completed"}
+        isLive={event.status === "live"}
+        boxscoreHref={buildProWrestlingBoxscoreEventUrl(eventId, event.id)}
+      />
 
       {isKOTRPLE && (
         <div
@@ -849,66 +870,17 @@ export default async function EventResultsPage({
       )}
 
       {scored.matches.length === 0 ? (
-        <p>No matches in this event.</p>
+        <p style={{ color: "#ccc" }}>No matches in this event.</p>
       ) : (
-        <section style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-          {scored.matches.map((match) => {
-            const rawMatch =
-              rawMatches.find((m) => m.order === match.order) ?? null;
-            const tabs = getMatchTabContent(rawMatch);
-            const isPromo = Boolean((match as { isPromo?: boolean }).isPromo);
-            const titleStr =
-              match.title && match.title !== "None" && match.title !== ""
-                ? String(match.title)
-                : null;
-            const rows = (match.wrestlerPoints ?? []).map((wp) => ({
-              wrestlerKey: wp.wrestler,
-              displayName: displayName(wp.wrestler),
-              points: wp.total ?? 0,
-              breakdown: wp.breakdown ?? [],
-              kotrTowardNOC: (wp as { kotrTowardNOC?: number }).kotrTowardNOC ?? 0,
-              isWinner: isWrestlerWinner(
-                wp.wrestler,
-                (match as { winners?: unknown[] }).winners,
-                normalizeWrestlerName
-              ),
-            }));
-            return (
-              <EventMatchCard
-                key={match.order}
-                order={match.order ?? 0}
-                contextLabel={!isPromo ? titleStr : null}
-                isPromo={isPromo}
-                participantLine={
-                  replaceSlugsInString(match.participants, slugToName) ||
-                  (typeof match.participants === "string"
-                    ? match.participants
-                    : Array.isArray(match.participants)
-                      ? match.participants.join(", ")
-                    : "") ||
-                  ""
-                }
-                resultLine={
-                  match.result
-                    ? replaceSlugsInString(match.result, slugToName) ||
-                      (typeof match.result === "string" ? match.result : "")
-                    : null
-                }
-                method={match.method ? String(match.method) : null}
-                titleOutcome={
-                  match.titleOutcome && match.titleOutcome !== "None"
-                    ? String(match.titleOutcome)
-                    : null
-                }
-                rows={rows}
-                tabSummary={tabs.summary}
-                tabCommentary={tabs.commentary}
-                tabStatistics={tabs.statistics}
-                isRSEvent={isRSEvent}
-              />
-            );
-          })}
-        </section>
+        <>
+          <h3 style={{ marginTop: 24, marginBottom: 16, color: "#fff" }}>Match Results</h3>
+          <EventBoxscoreMatchList
+            event={event}
+            wrestlerMap={wrestlerMap}
+            events={statsEventsMerged}
+            fantasyPointsBySlugByOrder={fantasyPointsBySlugByOrder}
+          />
+        </>
       )}
     </main>
   );

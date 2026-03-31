@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/profiles";
+import { siteLogoHref } from "@/lib/siteLogo";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
@@ -256,7 +257,7 @@ export default function Nav() {
     <>
       <header className="nav-header" ref={mobileMenuRef}>
         <Link href="/" className="nav-header-brand-wrap">
-          <img src="/draftastic_belt_logo.png" alt="" className="nav-header-logo" />
+          <img src={siteLogoHref()} alt="" className="nav-header-logo" />
           <span className="nav-header-brand nav-header-brand-full">Draftastic Pro Wrestling</span>
           <span className="nav-header-brand nav-header-brand-short" aria-hidden>Draftastic</span>
         </Link>
@@ -264,7 +265,7 @@ export default function Nav() {
         <nav className="nav-top-links nav-top-links-desk" aria-label="Site">
           <Link href="/news" className="nav-top-link">News</Link>
           <Link href="/event-results" className="nav-top-link">Results</Link>
-          <Link href="/points" className="nav-top-link">Stats</Link>
+          <Link href="/wrestlers" className="nav-top-link">Wrestlers</Link>
           <Link href="/how-it-works" className="nav-top-link">How It Works</Link>
           <Link href="/about-us" className="nav-top-link">About Us</Link>
           <Link href="/contact-us" className="nav-top-link">Contact Us</Link>
@@ -353,8 +354,8 @@ export default function Nav() {
             <Link href="/event-results" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               Results
             </Link>
-            <Link href="/points" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
-              Stats
+            <Link href="/wrestlers" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              Wrestlers
             </Link>
             {ADMIN_LINKS.map(({ href, label }) => (
               <Link key={href} href={href} className="nav-mobile-panel-link" onClick={closeMobileMenu}>

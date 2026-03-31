@@ -1,0 +1,253 @@
+/* Boxscore-style WWE Event Results index (dark, centered hero + cards) */
+
+.pageRoot {
+  background: #000;
+  color: #fff;
+  margin: -20px -24px -32px;
+  padding: 28px 24px 56px;
+  max-width: none;
+}
+
+@media (max-width: 640px) {
+  .pageRoot {
+    margin: -16px -16px -24px;
+    padding: 24px 16px 40px;
+  }
+}
+
+.inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.backRow {
+  margin-bottom: 20px;
+}
+
+.backLink {
+  color: #a8a8a8;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: #c6a04f;
+}
+
+.hero {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.heroH1 {
+  margin: 0 0 20px;
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.heroBody {
+  margin: 0 auto 16px;
+  max-width: 640px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: #e8e8e8;
+  font-weight: 400;
+}
+
+.heroBody:last-of-type {
+  margin-bottom: 24px;
+}
+
+.heroNav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.heroNav a {
+  color: #c6a04f;
+  text-decoration: none;
+}
+
+.heroNav a:hover {
+  text-decoration: underline;
+}
+
+.heroNavSep {
+  color: #666;
+  user-select: none;
+}
+
+.primaryToggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.primaryPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 28px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.primaryPillActive {
+  background: #c6a04f;
+  color: #0a0a0a;
+}
+
+.primaryPillInactive {
+  background: transparent;
+  color: #fff;
+  border-color: #555;
+}
+
+.primaryPillInactive:hover {
+  border-color: #c6a04f;
+  color: #c6a04f;
+}
+
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.filterPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid #444;
+  color: #ddd;
+  background: #141414;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.filterPill:hover {
+  border-color: #777;
+  color: #fff;
+}
+
+.filterPillActive {
+  background: rgba(198, 160, 79, 0.22);
+  border-color: #c6a04f;
+  color: #f0e6d2;
+}
+
+.filterHint {
+  text-align: center;
+  font-size: 14px;
+  color: #888;
+  margin: -12px 0 20px;
+}
+
+.errorText {
+  color: #f48fb1;
+  text-align: center;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.emptyText {
+  text-align: center;
+  color: #888;
+  font-size: 15px;
+  line-height: 1.5;
+  padding: 24px 16px;
+}
+
+.cardList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardLink {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  background: #1a1a1a;
+  border: 1px solid #2e2e2e;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.cardLink:hover {
+  border-color: #4a4a4a;
+  background: #222;
+}
+
+.cardLogoWrap {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardLogo {
+  max-width: 56px;
+  max-height: 48px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.cardText {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.cardTitle {
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.cardMeta {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #c6a04f;
+  line-height: 1.35;
+}
+
+.upcomingHint {
+  font-size: 12px;
+  color: #666;
+  margin-top: 6px;
+}

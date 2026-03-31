@@ -1,47 +1,27 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getRecentEvents } from "@/lib/eventsRecent";
+import HubLatestEventPreview from "@/app/components/HubLatestEventPreview";
+import { fetchHubRecentCompleted, fetchHubUpcomingSpotlight } from "@/lib/home/hubHomeEvents";
 import { listPublishedArticles } from "@/lib/articles";
+import { siteLogoHref } from "@/lib/siteLogo";
 
 export const metadata = {
   title: "Draftastic Pro Wrestling — Results & News",
   description: "Event results, fantasy scoring, and commentary — Draftastic Pro Wrestling.",
 };
 
-function formatEventDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [y, m, d] = dateStr.split("-");
-    const month = new Date(Number(y), Number(m) - 1, 1).toLocaleString("en-US", { month: "short" });
-    return `${month} ${Number(d)}, ${y}`;
-  }
-  return dateStr;
-}
-
-function matchLine(m: unknown, i: number): string {
-  if (!m || typeof m !== "object") return `Match ${i + 1}`;
-  const o = m as Record<string, unknown>;
-  const title = typeof o.title === "string" ? o.title : "";
-  const mt = typeof o.matchType === "string" ? o.matchType : "";
-  const st = typeof o.stipulation === "string" ? o.stipulation : "";
-  const parts = [title, mt, st].filter(Boolean);
-  return parts.length ? parts.join(" · ") : `Match ${i + 1}`;
-}
-
 export default async function HubHomePage() {
   const supabase = await createClient();
-  const recent = await getRecentEvents(1);
-  const featured = recent[0];
-  let matchLines: string[] = [];
-  if (featured) {
-    const { data } = await supabase
-      .from("events")
-      .select("matches")
-      .eq("id", featured.id)
-      .maybeSingle();
-    const matches = Array.isArray(data?.matches) ? data.matches : [];
-    matchLines = matches.slice(0, 5).map((m, i) => matchLine(m, i));
-  }
+
+  const [upcoming, { data: wrestlersData }] = await Promise.all([
+    fetchHubUpcomingSpotlight(supabase),
+    supabase.from("wrestlers").select("id, name, image_url"),
+  ]);
+
+  const completedRows = await fetchHubRecentCompleted(supabase, 4, upcoming?.id);
+  const wrestlerRows = (wrestlersData ?? []) as { id: string; name: string | null; image_url: string | null }[];
+
+  const hasAnyPreview = Boolean(upcoming) || completedRows.length > 0;
 
   const articles = await listPublishedArticles(5);
   const staticHeadlines = [
@@ -63,7 +43,7 @@ export default async function HubHomePage() {
     <>
       <section className="hub-hero">
         <div className="hub-hero-inner">
-          <img src="/draftastic_belt_logo.png" alt="" className="hub-hero-logo" />
+          <img src={siteLogoHref()} alt="" className="hub-hero-logo" />
           <div className="hub-hero-copy">
             <h1>Draftastic Fantasy Pro Wrestling</h1>
             <p className="hub-hero-tagline">Putting the sport back in sports entertainment.</p>
@@ -79,74 +59,62 @@ export default async function HubHomePage() {
         </div>
       </section>
 
-      <div className="hub-shell">
-        <aside className="hub-col hub-col-side" aria-label="Quick links">
-          <h2 className="hub-col-title">Quick links</h2>
-          <nav className="hub-quick-nav">
-            <Link href="/event-results">Events</Link>
-            <Link href="/wrestlers">Wrestlers</Link>
-            <span className="hub-quick-muted">Statistics (soon)</span>
-            <span className="hub-quick-muted">WrestleMania (soon)</span>
-            <Link href="/fantasy">Fantasy home</Link>
-            <Link href="/how-it-works">Fantasy rules</Link>
-            <span className="hub-quick-muted">FantasyCast (soon)</span>
-          </nav>
-        </aside>
+      <div className="hub-shell-wrap">
+        <div className="hub-shell">
+          <aside className="hub-col hub-col-side" aria-label="Quick links">
+            <h2 className="hub-col-title">Quick links</h2>
+            <nav className="hub-quick-nav">
+              <Link href="/event-results">Events</Link>
+              <Link href="/wrestlers">Wrestlers</Link>
+              <span className="hub-quick-muted">Statistics (soon)</span>
+              <span className="hub-quick-muted">WrestleMania (soon)</span>
+              <Link href="/fantasy">Fantasy home</Link>
+              <Link href="/how-it-works">Fantasy rules</Link>
+              <span className="hub-quick-muted">FantasyCast (soon)</span>
+            </nav>
+          </aside>
 
-        <section className="hub-col hub-col-main" aria-labelledby="hub-latest-heading">
-          <h2 id="hub-latest-heading" className="hub-col-title">
-            Latest event results
-          </h2>
-          {featured ? (
-            <>
-              <div className="hub-event-bar">
-                <span className="hub-event-bar-text">
-                  {formatEventDate(featured.date)}
-                  {featured.name ? ` — ${featured.name}` : ""}
-                  {featured.location ? ` — ${featured.location}` : ""}
-                </span>
-              </div>
-              <div className="hub-event-card">
-                {matchLines.length > 0 ? (
-                  <ul className="hub-match-preview">
-                    {matchLines.map((line, idx) => (
-                      <li key={idx}>{line}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="hub-muted">Match breakdown loads on the full results page.</p>
-                )}
-                <Link
-                  href={`/event-results/${encodeURIComponent(featured.id)}`}
-                  className="hub-event-cta"
-                >
-                  Full results &amp; fantasy scoring →
-                </Link>
-              </div>
-              <p className="hub-muted hub-legal-note" style={{ marginTop: 16 }}>
-                Summary, commentary, and detailed stats views will match the Pro Wrestling Boxscore style as we merge the sites.
-              </p>
-            </>
-          ) : (
-            <p className="hub-muted">No completed events yet. Check back after the next show.</p>
-          )}
-          <div className="hub-tab-placeholder" role="note">
-            <span>Summary</span>
-            <span>Commentary</span>
-            <span>Statistics</span>
-          </div>
-        </section>
+          <section className="hub-col hub-col-main" aria-labelledby="hub-latest-heading">
+            <h2 id="hub-latest-heading" className="hub-col-title">
+              Latest events
+            </h2>
+            {hasAnyPreview ? (
+              <>
+                <div className="hub-events-stack">
+                  {upcoming ? (
+                    <HubLatestEventPreview
+                      event={upcoming}
+                      wrestlerRows={wrestlerRows}
+                      variant="upcoming"
+                      whenLabel={upcoming.whenLabel}
+                    />
+                  ) : null}
+                  {completedRows.map((ev) => (
+                    <HubLatestEventPreview key={ev.id} event={ev} wrestlerRows={wrestlerRows} variant="completed" />
+                  ))}
+                </div>
+                {completedRows.length === 0 && upcoming ? (
+                  <p className="hub-muted" style={{ marginTop: 16 }}>
+                    No completed events to show yet — check back after the show.
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="hub-muted">No events yet. Check back after the next show.</p>
+            )}
+          </section>
 
-        <aside className="hub-col hub-col-side" aria-label="Headlines">
-          <h2 className="hub-col-title">Top headlines</h2>
-          <ul className="hub-headlines">
-            {headlines.map((h) => (
-              <li key={h.href}>
-                <Link href={h.href}>{h.label}</Link>
-              </li>
-            ))}
-          </ul>
-        </aside>
+          <aside className="hub-col hub-col-side" aria-label="Headlines">
+            <h2 className="hub-col-title">Top headlines</h2>
+            <ul className="hub-headlines">
+              {headlines.map((h) => (
+                <li key={h.href}>
+                  <Link href={h.href}>{h.label}</Link>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        </div>
       </div>
     </>
   );

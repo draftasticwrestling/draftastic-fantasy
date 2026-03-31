@@ -29,7 +29,8 @@ function read2kRating(row: Record<string, unknown>, key: string): number | null 
 
 export const metadata = {
   title: "Wrestlers — Draftastic Fantasy",
-  description: "Wrestlers eligible for the draft. Roster rules: min 4 male, 4 female.",
+  description:
+    "WWE roster from Pro Wrestling Boxscore: brands, belts, match stats, and fantasy points. Draft pool and league free agents.",
 };
 
 /** Championship history table (Pro Wrestling Boxscore). One row per title reign. */

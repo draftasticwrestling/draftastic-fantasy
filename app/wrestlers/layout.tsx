@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WrestlersSubNav } from "./WrestlersSubNav";
 
 export default function WrestlersLayout({
   children,
@@ -35,9 +36,24 @@ export default function WrestlersLayout({
       >
         <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700 }}>Wrestlers</h1>
         <p style={{ margin: "4px 0 0", fontSize: 0.9, opacity: 0.95 }}>
-          Draft pool and free agents. Add wrestlers to your roster from your league page.
+          Roster data from{" "}
+          <a
+            href="https://prowrestlingboxscore.com/wrestlers"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "inherit", textDecoration: "underline" }}
+          >
+            Pro Wrestling Boxscore
+          </a>
+          . Fantasy scoring:{" "}
+          <Link href="/points" style={{ color: "inherit", textDecoration: "underline" }}>
+            Points system
+          </Link>
+          .
         </p>
       </div>
+
+      <WrestlersSubNav />
 
       {children}
     </main>

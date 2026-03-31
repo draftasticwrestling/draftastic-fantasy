@@ -35,6 +35,7 @@ import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
+import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { WrestlerPointsPeriodSelector, type PointsPeriod } from "./WrestlerPointsPeriodSelector";
 import { WrestlerProfileBackLink } from "./WrestlerProfileBackLink";
@@ -797,7 +798,10 @@ export default async function WrestlerProfilePage({
             <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
               {unparsedMatches.map((u, i) => (
                 <li key={i} style={{ marginBottom: 4 }}>
-                  <Link href={`/event-results/${u.eventId}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
+                  <Link
+                    href={eventResultsHref({ id: u.eventId, name: u.eventName, date: u.eventDate })}
+                    style={{ color: "#1a73e8", textDecoration: "none" }}
+                  >
                     {u.eventName}
                   </Link>
                   <span style={{ color: "#666", marginLeft: 8 }}>{formatDate(u.eventDate)}</span>
@@ -866,7 +870,10 @@ export default async function WrestlerProfilePage({
                   <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
                     <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{formatDate(row.date)}</td>
                     <td style={{ padding: "8px 12px" }}>
-                      <Link href={`/event-results/${row.eventId}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
+                      <Link
+                        href={eventResultsHref({ id: row.eventId, name: row.eventName, date: row.date })}
+                        style={{ color: "#1a73e8", textDecoration: "none" }}
+                      >
                         {row.eventName}
                       </Link>
                       {row.personaName && (
