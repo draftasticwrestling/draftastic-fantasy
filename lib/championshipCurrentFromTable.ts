@@ -7,7 +7,12 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
-import { getTagTeamMemberSlugs, parseTagTeamChampionToMemberSlugs } from "@/lib/scoring/tagTeamMembers.js";
+import {
+  expandWomensTagNiaLashIfSingleMemberListed,
+  expandWorldTagPriestTruthIfSingleMemberListed,
+  getTagTeamMemberSlugs,
+  parseTagTeamChampionToMemberSlugs,
+} from "@/lib/scoring/tagTeamMembers.js";
 
 const TABLE_NAME = "championships";
 
@@ -23,6 +28,14 @@ const TAG_TEAM_IDS = new Set([
   "womens-tag-team-championship",
   "world-tag-team-championship",
 ]);
+
+/** Boxscore may use ids not in the set above; any row id containing tag-team / tag_team is treated as a tag title. */
+function isTagTeamChampionshipRowId(id: string): boolean {
+  const x = id.trim().toLowerCase();
+  if (!x) return false;
+  if (TAG_TEAM_IDS.has(x)) return true;
+  return x.includes("tag-team") || x.includes("tag_team");
+}
 
 /**
  * Fetch current champions from the championships table.
@@ -54,11 +67,14 @@ export async function getCurrentChampionsFromChampionshipsTable(
     if (!title) continue;
 
     const entry: CurrentChampionFromTable = { title, wonDate: "" };
-    const isTagTeam = TAG_TEAM_IDS.has(id);
+    const isTagTeam = isTagTeamChampionshipRowId(id);
 
     if (isTagTeam) {
       const memberSlugs =
-        getTagTeamMemberSlugs(slugKey) ?? parseTagTeamChampionToMemberSlugs(champion || championSlug || "");
+        getTagTeamMemberSlugs(slugKey) ??
+        parseTagTeamChampionToMemberSlugs(champion || championSlug || "") ??
+        expandWorldTagPriestTruthIfSingleMemberListed(title, slugKey, slugKey, championSlug ?? "") ??
+        expandWomensTagNiaLashIfSingleMemberListed(title, slugKey, slugKey, championSlug ?? "");
       if (memberSlugs?.length) {
         for (const memberSlug of memberSlugs) {
           const key = normalizeWrestlerName(memberSlug) || memberSlug;

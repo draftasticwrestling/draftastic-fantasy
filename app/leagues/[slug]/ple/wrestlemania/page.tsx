@@ -172,8 +172,10 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
     membersByPoints.forEach((m) => {
       const userSlugs = slugSetByUser[m.user_id];
       if (!userSlugs) return;
-      const hasParticipant = [...matchSlugs].some((slug) => userSlugs.has(slug));
-      if (hasParticipant) pointsGrid[idx][m.user_id] = match.projectedPts;
+      const rosterCountInMatch = [...matchSlugs].filter((slug) => userSlugs.has(slug)).length;
+      if (rosterCountInMatch > 0) {
+        pointsGrid[idx][m.user_id] = rosterCountInMatch * match.projectedPts;
+      }
     });
   });
 
@@ -227,9 +229,10 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
 
       <h2 className={styles.pleTableSectionTitle}>Anticipated points</h2>
       <p className={styles.pleTableSectionSubtitle}>
-        Card by night. Each cell shows appearance points if your roster includes a billed participant (undercard{" "}
+        Card by night. Each cell is appearance points for every roster wrestler in that match (e.g. both Night&nbsp;2
+        main-event wrestlers on your roster = {WM_NIGHT2_MAIN_EVENT_APPEARANCE_PTS}&nbsp;×&nbsp;2). Undercard{" "}
         {WM_UNDERCARD_APPEARANCE_PTS}; Night&nbsp;1 main {WM_NIGHT1_MAIN_EVENT_APPEARANCE_PTS}; Night&nbsp;2 main{" "}
-        {WM_NIGHT2_MAIN_EVENT_APPEARANCE_PTS}). Win, title, and DQ adjustments apply after the event.
+        {WM_NIGHT2_MAIN_EVENT_APPEARANCE_PTS}. Win, title, and DQ adjustments apply after the event.
       </p>
 
       <div className={styles.pleTableWrap}>

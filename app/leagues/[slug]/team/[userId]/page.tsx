@@ -438,16 +438,20 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           <RosterCardGrid
             wrestlers={rosterTableRows.map((w) => {
               const a = teamScoringAudit.totalsByWrestler[w.id];
+              const rsPoints = a?.rsPoints ?? w.rsPoints ?? 0;
+              const plePoints = a?.plePoints ?? w.plePoints ?? 0;
+              // Audit uses the same belt rules but can lag behind row math (e.g. tag member expansion); show the higher BELT value.
+              const beltPoints = Math.max(a?.beltPoints ?? 0, w.beltPoints ?? 0);
+              const totalPoints = rsPoints + plePoints + beltPoints;
               return {
                 id: w.id,
                 name: w.name,
                 brand: w.brand,
                 acquiredAt: rosterAcquiredAtById[w.id] ?? null,
-                // Same source as Faction Scoreboard / ledger (R/S, PLE, end-of-month belt; stint-scoped).
-                rsPoints: a?.rsPoints ?? w.rsPoints ?? 0,
-                plePoints: a?.plePoints ?? w.plePoints ?? 0,
-                beltPoints: a?.beltPoints ?? w.beltPoints ?? 0,
-                totalPoints: a?.total ?? w.totalPoints ?? 0,
+                rsPoints,
+                plePoints,
+                beltPoints,
+                totalPoints,
                 mw: w.mw ?? 0,
                 rating_2k26: w.rating_2k26,
                 rating_2k25: w.rating_2k25,
