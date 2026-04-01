@@ -14,6 +14,7 @@ import {
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
+import { sortByChampionshipDisplayOrder } from "@/lib/championshipDisplayOrder";
 
 const LEAGUE_START_DATE = "2025-05-02";
 
@@ -47,6 +48,23 @@ type ChampionshipReign = {
   end_date?: string | null;
 };
 
+type TitleHistoryItem = {
+  champion: string;
+  championSlug: string;
+  wonDate: string;
+  lostDate: string | null;
+  imageUrl: string | null;
+};
+
+function displayDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const s = String(iso).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const [y, m, d] = s.split("-");
+  const dt = new Date(Number(y), Number(m) - 1, Number(d));
+  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 export default async function WrestlersPage() {
   const [wrestlersResult, { data: events }, { data: rawReigns }] = await Promise.all([
     (async () => {
@@ -78,6 +96,24 @@ export default async function WrestlersPage() {
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
   const wrestlers = wrestlersResult.data ?? [];
+  const wrestlerBySlug = new Map<
+    string,
+    { id: string; name: string | null; image_url: string | null; gender: string | null }
+  >();
+  const wrestlerByNameKey = new Map<
+    string,
+    { id: string; name: string | null; image_url: string | null; gender: string | null }
+  >();
+  for (const w of wrestlers) {
+    const item = {
+      id: w.id,
+      name: w.name ?? null,
+      image_url: (w as { image_url?: string }).image_url ?? null,
+      gender: w.gender ?? null,
+    };
+    wrestlerBySlug.set(w.id, item);
+    if (w.name) wrestlerByNameKey.set(normalizeWrestlerName(w.name), item);
+  }
   const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
   const rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
@@ -118,25 +154,150 @@ export default async function WrestlersPage() {
     };
   });
 
+  const titleHistoryByTitle = new Map<string, TitleHistoryItem[]>();
+  for (const r of reigns) {
+    const title = (r.title ?? r.title_name ?? "").trim();
+    if (!title) continue;
+    const wonDate = (r.won_date ?? r.start_date ?? "").slice(0, 10);
+    if (!wonDate) continue;
+    const lostDate = (r.lost_date ?? r.end_date ?? null)?.slice(0, 10) ?? null;
+    const rawSlug = (r.champion_slug ?? r.champion_id ?? "").trim();
+    const championSlug = normalizeWrestlerName(rawSlug || (r.champion ?? r.champion_name ?? ""));
+    const fromSlug = championSlug ? wrestlerBySlug.get(championSlug) : null;
+    const fromName = !fromSlug && r.champion ? wrestlerByNameKey.get(normalizeWrestlerName(r.champion)) : null;
+    const championName =
+      (fromSlug?.name ?? fromName?.name ?? r.champion ?? r.champion_name ?? championSlug).toString();
+    const imageUrl = fromSlug?.image_url ?? fromName?.image_url ?? null;
+    const list = titleHistoryByTitle.get(title) ?? [];
+    list.push({
+      champion: championName,
+      championSlug,
+      wonDate,
+      lostDate,
+      imageUrl,
+    });
+    titleHistoryByTitle.set(title, list);
+  }
+
+  const historyCards = sortByChampionshipDisplayOrder(
+    [...titleHistoryByTitle.entries()].map(([title, items]) => ({
+      title,
+      items: items.sort((a, b) => b.wonDate.localeCompare(a.wonDate)),
+    }))
+  );
+
+  const currentChampionCards = historyCards
+    .map((h) => {
+      const latest = h.items[0];
+      if (!latest) return null;
+      const latestWon = latest.wonDate;
+      const champs = h.items.filter((x) => x.wonDate === latestWon);
+      return { title: h.title, champs, beltImageUrl: getBeltImageUrlForTitle(h.title) };
+    })
+    .filter(Boolean) as { title: string; champs: TitleHistoryItem[]; beltImageUrl: string | null }[];
+
   const error = wrestlersResult.error;
   return (
     <>
-      <section
-        style={{
-          background: "#f0f7ff",
-          border: "1px solid #b3d4ff",
-          borderRadius: 8,
-          padding: "12px 16px",
-          marginTop: 24,
-          marginBottom: 32,
-        }}
-      >
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>Roster rules (draft)</h2>
-        <ul style={{ marginBottom: 0 }}>
-          <li>Roster size: 8–15 wrestlers (draft 12 to start).</li>
-          <li>Minimum <strong>4 male</strong> and <strong>4 female</strong> wrestlers.</li>
-          <li>Contracts: 4× three-year, 4× two-year, 4× one-year (assigned by round at draft).</li>
-        </ul>
+      <section style={{ marginTop: 24, marginBottom: 28 }}>
+        <h1 style={{ margin: "0 0 14px 0", fontSize: 40, letterSpacing: "-0.01em" }}>CURRENT CHAMPIONS</h1>
+        <div className="wrestlers-page-champs-grid">
+          {currentChampionCards.map((card) => {
+            const titleAnchor = `title-${encodeURIComponent(card.title.toLowerCase().replace(/\s+/g, "-"))}`;
+            return (
+              <article
+                key={card.title}
+                style={{
+                  background: "#111317",
+                  color: "#f5f5f5",
+                  border: "1px solid #2d3138",
+                  borderRadius: 4,
+                  padding: 14,
+                  textAlign: "center",
+                }}
+              >
+                <h3 style={{ margin: "0 0 10px 0", fontSize: 18, color: "#d0ac56" }}>{card.title}</h3>
+                {card.beltImageUrl && (
+                  <img
+                    src={card.beltImageUrl}
+                    alt={card.title}
+                    style={{ width: "100%", maxWidth: 200, height: 58, objectFit: "contain", marginBottom: 10 }}
+                  />
+                )}
+                <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 10 }}>
+                  {card.champs.map((c) => (
+                    <div key={`${card.title}-${c.championSlug || c.champion}`}>
+                      {c.imageUrl ? (
+                        <img
+                          src={c.imageUrl}
+                          alt={c.champion}
+                          style={{ width: 52, height: 52, objectFit: "cover", borderRadius: "50%", border: "2px solid #d0ac56" }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: "50%",
+                            border: "2px solid #d0ac56",
+                            display: "grid",
+                            placeItems: "center",
+                            fontSize: 18,
+                          }}
+                        >
+                          ?
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 21, fontWeight: 700, marginBottom: 10 }}>
+                  {card.champs.map((c) => c.champion).join(" & ")}
+                </div>
+                <Link href={`#${titleAnchor}`} style={{ color: "#d0ac56", fontSize: 12, textDecoration: "none" }}>
+                  Title History
+                </Link>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section style={{ marginTop: 16, marginBottom: 32 }}>
+        <h2 style={{ margin: "0 0 14px 0", fontSize: 40, letterSpacing: "-0.01em" }}>TITLE HISTORY</h2>
+        <div className="wrestlers-page-champs-grid">
+          {historyCards.map((card) => {
+            const beltImageUrl = getBeltImageUrlForTitle(card.title);
+            const titleAnchor = `title-${encodeURIComponent(card.title.toLowerCase().replace(/\s+/g, "-"))}`;
+            return (
+              <article
+                key={card.title}
+                id={titleAnchor}
+                style={{ background: "#111317", color: "#f5f5f5", border: "1px solid #2d3138", borderRadius: 4, padding: 12 }}
+              >
+                <h3 style={{ margin: "0 0 8px 0", fontSize: 17, color: "#d0ac56" }}>{card.title}</h3>
+                {beltImageUrl && (
+                  <img
+                    src={beltImageUrl}
+                    alt={card.title}
+                    style={{ width: "100%", maxWidth: 210, height: 52, objectFit: "contain", marginBottom: 8 }}
+                  />
+                )}
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.4 }}>
+                  {card.items.slice(0, 8).map((h) => (
+                    <li key={`${card.title}-${h.championSlug}-${h.wonDate}`}>
+                      {h.champion} ({displayDate(h.wonDate)}{h.lostDate ? ` - ${displayDate(h.lostDate)}` : " - Present"})
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ margin: "0 0 12px 0", fontSize: 40, letterSpacing: "-0.01em" }}>WRESTLERS</h2>
       </section>
 
       {error && (

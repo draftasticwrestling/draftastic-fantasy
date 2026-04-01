@@ -37,7 +37,8 @@ function getActivePrimary(pathname: string, slug: string): string | null {
   if (rest === "standings" || rest === "roster-changes") return "league";
   if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info") return "my-team";
   if (rest === "") return "league";
-  if (rest === "wrestlers" || rest === "league-leaders" || rest === "injury-report" || rest === "stat-corrections") return "wrestlers";
+  if (rest === "wrestlers" || rest === "league-leaders" || rest === "stat-corrections") return "wrestlers";
+  if (rest === "injury-report") return "league";
   if (rest === "matchups") return "matchups";
   if (rest === "ple") return "ple";
   if (rest === "draft" || rest === "draft-history" || rest === "draft-settings") return "draft";
@@ -206,6 +207,9 @@ export default function Nav() {
     : currentLeagueSlug
       ? `/leagues/${currentLeagueSlug}/team`
       : "#";
+  const fantasyHref = user
+    ? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "/leagues/new")
+    : "/auth/sign-in";
 
   const myTeamSub = currentLeagueSlug
     ? [
@@ -220,6 +224,7 @@ export default function Nav() {
         { href: `/leagues/${currentLeagueSlug}`, label: "League" },
         { href: `/leagues/${currentLeagueSlug}/standings`, label: "Standings" },
         { href: `/leagues/${currentLeagueSlug}/roster-changes`, label: "Transactions" },
+        { href: `/leagues/${currentLeagueSlug}/injury-report`, label: "Injury Report" },
         { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
       ]
     : [];
@@ -242,7 +247,6 @@ export default function Nav() {
     ? [
         { href: `/leagues/${currentLeagueSlug}/wrestlers/league-leaders`, label: "League Leaders" },
         { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
-        { href: `/leagues/${currentLeagueSlug}/injury-report`, label: "Injury Report" },
         { href: `/leagues/${currentLeagueSlug}/stat-corrections`, label: "Stat Corrections" },
       ]
     : [];
@@ -266,15 +270,7 @@ export default function Nav() {
           <Link href="/news" className="nav-top-link">News</Link>
           <Link href="/event-results" className="nav-top-link">Results</Link>
           <Link href="/wrestlers" className="nav-top-link">Wrestlers</Link>
-          <Link href="/how-it-works" className="nav-top-link">How It Works</Link>
           <Link href="/about-us" className="nav-top-link">About Us</Link>
-          <Link href="/contact-us" className="nav-top-link">Contact Us</Link>
-          <Link href="/leagues/new" className="nav-top-cta">
-            +Create a League
-          </Link>
-          <Link href="/fantasy" className="nav-fantasy-pill">
-            Fantasy
-          </Link>
         </nav>
 
         <button
@@ -295,6 +291,12 @@ export default function Nav() {
           {user ? (
             <div className="nav-header-actions-inner">
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Link href={fantasyHref} className="nav-fantasy-pill">
+                  Fantasy
+                </Link>
+                <Link href="/how-it-works" className="nav-top-link">
+                  How It Works
+                </Link>
                 <div className="nav-dropdown-wrap" ref={adminRef}>
                   <button
                     type="button"
@@ -327,7 +329,8 @@ export default function Nav() {
           ) : (
             <>
               <Link href="/" className="nav-header-link">Home</Link>
-              <Link href="/fantasy" className="nav-header-link">Fantasy</Link>
+              <Link href={fantasyHref} className="nav-fantasy-pill">Fantasy</Link>
+              <Link href="/how-it-works" className="nav-top-link">How It Works</Link>
               <Link href="/auth/sign-in" className="nav-header-link">Sign in</Link>
               <Link href="/auth/sign-up" className="nav-header-cta">Sign up</Link>
             </>
@@ -345,9 +348,6 @@ export default function Nav() {
             <Link href="/" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               Home
             </Link>
-            <Link href="/fantasy" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
-              Fantasy
-            </Link>
             <Link href="/news" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               News
             </Link>
@@ -357,23 +357,20 @@ export default function Nav() {
             <Link href="/wrestlers" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               Wrestlers
             </Link>
+            <Link href="/about-us" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              About Us
+            </Link>
+            <Link href={fantasyHref} className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              Fantasy
+            </Link>
+            <Link href="/how-it-works" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              How It Works
+            </Link>
             {ADMIN_LINKS.map(({ href, label }) => (
               <Link key={href} href={href} className="nav-mobile-panel-link" onClick={closeMobileMenu}>
                 {label}
               </Link>
             ))}
-            <Link href="/leagues/new" className="nav-mobile-panel-cta" onClick={closeMobileMenu}>
-              +Create a League
-            </Link>
-            <Link href="/how-it-works" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
-              How It Works
-            </Link>
-            <Link href="/about-us" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
-              About Us
-            </Link>
-            <Link href="/contact-us" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
-              Contact Us
-            </Link>
           </nav>
           <div className="nav-mobile-panel-actions">
             {user ? (
@@ -458,13 +455,6 @@ export default function Nav() {
                             {l.role === "commissioner" ? " (GM)" : ""}
                           </Link>
                         ))}
-                        <Link
-                          href="/leagues/new"
-                          className="nav-dropdown-panel-new"
-                          onClick={() => setLeagueSwitcherOpen(false)}
-                        >
-                          + Start Another League
-                        </Link>
                       </div>,
                       document.body
                     )}
@@ -491,7 +481,7 @@ export default function Nav() {
                   href={wrestlersSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers/league-leaders` : "#")}
                   className={`nav-primary-link ${activePrimary === "wrestlers" ? "is-active" : ""}`}
                 >
-                  Wrestlers
+                  Statistics
                 </Link>
               </li>
               {currentLeague?.league_type !== "season_overall" && (
@@ -530,9 +520,9 @@ export default function Nav() {
                   </Link>
                 </li>
               )}
-              <li className="nav-primary-item-start-another">
-                <Link href="/leagues/new" className="nav-primary-link">
-                  +Start Another League
+              <li className="nav-primary-item-create-league">
+                <Link href="/leagues/new" className="nav-primary-link nav-primary-link-create">
+                  +Create a League
                 </Link>
               </li>
             </ul>

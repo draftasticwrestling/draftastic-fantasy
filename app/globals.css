@@ -424,7 +424,7 @@ body > .site-footer {
   flex-shrink: 0;
 }
 
-.nav-primary-item-start-another {
+.nav-primary-item-create-league {
   margin-left: auto;
 }
 
@@ -449,6 +449,21 @@ body > .site-footer {
 .nav-primary-link.is-active {
   color: var(--color-blue);
   border-bottom-color: var(--color-blue);
+}
+
+.nav-primary-link-create {
+  color: var(--color-text-inverse);
+  background: var(--color-blue);
+  border-radius: var(--radius-sm);
+  border-bottom: none;
+  margin: 6px 0;
+  padding: 8px 12px;
+  min-height: 32px;
+}
+
+.nav-primary-link-create:hover {
+  color: var(--color-text-inverse);
+  background: var(--color-blue-hover);
 }
 
 .nav-secondary-wrap {
@@ -922,6 +937,18 @@ body > .site-footer {
 .wrestlers-subnav-link.is-active {
   color: var(--color-blue);
   border-bottom-color: var(--color-red);
+}
+
+/* Public /wrestlers page: championship grids — four columns on wide screens so rows read 4+4+3 */
+.wrestlers-page-champs-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+@media (min-width: 1100px) {
+  .wrestlers-page-champs-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 /* Wrestler table: sortable column affordance */
