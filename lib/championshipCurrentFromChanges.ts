@@ -9,16 +9,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { getTagTeamMemberSlugs, parseTagTeamChampionToMemberSlugs } from "@/lib/scoring/tagTeamMembers.js";
 
-const CHANGES_TABLE = process.env.CHAMPIONSHIP_CHANGES_TABLE ?? "championship_changes";
+/** Supabase table for title changes (synced from Boxscore). Used for UI + inferring reigns for scoring. */
+export const CHAMPIONSHIP_CHANGES_TABLE_NAME =
+  process.env.CHAMPIONSHIP_CHANGES_TABLE ?? "championship_changes";
 
 /** Map championship_type (e.g. wwe-championship) to display title name. */
-const TYPE_TO_TITLE: Record<string, string> = {
+export const CHAMPIONSHIP_TYPE_TO_TITLE: Record<string, string> = {
   "wwe-championship": "Undisputed WWE Championship",
   "world-heavyweight-championship": "World Heavyweight Championship",
   "womens-world-championship": "Women's World Championship",
   "wwe-womens-championship": "WWE Women's Championship",
   "intercontinental-championship": "Intercontinental Championship",
   "womens-intercontinental-championship": "Women's Intercontinental Championship",
+  /** Boxscore URL slug / short type (see prowrestlingboxscore.com/championship/womens-ic-championship) */
+  "womens-ic-championship": "Women's Intercontinental Championship",
   "united-states-championship": "United States Championship",
   "womens-united-states-championship": "Women's United States Championship",
   "world-tag-team-championship": "World Tag Team Championship",
@@ -49,7 +53,7 @@ export async function getCurrentChampionsFromChanges(
 ): Promise<Record<string, CurrentChampionFromChanges>> {
   type Row = { championship_type?: string | null; champion?: string | null; champion_slug?: string | null; date?: string | null };
   const { data: rows, error } = await db
-    .from(CHANGES_TABLE)
+    .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
     .select("championship_type, champion, champion_slug, date")
     .order("date", { ascending: false });
 
@@ -68,7 +72,9 @@ export async function getCurrentChampionsFromChanges(
 
   const result: Record<string, CurrentChampionFromChanges> = {};
   for (const [typeKey, { champion, champion_slug, date }] of byType) {
-    const title = TYPE_TO_TITLE[typeKey] ?? typeKey.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const title =
+      CHAMPIONSHIP_TYPE_TO_TITLE[typeKey] ??
+      typeKey.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     const slugKey = champion_slug ? normalizeWrestlerName(champion_slug) : normalizeWrestlerName(champion);
     if (!slugKey) continue;
     const entry: CurrentChampionFromChanges = { title, wonDate: date };
@@ -91,4 +97,92 @@ export async function getCurrentChampionsFromChanges(
     }
   }
   return result;
+}
+
+export type ChampionshipChangeRow = {
+  championship_type?: string | null;
+  champion?: string | null;
+  champion_slug?: string | null;
+  date?: string | null;
+};
+
+/**
+ * Build reign-shaped rows from the full championship_changes timeline so mergeReigns + monthly
+ * belt scoring see the same title lineage the site uses for "current champion" UI when
+ * championship_history is incomplete or slug-mismatched.
+ */
+export function inferReignsFromChampionshipChanges(rows: ChampionshipChangeRow[]) {
+  if (!rows?.length) return [];
+
+  const byType = new Map<string, ChampionshipChangeRow[]>();
+  for (const r of rows) {
+    const t = (r.championship_type ?? "").toString().trim().toLowerCase();
+    if (!t) continue;
+    if (!byType.has(t)) byType.set(t, []);
+    byType.get(t)!.push(r);
+  }
+
+  /** Shape compatible with mergeReigns second argument (event-inferred reign rows). */
+  const out: Array<{
+    champion_slug: string | null;
+    champion_id: string | null;
+    champion: string;
+    champion_name: string;
+    title: string;
+    title_name: string;
+    won_date: string;
+    start_date: string;
+    lost_date: string | null;
+    end_date: string | null;
+  }> = [];
+
+  for (const [typeKey, list] of byType) {
+    const sorted = [...list].sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+    const deduped: ChampionshipChangeRow[] = [];
+    for (const r of sorted) {
+      const slug = (r.champion_slug ?? "").toString().trim();
+      const nm = (r.champion ?? "").toString().trim();
+      const key = slug ? normalizeWrestlerName(slug) : normalizeWrestlerName(nm);
+      const prev = deduped[deduped.length - 1];
+      if (prev) {
+        const ps = (prev.champion_slug ?? "").toString().trim();
+        const pn = (prev.champion ?? "").toString().trim();
+        const pkey = ps ? normalizeWrestlerName(ps) : normalizeWrestlerName(pn);
+        if (pkey && pkey === key) continue;
+      }
+      deduped.push(r);
+    }
+
+    const title =
+      CHAMPIONSHIP_TYPE_TO_TITLE[typeKey] ??
+      typeKey.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+    for (let i = 0; i < deduped.length; i++) {
+      const row = deduped[i]!;
+      const next = deduped[i + 1];
+      const won = (row.date ?? "").toString().slice(0, 10);
+      if (!won) continue;
+      const lost = next ? (next.date ?? "").toString().slice(0, 10) : null;
+      const rawSlug = (row.champion_slug ?? "").toString().trim() || null;
+      const namePart = (row.champion ?? "").toString().trim();
+      const champion =
+        namePart ||
+        (rawSlug ? rawSlug.replace(/-/g, " ") : "") ||
+        "Unknown";
+      out.push({
+        champion_slug: rawSlug,
+        champion_id: rawSlug,
+        champion,
+        champion_name: champion,
+        title,
+        title_name: title,
+        won_date: won,
+        start_date: won,
+        lost_date: lost,
+        end_date: lost,
+      });
+    }
+  }
+
+  return out;
 }

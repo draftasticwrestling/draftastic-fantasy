@@ -21,6 +21,7 @@ import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.j
 import {
   computeEndOfMonthBeltPoints,
   FIRST_END_OF_MONTH_POINTS_DATE,
+  firstMonthEndOnOrAfter,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
@@ -30,7 +31,11 @@ import {
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import { factionDisplayName } from "@/lib/factionName";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
-import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
+import {
+  CHAMPIONSHIP_CHANGES_TABLE_NAME,
+  getCurrentChampionsFromChanges,
+  inferReignsFromChampionshipChanges,
+} from "@/lib/championshipCurrentFromChanges";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
@@ -51,14 +56,6 @@ function isFullBodyImageUrl(url: string | null): boolean {
 export const dynamic = "force-dynamic";
 
 const EVENTS_FROM_DATE = "2020-01-01";
-
-function firstMonthEndOnOrAfter(startDate: string): string {
-  const d = new Date(startDate + "T12:00:00");
-  const year = d.getFullYear();
-  const month = d.getMonth();
-  const lastDay = new Date(year, month + 1, 0);
-  return lastDay.toISOString().slice(0, 10);
-}
 
 function filterEventsByPeriod(
   events: { id: string; name: string | null; date: string | null; matches: unknown }[],
@@ -253,21 +250,29 @@ export default async function WrestlerProfilePage({
   // Monthly belt points and title reigns display always from Jan 2025 so all profiles show/count Jan 2025 onward
   const firstMonthEndForBelt = FIRST_END_OF_MONTH_POINTS_DATE;
 
-  const [reignsResult, currentFromTable, currentFromChanges] = await Promise.all([
+  const [reignsResult, changeRowsResult, currentFromTable, currentFromChanges] = await Promise.all([
     db
       .from("championship_history")
       .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
+    db
+      .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
+      .select("championship_type, champion, champion_slug, date")
+      .order("date", { ascending: true }),
     getCurrentChampionsFromChampionshipsTable(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
     getCurrentChampionsFromChanges(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
   ]);
   const { data: rawReigns } = reignsResult;
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
-  const eventsWithDate = (events ?? []).filter((e): e is typeof e & { date: string } => e.date != null);
+  const changeRows = changeRowsResult.error ? [] : (changeRowsResult.data ?? []);
+  const changesReigns = inferReignsFromChampionshipChanges(changeRows);
+  // Belt / reign merge: use full event history (same idea as league scoring), not period-filtered `events`,
+  // so monthly belt and current-title logic match when viewing "since league start".
+  const eventsWithDateForBelt = (allEvents ?? []).filter((e): e is typeof e & { date: string } => e.date != null);
   const inferredReigns = inferReignsFromEvents(
-    eventsWithDate as { date: string; matches?: Array<{ title?: string; titleOutcome?: string; result?: string; participants?: string }> }[]
+    eventsWithDateForBelt as { date: string; matches?: Array<{ title?: string; titleOutcome?: string; result?: string; participants?: string }> }[]
   );
-  const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
+  const reigns = mergeReigns(tableReigns, [...inferredReigns, ...changesReigns]) as ChampionshipReign[];
 
   const pointsBySlug = aggregateWrestlerPoints(
     (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
@@ -277,8 +282,13 @@ export default async function WrestlerProfilePage({
   );
   const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, firstMonthEndForBelt);
   const nameKey = wrestler.name ? normalizeWrestlerName(wrestler.name) : "";
-  const extraBelt = getMonthlyBeltForWrestler(endOfMonthBySlug, wrestler.id, nameKey)
-    || (slug && slug !== wrestler.id ? getMonthlyBeltForWrestler(endOfMonthBySlug, slug, nameKey) : 0);
+  const extraBelt = getMonthlyBeltForWrestler(
+    endOfMonthBySlug,
+    wrestler.id,
+    wrestler.name ?? undefined,
+    undefined,
+    slug && slug !== wrestler.id ? [slug] : []
+  );
 
   const pointsById = getPointsForWrestler(pointsBySlug, wrestler.id, nameKey);
   const pointsBySlugParam = slug && slug !== wrestler.id ? getPointsForWrestler(pointsBySlug, slug, nameKey) : pointsById;

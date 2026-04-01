@@ -41,6 +41,31 @@ const WRESTLEMANIA_NIGHTS: WmNight[] = [
         projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
       },
       {
+        label: "Unsanctioned match: Drew McIntyre vs. Jacob Fatu",
+        participantSlugs: ["drew-mcintyre", "jacob-fatu"],
+        projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
+      },
+      {
+        label: "Seth Rollins vs. Gunther",
+        participantSlugs: ["seth-rollins", "gunther"],
+        projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
+      },
+      {
+        label:
+          "Women's Tag Team Championship — fatal 4-way: The Irresistible Forces (Nia Jax & Lash Legend) vs. The Bella Twins (Nikki Bella & Brie Bella) vs. Allies of Convenience (Charlotte Flair & Alexa Bliss) vs. Bayley & Lyra Valkyria",
+        participantSlugs: [
+          "nia-jax",
+          "lash-legend",
+          "nikki-bella",
+          "brie-bella",
+          "charlotte-flair",
+          "alexa-bliss",
+          "bayley",
+          "lyra-valkyria",
+        ],
+        projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
+      },
+      {
         label: "Night 1 main event — Undisputed WWE Championship: Cody Rhodes vs. Randy Orton",
         participantSlugs: ["cody-rhodes", "randy-orton"],
         projectedPts: WM_NIGHT1_MAIN_EVENT_APPEARANCE_PTS,
@@ -58,6 +83,22 @@ const WRESTLEMANIA_NIGHTS: WmNight[] = [
       {
         label: "WWE Women's Championship: Jade Cargill vs. Rhea Ripley",
         participantSlugs: ["jade-cargill", "rhea-ripley"],
+        projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
+      },
+      {
+        label: "Dominik Mysterio vs. Finn Bálor",
+        participantSlugs: ["dominik-mysterio", "finn-balor"],
+        projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
+      },
+      {
+        label:
+          "Men's Intercontinental Championship — ladder match: Penta vs. Rusev vs. Je'Von Evans vs. Dragon Lee vs. JD McDonagh",
+        participantSlugs: ["penta", "rusev", "jevon-evans", "dragon-lee", "jd-mcdonagh"],
+        projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
+      },
+      {
+        label: "Men's United States Championship: Sami Zayn vs. Trick Williams",
+        participantSlugs: ["sami-zayn", "trick-williams"],
         projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
       },
       {

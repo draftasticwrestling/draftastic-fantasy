@@ -3,14 +3,27 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { getDefaultStartEndForSeason } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
-import { eventPointsForRosterStint } from "@/lib/scoring/rosterStintEventPoints";
+import { eventPointsForRosterStint, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
+import {
+  BELT_REIGN_INFERENCE_EVENTS_FROM,
+  computeEndOfMonthBeltPointsForSingleMonth,
+  firstMonthEndOnOrAfter,
+  getCompletedMonthEndsForBeltScoring,
+  inferReignsFromEvents,
+  mergeReigns,
+} from "@/lib/scoring/endOfMonthBeltPoints.js";
 import {
   compareStintsForEventTieBreak,
   rosterStintActiveForEvent,
+  rosterStintActiveForMonthEndBelt,
 } from "@/lib/scoring/rosterStintEventWindow";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 import { validateFactionNameForSave } from "@/lib/factionName";
 import { validateFactionEmojiForSave } from "@/lib/factionEmoji";
+import {
+  CHAMPIONSHIP_CHANGES_TABLE_NAME,
+  inferReignsFromChampionshipChanges,
+} from "@/lib/championshipCurrentFromChanges";
 
 export type DraftType = "offline" | "linear" | "snake" | "autopick";
 export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
@@ -845,6 +858,12 @@ export async function removeWrestlerFromRoster(
 
 export type PointsBySlug = Record<string, { rsPoints: number; plePoints: number; beltPoints: number }>;
 
+/** Last calendar day (UTC) of the month containing YYYY-MM-DD. */
+function utcLastDayOfMonthContaining(ymd: string): string {
+  const d = new Date(ymd.slice(0, 10) + "T12:00:00.000Z");
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+}
+
 /**
  * Load events in league date range and return points per wrestler slug and per owner.
  * Owner points use acquisition/release windows: only count event points when
@@ -924,6 +943,9 @@ export async function getLeagueScoring(
   const sortedEvents = [...filtered].sort((a, b) =>
     String(a.date ?? "").localeCompare(String(b.date ?? ""))
   );
+  const useBroadcastForMonthlyBelt = sortedEvents.some(
+    (e) => !!(e as { broadcast_start_ts?: string | null }).broadcast_start_ts
+  );
   for (const event of sortedEvents) {
     const eventDate = (event.date ?? "").toString().slice(0, 10);
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
@@ -1000,6 +1022,63 @@ export async function getLeagueScoring(
       }
     }
   }
+
+  // End-of-month WWE/UAE title holder points: credit the manager who had the wrestler on roster on that month-end (same idea as matchups weekly bonus).
+  try {
+    const [histResult, changesResult] = await Promise.all([
+      supabase
+        .from("championship_history")
+        .select(
+          "champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date"
+        )
+        .order("won_date", { ascending: true }),
+      supabase
+        .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
+        .select("championship_type, champion, champion_slug, date")
+        .order("date", { ascending: true }),
+    ]);
+    const histRows = histResult.data;
+    const changesRows = changesResult.error ? [] : (changesResult.data ?? []);
+    const leagueEndYmd = end ? String(end).slice(0, 10) : "";
+    const eventsForBeltReignInference = (events ?? []).filter((e) => {
+      const d = (e.date ?? "").toString().slice(0, 10);
+      if (!d || d < BELT_REIGN_INFERENCE_EVENTS_FROM) return false;
+      if (leagueEndYmd && d > leagueEndYmd) return false;
+      return true;
+    });
+    const inferredReigns = inferReignsFromEvents(eventsForBeltReignInference);
+    const changesReigns = inferReignsFromChampionshipChanges(changesRows);
+    const reigns = mergeReigns(histRows ?? [], [...inferredReigns, ...changesReigns]);
+    const beltFirstMonth = firstMonthEndOnOrAfter(start);
+    const lastMonthCap = end ? utcLastDayOfMonthContaining(String(end).slice(0, 10)) : undefined;
+    const today = new Date().toISOString().slice(0, 10);
+    const monthEnds = getCompletedMonthEndsForBeltScoring(beltFirstMonth, lastMonthCap);
+    for (const monthEnd of monthEnds) {
+      if (monthEnd >= today) continue;
+      const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(reigns, monthEnd, beltFirstMonth);
+      for (const stint of stints) {
+        if (
+          !rosterStintActiveForMonthEndBelt({
+            stint,
+            monthEndYmd: monthEnd,
+            useBroadcastStart: useBroadcastForMonthlyBelt,
+          })
+        ) {
+          continue;
+        }
+        const name = wrestlerDisplayNames[stint.wrestler_id];
+        const pts = sumMonthlyBeltPointsForStint(beltBySlug, stint.wrestler_id, name, monthEnd);
+        if (pts <= 0) continue;
+        pointsByOwner[stint.user_id] = (pointsByOwner[stint.user_id] ?? 0) + pts;
+        if (!pointsByOwnerByWrestler[stint.user_id]) pointsByOwnerByWrestler[stint.user_id] = {};
+        pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] =
+          (pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] ?? 0) + pts;
+      }
+    }
+  } catch {
+    /* championship_history may be missing in some envs */
+  }
+
   return { pointsBySlug, pointsByOwner, pointsByOwnerByWrestler };
 }
 

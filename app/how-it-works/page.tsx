@@ -49,10 +49,10 @@ const MENS_BELT_KEYS: BeltKey[] = [
   "tag-team-mens",
 ];
 const TITLE_POINTS_MENS = [
-  { name: "Undisputed WWE Champion", points: 10 },
-  { name: "Heavy Weight Champion", points: 10 },
+  { name: "Undisputed WWE Champion", points: 12 },
+  { name: "Heavy Weight Champion", points: 12 },
   { name: "Intercontinental Champion", points: 8 },
-  { name: "US Champion", points: 7 },
+  { name: "US Champion", points: 8 },
   { name: "Tag Team Champion (Per Member)", points: 4 },
 ];
 
@@ -88,10 +88,10 @@ const beltWrapStyle = {
 };
 
 const TITLE_POINTS_WOMENS = [
-  { name: "WWE Women's Champion", points: 10 },
-  { name: "Women's World Champion", points: 10 },
+  { name: "WWE Women's Champion", points: 12 },
+  { name: "Women's World Champion", points: 12 },
   { name: "Intercontinental Champion", points: 8 },
-  { name: "US Champion", points: 7 },
+  { name: "US Champion", points: 8 },
   { name: "Tag Team Champion (Per Member)", points: 4 },
 ];
 

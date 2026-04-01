@@ -1,15 +1,22 @@
 import { createClient } from "@/lib/supabase/server";
 import { getRosterStintsForLeague, getLeagueScoring, getWrestlerDisplayNamesByIds } from "@/lib/leagues";
 import { getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
-import { eventPointsForRosterStint } from "@/lib/scoring/rosterStintEventPoints";
-import { rosterStintActiveForEvent } from "@/lib/scoring/rosterStintEventWindow";
+import { eventPointsForRosterStint, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
+import { rosterStintActiveForEvent, rosterStintActiveForMonthEndBelt } from "@/lib/scoring/rosterStintEventWindow";
 import { getWeeklyMatchupStructure } from "@/lib/publicLeagueMatchups";
 import {
+  BELT_REIGN_INFERENCE_EVENTS_FROM,
   computeEndOfMonthBeltPointsForSingleMonth,
   inferReignsFromEvents,
   mergeReigns,
   FIRST_END_OF_MONTH_POINTS_DATE,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+
+const BELT_REIGN_INFERENCE_EVENTS_LIMIT = 10000;
+import {
+  CHAMPIONSHIP_CHANGES_TABLE_NAME,
+  inferReignsFromChampionshipChanges,
+} from "@/lib/championshipCurrentFromChanges";
 
 /** Monday of the week containing the given date (YYYY-MM-DD). Weeks are Monday–Sunday. */
 export function getMondayOfWeek(dateStr: string): string {
@@ -28,7 +35,7 @@ export function getSundayOfWeek(weekStart: string): string {
 }
 
 /** Last day of month that falls within [weekStart, weekEnd], or null. */
-function getMonthEndInWeek(weekStart: string, weekEnd: string): string | null {
+export function getMonthEndInWeek(weekStart: string, weekEnd: string): string | null {
   const fromStart = getLastDayOfMonthContaining(weekStart);
   if (fromStart >= weekStart && fromStart <= weekEnd) return fromStart;
   const fromEnd = getLastDayOfMonthContaining(weekEnd);
@@ -288,6 +295,7 @@ export async function getLeagueWeeklyMatchups(
     end_date?: string | null;
   }> = [];
   let firstEligibleMonthEnd = FIRST_END_OF_MONTH_POINTS_DATE;
+  let useBroadcastForMonthlyBelt = false;
 
   if (includeMonthlyBeltInMatchup) {
     const lastDayOfStartMonth = getLastDayOfMonthContaining(start);
@@ -296,18 +304,44 @@ export async function getLeagueWeeklyMatchups(
         ? lastDayOfStartMonth
         : FIRST_END_OF_MONTH_POINTS_DATE;
 
-    const [{ data: tableReigns }, { data: eventsInRange }] = await Promise.all([
+    const [{ data: tableReigns }, eventsRes, changesRes] = await Promise.all([
       supabase.from("championship_history").select("*"),
       supabase
         .from("events")
-        .select("id, name, date, matches")
+        .select("id, name, date, matches, broadcast_start_ts")
         .eq("status", "completed")
-        .gte("date", start)
+        .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .lte("date", end)
+        .order("date", { ascending: true })
+        .limit(BELT_REIGN_INFERENCE_EVENTS_LIMIT),
+      supabase
+        .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
+        .select("championship_type, champion, champion_slug, date")
         .order("date", { ascending: true }),
     ]);
-    const inferredReigns = inferReignsFromEvents(eventsInRange ?? []);
-    reigns = mergeReigns(tableReigns ?? [], inferredReigns) as typeof reigns;
+    type EventRowForReignInference = Parameters<typeof inferReignsFromEvents>[0][number];
+    let eventsInRange = (eventsRes.data ?? []) as EventRowForReignInference[];
+    if (
+      eventsRes.error &&
+      /column.*broadcast_start_ts does not exist/i.test(eventsRes.error.message ?? "")
+    ) {
+      const { data: ev2 } = await supabase
+        .from("events")
+        .select("id, name, date, matches")
+        .eq("status", "completed")
+        .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
+        .lte("date", end)
+        .order("date", { ascending: true })
+        .limit(BELT_REIGN_INFERENCE_EVENTS_LIMIT);
+      eventsInRange = (ev2 ?? []) as EventRowForReignInference[];
+    }
+    useBroadcastForMonthlyBelt = (eventsInRange as Array<{ broadcast_start_ts?: string | null }>).some(
+      (e) => !!e.broadcast_start_ts
+    );
+    const changesRows = changesRes.error ? [] : (changesRes.data ?? []);
+    const changesReigns = inferReignsFromChampionshipChanges(changesRows);
+    const inferredReigns = inferReignsFromEvents(eventsInRange);
+    reigns = mergeReigns(tableReigns ?? [], [...inferredReigns, ...changesReigns]) as typeof reigns;
   }
 
   const weeks = getWeeksInRange(start, end);
@@ -315,6 +349,10 @@ export async function getLeagueWeeklyMatchups(
   let beltHolder: string | null = null;
   const today = new Date().toISOString().slice(0, 10);
   const stints = includeMonthlyBeltInMatchup ? await getRosterStintsForLeague(leagueId) : [];
+  const monthlyBeltNameByWrestler =
+    includeMonthlyBeltInMatchup && stints.length > 0
+      ? await getWrestlerDisplayNamesByIds([...new Set(stints.map((s) => s.wrestler_id))])
+      : {};
 
   for (const weekStart of weeks) {
     const weekEnd = getSundayOfWeek(weekStart);
@@ -322,10 +360,11 @@ export async function getLeagueWeeklyMatchups(
 
     if (includeMonthlyBeltInMatchup && reigns.length > 0) {
       const monthEndInWeek = getMonthEndInWeek(weekStart, weekEnd);
+      // Award only after the month has ended (holder as of last day of month); not on the month-end date itself.
       if (
         monthEndInWeek &&
         monthEndInWeek >= firstEligibleMonthEnd &&
-        monthEndInWeek <= today
+        monthEndInWeek < today
       ) {
         const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(
           reigns,
@@ -333,9 +372,21 @@ export async function getLeagueWeeklyMatchups(
           firstEligibleMonthEnd
         );
         for (const s of stints) {
-          if (s.acquired_at > monthEndInWeek) continue;
-          if (s.released_at != null && s.released_at <= monthEndInWeek) continue;
-          const pts = beltBySlug[s.wrestler_id] ?? 0;
+          if (
+            !rosterStintActiveForMonthEndBelt({
+              stint: s,
+              monthEndYmd: monthEndInWeek,
+              useBroadcastStart: useBroadcastForMonthlyBelt,
+            })
+          ) {
+            continue;
+          }
+          const pts = sumMonthlyBeltPointsForStint(
+            beltBySlug,
+            s.wrestler_id,
+            monthlyBeltNameByWrestler[s.wrestler_id],
+            monthEndInWeek
+          );
           if (pts > 0) {
             pointsByUserId[s.user_id] =
               (pointsByUserId[s.user_id] ?? 0) + pts;
@@ -403,7 +454,7 @@ export async function getMonthlyBeltBySlugForWeek(
   const weekEndSunday = getSundayOfWeek(weekStartMonday);
   const today = new Date().toISOString().slice(0, 10);
   const monthEndInWeek = getMonthEndInWeek(weekStartMonday, weekEndSunday);
-  if (!monthEndInWeek || monthEndInWeek > today) return {};
+  if (!monthEndInWeek || monthEndInWeek >= today) return {};
 
   const supabase = await createClient();
   const { data: league } = await supabase
@@ -427,18 +478,25 @@ export async function getMonthlyBeltBySlugForWeek(
       : FIRST_END_OF_MONTH_POINTS_DATE;
   if (monthEndInWeek < firstEligibleMonthEnd) return {};
 
-  const [{ data: tableReigns }, { data: eventsInRange }] = await Promise.all([
+  const [{ data: tableReigns }, { data: eventsInRange }, changesRes] = await Promise.all([
     supabase.from("championship_history").select("*"),
     supabase
       .from("events")
       .select("id, name, date, matches")
       .eq("status", "completed")
-      .gte("date", start)
+      .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
       .lte("date", end)
+      .order("date", { ascending: true })
+      .limit(BELT_REIGN_INFERENCE_EVENTS_LIMIT),
+    supabase
+      .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
+      .select("championship_type, champion, champion_slug, date")
       .order("date", { ascending: true }),
   ]);
+  const changesRows = changesRes.error ? [] : (changesRes.data ?? []);
+  const changesReigns = inferReignsFromChampionshipChanges(changesRows);
   const inferredReigns = inferReignsFromEvents(eventsInRange ?? []);
-  const reigns = mergeReigns(tableReigns ?? [], inferredReigns) as Array<{
+  const reigns = mergeReigns(tableReigns ?? [], [...inferredReigns, ...changesReigns]) as Array<{
     champion_slug?: string | null;
     champion_id?: string | null;
     champion?: string | null;

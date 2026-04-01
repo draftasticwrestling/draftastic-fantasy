@@ -5,6 +5,7 @@ import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/agg
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
+  firstMonthEndOnOrAfter,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
@@ -17,14 +18,6 @@ const ADMIN_SINCE_DATE = "2025-01-01";
 /** Match profile: all-time uses events from this date; high limit so we don't hit Supabase 1k default. */
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 10000;
-
-function firstMonthEndOnOrAfter(startDate: string): string {
-  const d = new Date(startDate + "T12:00:00");
-  const year = d.getFullYear();
-  const month = d.getMonth();
-  const lastDay = new Date(year, month + 1, 0);
-  return lastDay.toISOString().slice(0, 10);
-}
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];

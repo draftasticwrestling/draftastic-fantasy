@@ -80,7 +80,8 @@ export default async function TeamScoreboardPage({ params }: Props) {
       <section>
         <h2 style={{ fontSize: "1.05rem", marginBottom: 10 }}>Point-by-point ledger</h2>
         <p style={{ fontSize: 13, color: "#6b7280", marginTop: 0, marginBottom: 12 }}>
-          Every event contribution that counts toward this faction’s score.
+          Raw and SmackDown and PLE event contributions, plus end-of-month title-holder bonuses (dated on the last day
+          of the month, e.g. 2026-03-31).
         </p>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>

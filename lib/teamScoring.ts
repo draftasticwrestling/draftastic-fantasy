@@ -4,11 +4,24 @@ import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
-import { rosterStintMatchesContribSlug } from "@/lib/scoring/rosterStintEventPoints";
+import { rosterStintMatchesContribSlug, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import {
   compareStintsForEventTieBreak,
   rosterStintActiveForEvent,
+  rosterStintActiveForMonthEndBelt,
 } from "@/lib/scoring/rosterStintEventWindow";
+import {
+  BELT_REIGN_INFERENCE_EVENTS_FROM,
+  computeEndOfMonthBeltPointsForSingleMonth,
+  firstMonthEndOnOrAfter,
+  getCompletedMonthEndsForBeltScoring,
+  inferReignsFromEvents,
+  mergeReigns,
+} from "@/lib/scoring/endOfMonthBeltPoints.js";
+import {
+  CHAMPIONSHIP_CHANGES_TABLE_NAME,
+  inferReignsFromChampionshipChanges,
+} from "@/lib/championshipCurrentFromChanges";
 
 export type TeamScoreLedgerRow = {
   eventId: string;
@@ -50,6 +63,19 @@ const ZERO_POINTS: TeamWrestlerPoints = { total: 0, rsPoints: 0, plePoints: 0, b
 // In practice this yields a consistent +1 day drift for the events/league you're testing.
 // We apply a -1 day offset for stint window comparisons so points attribute to the intended event day.
 const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
+
+/** Last calendar day (UTC) of the month containing YYYY-MM-DD. */
+function utcLastDayOfMonthContaining(ymd: string): string {
+  const d = new Date(ymd.slice(0, 10) + "T12:00:00.000Z");
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+}
+
+/** e.g. 2026-03-31 → "March" (UTC). */
+function calendarMonthNameFromMonthEnd(monthEndYmd: string): string {
+  const [y, m] = monthEndYmd.slice(0, 10).split("-").map(Number);
+  if (!y || !m) return monthEndYmd;
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "long", timeZone: "UTC" });
+}
 
 function addPoints(target: TeamWrestlerPoints, src: TeamWrestlerPoints) {
   target.total += src.total;
@@ -152,6 +178,9 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
 
   const sortedEvents = [...filteredEvents].sort((a, b) =>
     String(a.date ?? "").localeCompare(String(b.date ?? ""))
+  );
+  const useBroadcastForMonthlyBelt = sortedEvents.some(
+    (e) => !!(e as { broadcast_start_ts?: string | null }).broadcast_start_ts
   );
 
   const totalsByWrestler: Record<string, TeamWrestlerPoints> = {};
@@ -294,6 +323,78 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       if (!stintPoints.has(key)) stintPoints.set(key, emptyPoints());
       addPoints(stintPoints.get(key)!, contribution.points);
     }
+  }
+
+  // End-of-month title-holder points: ledger rows dated last day of month, e.g. "Monthly Belt Points for March".
+  try {
+    const [histResult, changesResult] = await Promise.all([
+      supabase
+        .from("championship_history")
+        .select(
+          "champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date"
+        )
+        .order("won_date", { ascending: true }),
+      supabase
+        .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
+        .select("championship_type, champion, champion_slug, date")
+        .order("date", { ascending: true }),
+    ]);
+    const histRows = histResult.data;
+    const changesRows = changesResult.error ? [] : (changesResult.data ?? []);
+    const leagueEndYmd = leagueEnd ? String(leagueEnd).slice(0, 10) : "";
+    const eventsForBeltReignInference = (events ?? []).filter((e) => {
+      const d = String(e.date ?? "").slice(0, 10);
+      if (!d || d < BELT_REIGN_INFERENCE_EVENTS_FROM) return false;
+      if (leagueEndYmd && d > leagueEndYmd) return false;
+      return true;
+    });
+    const inferredReigns = inferReignsFromEvents(eventsForBeltReignInference);
+    const changesReigns = inferReignsFromChampionshipChanges(changesRows);
+    const reigns = mergeReigns(histRows ?? [], [...inferredReigns, ...changesReigns]);
+    const beltFirstMonth = firstMonthEndOnOrAfter(leagueStart);
+    const lastMonthCap = leagueEnd ? utcLastDayOfMonthContaining(leagueEnd) : undefined;
+    const today = new Date().toISOString().slice(0, 10);
+    const monthEnds = getCompletedMonthEndsForBeltScoring(beltFirstMonth, lastMonthCap);
+    for (const monthEnd of monthEnds) {
+      if (monthEnd >= today) continue;
+      const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(reigns, monthEnd, beltFirstMonth);
+      const monthName = calendarMonthNameFromMonthEnd(monthEnd);
+      const eventName = `Monthly Belt Points for ${monthName}`;
+      for (const pick of teamStints) {
+        if (
+          !rosterStintActiveForMonthEndBelt({
+            stint: pick,
+            monthEndYmd: monthEnd,
+            useBroadcastStart: useBroadcastForMonthlyBelt,
+          })
+        ) {
+          continue;
+        }
+        const name = wrestlerNameById[pick.wrestler_id];
+        const pts = sumMonthlyBeltPointsForStint(beltBySlug, pick.wrestler_id, name, monthEnd);
+        if (pts <= 0) continue;
+        const wrestlerId = pick.wrestler_id;
+        if (!totalsByWrestler[wrestlerId]) totalsByWrestler[wrestlerId] = emptyPoints();
+        const beltContrib: TeamWrestlerPoints = { total: pts, rsPoints: 0, plePoints: 0, beltPoints: pts };
+        addPoints(totalsByWrestler[wrestlerId]!, beltContrib);
+        ledgerRows.push({
+          eventId: `monthly-belt-${monthEnd}-${wrestlerId}`,
+          eventName,
+          eventDate: monthEnd,
+          wrestlerId,
+          points: pts,
+          rsPoints: 0,
+          plePoints: 0,
+          beltPoints: pts,
+          details: [],
+        });
+        const stintKey = `${pick.wrestler_id}::${pick.acquired_at}::${pick.released_at ?? ""}`;
+        if (!stintPoints.has(stintKey)) stintPoints.set(stintKey, emptyPoints());
+        addPoints(stintPoints.get(stintKey)!, beltContrib);
+      }
+    }
+  } catch {
+    /* championship_history may be missing */
   }
 
   const formerStints: FormerTeamStint[] = teamStints

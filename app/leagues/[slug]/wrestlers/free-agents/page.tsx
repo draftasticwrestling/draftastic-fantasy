@@ -7,6 +7,7 @@ import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/agg
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
+  firstMonthEndOnOrAfter,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
@@ -19,14 +20,6 @@ import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromCha
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import { isWrestlerStatsCacheUsable, loadWrestlerStatsCacheMaps } from "@/lib/wrestlerStatsCache";
-
-function firstMonthEndOnOrAfter(startDate: string): string {
-  const d = new Date(startDate + "T12:00:00");
-  const year = d.getFullYear();
-  const month = d.getMonth();
-  const lastDay = new Date(year, month + 1, 0);
-  return lastDay.toISOString().slice(0, 10);
-}
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];

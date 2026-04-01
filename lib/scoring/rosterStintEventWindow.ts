@@ -179,6 +179,33 @@ function personaAliasTieRank(stint: StintWithUser, contribSlug: string, eventDat
  * Broadcast mode: earliest acquired_at wins (team that had them first on the calendar).
  * Legacy: earlier effective release wins; if tie, earlier acquisition wins.
  */
+/** Same offset as league / team scoring for UTC roster date vs show calendar. */
+export const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
+
+/**
+ * True if this stint should receive end-of-month title-holder points for monthEndYmd
+ * (last calendar day of the month). Uses the same window logic as Raw/SmackDown/PLE events
+ * on that date so monthly belt does not disagree with event attribution.
+ */
+export function rosterStintActiveForMonthEndBelt(params: {
+  stint: RosterStintWindowInput;
+  monthEndYmd: string;
+  /** When any league event uses broadcast_start_ts, pass true so acquisition/release match that path. */
+  useBroadcastStart: boolean;
+}): boolean {
+  const { stint, monthEndYmd, useBroadcastStart } = params;
+  const eventMs = Date.parse(`${monthEndYmd}T23:59:59.999Z`);
+  if (!Number.isFinite(eventMs)) return false;
+  return rosterStintActiveForEvent({
+    eventDate: monthEndYmd,
+    eventMs,
+    useBroadcastStart,
+    broadcastStartMs: useBroadcastStart ? eventMs : undefined,
+    stint,
+    rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+  });
+}
+
 export function compareStintsForEventTieBreak(
   a: StintWithUser,
   b: StintWithUser,

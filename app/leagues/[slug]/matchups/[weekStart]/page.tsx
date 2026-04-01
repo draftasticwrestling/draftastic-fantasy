@@ -7,9 +7,11 @@ import {
   getLeagueWeeklyMatchups,
   getMatchupsForWeek,
   getSundayOfWeek,
+  getMonthEndInWeek,
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
 } from "@/lib/leagueMatchups";
+import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import { factionDisplayName } from "@/lib/factionName";
 
 type Props = { params: Promise<{ slug: string; weekStart: string }> };
@@ -56,6 +58,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   const weekMatchup = matchup;
 
   const weekEnd = getSundayOfWeek(weekStartDecoded);
+  const monthEndForMonthlyBelt = getMonthEndInWeek(weekStartDecoded, weekEnd);
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const teamLabel = (m: { team_name?: string | null; display_name?: string | null }) =>
     factionDisplayName(m, "Unknown");
@@ -121,7 +124,15 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                 const acq = e.acquired_at && e.acquired_at >= weekStartDecoded && e.acquired_at <= weekEnd ? formatShortDate(e.acquired_at) : null;
                 const drop = e.released_at && e.released_at >= weekStartDecoded && e.released_at <= weekEnd ? formatShortDate(e.released_at) : null;
                 const eventPts = byWrestler[e.wrestler_id] ?? 0;
-                const monthlyPts = monthlyBeltBySlug[e.wrestler_id] ?? 0;
+                const monthlyPts =
+                  monthEndForMonthlyBelt
+                    ? sumMonthlyBeltPointsForStint(
+                        monthlyBeltBySlug,
+                        e.wrestler_id,
+                        wrestlerNames[e.wrestler_id],
+                        monthEndForMonthlyBelt
+                      )
+                    : 0;
                 return {
                   slot: i + 1,
                   wrestlerId: e.wrestler_id,

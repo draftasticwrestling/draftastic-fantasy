@@ -7,20 +7,12 @@ import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/agg
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
+  firstMonthEndOnOrAfter,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
-
-/** First month-end eligible for belt points when using "since league start" (last day of the month that contains startDate). */
-function firstMonthEndOnOrAfter(startDate: string): string {
-  const d = new Date(startDate + "T12:00:00");
-  const year = d.getFullYear();
-  const month = d.getMonth();
-  const lastDay = new Date(year, month + 1, 0);
-  return lastDay.toISOString().slice(0, 10);
-}
 import { factionDisplayName } from "@/lib/factionName";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";

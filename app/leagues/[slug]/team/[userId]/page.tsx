@@ -22,6 +22,7 @@ import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/agg
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
+  firstMonthEndOnOrAfter,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
@@ -31,21 +32,17 @@ import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.j
 import { getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
-import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
+import {
+  CHAMPIONSHIP_CHANGES_TABLE_NAME,
+  getCurrentChampionsFromChanges,
+  inferReignsFromChampionshipChanges,
+} from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
 import { factionDisplayName } from "@/lib/factionName";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 10000;
-
-function firstMonthEndOnOrAfter(startDate: string): string {
-  const d = new Date(startDate + "T12:00:00");
-  const year = d.getFullYear();
-  const month = d.getMonth();
-  const lastDay = new Date(year, month + 1, 0);
-  return lastDay.toISOString().slice(0, 10);
-}
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -156,18 +153,33 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   if (rosterIds.length > 0) {
     const supabaseTable = await createClient();
     const startDate = getEffectiveLeagueStartDate(league);
-    const [{ data: fullWrestlersData }, { data: eventsSinceStart }, { data: eventsAll }, { data: rawReigns }, currentFromTable, currentFromChanges] = await Promise.all([
+    const [
+      { data: fullWrestlersData },
+      { data: eventsSinceStart },
+      { data: eventsAll },
+      { data: rawReigns },
+      { data: rawChangeRows, error: changeRowsError },
+      currentFromTable,
+      currentFromChanges,
+    ] = await Promise.all([
       supabaseTable.from("wrestlers").select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"').in("id", rosterIds),
       supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", startDate).order("date", { ascending: true }),
       supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", ALL_TIME_EVENTS_FROM).order("date", { ascending: true }).limit(ALL_TIME_EVENTS_LIMIT),
       supabaseTable.from("championship_history").select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
+      supabaseTable
+        .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
+        .select("championship_type, champion, champion_slug, date")
+        .order("date", { ascending: true }),
       getCurrentChampionsFromChampionshipsTable(supabaseTable).catch((): Record<string, CurrentChampionFromChanges> => ({})),
       getCurrentChampionsFromChanges(supabaseTable).catch((): Record<string, CurrentChampionFromChanges> => ({})),
     ]);
     const fullWrestlers = fullWrestlersData ?? [];
     const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
+    const changesReigns = inferReignsFromChampionshipChanges(
+      changeRowsError ? [] : (rawChangeRows ?? [])
+    );
     const inferredReigns = inferReignsFromEvents(eventsAll ?? []);
-    const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
+    const reigns = mergeReigns(tableReigns, [...inferredReigns, ...changesReigns]) as ChampionshipReign[];
     const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
     const pointsBySlugSinceStart = aggregateWrestlerPoints(eventsSinceStart ?? []);
     const pointsBySlugAllTime = aggregateWrestlerPoints(eventsAll ?? []);
@@ -184,7 +196,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       const pointsAllTime = getPointsForWrestler(pointsBySlugAllTime, slugKey, nameKey);
       const matchStats = getMatchStatsForWrestler(matchStatsBySlugSinceStart, slugKey, nameKey);
       const matchStatsAllTime = getMatchStatsForWrestler(matchStatsBySlugAllTime, slugKey, nameKey);
-      const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
+      const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, w.name ?? undefined);
       const beltPoints = points.beltPoints + extraBelt;
       const totalPoints = points.rsPoints + points.plePoints + beltPoints;
       const beltPointsAllTime = pointsAllTime.beltPoints + extraBelt;
@@ -424,21 +436,25 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         )}
         {rosterTableRows.length > 0 ? (
           <RosterCardGrid
-            wrestlers={rosterTableRows.map((w) => ({
-              id: w.id,
-              name: w.name,
-              brand: w.brand,
-              acquiredAt: rosterAcquiredAtById[w.id] ?? null,
-              rsPoints: teamScoringAudit.totalsByWrestler[w.id]?.rsPoints ?? 0,
-              plePoints: teamScoringAudit.totalsByWrestler[w.id]?.plePoints ?? 0,
-              beltPoints: teamScoringAudit.totalsByWrestler[w.id]?.beltPoints ?? 0,
-              totalPoints: teamScoringAudit.totalsByWrestler[w.id]?.total ?? 0,
-              mw: w.mw ?? 0,
-              rating_2k26: w.rating_2k26,
-              rating_2k25: w.rating_2k25,
-              championBeltImageUrl: w.championBeltImageUrl,
-              image_url: w.image_url,
-            }))}
+            wrestlers={rosterTableRows.map((w) => {
+              const a = teamScoringAudit.totalsByWrestler[w.id];
+              return {
+                id: w.id,
+                name: w.name,
+                brand: w.brand,
+                acquiredAt: rosterAcquiredAtById[w.id] ?? null,
+                // Same source as Faction Scoreboard / ledger (R/S, PLE, end-of-month belt; stint-scoped).
+                rsPoints: a?.rsPoints ?? w.rsPoints ?? 0,
+                plePoints: a?.plePoints ?? w.plePoints ?? 0,
+                beltPoints: a?.beltPoints ?? w.beltPoints ?? 0,
+                totalPoints: a?.total ?? w.totalPoints ?? 0,
+                mw: w.mw ?? 0,
+                rating_2k26: w.rating_2k26,
+                rating_2k25: w.rating_2k25,
+                championBeltImageUrl: w.championBeltImageUrl,
+                image_url: w.image_url,
+              };
+            })}
             leagueSlug={slug}
             teamUserId={userId}
             viewerUserId={currentUser.id}

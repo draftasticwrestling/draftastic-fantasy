@@ -115,26 +115,26 @@ export default function PointsPage() {
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Title points</h2>
         <p style={{ color: "#555", marginBottom: 16 }}>
-          Awarded to whoever holds the belt at the end of the last day of each month.
+          Awarded to whoever holds the belt at the end of the last day of each month. Points apply after that month ends (e.g. March holders are credited once we are into April).
         </p>
         <div className="points-grid">
           <EventTable
             title="Men's Division"
             rows={[
-              ["Undisputed WWE Champion", 10],
-              ["Heavy Weight Champion", 10],
+              ["Undisputed WWE Champion", 12],
+              ["Heavy Weight Champion", 12],
               ["Intercontinental Champion", 8],
-              ["US Champion", 7],
+              ["US Champion", 8],
               ["Tag Team Champion (per member)", 4],
             ]}
           />
           <EventTable
             title="Women's Division"
             rows={[
-              ["WWE Women's Champion", 10],
-              ["Women's World Champion", 10],
+              ["WWE Women's Champion", 12],
+              ["Women's World Champion", 12],
               ["Intercontinental Champion", 8],
-              ["US Champion", 7],
+              ["US Champion", 8],
               ["Tag Team Champion (per member)", 4],
             ]}
           />

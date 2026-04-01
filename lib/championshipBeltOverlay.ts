@@ -27,6 +27,7 @@ const TITLE_TO_BELT: { pattern: RegExp; key: BeltKey }[] = [
   { pattern: /wwe\s+women'?s?|women'?s?\s+wwe\s+championship/i, key: "wwe-womens" },
   { pattern: /women'?s?\s+world\s+championship|women'?s?\s+world\s+champion/i, key: "womens-world" },
   { pattern: /women'?s?\s+intercontinental/i, key: "intercontinental-womens" },
+  { pattern: /women'?s?\s+ic\b/i, key: "intercontinental-womens" },
   { pattern: /intercontinental|\bic\b/i, key: "intercontinental-mens" },
   { pattern: /women'?s?\s+united\s+states|women'?s?\s+u\.?s\.?/i, key: "us-womens" },
   { pattern: /united\s+states|\b(us|u\.s\.)\s+championship/i, key: "us-mens" },
