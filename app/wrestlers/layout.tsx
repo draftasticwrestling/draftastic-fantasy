@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { WrestlersSubNav } from "./WrestlersSubNav";
 
 export default function WrestlersLayout({
   children,
@@ -12,48 +11,15 @@ export default function WrestlersLayout({
         fontFamily: "system-ui, sans-serif",
         padding: 24,
         maxWidth: 1200,
-        marginLeft: 0,
+        marginLeft: "auto",
         marginRight: "auto",
       }}
     >
-      <p style={{ marginBottom: 20 }}>
+      <p style={{ marginBottom: 16 }}>
         <Link href="/" style={{ color: "var(--color-blue)", textDecoration: "none" }}>
           ← Home
         </Link>
       </p>
-
-      <div
-        style={{
-          background: "var(--color-red)",
-          color: "var(--color-text-inverse)",
-          padding: "12px 0",
-          marginBottom: 0,
-          marginLeft: -24,
-          marginRight: -24,
-          paddingLeft: 24,
-          paddingRight: 24,
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700 }}>Wrestlers</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 0.9, opacity: 0.95 }}>
-          Roster data from{" "}
-          <a
-            href="https://prowrestlingboxscore.com/wrestlers"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "inherit", textDecoration: "underline" }}
-          >
-            Pro Wrestling Boxscore
-          </a>
-          . Fantasy scoring:{" "}
-          <Link href="/points" style={{ color: "inherit", textDecoration: "underline" }}>
-            Points system
-          </Link>
-          .
-        </p>
-      </div>
-
-      <WrestlersSubNav />
 
       {children}
     </main>

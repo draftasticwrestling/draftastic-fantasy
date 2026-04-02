@@ -1,5 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import { notFound, permanentRedirect } from "next/navigation";
+import { Suspense } from "react";
+
+import { EventResultsMatchScroll } from "./EventResultsMatchScroll";
 
 import { EventPageHeader } from "@/components/boxscore-port/EventPageHeader";
 import EventBoxscoreMatchList from "@/components/boxscore-port/EventBoxscoreMatchList";
@@ -625,6 +628,9 @@ export default async function EventResultsPage({
         color: "#e8e8e8",
       }}
     >
+      <Suspense fallback={null}>
+        <EventResultsMatchScroll />
+      </Suspense>
       <EventPageHeader
         eventName={event.name ?? "Event"}
         h1Text={`${titleShowLine} Results — ${formattedHeaderDate}`}

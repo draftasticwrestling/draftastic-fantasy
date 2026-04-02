@@ -16,7 +16,7 @@ import {
   getLastMatchesForWrestler,
   shouldShowLastFiveStats,
 } from './utils/matchOutcomes';
-import { getEventSlug } from './utils/eventSlug';
+import { buildEventResultsSlug, eventResultsHref } from '@/lib/event-results/eventResultsRoute';
 import MatchCardTabsSection from './MatchCardTabsSection';
 
 // Helper functions
@@ -201,7 +201,7 @@ function LastFiveBoxes({ outcomes, size = 24 }) {
 }
 
 /** Draftastic: fantasy total (+N in green) and scoring breakdown (white italic) under wrestler / belt. */
-function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4 }) {
+function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4, compact = false }) {
   if (!fantasyPointsBySlug || slug == null || String(slug).trim() === '') return null;
   const row = fantasyPointsBySlug[slug];
   if (row == null) return null;
@@ -209,6 +209,7 @@ function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4 }) {
   if (Number.isNaN(pts)) return null;
   const breakdown = Array.isArray(row.breakdown) ? row.breakdown.filter((x) => typeof x === 'string' && String(x).trim()) : [];
   const totalLabel = pts >= 0 ? `+${pts}` : String(pts);
+  const tip = breakdown.length > 0 ? breakdown.join('\n') : undefined;
   return (
     <div
       style={{
@@ -218,12 +219,13 @@ function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4 }) {
         marginTop,
         textAlign: 'center',
         lineHeight: 1.25,
-        maxWidth: 160,
+        maxWidth: compact ? 56 : 160,
       }}
+      title={compact ? tip : undefined}
     >
       <div
         style={{
-          fontSize: 12,
+          fontSize: compact ? 11 : 12,
           color: '#4CAF50',
           fontWeight: row.isWinner ? 800 : 700,
           letterSpacing: 0.02,
@@ -231,7 +233,7 @@ function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4 }) {
       >
         {totalLabel}
       </div>
-      {breakdown.length > 0 && (
+      {!compact && breakdown.length > 0 && (
         <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
           {breakdown.map((line, i) => (
             <div
@@ -253,15 +255,19 @@ function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4 }) {
   );
 }
 
-/** Same column grid for avatars (optional), names (Name1 & Name2), and fantasy so images line up with names. */
+/**
+ * PWBS-style tag side: avatar row, team title + italic roster (or bold names if no team), compact fantasy row.
+ * Full per-line fantasy breakdown is in each +N tooltip (hover) so the card stays visually clean like PWBS.
+ */
 function TagTeamPartnerNamesAndFantasyGrid({
   slugs,
+  teamName = null,
+  suppressTeamTitle = false,
   wrestlerMap,
   wrestlerTo,
   nameColor,
   nameFontSize,
   nameFontWeight = 600,
-  ampersandColor = '#a8a8a8',
   fantasyPointsBySlug,
   avatarSize = null,
   avatarBorder = '1px solid #666',
@@ -271,112 +277,123 @@ function TagTeamPartnerNamesAndFantasyGrid({
   if (!slugs || slugs.length < 2) return null;
   const showAvatars = avatarSize != null;
   const av = showAvatars ? avatarSize : 0;
-  const ampFont = Math.max(12, nameFontSize - 1);
-  const rowStyle = {
-    display: 'flex',
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    width: '100%',
-    gap: 6,
-  };
-  const cellStyle = { flex: '1 1 0', minWidth: 0, maxWidth: 200, display: 'flex', justifyContent: 'center' };
-  const ampCellStyle = {
-    flex: '0 0 auto',
-    color: ampersandColor,
-    fontSize: ampFont,
-    fontWeight: 700,
-    lineHeight: 1.2,
-    alignSelf: 'center',
-    paddingLeft: 2,
-    paddingRight: 2,
-  };
+  const titleLineSize = nameFontWeight >= 700 ? 20 : 18;
+  const memberItalicSize = Math.max(13, nameFontSize);
 
-  /* Three rows: photos (each above its column), names with &, fantasy with spacer columns — columns stay aligned. */
   return (
     <div style={{ width: '100%', maxWidth: 440, ...style }}>
       {showAvatars ? (
-        <div style={{ ...rowStyle, marginBottom: 4 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: 4,
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            marginBottom: 8,
+            flexWrap: 'wrap',
+          }}
+        >
           {slugs.map((slug, i) => (
-            <React.Fragment key={`r1-${slug || i}`}>
-              <div style={{ ...cellStyle, flexDirection: 'column', alignItems: 'center' }}>
-                <Link to={wrestlerTo(slug)} onClick={(e) => e.stopPropagation()} style={{ display: 'block', lineHeight: 0 }}>
-                  <div
-                    style={{
-                      width: av,
-                      height: av,
-                      borderRadius: '50%',
-                      background: '#444',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: av * 0.6,
-                      color: '#7da2c1',
-                      border: avatarBorder,
-                      overflow: 'hidden',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    {wrestlerMap[slug]?.image_url ? (
-                      <img
-                        src={wrestlerMap[slug].image_url}
-                        alt={wrestlerMap[slug].name}
-                        style={{ width: av, height: av, borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                    ) : (
-                      <span role="img" aria-label="wrestler">&#128100;</span>
-                    )}
-                  </div>
-                </Link>
-                {typeof belowAvatar === 'function' ? belowAvatar(slug, i) : null}
-              </div>
-              {i < slugs.length - 1 ? (
-                <span style={{ ...ampCellStyle, visibility: 'hidden', userSelect: 'none', alignSelf: 'flex-start', paddingTop: av * 0.35 }} aria-hidden>
-                  &
-                </span>
-              ) : null}
-            </React.Fragment>
+            <div key={`av-${slug || i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Link to={wrestlerTo(slug)} onClick={(e) => e.stopPropagation()} style={{ display: 'block', lineHeight: 0 }}>
+                <div
+                  style={{
+                    width: av,
+                    height: av,
+                    borderRadius: '50%',
+                    background: '#444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: av * 0.6,
+                    color: '#7da2c1',
+                    border: avatarBorder,
+                    overflow: 'hidden',
+                    boxSizing: 'border-box',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {wrestlerMap[slug]?.image_url ? (
+                    <img
+                      src={wrestlerMap[slug].image_url}
+                      alt={wrestlerMap[slug].name}
+                      style={{ width: av, height: av, borderRadius: '50%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <span role="img" aria-label="wrestler">&#128100;</span>
+                  )}
+                </div>
+              </Link>
+              {typeof belowAvatar === 'function' ? belowAvatar(slug, i) : null}
+            </div>
           ))}
         </div>
       ) : null}
-      <div style={{ ...rowStyle, alignItems: 'center', marginTop: showAvatars ? 2 : 0, marginBottom: 2 }}>
-        {slugs.map((slug, i) => (
-          <React.Fragment key={`r2-${slug || i}`}>
-            <div style={{ ...cellStyle, flexDirection: 'column', alignItems: 'center' }}>
+      <span
+        style={{
+          fontWeight: 700,
+          color: nameColor,
+          fontSize: nameFontSize,
+          textAlign: 'center',
+          marginBottom: 2,
+          display: 'block',
+          width: '100%',
+        }}
+      >
+        {teamName && !suppressTeamTitle ? (
+          <>
+            <div style={{ fontSize: titleLineSize, fontWeight: 800, color: nameColor }}>{teamName}</div>
+            <div style={{ fontSize: memberItalicSize, color: '#bbb', fontStyle: 'italic', marginTop: 2 }}>
+              {slugs.map((slug, i) => (
+                <React.Fragment key={slug}>
+                  <Link to={wrestlerTo(slug)} onClick={(e) => e.stopPropagation()} style={{ color: '#bbb', textDecoration: 'none' }}>
+                    {wrestlerMap[slug]?.name || slug}
+                  </Link>
+                  {i < slugs.length - 1 ? ' & ' : ''}
+                </React.Fragment>
+              ))}
+            </div>
+          </>
+        ) : teamName && suppressTeamTitle ? (
+          <div style={{ fontSize: memberItalicSize, color: '#bbb', fontStyle: 'italic' }}>
+            {slugs.map((slug, i) => (
+              <React.Fragment key={slug}>
+                <Link to={wrestlerTo(slug)} onClick={(e) => e.stopPropagation()} style={{ color: '#bbb', textDecoration: 'none' }}>
+                  {wrestlerMap[slug]?.name || slug}
+                </Link>
+                {i < slugs.length - 1 ? ' & ' : ''}
+              </React.Fragment>
+            ))}
+          </div>
+        ) : (
+          slugs.map((slug, i) => (
+            <React.Fragment key={slug}>
               <Link
                 to={wrestlerTo(slug)}
                 onClick={(e) => e.stopPropagation()}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  color: nameColor,
-                  textDecoration: 'none',
-                  fontWeight: nameFontWeight,
-                  fontSize: nameFontSize,
-                  textAlign: 'center',
-                  lineHeight: 1.2,
-                  wordBreak: 'break-word',
-                }}
+                style={{ color: nameColor, textDecoration: 'none', fontWeight: nameFontWeight, fontSize: nameFontSize }}
               >
                 {wrestlerMap[slug]?.name || slug}
               </Link>
-            </div>
-            {i < slugs.length - 1 ? <span style={ampCellStyle}>&</span> : null}
-          </React.Fragment>
-        ))}
-      </div>
-      <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
-        {slugs.map((slug, i) => (
-          <React.Fragment key={`r3-${slug || i}`}>
-            <div style={{ ...cellStyle, flexDirection: 'column', alignItems: 'center' }}>
-              <FantasyPtsLine slug={slug} fantasyPointsBySlug={fantasyPointsBySlug} marginTop={2} />
-            </div>
-            {i < slugs.length - 1 ? (
-              <span style={{ ...ampCellStyle, visibility: 'hidden', userSelect: 'none' }} aria-hidden>
-                &
-              </span>
-            ) : null}
-          </React.Fragment>
+              {i < slugs.length - 1 ? ' & ' : ''}
+            </React.Fragment>
+          ))
+        )}
+      </span>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+          gap: 10,
+          marginTop: 6,
+          width: '100%',
+        }}
+      >
+        {slugs.map((slug) => (
+          <FantasyPtsLine key={`fp-${slug}`} slug={slug} fantasyPointsBySlug={fantasyPointsBySlug} compact marginTop={0} />
         ))}
       </div>
     </div>
@@ -484,14 +501,15 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
   // Create handler inline to ensure correct closure capture
   // Use matchIndex (array index) for navigation - it's more reliable than order
   const eventId = event?.id;
-  const eventSlug = event ? getEventSlug(event) : '';
+  const eventResultsPath = event ? eventResultsHref(event) : '';
+  const eventResultsSlugSegment = event ? buildEventResultsSlug(event) : '';
   // matchIndex is 0-based, but we'll use 1-based for URL (1, 2, 3...)
   const navigationIndex = matchIndex !== undefined ? matchIndex + 1 : (match?.order || 1);
 
   // Pass event/match context when linking to wrestler profile so profile can show "Back to event" / "Back to match"
   const wrestlerLinkState = React.useMemo(
-    () => (eventId ? { fromEvent: eventId, fromEventSlug: eventSlug, eventName: event?.name || 'Event', matchOrder: navigationIndex } : null),
-    [eventId, eventSlug, event?.name, navigationIndex]
+    () => (eventId ? { fromEvent: eventId, fromEventSlug: eventResultsSlugSegment, eventName: event?.name || 'Event', matchOrder: navigationIndex } : null),
+    [eventId, eventResultsSlugSegment, event?.name, navigationIndex]
   );
   const wrestlerTo = React.useCallback(
     (slugOrId) => (slugOrId ? { pathname: `/wrestlers/${slugOrId}`, state: wrestlerLinkState || {} } : '/wrestlers'),
@@ -499,7 +517,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
   );
 
   const handleClick = React.useCallback((e) => {
-    if (!isClickable || !eventSlug || navigationIndex == null) {
+    if (!isClickable || !eventResultsPath || navigationIndex == null) {
       return;
     }
     
@@ -509,8 +527,8 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
       e.preventDefault();
     }
     
-    navigate(`/events/${eventSlug}/match/${navigationIndex}`);
-  }, [isClickable, eventSlug, navigationIndex, navigate]);
+    navigate(`${eventResultsPath}?match=${navigationIndex}`);
+  }, [isClickable, eventResultsPath, navigationIndex, navigate]);
 
   const isMatchInProgress = event?.status === 'live' && match?.isLive;
 
@@ -551,10 +569,10 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
     return (
       <div
         onClick={(e) => {
-          if (isClickable && eventSlug && navigationIndex != null) {
+          if (isClickable && eventResultsPath && navigationIndex != null) {
             e.preventDefault();
             e.stopPropagation();
-            navigate(`/events/${eventSlug}/match/${navigationIndex}`);
+            navigate(`${eventResultsPath}?match=${navigationIndex}`);
           }
         }}
         style={{
@@ -870,10 +888,10 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
     return (
       <div
         onClick={(e) => {
-          if (isClickable && eventSlug && navigationIndex != null) {
+          if (isClickable && eventResultsPath && navigationIndex != null) {
             e.preventDefault();
             e.stopPropagation();
-            navigate(`/events/${eventSlug}/match/${navigationIndex}`);
+            navigate(`${eventResultsPath}?match=${navigationIndex}`);
           }
         }}
         style={{
@@ -998,6 +1016,8 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                 )}
                 {slugs.length > 1 ? (
                   <TagTeamPartnerNamesAndFantasyGrid
+                    teamName={teamName}
+                    suppressTeamTitle={!!teamName}
                     slugs={slugs}
                     wrestlerMap={wrestlerMap}
                     wrestlerTo={wrestlerTo}
@@ -1218,10 +1238,10 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
   return (
     <div
       onClick={(e) => {
-        if (isClickable && eventSlug && navigationIndex != null) {
+        if (isClickable && eventResultsPath && navigationIndex != null) {
           e.preventDefault();
           e.stopPropagation();
-          navigate(`/events/${eventSlug}/match/${navigationIndex}`);
+          navigate(`${eventResultsPath}?match=${navigationIndex}`);
         }
       }}
       style={{
@@ -2444,13 +2464,14 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                       ) : null}
                       {slugs.length > 1 ? (
                         <TagTeamPartnerNamesAndFantasyGrid
+                          teamName={teamName}
+                          suppressTeamTitle={!!teamName}
                           slugs={slugs}
                           wrestlerMap={wrestlerMap}
                           wrestlerTo={wrestlerTo}
                           nameColor="#fff"
                           nameFontSize={11}
                           nameFontWeight={600}
-                          ampersandColor="#bbb"
                           fantasyPointsBySlug={fantasyPointsBySlug}
                           avatarSize={48}
                           avatarBorder="1px solid #555"
@@ -2524,6 +2545,8 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                           {winnerIndex === sideIdx ? triangleDown : <span style={{ display: 'inline-block', width: 16, height: 8 }} />}
                         </div>
                         <TagTeamPartnerNamesAndFantasyGrid
+                          teamName={teamName}
+                          suppressTeamTitle={!!teamName}
                           slugs={slugs}
                           wrestlerMap={wrestlerMap}
                           wrestlerTo={wrestlerTo}
@@ -2655,6 +2678,8 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                 ) : null}
                 {slugs.length > 1 ? (
                   <TagTeamPartnerNamesAndFantasyGrid
+                    teamName={teamName}
+                    suppressTeamTitle={!!(syncTagTopHeader && slugs.length > 1 && teamName)}
                     slugs={slugs}
                     wrestlerMap={wrestlerMap}
                     wrestlerTo={wrestlerTo}

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 import { WrestlerTableLegend } from "./WrestlerTableLegend";
 import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
+import { getNationalityFlagDisplay } from "@/lib/nationalityFlag";
 
 export type WrestlerRow = {
   id: string;
@@ -14,6 +15,8 @@ export type WrestlerRow = {
   brand: string | null;
   image_url?: string | null;
   dob?: string | null;
+  /** Country name from Boxscore (matches `countries` list for flag). */
+  nationality?: string | null;
   /** 2K26 rating if available, else 2K25 (from Pro Wrestling Boxscore). */
   rating_2k26?: number | null;
   rating_2k25?: number | null;
@@ -150,6 +153,51 @@ function normalizeGender(g: string | null): string {
   if (lower === "male" || lower === "m") return "M";
   if (lower === "female" || lower === "f") return "F";
   return "—";
+}
+
+function BoxscoreCardIdentity({
+  gender,
+  rating,
+  nationality,
+}: {
+  gender: string | null;
+  rating: number | null | undefined;
+  nationality: string | null | undefined;
+}) {
+  const flag = getNationalityFlagDisplay(nationality);
+  return (
+    <div className="wrestlers-boxscore-card-identity" aria-label="Gender, 2K rating, nationality">
+      <span className="wrestlers-boxscore-card-identity-segment">{normalizeGender(gender)}</span>
+      <span className="wrestlers-boxscore-card-identity-sep" aria-hidden>
+        ·
+      </span>
+      <span className="wrestlers-boxscore-card-identity-segment">
+        {rating != null ? (
+          <>
+            2K <span className="wrestlers-boxscore-2k">{rating}</span>
+          </>
+        ) : (
+          "—"
+        )}
+      </span>
+      {flag && (
+        <>
+          <span className="wrestlers-boxscore-card-identity-sep" aria-hidden>
+            ·
+          </span>
+          <span className="wrestlers-boxscore-card-identity-segment wrestlers-boxscore-card-identity-flag" title={flag.label}>
+            {flag.kind === "emoji" ? (
+              <span role="img" aria-label={flag.label}>
+                {flag.emoji}
+              </span>
+            ) : (
+              <img src={flag.src} alt="" className="wrestlers-boxscore-card-flag-img" width={20} height={15} />
+            )}
+          </span>
+        </>
+      )}
+    </div>
+  );
 }
 
 function calculateAge(dob: string | null | undefined): number | null {
@@ -429,6 +477,15 @@ const POINTS_PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
   { value: "allTime", label: "All-time" },
 ];
 
+/** Sort controls for Boxscore-style grid (subset of table columns). */
+const BOXSORT_OPTIONS: { value: SortColumn; label: string }[] = [
+  { value: "name", label: "Name" },
+  { value: "roster", label: "Roster / brand" },
+  { value: "rank", label: "Rank (fantasy points)" },
+  { value: "totalPoints", label: "Total points" },
+  { value: "rating2k", label: "2K rating" },
+];
+
 /** When provided, Status column shows owner name + propose-trade for rostered wrestlers. */
 export type RosterOwnerInfo = { ownerName: string; ownerUserId: string };
 
@@ -448,6 +505,11 @@ type WrestlerListProps = {
   rosterByWrestler?: Record<string, RosterOwnerInfo> | null;
   /** When true, hide the Include (roster/brand) filter row. Used e.g. on My Faction roster where the list is already just that roster. */
   hideRosterFilter?: boolean;
+  /**
+   * `boxscore` — roster grid on light page shell; dark inset cards link to Draftastic profiles.
+   * `default` — full sortable stats table (league pages, etc.).
+   */
+  variant?: "default" | "boxscore";
 };
 
 function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | "team" | null): string {
@@ -525,7 +587,9 @@ export default function WrestlerList({
   wrestlerProfileFrom,
   rosterByWrestler,
   hideRosterFilter = false,
+  variant = "default",
 }: WrestlerListProps) {
+  const isBoxscore = variant === "boxscore";
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
   const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
   const [search, setSearch] = useState("");
@@ -537,6 +601,15 @@ export default function WrestlerList({
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>(
     defaultPointsPeriod ?? "sinceStart"
   );
+
+  useEffect(() => {
+    if (!isBoxscore) return;
+    if (!BOXSORT_OPTIONS.some((o) => o.value === sortColumn)) {
+      setSortColumn("name");
+      setSortDir("asc");
+    }
+  }, [isBoxscore, sortColumn]);
+
   const hasPointsPeriodFilter =
     wrestlers.length > 0 &&
     ("totalPoints2025" in wrestlers[0] || "totalPointsAllTime" in wrestlers[0]);
@@ -610,12 +683,10 @@ export default function WrestlerList({
   const flatList = filteredAndSorted;
   const totalCount = wrestlers.length;
 
-  const tableMinWidth = HEADER_CONFIG.reduce((sum, h) => sum + h.minW, 0);
-
   return (
     <>
       {/* Toolbar: Roster checkboxes (optional), Period, Search, Reset */}
-      <div className="wrestler-list-toolbar">
+      <div className={`wrestler-list-toolbar${isBoxscore ? " wrestler-list-toolbar--boxscore" : ""}`}>
         {!hideRosterFilter && (
           <div className="wrestler-list-roster-filters">
             <span className="wrestler-list-roster-label">Include:</span>
@@ -717,10 +788,50 @@ export default function WrestlerList({
         </button>
       </div>
 
-      <p className="wrestler-list-sort-hint" role="note">
-        Column headings with a ↕ control sort the table. Click once to sort, again to reverse. (Image and Titles columns are not sortable.)
-      </p>
+      {isBoxscore && (
+        <div className="wrestlers-boxscore-sort-row" role="group" aria-label="Sort roster">
+          <label htmlFor="wrestlers-boxscore-sort-col" className="wrestlers-boxscore-sort-label">
+            Sort by
+          </label>
+          <select
+            id="wrestlers-boxscore-sort-col"
+            className="wrestlers-boxscore-sort-select"
+            value={sortColumn}
+            onChange={(e) => {
+              const col = e.target.value as SortColumn;
+              setSortColumn(col);
+              setSortDir(col === "name" || col === "roster" ? "asc" : "desc");
+            }}
+          >
+            {BOXSORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="wrestlers-boxscore-sort-dir" className="wrestlers-boxscore-sort-label">
+            Order
+          </label>
+          <select
+            id="wrestlers-boxscore-sort-dir"
+            className="wrestlers-boxscore-sort-select"
+            value={sortDir}
+            onChange={(e) => setSortDir(e.target.value as SortDir)}
+          >
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+        </div>
+      )}
 
+      {!isBoxscore && (
+        <p className="wrestler-list-sort-hint" role="note">
+          Column headings with a ↕ control sort the table. Click once to sort, again to reverse. (Image and Titles columns are not sortable.)
+        </p>
+      )}
+
+      {!isBoxscore && (
+        <>
       {/* Mobile: card list (no truncated headers or rotated text) */}
       <div className="wrestler-list-cards">
         {flatList.length === 0 ? null : flatList.map((w) => {
@@ -982,22 +1093,90 @@ export default function WrestlerList({
           </div>
         );
       })()}
+        </>
+      )}
+
+      {isBoxscore && flatList.length > 0 && (
+        <div className="wrestlers-boxscore-grid" role="list">
+          {flatList.map((w) => {
+            const roster = normalizeRoster(w.brand);
+            const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
+            const rating = w.rating_2k26 ?? w.rating_2k25;
+            return (
+              <Link
+                key={w.id}
+                href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)}
+                className="wrestlers-boxscore-card"
+                role="listitem"
+              >
+                <span className="wrestlers-boxscore-brand-pill" style={{ background: style.bg }}>
+                  {roster === "Raw" || roster === "SmackDown" || roster === "NXT" ? roster : style.label}
+                </span>
+                <div className="wrestlers-boxscore-photo-wrap">
+                  {w.image_url ? (
+                    <img src={w.image_url} alt="" className="wrestlers-boxscore-photo" loading="lazy" />
+                  ) : (
+                    <div className="wrestlers-boxscore-photo wrestlers-boxscore-photo-placeholder" aria-hidden>
+                      —
+                    </div>
+                  )}
+                  {isInjured(w.status) && (
+                    <span className="wrestlers-boxscore-injury-badge">
+                      <InjuryBadge size={20} />
+                    </span>
+                  )}
+                </div>
+                <BoxscoreCardIdentity gender={w.gender} rating={rating} nationality={w.nationality} />
+                <div className="wrestlers-boxscore-card-name">{w.name || w.id}</div>
+                {w.currentChampionship && (
+                  <div className="wrestlers-boxscore-champ-line">{w.currentChampionship}</div>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       {flatList.length === 0 && (
-        <p style={{ marginTop: 16, color: "var(--color-text-muted)", textAlign: "center" }}>
+        <p
+          className={isBoxscore ? "wrestlers-boxscore-empty" : undefined}
+          style={
+            isBoxscore
+              ? { marginTop: 16, textAlign: "center" }
+              : { marginTop: 16, color: "var(--color-text-muted)", textAlign: "center" }
+          }
+        >
           No wrestlers match your filters. Try a different search or show filter, or Reset All.
         </p>
       )}
 
-      {flatList.length > 0 && <WrestlerTableLegend />}
+      {flatList.length > 0 && !isBoxscore && <WrestlerTableLegend />}
 
-      <p className="wrestler-list-footer" style={{ marginTop: 24, color: "#666" }}>
+      <p
+        className={`wrestler-list-footer${isBoxscore ? " wrestler-list-footer--boxscore" : ""}`}
+        style={{ marginTop: 24, color: isBoxscore ? undefined : "#666" }}
+      >
         {search || includedRosters.size < ALL_ROSTER_VALUES.length ? (
           <>Showing {flatList.length} of {totalCount} wrestlers.</>
         ) : (
           <>Total: {totalCount} wrestlers.</>
         )}{" "}
-        Use this pool when building your draft. Images from Pro Wrestling Boxscore (Supabase).
+        {isBoxscore ? (
+          <>
+            Fantasy scoring: Draftastic. Headshots and roster data mirror{" "}
+            <a
+              href="https://prowrestlingboxscore.com/wrestlers"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "#c5a059" }}
+            >
+              Pro Wrestling Boxscore
+            </a>
+            ; tap a wrestler for their Draftastic profile.
+          </>
+        ) : (
+          <>Use this pool when building your draft. Images from Pro Wrestling Boxscore (Supabase).</>
+        )}
       </p>
     </>
   );

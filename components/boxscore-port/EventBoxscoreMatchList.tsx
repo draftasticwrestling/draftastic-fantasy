@@ -51,16 +51,21 @@ export default function EventBoxscoreMatchList({
         const order = typeof match?.order === "number" ? match.order : matchIndex + 1;
         const fantasyPointsBySlug = fantasyPointsBySlugByOrder[order] ?? {};
         return (
-          <MatchCard
+          <div
             key={`${order}-${matchIndex}`}
-            match={match}
-            event={event}
-            wrestlerMap={wrestlerMap}
-            matchIndex={matchIndex}
-            events={events}
-            isClickable={false}
-            fantasyPointsBySlug={fantasyPointsBySlug}
-          />
+            id={`match-${matchIndex + 1}`}
+            style={{ scrollMarginTop: 88 }}
+          >
+            <MatchCard
+              match={match}
+              event={event}
+              wrestlerMap={wrestlerMap}
+              matchIndex={matchIndex}
+              events={events}
+              isClickable={false}
+              fantasyPointsBySlug={fantasyPointsBySlug}
+            />
+          </div>
         );
       })}
     </section>

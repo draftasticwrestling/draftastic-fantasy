@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { getLeaguesForUser } from "@/lib/leagues";
+import { getHubHomeHref } from "@/lib/hubHomeHref";
 import { siteLogoHref } from "@/lib/siteLogo";
 
 const IMG = "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/draftastic-screenshots";
@@ -14,6 +15,7 @@ export const metadata = {
 export default async function FantasyHomePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const hubHomeHref = await getHubHomeHref();
 
   if (!user) {
     return (
@@ -56,7 +58,7 @@ export default async function FantasyHomePage() {
                 Already have an account? <Link href="/auth/sign-in" style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>Sign in</Link>
               </p>
               <p className="home-hero-signin" style={{ marginTop: 12 }}>
-                <Link href="/" style={{ color: "rgba(255,255,255,0.85)", textDecoration: "underline", fontWeight: 500 }}>
+                <Link href={hubHomeHref} style={{ color: "rgba(255,255,255,0.85)", textDecoration: "underline", fontWeight: 500 }}>
                   ← Site home (results &amp; news)
                 </Link>
               </p>
@@ -228,7 +230,7 @@ export default async function FantasyHomePage() {
           <div className="home-panel">
             <h2>Quick links</h2>
             <ul className="home-quick-links">
-              <li><Link href="/">Site home</Link> — event results and headlines</li>
+              <li><Link href={hubHomeHref}>Site home</Link> — event results and headlines</li>
               <li><Link href="/event-results">Event Results</Link> — fantasy scoring for completed events</li>
               <li><Link href="/how-it-works">How it works</Link> — scoring rules and event types</li>
               <li><Link href="/about-us">About Us</Link> · <Link href="/contact-us">Contact Us</Link></li>
@@ -259,7 +261,7 @@ export default async function FantasyHomePage() {
   return (
     <main className="app-page" style={{ maxWidth: 900 }}>
       <p style={{ marginBottom: 8, color: "var(--color-text-muted)", fontSize: 15 }}>
-        <Link href="/" className="app-link" style={{ fontWeight: 500 }}>← Site home</Link>
+        <Link href={hubHomeHref} className="app-link" style={{ fontWeight: 500 }}>← Site home</Link>
       </p>
       <p style={{ marginBottom: 8, color: "var(--color-text-muted)", fontSize: 15 }}>
         Welcome back{displayName !== "there" ? `, ${displayName}` : ""}.
@@ -327,7 +329,7 @@ export default async function FantasyHomePage() {
       <div className="home-panel">
         <h2>Quick links</h2>
         <ul className="home-quick-links">
-          <li><Link href="/">Site home</Link> — results and news</li>
+          <li><Link href={hubHomeHref}>Site home</Link> — results and news</li>
           <li><Link href="/leagues">Private Leagues</Link> — manage and view all your leagues</li>
           <li><Link href="/how-it-works">How it works</Link> — scoring rules and event types</li>
           <li><Link href="/event-results">Event Results</Link> — fantasy scoring for completed events</li>
