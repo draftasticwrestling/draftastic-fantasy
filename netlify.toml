@@ -2,9 +2,9 @@
 # https://docs.netlify.com/integrations/frameworks/next-js/
 #
 # Domains: draftastic-fantasy.netlify.app (and similar) use the hub home at `/`.
-# draftasticprowrestling.com rewrites `/` → `/fantasy` (middleware). Optional env on any deploy:
-#   NEXT_PUBLIC_APP_HUB_ORIGIN — absolute URL for “Site home” links from the fantasy page when host is
-#   draftasticprowrestling.com (defaults to https://draftastic-fantasy.netlify.app).
+# draftasticprowrestling.com rewrites `/` → `/coming-soon` (middleware). Optional env on any deploy:
+#   NEXT_PUBLIC_APP_HUB_ORIGIN — absolute URL for “Site home” when host is draftasticprowrestling.com
+#   (defaults to https://draftastic-fantasy.netlify.app).
 
 [build]
   command = "npm run build"

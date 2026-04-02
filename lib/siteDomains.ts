@@ -1,4 +1,4 @@
-/** Custom domain that should show the fantasy marketing landing at `/` (rewritten to `/fantasy` in middleware). */
+/** Custom domain: `/` shows the coming-soon landing (middleware rewrites internally to `/coming-soon`). */
 export const DRAFTASTIC_MARKETING_LANDING_DOMAIN = "draftasticprowrestling.com";
 
 /**

@@ -6,7 +6,7 @@ import {
 } from "@/lib/siteDomains";
 
 /**
- * Href for “Site home” / results hub. On the marketing custom domain, `/` is the fantasy landing,
+ * Href for “Site home” / results hub. On the marketing custom domain, `/` is the coming-soon landing,
  * so this points to the main app origin (Netlify by default, or NEXT_PUBLIC_APP_HUB_ORIGIN).
  */
 export async function getHubHomeHref(): Promise<string> {
