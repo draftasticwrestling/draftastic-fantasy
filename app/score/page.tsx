@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
 import Link from "next/link";
 
 export const metadata = {
@@ -59,7 +60,7 @@ export default async function ScoredEventsPage() {
               }}
             >
               <Link
-                href={`/results/${encodeURIComponent(event.id)}`}
+                href={eventResultsHref(event)}
                 style={{ color: "#1a73e8", textDecoration: "none", fontWeight: 500 }}
               >
                 {event.name}

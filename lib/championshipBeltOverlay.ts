@@ -14,10 +14,9 @@ function isFemale(gender: string | null | undefined): boolean {
   return g === "f" || g === "female" || g === "woman" || g === "women";
 }
 
-function isMale(gender: string | null | undefined): boolean {
-  if (!gender || typeof gender !== "string") return false;
-  const g = gender.toLowerCase().trim();
-  return g === "m" || g === "male" || g === "man" || g === "men";
+/** Boxscore / DB sometimes use curly apostrophe (U+2019); normalize so "Women's …" patterns match. */
+function normalizeTitleForBeltMatch(title: string): string {
+  return title.replace(/[\u2018\u2019\u201B\u2032]/g, "'");
 }
 
 /** Match title name to BeltKey; order is most specific first. */
@@ -26,13 +25,14 @@ const TITLE_TO_BELT: { pattern: RegExp; key: BeltKey }[] = [
   { pattern: /world\s+heavyweight|heavyweight\s+championship/i, key: "heavyweight" },
   { pattern: /wwe\s+women'?s?|women'?s?\s+wwe\s+championship/i, key: "wwe-womens" },
   { pattern: /women'?s?\s+world\s+championship|women'?s?\s+world\s+champion/i, key: "womens-world" },
-  { pattern: /women'?s?\s+intercontinental/i, key: "intercontinental-womens" },
-  { pattern: /women'?s?\s+ic\b/i, key: "intercontinental-womens" },
+  /** Spelled-out or abbreviated; must run before `\bic\b` or "Women's IC …" wrongly maps to men's belt. */
+  { pattern: /women'?s?\s+(intercontinental|ic)\b/i, key: "intercontinental-womens" },
   { pattern: /intercontinental|\bic\b/i, key: "intercontinental-mens" },
   { pattern: /women'?s?\s+united\s+states|women'?s?\s+u\.?s\.?/i, key: "us-womens" },
   { pattern: /united\s+states|\b(us|u\.s\.)\s+championship/i, key: "us-mens" },
   { pattern: /women'?s?\s+tag/i, key: "tag-team-womens" },
-  { pattern: /tag\s+team|raw\s+tag|smackdown\s+tag|world\s+tag/i, key: "tag-team-mens" },
+  { pattern: /smackdown\s+tag/i, key: "tag-team-smackdown" },
+  { pattern: /tag\s+team|raw\s+tag|world\s+tag/i, key: "tag-team-mens" },
 ];
 
 /** Ambiguous titles (no explicit "women's") where we use wrestler gender to pick women's vs men's belt. */
@@ -40,6 +40,7 @@ const GENDER_OVERRIDE: { key: BeltKey; womenKey: BeltKey }[] = [
   { key: "intercontinental-mens", womenKey: "intercontinental-womens" },
   { key: "us-mens", womenKey: "us-womens" },
   { key: "tag-team-mens", womenKey: "tag-team-womens" },
+  { key: "tag-team-smackdown", womenKey: "tag-team-womens" },
 ];
 
 /**
@@ -52,7 +53,7 @@ export function getBeltImageUrlForTitle(
   wrestlerGender?: string | null
 ): string | null {
   if (!titleName || typeof titleName !== "string") return null;
-  const trimmed = titleName.trim();
+  const trimmed = normalizeTitleForBeltMatch(titleName.trim());
   if (!trimmed) return null;
   for (const { pattern, key } of TITLE_TO_BELT) {
     if (pattern.test(trimmed)) {

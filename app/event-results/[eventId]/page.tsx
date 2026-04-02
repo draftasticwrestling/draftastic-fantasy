@@ -1,6 +1,27 @@
 import { supabase } from "@/lib/supabase";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { Suspense } from "react";
+
+import { EventResultsMatchScroll } from "./EventResultsMatchScroll";
+
+import { EventPageHeader } from "@/components/boxscore-port/EventPageHeader";
+import EventBoxscoreMatchList from "@/components/boxscore-port/EventBoxscoreMatchList";
+import {
+  buildEventHeaderMetaDescription,
+  buildEventSeoTitle,
+  buildTitleShow,
+  formatBroadcastDateTime,
+  formatEventHeaderDateLong,
+} from "@/lib/boxscore/eventShowHeader";
+import { buildWrestlerMap } from "@/lib/boxscore/normalizeWrestlerForCard";
+import { formatSlug } from "@/lib/event-results/displayStrings";
+import {
+  buildEventResultsSlug,
+  buildProWrestlingBoxscoreEventUrl,
+  getEventForResultsRoute,
+} from "@/lib/event-results/eventResultsRoute";
+import { isWrestlerWinner } from "@/lib/event-results/winnerUtils";
+import type { ScoredEvent } from "@/lib/scoring/types";
 
 // Always compute fresh so King/Queen points and prior carryover are correct
 export const dynamic = "force-dynamic";
@@ -11,84 +32,21 @@ export async function generateMetadata({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const { data: event } = await supabase
-    .from("events")
-    .select("name, date")
-    .eq("id", eventId)
-    .single();
-  const title = event?.name
-    ? `${event.name} — Results`
-    : "Event results — Draftastic Fantasy";
-  return { title };
-}
-
-function formatEventType(type: string): string {
-  const labels: Record<string, string> = {
-    raw: "RAW",
-    smackdown: "SmackDown",
-    "wrestlemania-night-1": "WrestleMania Night 1",
-    "wrestlemania-night-2": "WrestleMania Night 2",
-    "summerslam-night-1": "SummerSlam Night 1",
-    "summerslam-night-2": "SummerSlam Night 2",
-    "survivor-series": "Survivor Series",
-    "royal-rumble": "Royal Rumble",
-    "elimination-chamber": "Elimination Chamber",
-    "crown-jewel": "Crown Jewel",
-    "night-of-champions": "Night of Champions",
-    "money-in-the-bank": "Money in the Bank",
-    "saturday-nights-main-event": "Saturday Night's Main Event",
-    backlash: "Backlash",
-    evolution: "Evolution",
-    "clash-in-paris": "Clash at the Castle",
-    wrestlepalooza: "Wrestlepalooza",
+  const event = await getEventForResultsRoute(eventId);
+  if (!event?.name) {
+    return {
+      title: "Event results — Draftastic Fantasy",
+      description: "Fantasy scoring for WWE events.",
+    };
+  }
+  const canonicalSlug = buildEventResultsSlug(event);
+  return {
+    title: buildEventSeoTitle(event),
+    description: buildEventHeaderMetaDescription(event),
+    alternates: {
+      canonical: `/event-results/${canonicalSlug}`,
+    },
   };
-  return labels[type] || type;
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [y, m, d] = dateStr.split("-");
-    const month = new Date(Number(y), Number(m) - 1, 1).toLocaleString("en-US", {
-      month: "long",
-    });
-    return `${month} ${d}, ${y}`;
-  }
-  return dateStr;
-}
-
-/** Turn slug into display name when we don't have it in the wrestlers table */
-function formatSlug(slug: string): string {
-  if (!slug) return slug;
-  return slug
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
-
-/** Replace slugs in a string with display names; longest slugs first to avoid partial matches */
-function replaceSlugsInString(
-  str: string | string[] | null | undefined,
-  slugToName: Map<string, string>
-): string {
-  if (str == null) return "";
-  const out =
-    typeof str === "string" ? str : Array.isArray(str) ? str.join(", ") : String(str);
-  if (typeof out !== "string") return "";
-  let result = out;
-  const sortedSlugs = [...slugToName.keys()].sort(
-    (a, b) => b.length - a.length
-  );
-  for (const slug of sortedSlugs) {
-    const name = slugToName.get(slug)!;
-    const regex = new RegExp(`\\b${escapeRegex(slug)}\\b`, "gi");
-    result = result.replace(regex, name);
-  }
-  return result;
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 type RawMatchKOTR = {
@@ -102,8 +60,6 @@ type RawMatchKOTR = {
   stage?: string;
   Stipulation?: string;
 };
-
-import type { ScoredEvent } from "@/lib/scoring/types";
 
 /** Same combined string as calculator: matchType, stipulation/Stipulation, title, round/stage. */
 function getKOTRCombined(rawMatch: RawMatchKOTR | null): string {
@@ -183,25 +139,35 @@ export default async function EventResultsPage({
   const search = await searchParams;
   const debugKotr = search?.debug === "kotr" || search?.debug === "1";
 
-  const [{ data: event, error }, { data: wrestlers }] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, name, date, location, matches")
-      .eq("id", eventId)
-      .single(),
-    supabase.from("wrestlers").select("id, name"),
-  ]);
-
-  if (error || !event) {
+  const event = await getEventForResultsRoute(eventId);
+  if (!event) {
     notFound();
   }
+
+  const canonicalSlug = buildEventResultsSlug(event);
+  const decodedParam = decodeURIComponent(eventId.trim());
+  if (decodedParam !== canonicalSlug) {
+    permanentRedirect(`/event-results/${canonicalSlug}`);
+  }
+
+  const [{ data: wrestlerRows }, { data: eventsForStats }] = await Promise.all([
+    supabase
+      .from("wrestlers")
+      .select("id, name, image_url, full_body_image_url, nationality, dob"),
+    supabase
+      .from("events")
+      .select("id, name, date, status, matches")
+      .eq("status", "completed")
+      .order("date", { ascending: false })
+      .limit(180),
+  ]);
 
   const { scoreEvent } = await import("@/lib/scoring/scoreEvent.js");
   const { EVENT_TYPES } = await import("@/lib/scoring/parsers/eventClassifier.js");
   const { normalizeWrestlerName } = await import("@/lib/scoring/parsers/participantParser.js");
   const slugToName = new Map<string, string>();
   const slugToCanonical = new Map<string, string>();
-  for (const w of wrestlers ?? []) {
+  for (const w of wrestlerRows ?? []) {
     const id = (w.id ?? "").toString().trim();
     const name = (w.name ?? "").toString().trim();
     if (id) {
@@ -214,6 +180,14 @@ export default async function EventResultsPage({
   }
   function toCanonicalSlug(slug: string): string {
     return slugToCanonical.get(slug) ?? slug;
+  }
+
+  const wrestlerMap = buildWrestlerMap(wrestlerRows ?? []);
+
+  const statsEventIds = new Set((eventsForStats ?? []).map((e) => String(e.id ?? "")));
+  const statsEventsMerged = [...(eventsForStats ?? [])];
+  if (event?.id != null && !statsEventIds.has(String(event.id))) {
+    statsEventsMerged.push(event);
   }
 
   const scored = scoreEvent(event) as ScoredEvent;
@@ -598,12 +572,49 @@ export default async function EventResultsPage({
   const displayName = (slug: string) =>
     slugToName.get(slug) ?? formatSlug(slug);
 
+  const fantasyPointsBySlugByOrder: Record<
+    number,
+    Record<string, { points: number; isWinner: boolean; breakdown: string[] }>
+  > = {};
+  for (const match of scored.matches) {
+    const order = match.order ?? 0;
+    fantasyPointsBySlugByOrder[order] = {};
+    if (!match.wrestlerPoints) continue;
+    for (const wp of match.wrestlerPoints ?? []) {
+      const slug = normalizeWrestlerName(wp.wrestler) || wp.wrestler;
+      const canon = toCanonicalSlug(slug);
+      const raw = String(wp.wrestler ?? "").trim();
+      const bd = (wp as { breakdown?: unknown }).breakdown;
+      const breakdown = Array.isArray(bd) ? bd.filter((x): x is string => typeof x === "string") : [];
+      const entry = {
+        points: wp.total ?? 0,
+        isWinner: isWrestlerWinner(
+          wp.wrestler,
+          (match as { winners?: unknown[] }).winners,
+          normalizeWrestlerName
+        ),
+        breakdown,
+      };
+      fantasyPointsBySlugByOrder[order][canon] = entry;
+      if (slug && slug !== canon) fantasyPointsBySlugByOrder[order][slug] = entry;
+      if (raw && raw !== canon && raw !== slug) fantasyPointsBySlugByOrder[order][raw] = entry;
+    }
+  }
+
   /** Canonical 16 Queen of the Ring participants for NOC — table shows only these, in this order (then sorted by total desc). */
   const QUEEN_OF_THE_RING_PARTICIPANTS = [
     "Jade Cargill", "Asuka", "Alexa Bliss", "Roxanne Perez", "Charlotte Flair", "Alba Fyre",
     "Candice LeRae", "Stephanie Vaquer", "Raquel Rodriguez", "Ivy Nile", "Kairi Sane",
     "Liv Morgan", "Rhea Ripley", "Michin", "Piper Niven", "Nia Jax",
   ];
+
+  const evExtras = event as typeof event & {
+    preview?: string | null;
+    recap?: string | null;
+    broadcast_start_ts?: string | null;
+  };
+  const formattedHeaderDate = formatEventHeaderDateLong(event.date);
+  const titleShowLine = buildTitleShow(event);
 
   return (
     <main
@@ -612,41 +623,27 @@ export default async function EventResultsPage({
         padding: 24,
         maxWidth: 1200,
         margin: "0 auto",
+        background: "#181511",
+        minHeight: "100vh",
+        color: "#e8e8e8",
       }}
     >
-      <p style={{ marginBottom: 24 }}>
-        <Link href="/event-results">← Event Results</Link>
-        {" · "}
-        <Link href="/">Home</Link>
-      </p>
-
-      <header
-        style={{
-          borderBottom: "2px solid #C6A04F",
-          paddingBottom: 16,
-          marginBottom: 24,
-        }}
-      >
-        <h1 style={{ margin: "0 0 4px 0", fontSize: 28 }}>
-          {scored.eventName}
-        </h1>
-        <p style={{ margin: 0, color: "#666", fontSize: 15 }}>
-          {formatDate(scored.date ?? null)}
-          {scored.eventType && scored.eventType !== "unknown" && (
-            <> · {formatEventType(scored.eventType)}</>
-          )}
-        </p>
-        <p style={{ margin: "8px 0 0", fontSize: 14 }}>
-          <a
-            href={`https://prowrestlingboxscore.com/event/${encodeURIComponent(eventId)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "#1a73e8", textDecoration: "none" }}
-          >
-            View Full Event Results on Pro Wrestling Boxscore
-          </a>
-        </p>
-      </header>
+      <Suspense fallback={null}>
+        <EventResultsMatchScroll />
+      </Suspense>
+      <EventPageHeader
+        eventName={event.name ?? "Event"}
+        h1Text={`${titleShowLine} Results — ${formattedHeaderDate}`}
+        metaLine={buildEventHeaderMetaDescription(event)}
+        formattedDateLong={formattedHeaderDate}
+        location={event.location?.trim() || null}
+        broadcastFormatted={formatBroadcastDateTime(evExtras.broadcast_start_ts ?? null)}
+        preview={evExtras.preview ?? null}
+        recap={evExtras.recap ?? null}
+        statusIsCompleted={(event.status || "") === "completed"}
+        isLive={event.status === "live"}
+        boxscoreHref={buildProWrestlingBoxscoreEventUrl(eventId, event.id)}
+      />
 
       {isKOTRPLE && (
         <div
@@ -879,148 +876,17 @@ export default async function EventResultsPage({
       )}
 
       {scored.matches.length === 0 ? (
-        <p>No matches in this event.</p>
+        <p style={{ color: "#ccc" }}>No matches in this event.</p>
       ) : (
-        <section style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-          {scored.matches.map((match) => (
-            <article
-              key={match.order}
-              style={{
-                background: "#f8f8f8",
-                border: "1px solid #e0e0e0",
-                borderRadius: 8,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  padding: "12px 16px",
-                  background: (match as { isPromo?: boolean }).isPromo ? "#e8e8e8" : "#eee",
-                  borderBottom: "1px solid #e0e0e0",
-                  fontWeight: 600,
-                  fontSize: 14,
-                }}
-              >
-                Match {match.order}
-                {(match as { isPromo?: boolean }).isPromo && (
-                  <span style={{ marginLeft: 8, color: "#888", fontWeight: "normal" }}>
-                    — Promo (no points awarded)
-                  </span>
-                )}
-                {match.title && match.title !== "None" && match.title !== "" && !(match as { isPromo?: boolean }).isPromo && (
-                  <span style={{ marginLeft: 8, color: "#555" }}>
-                    — {String(match.title)}
-                  </span>
-                )}
-              </div>
-              <div style={{ padding: 16 }}>
-                <p style={{ margin: "0 0 4px 0", fontWeight: 600 }}>
-                  {replaceSlugsInString(match.participants, slugToName) || match.participants}
-                </p>
-                {match.result && (
-                  <p style={{ margin: "0 0 12px 0", color: "#444", fontSize: 14 }}>
-                    {replaceSlugsInString(match.result, slugToName) || match.result}
-                    {match.method && (
-                      <span style={{ color: "#888" }}> · {match.method}</span>
-                    )}
-                  </p>
-                )}
-                {match.titleOutcome && match.titleOutcome !== "None" && (
-                  <p style={{ margin: "0 0 12px 0", fontSize: 13, color: "#666" }}>
-                    {match.titleOutcome}
-                  </p>
-                )}
-
-                {(match as { isPromo?: boolean }).isPromo ? (
-                  <p style={{ margin: "12px 0 0 0", fontSize: 13, color: "#888" }}>
-                    No fantasy points are awarded for promo segments.
-                  </p>
-                ) : (
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 14,
-                  }}
-                >
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #ccc" }}>
-                      <th
-                        style={{
-                          textAlign: "left",
-                          padding: "8px 12px 8px 0",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Wrestler
-                      </th>
-                      <th
-                        style={{
-                          textAlign: "right",
-                          padding: "8px 0",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Points
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(match.wrestlerPoints ?? []).map((wp) => {
-                      const kotrTowardNOC = (wp as { kotrTowardNOC?: number }).kotrTowardNOC ?? 0;
-                      return (
-                        <tr key={wp.wrestler} style={{ borderBottom: "1px solid #eee" }}>
-                          <td style={{ padding: "10px 12px 10px 0", verticalAlign: "top" }}>
-                            <strong>{displayName(wp.wrestler)}</strong>
-                            {wp.breakdown && wp.breakdown.length > 0 && (
-                              <ul
-                                style={{
-                                  margin: "4px 0 0 0",
-                                  paddingLeft: 18,
-                                  color: "#555",
-                                  fontSize: 12,
-                                  fontWeight: "normal",
-                                }}
-                              >
-                                {wp.breakdown.map((line, i) => (
-                                  <li key={i}>{line}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </td>
-                          <td
-                            style={{
-                              padding: "10px 0",
-                              textAlign: "right",
-                              fontWeight: 600,
-                              whiteSpace: "nowrap",
-                              verticalAlign: "top",
-                            }}
-                          >
-                            <div>{wp.total} pts</div>
-                            {kotrTowardNOC > 0 && !isRSEvent && (
-                              <div
-                                style={{
-                                  marginTop: 4,
-                                  fontSize: 12,
-                                  fontWeight: "normal",
-                                  color: "#666",
-                                }}
-                              >
-                                +{kotrTowardNOC} toward NOC
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                )}
-              </div>
-            </article>
-          ))}
-        </section>
+        <>
+          <h3 style={{ marginTop: 24, marginBottom: 16, color: "#fff" }}>Match Results</h3>
+          <EventBoxscoreMatchList
+            event={event}
+            wrestlerMap={wrestlerMap}
+            events={statsEventsMerged}
+            fantasyPointsBySlugByOrder={fantasyPointsBySlugByOrder}
+          />
+        </>
       )}
     </main>
   );

@@ -10,6 +10,7 @@ export type ScoredMatch = {
   participants?: string | string[];
   result?: string;
   method?: string;
+  winners?: unknown[];
   wrestlerPoints?: Array<{ wrestler: string; total?: number; breakdown?: string[]; [key: string]: unknown }>;
   [key: string]: unknown;
 };

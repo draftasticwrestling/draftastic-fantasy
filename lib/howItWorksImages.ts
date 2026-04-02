@@ -20,6 +20,7 @@ export type BeltKey =
   | "us-mens"
   | "us-womens"
   | "tag-team-mens"
+  | "tag-team-smackdown"
   | "tag-team-womens";
 
 export type EventLogoKey =
@@ -56,6 +57,8 @@ export const BELT_IMAGE_URLS: Partial<Record<BeltKey, string>> = {
   "us-mens": `${BELTS_BASE}/mens-united-states.png`,
   "us-womens": `${BELTS_BASE}/womens-united-states.png`,
   "tag-team-mens": `${BELTS_BASE}/mens-world-tag.png`,
+  /** SmackDown Tag Team Championship (distinct from Raw / World tag belts). */
+  "tag-team-smackdown": `${BELTS_BASE}/mens-wwe-tag.png`,
   "tag-team-womens": `${BELTS_BASE}/womens-tag.png`,
 };
 

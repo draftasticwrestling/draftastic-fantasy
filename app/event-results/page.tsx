@@ -1,74 +1,181 @@
-import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
+import {
+  formatEventResultsListMetaLine,
+  getEventLogoPath,
+  getEventResultsCardTitle,
+  getEventShowType,
+  type EventShowFilter,
+} from "@/lib/boxscore/eventShowHeader";
+import type { EventListingRow } from "@/lib/event-results/listingQueries";
+import { fetchCompletedEventsForListing, fetchUpcomingEventsForListing } from "@/lib/event-results/listingQueries";
+import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
+
+import styles from "./event-results.module.css";
+
 export const metadata = {
-  title: "Event Results — Draftastic Fantasy",
-  description: "Review fantasy scoring for completed events from Pro Wrestling Boxscore.",
+  title: "WWE Event Results — Draftastic Fantasy",
+  description:
+    "Raw results, SmackDown results, and WWE premium live event results with box score–style match details. Jump to Raw, SmackDown, or PLE-only listings, then open any show for Draftastic fantasy scoring.",
 };
 
-export default async function EventResultsPage() {
-  const { data: events, error } = await supabase
-    .from("events")
-    .select("id, name, date")
-    .eq("status", "completed")
-    .order("date", { ascending: false })
-    .limit(60);
+function filterLabel(f: EventShowFilter): string {
+  if (f === "raw") return "Raw";
+  if (f === "smackdown") return "SmackDown";
+  return "PLEs";
+}
+
+function buildListingHref(tab: "completed" | "upcoming", show: EventShowFilter | null): string {
+  const p = new URLSearchParams();
+  if (tab === "upcoming") p.set("tab", "upcoming");
+  if (show) p.set("show", show);
+  const q = p.toString();
+  return q ? `/event-results?${q}` : "/event-results";
+}
+
+type Search = { show?: string; tab?: string };
+
+export default async function EventResultsPage({ searchParams }: { searchParams: Promise<Search> }) {
+  const sp = await searchParams;
+  const showParam = sp?.show;
+  const filter: EventShowFilter | null =
+    showParam === "raw" || showParam === "smackdown" || showParam === "ple" ? showParam : null;
+  const tab: "completed" | "upcoming" = sp?.tab === "upcoming" ? "upcoming" : "completed";
+
+  let sourceRows: EventListingRow[] = [];
+  if (tab === "completed") {
+    sourceRows = await fetchCompletedEventsForListing(120);
+  } else {
+    sourceRows = await fetchUpcomingEventsForListing(80);
+  }
+
+  const list = filter ? sourceRows.filter((e) => getEventShowType(e) === filter) : sourceRows;
 
   return (
-    <main
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: 24,
-        maxWidth: 960,
-        margin: "0 auto",
-      }}
-    >
-      <p style={{ marginBottom: 24 }}>
-        <Link href="/" style={{ color: "#1a73e8", textDecoration: "none" }}>← Home</Link>
-      </p>
+    <main className={styles.pageRoot}>
+      <div className={styles.inner}>
+        <div className={styles.backRow}>
+          <Link href="/" className={styles.backLink}>
+            ← Home
+          </Link>
+        </div>
 
-      <h1 style={{ fontSize: "1.75rem", marginBottom: 8 }}>Event Results</h1>
-      <p style={{ color: "#555", marginBottom: 24, fontSize: 15 }}>
-        When a new event is added and marked completed on{" "}
-        <a href="https://prowrestlingboxscore.com" target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8" }}>
-          prowrestlingboxscore.com
-        </a>
-        , it appears here. Click an event to review fantasy scoring and confirm points per wrestler per match.
-      </p>
+        <header className={styles.hero}>
+          <h1 className={styles.heroH1}>WWE Event Results</h1>
+          <p className={styles.heroBody}>
+            Looking for Raw results tonight, SmackDown results tonight, or full WWE results? Pro Wrestling Boxscore tracks
+            every Raw, SmackDown, and premium live event with box score–style match details and championship updates—no
+            long recaps, just clear, scannable results.
+          </p>
+          <p className={styles.heroBody}>
+            Use the links below to jump to Raw, SmackDown, or PLE-only results, or browse the full list. Each completed
+            event opens to a full match card on Draftastic with fantasy scoring; click through for detailed results and
+            wrestler context.
+          </p>
+          <nav className={styles.heroNav} aria-label="Quick show links">
+            <Link href={buildListingHref(tab, "raw")}>Raw results</Link>
+            <span className={styles.heroNavSep} aria-hidden>
+              ·
+            </span>
+            <Link href={buildListingHref(tab, "smackdown")}>SmackDown results</Link>
+            <span className={styles.heroNavSep} aria-hidden>
+              ·
+            </span>
+            <Link href={buildListingHref(tab, "ple")}>PLE results</Link>
+          </nav>
+        </header>
 
-      {error && (
-        <p style={{ color: "#c00", marginBottom: 16 }}>
-          Error loading events: {error.message}
-        </p>
-      )}
+        <div className={styles.primaryToggleRow}>
+          <Link
+            href={buildListingHref("completed", filter)}
+            className={`${styles.primaryPill} ${tab === "completed" ? styles.primaryPillActive : styles.primaryPillInactive}`}
+          >
+            Completed Events
+          </Link>
+          <Link
+            href={buildListingHref("upcoming", filter)}
+            className={`${styles.primaryPill} ${tab === "upcoming" ? styles.primaryPillActive : styles.primaryPillInactive}`}
+          >
+            Upcoming Events
+          </Link>
+        </div>
 
-      {events && events.length === 0 && !error && (
-        <p style={{ color: "#666" }}>
-          No completed events yet. Add and complete events in Pro Wrestling Boxscore first.
-        </p>
-      )}
-
-      {events && events.length > 0 && (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {events.map((event) => (
-            <li
-              key={event.id}
-              style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #eee",
-              }}
+        <div className={styles.filterRow}>
+          <Link
+            href={buildListingHref(tab, null)}
+            className={`${styles.filterPill} ${filter == null ? styles.filterPillActive : ""}`}
+          >
+            All
+          </Link>
+          {(["raw", "smackdown", "ple"] as const).map((key) => (
+            <Link
+              key={key}
+              href={buildListingHref(tab, key)}
+              className={`${styles.filterPill} ${filter === key ? styles.filterPillActive : ""}`}
             >
-              <Link
-                href={`/event-results/${encodeURIComponent(event.id)}`}
-                style={{ color: "#1a73e8", textDecoration: "none", fontWeight: 500 }}
-              >
-                {event.name}
-              </Link>
-              <span style={{ color: "#666", marginLeft: 10 }}>{event.date}</span>
-            </li>
+              {filterLabel(key)}
+            </Link>
           ))}
-        </ul>
-      )}
+        </div>
+
+        {filter && list.length > 0 && (
+          <p className={styles.filterHint}>
+            Showing <strong style={{ color: "#ccc" }}>{filterLabel(filter)}</strong> only · {list.length} event
+            {list.length === 1 ? "" : "s"}
+          </p>
+        )}
+
+        {sourceRows.length === 0 && tab === "completed" && (
+          <p className={styles.emptyText}>
+            No completed events in the list yet. When shows are marked completed on{" "}
+            <a href="https://prowrestlingboxscore.com" target="_blank" rel="noopener noreferrer" style={{ color: "#c6a04f" }}>
+              prowrestlingboxscore.com
+            </a>
+            , they appear here with fantasy scoring.
+          </p>
+        )}
+
+        {sourceRows.length === 0 && tab === "upcoming" && (
+          <p className={styles.emptyText}>
+            No upcoming WWE events in the forward window, or upcoming rows are already marked completed.
+          </p>
+        )}
+
+        {sourceRows.length > 0 && list.length === 0 && filter && (
+          <p className={styles.emptyText}>
+            No {tab === "upcoming" ? "upcoming " : ""}
+            {filterLabel(filter)} events match this filter.
+          </p>
+        )}
+
+        {list.length > 0 && (
+          <ul className={styles.cardList}>
+            {list.map((event) => {
+              const title = getEventResultsCardTitle(event);
+              const meta = formatEventResultsListMetaLine(event);
+              const logoSrc = getEventLogoPath(event.name);
+              const href = eventResultsHref(event);
+              return (
+                <li key={event.id}>
+                  <Link href={href} className={styles.cardLink}>
+                    <div className={styles.cardLogoWrap}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={logoSrc} alt="" className={styles.cardLogo} width={56} height={48} />
+                    </div>
+                    <div className={styles.cardText}>
+                      <h2 className={styles.cardTitle}>{title}</h2>
+                      {meta ? <p className={styles.cardMeta}>{meta}</p> : null}
+                      {tab === "upcoming" && (
+                        <p className={styles.upcomingHint}>Scheduled · fantasy scoring after the show airs</p>
+                      )}
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </main>
   );
 }

@@ -141,7 +141,7 @@ export default async function TeamPage({
   }
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 960, marginLeft: 0, marginRight: "auto", fontSize: 18, lineHeight: 1.6 }}>
+    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 960, marginLeft: "auto", marginRight: "auto", fontSize: 18, lineHeight: 1.6 }}>
       <p style={{ marginBottom: 20 }}>
         <Link href="/league/teams" style={{ color: "#1a73e8", textDecoration: "none" }}>
           ← {EXAMPLE_LEAGUE.name}

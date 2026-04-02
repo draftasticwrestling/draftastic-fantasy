@@ -4,6 +4,7 @@ export type Profile = {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  is_site_admin?: boolean | null;
   timezone: string | null;
   notify_trade_proposals: boolean;
   notify_draft_reminder: boolean;

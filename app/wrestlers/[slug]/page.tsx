@@ -25,9 +25,17 @@ import {
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
-  getTitleReignsForWrestler,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormalize";
+import type { ChampionshipReignRow } from "@/lib/championshipTitleHistory";
+import {
+  buildWrestlerProfileReignLines,
+  collectWrestlerChampionshipHistoryForProfile,
+  formatMonthEndLabel,
+  formatProfileTitleHistoryTail,
+  parseWrestlerAccomplishmentsColumn,
+} from "@/lib/wrestlerProfileChampionships";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import { factionDisplayName } from "@/lib/factionName";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
@@ -40,8 +48,19 @@ import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
+import { buildWrestlerMap, type WrestlerRow } from "@/lib/boxscore/normalizeWrestlerForCard";
+import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
 import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
+import {
+  buildPwbsWrestlerMap,
+  enrichProfileWrestlerMap,
+  getLastMatchesForWrestler,
+  getMatchOutcomeForProfile,
+  getProfileParticipationSlugs,
+  type TimelineEvent,
+} from "@/lib/wrestlerMatchTimeline";
 import { WrestlerPointsPeriodSelector, type PointsPeriod } from "./WrestlerPointsPeriodSelector";
+import WrestlerProfileEventsPanel from "./WrestlerProfileEventsPanel";
 import { WrestlerProfileBackLink } from "./WrestlerProfileBackLink";
 import { WrestlerProfileImage } from "./WrestlerProfileImage";
 import { getWrestlerFullImageUrl } from "@/lib/wrestlerImages";
@@ -84,19 +103,6 @@ function getPeriodLabel(period: PointsPeriod): string {
 }
 const BOXSCORE_WRESTLER_BASE = "https://prowrestlingboxscore.com/wrestler";
 
-type ChampionshipReign = {
-  champion_slug?: string | null;
-  champion_id?: string | null;
-  champion?: string | null;
-  champion_name?: string | null;
-  title?: string | null;
-  title_name?: string | null;
-  won_date?: string | null;
-  start_date?: string | null;
-  lost_date?: string | null;
-  end_date?: string | null;
-};
-
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "";
   const d = (dateStr || "").slice(0, 10);
@@ -106,12 +112,6 @@ function formatDate(dateStr: string | null): string {
     return `${month} ${day}, ${y}`;
   }
   return dateStr;
-}
-
-function formatMonthEnd(monthEnd: string): string {
-  const [y, m] = monthEnd.split("-");
-  const month = new Date(Number(y), Number(m) - 1, 1).toLocaleString("en-US", { month: "long" });
-  return `${month} ${y}`;
 }
 
 function calculateAge(dob: string | null | undefined): number | null {
@@ -188,10 +188,22 @@ export default async function WrestlerProfilePage({
         : "allTime";
 
   const db = getSupabase();
-  let wrestler: { id: string; name: string | null; gender: string | null; brand: string | null; image_url: string | null; dob: string | null; status?: string | null; Status?: string | null; "2K26 rating"?: unknown; "2K25 rating"?: unknown } | null = null;
+  let wrestler: {
+    id: string;
+    name: string | null;
+    gender: string | null;
+    brand: string | null;
+    image_url: string | null;
+    dob: string | null;
+    accomplishments?: string | null;
+    status?: string | null;
+    Status?: string | null;
+    "2K26 rating"?: unknown;
+    "2K25 rating"?: unknown;
+  } | null = null;
   const { data: direct, error: directError } = await db
     .from("wrestlers")
-    .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+    .select('id, name, gender, brand, image_url, dob, accomplishments, "Status", "2K26 rating", "2K25 rating"')
     .eq("id", slug)
     .maybeSingle();
   if (direct && !directError) wrestler = direct;
@@ -204,7 +216,7 @@ export default async function WrestlerProfilePage({
     if (match) {
       const { data: full } = await db
         .from("wrestlers")
-        .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+        .select('id, name, gender, brand, image_url, dob, accomplishments, "Status", "2K26 rating", "2K25 rating"')
         .eq("id", match.id)
         .single();
       if (full) wrestler = full;
@@ -214,8 +226,8 @@ export default async function WrestlerProfilePage({
 
   const { data: eventsBase } = await db
     .from("events")
-    .select("id, name, date, matches")
-    .eq("status", "completed")
+    .select("id, name, date, matches, location, status")
+    .or("status.eq.completed,status.eq.live")
     .gte("date", EVENTS_FROM_DATE)
     .order("date", { ascending: true })
     .limit(10000);
@@ -225,20 +237,20 @@ export default async function WrestlerProfilePage({
   const existingIds = new Set((eventsBase ?? []).map((e) => e.id));
   const toFetch = knownEventIds.filter((id) => !existingIds.has(id));
   const toFetchKotr = knownKotrPriorIds.filter((id) => !existingIds.has(id));
-  let extra: { id: string; name: string | null; date: string | null; matches: unknown }[] = [];
+  let extra: { id: string; name: string | null; date: string | null; matches: unknown; location?: string | null; status?: string | null }[] = [];
   if (toFetch.length > 0) {
     const res = await db
       .from("events")
-      .select("id, name, date, matches")
+      .select("id, name, date, matches, location, status")
       .in("id", toFetch)
-      .eq("status", "completed");
+      .or("status.eq.completed,status.eq.live");
     extra = (res.data ?? []) as typeof extra;
   }
-  let kotrPriorEvents: { id: string; name: string | null; date: string | null; matches: unknown }[] = [];
+  let kotrPriorEvents: { id: string; name: string | null; date: string | null; matches: unknown; location?: string | null; status?: string | null }[] = [];
   if (toFetchKotr.length > 0) {
     const res = await db
       .from("events")
-      .select("id, name, date, matches")
+      .select("id, name, date, matches, location, status")
       .in("id", toFetchKotr);
     kotrPriorEvents = (res.data ?? []) as typeof kotrPriorEvents;
   }
@@ -250,11 +262,15 @@ export default async function WrestlerProfilePage({
   // Monthly belt points and title reigns display always from Jan 2025 so all profiles show/count Jan 2025 onward
   const firstMonthEndForBelt = FIRST_END_OF_MONTH_POINTS_DATE;
 
-  const [reignsResult, changeRowsResult, currentFromTable, currentFromChanges] = await Promise.all([
-    db
-      .from("championship_history")
-      .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
-      .order("won_date", { ascending: true }),
+  const wrestlerSlugsForTagTeams = [...new Set([slug, wrestler.id].map((s) => String(s).trim()).filter(Boolean))];
+  const tagTeamMembersQuery =
+    wrestlerSlugsForTagTeams.length === 0
+      ? Promise.resolve({ data: [] as { tag_team_id: string }[], error: null as null })
+      : db.from("tag_team_members").select("tag_team_id").in("wrestler_slug", wrestlerSlugsForTagTeams);
+
+  const [reignsResult, tagTeamResult, changeRowsResult, currentFromTable, currentFromChanges] = await Promise.all([
+    db.from("championship_history").select("*"),
+    tagTeamMembersQuery,
     db
       .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
       .select("championship_type, champion, champion_slug, date")
@@ -262,8 +278,23 @@ export default async function WrestlerProfilePage({
     getCurrentChampionsFromChampionshipsTable(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
     getCurrentChampionsFromChanges(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
   ]);
+  const tagTeamIds = tagTeamResult.error
+    ? []
+    : [
+        ...new Set(
+          (tagTeamResult.data ?? [])
+            .map((m) => (m.tag_team_id != null ? String(m.tag_team_id).trim() : ""))
+            .filter((id) => id !== "")
+        ),
+      ];
   const { data: rawReigns } = reignsResult;
-  const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
+  const tableReigns = (rawReigns ?? [])
+    .map((row) => normalizeChampionshipHistoryRow(row as Record<string, unknown>))
+    .sort((a, b) => {
+      const ax = (a.won_date ?? a.start_date ?? "").slice(0, 10);
+      const bx = (b.won_date ?? b.start_date ?? "").slice(0, 10);
+      return ax.localeCompare(bx);
+    }) as ChampionshipReignRow[];
   const changeRows = changeRowsResult.error ? [] : (changeRowsResult.data ?? []);
   const changesReigns = inferReignsFromChampionshipChanges(changeRows);
   // Belt / reign merge: use full event history (same idea as league scoring), not period-filtered `events`,
@@ -272,7 +303,7 @@ export default async function WrestlerProfilePage({
   const inferredReigns = inferReignsFromEvents(
     eventsWithDateForBelt as { date: string; matches?: Array<{ title?: string; titleOutcome?: string; result?: string; participants?: string }> }[]
   );
-  const reigns = mergeReigns(tableReigns, [...inferredReigns, ...changesReigns]) as ChampionshipReign[];
+  const reigns = mergeReigns(tableReigns, [...inferredReigns, ...changesReigns]) as ChampionshipReignRow[];
 
   const pointsBySlug = aggregateWrestlerPoints(
     (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
@@ -282,6 +313,18 @@ export default async function WrestlerProfilePage({
   );
   const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, firstMonthEndForBelt);
   const nameKey = wrestler.name ? normalizeWrestlerName(wrestler.name) : "";
+  const wrestlerHistoryRows = collectWrestlerChampionshipHistoryForProfile(tableReigns, {
+    urlSlug: slug,
+    wrestlerId: wrestler.id,
+    wrestlerName: wrestler.name,
+    tagTeamIds,
+  });
+  const profileTitleLines = buildWrestlerProfileReignLines(wrestlerHistoryRows, {
+    firstMonthEnd: firstMonthEndForBelt,
+    wrestlerId: wrestler.id,
+    urlSlug: slug,
+  });
+  const accomplishmentLines = parseWrestlerAccomplishmentsColumn(wrestler.accomplishments);
   const extraBelt = getMonthlyBeltForWrestler(
     endOfMonthBySlug,
     wrestler.id,
@@ -307,8 +350,6 @@ export default async function WrestlerProfilePage({
   const unparsedById = getUnparsedMatchesForWrestler(unparsedBySlug, wrestler.id, nameKey);
   const unparsedBySlugParam = slug && slug !== wrestler.id ? getUnparsedMatchesForWrestler(unparsedBySlug, slug, nameKey) : unparsedById;
   const unparsedMatches = unparsedBySlugParam.length >= unparsedById.length ? unparsedBySlugParam : unparsedById;
-
-  const titleReigns = getTitleReignsForWrestler(reigns, firstMonthEndForBelt, wrestler.id) || getTitleReignsForWrestler(reigns, firstMonthEndForBelt, slug);
 
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
   // Keys in currentChampionsBySlug are canonical (normalizeWrestlerName); use same normalization for lookup
@@ -366,7 +407,7 @@ export default async function WrestlerProfilePage({
         )
       : null;
 
-  const { data: wrestlersList } = await db.from("wrestlers").select("id, name");
+  const { data: wrestlersList } = await db.from("wrestlers").select("id, name, image_url");
   const slugToCanonical = new Map<string, string>();
   for (const w of wrestlersList ?? []) {
     const id = (w.id ?? "").toString().trim();
@@ -382,6 +423,33 @@ export default async function WrestlerProfilePage({
     return slugToCanonical.get(s) ?? s;
   }
   const canonicalSlug = toCanonicalSlug(slug) || toCanonicalSlug(nameKey) || slug;
+
+  /** PWBS-style: `wrestlerMap[id] = { name }` only; timeline uses enriched alias for URL slug ≠ id. */
+  const pwbsIdWrestlerMap = buildPwbsWrestlerMap((wrestlersList ?? []) as { id: string; name?: string | null }[]);
+  const timelineWrestlerMap = enrichProfileWrestlerMap(pwbsIdWrestlerMap, wrestler.id, slug, wrestler.name);
+  const participationSlugs = getProfileParticipationSlugs(wrestler.id, slug);
+  const lastFiveItems = getLastMatchesForWrestler(
+    allEvents as TimelineEvent[],
+    participationSlugs,
+    timelineWrestlerMap,
+    5
+  );
+  const matchCardWrestlerMap = buildWrestlerMap((wrestlersList ?? []) as WrestlerRow[]);
+  const lastFivePayload = {
+    outcomes: lastFiveItems.map((item) =>
+      getMatchOutcomeForProfile(item.match, wrestler.id, slug, wrestler.name, pwbsIdWrestlerMap)
+    ),
+    items: lastFiveItems.map(({ event, match, matchIndex }) => ({
+      eventId: event.id,
+      eventName: event.name ?? "",
+      eventDate: (event.date || "").slice(0, 10),
+      location: (event as { location?: string | null }).location ?? null,
+      eventStatus: (event as { status?: string | null }).status ?? null,
+      matchIndex,
+      eventHref: eventResultsHref({ id: event.id, name: event.name ?? "", date: event.date ?? null }),
+      match: { ...match } as Record<string, unknown>,
+    })),
+  };
 
   type KotrBreakdown = { qualifier: number; semi: number };
   const emptyBreakdown = (): KotrBreakdown => ({ qualifier: 0, semi: 0 });
@@ -643,7 +711,17 @@ export default async function WrestlerProfilePage({
             </span>
           )}
         </div>
-        <div style={{ flex: "1 1 320px", minWidth: 0, height: 280, display: "flex", flexDirection: "column", gap: 6, justifyContent: "space-between" }}>
+        <div
+          style={{
+            flex: "1 1 320px",
+            minWidth: 0,
+            minHeight: 280,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            justifyContent: "flex-start",
+          }}
+        >
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
             {rosterOwner && leagueSlugParam ? (
               <Link
@@ -722,7 +800,7 @@ export default async function WrestlerProfilePage({
                 <span style={{ opacity: 0.9, fontSize: 10 }}>Total Points</span>
                 <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>{totalPoints}</div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, flex: 1, minHeight: 0 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, flexShrink: 0 }}>
                 <div style={{ padding: "4px 8px", background: "#f5f5f5", borderRadius: 4, textAlign: "center" }}>
                   <span style={{ color: "#666", fontSize: 10 }}>R/S Points</span>
                   <div style={{ fontSize: "0.9rem", fontWeight: 700 }}>{points.rsPoints}</div>
@@ -746,7 +824,16 @@ export default async function WrestlerProfilePage({
                   <span style={{ fontSize: 9, color: "#666" }}>per match</span>
                 </div>
               </div>
-              <p style={{ marginTop: 8, marginBottom: 0, fontSize: 11, color: "#666" }}>
+              <p
+                style={{
+                  marginTop: 8,
+                  marginBottom: 0,
+                  fontSize: 11,
+                  color: "#666",
+                  lineHeight: 1.45,
+                  flexShrink: 0,
+                }}
+              >
                 R/S = Raw & SmackDown · PLE = Premium Live Events · Belt = title points · PPM = points per match · Total = R/S + PLE + Belt
               </p>
             </div>
@@ -807,7 +894,10 @@ export default async function WrestlerProfilePage({
             <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
               {unparsedMatches.map((u, i) => (
                 <li key={i} style={{ marginBottom: 4 }}>
-                  <Link href={`/event-results/${u.eventId}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
+                  <Link
+                    href={eventResultsHref({ id: u.eventId, name: u.eventName, date: u.eventDate })}
+                    style={{ color: "#1a73e8", textDecoration: "none" }}
+                  >
                     {u.eventName}
                   </Link>
                   <span style={{ color: "#666", marginLeft: 8 }}>{formatDate(u.eventDate)}</span>
@@ -819,89 +909,110 @@ export default async function WrestlerProfilePage({
       </section>
 
       <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: 12 }}>Title reigns (months held)</h2>
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f5f5f5" }}>
-                <th style={{ padding: "10px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Title</th>
-                <th style={{ padding: "10px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Months held (end of month)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {titleReigns.length === 0 ? (
-                <tr>
-                  <td colSpan={2} style={{ padding: "16px 12px", color: "#666", textAlign: "center" }}>
-                    No title reigns.
-                  </td>
-                </tr>
-              ) : (
-                titleReigns.map((r, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
-                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{r.title}</td>
-                    <td style={{ padding: "10px 12px", color: "#555" }}>
-                      {r.monthEnds.map(formatMonthEnd).join(", ")}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div
+          style={{
+            padding: "16px 18px",
+            background: "#121418",
+            borderRadius: 8,
+            border: "1px solid #2a2d35",
+            color: "#e8eaed",
+          }}
+        >
+          <h3
+            style={{
+              fontSize: "0.95rem",
+              fontWeight: 700,
+              margin: "0 0 10px 0",
+              color: "#d0ac56",
+              paddingBottom: 8,
+              borderBottom: "1px solid #d0ac56",
+            }}
+          >
+            Accomplishments
+          </h3>
+          {accomplishmentLines.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 14, color: "#9aa0a6", fontStyle: "italic" }}>No accomplishments added yet.</p>
+          ) : (
+            <ul style={{ margin: "8px 0 0 0", paddingLeft: 22, fontSize: 15, lineHeight: 1.5 }}>
+              {accomplishmentLines.map((line, i) => (
+                <li key={i} style={{ marginBottom: 4 }}>
+                  {line}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h3
+            style={{
+              fontSize: "0.95rem",
+              fontWeight: 700,
+              margin: "24px 0 6px 0",
+              color: "#d0ac56",
+              paddingBottom: 8,
+              borderBottom: "1px solid #d0ac56",
+            }}
+          >
+            Title Reigns
+          </h3>
+          <p style={{ margin: "0 0 10px 0", fontSize: 12, color: "#9aa0a6", lineHeight: 1.45 }}>
+            When this reign overlaps a scored month-end, we list the months that count toward fantasy belt hold points
+            (same rules as the rest of the app), starting from {formatMonthEndLabel(FIRST_END_OF_MONTH_POINTS_DATE)}{" "}
+            through the last completed calendar month.
+          </p>
+          {profileTitleLines.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 14, color: "#9aa0a6" }}>No title reigns on record for this wrestler.</p>
+          ) : (
+            <ul style={{ margin: "8px 0 0 0", paddingLeft: 22, fontSize: 15, lineHeight: 1.55, listStyleType: "disc" }}>
+              {profileTitleLines.map((line) => (
+                <li key={line.rowKey} style={{ marginBottom: 12 }}>
+                  <Link
+                    href={`/championship/${encodeURIComponent(line.routeSlug)}`}
+                    style={{
+                      fontWeight: 700,
+                      color: "#d0ac56",
+                      textDecoration: "none",
+                    }}
+                  >
+                    {line.displayTitle}
+                  </Link>
+                  <span style={{ color: "#e8eaed" }}> — {formatProfileTitleHistoryTail(line)}</span>
+                  {line.beltMonthEndsFormatted.length > 0 && (
+                    <div style={{ marginTop: 4, fontSize: 12, color: "#b0b8c4", lineHeight: 1.4 }}>
+                      <span style={{ color: "#8f9a9e" }}>Belt points months: </span>
+                      {line.beltMonthEndsFormatted.join(", ")}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
 
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: 12 }}>
-          Events with points ({matchesWithPoints.length})
-        </h2>
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-            <thead>
-              <tr style={{ background: "#f5f5f5" }}>
-                <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Date</th>
-                <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Event</th>
-                <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #ddd" }}>Result / Title</th>
-                <th style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #ddd" }}>Pts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matchesWithPoints.length === 0 ? (
-                <tr>
-                  <td colSpan={4} style={{ padding: "16px 12px", color: "#666", textAlign: "center" }}>
-                    No matches with points in the league period.
-                  </td>
-                </tr>
-              ) : (
-                matchesWithPoints.map((row, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
-                    <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{formatDate(row.date)}</td>
-                    <td style={{ padding: "8px 12px" }}>
-                      <Link href={`/event-results/${row.eventId}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
-                        {row.eventName}
-                      </Link>
-                      {row.personaName && (
-                        <span style={{ display: "block", fontSize: 12, color: "#666", fontStyle: "italic" }}>
-                          as {row.personaName}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: "8px 12px", color: "#333" }}>
-                      {row.result ?? "—"}
-                      {row.title && row.title !== "None" && (
-                        <span style={{ display: "block", fontSize: 12, color: "#666" }}>
-                          {row.title}
-                          {row.titleOutcome && row.titleOutcome !== "None" ? ` · ${row.titleOutcome}` : ""}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>{row.total}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <WrestlerProfileEventsPanel
+        lastFive={lastFivePayload}
+        matchTimelineEvents={
+          allEvents as {
+            id: string;
+            name?: string | null;
+            date?: string | null;
+            location?: string | null;
+            status?: string | null;
+            matches?: unknown[] | null;
+          }[]
+        }
+        matchCardWrestlerMap={matchCardWrestlerMap as Record<string, Record<string, unknown>>}
+        pointsRows={matchesWithPoints.map(({ eventId, eventName, date, result, title, titleOutcome, total, personaName }) => ({
+          eventId,
+          eventName,
+          date,
+          result,
+          title,
+          titleOutcome,
+          total,
+          personaName,
+        }))}
+      />
     </main>
   );
 }
