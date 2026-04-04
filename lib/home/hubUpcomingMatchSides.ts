@@ -1,7 +1,20 @@
 import {
   extractMatchParticipants,
+  normalizeWrestlerName,
   parseParticipants,
 } from "@/lib/scoring/parsers/participantParser.js";
+
+function dedupeSideNames(names: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const n of names) {
+    const key = normalizeWrestlerName(n);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+  }
+  return out;
+}
 
 /**
  * Group participant display names into sides for hub upcoming previews (insert "vs" between).
@@ -42,10 +55,11 @@ export function splitUpcomingMatchSides(raw: Record<string, unknown>): string[][
       const out = sides
         .map((part) => {
           const parsed = parseParticipants(part);
-          return parsed
+          const side = parsed
             .filter((p) => p.type === "individual")
             .map((p) => String(p.name || "").trim())
             .filter(Boolean);
+          return dedupeSideNames(side);
         })
         .filter((side) => side.length > 0);
       return out.length >= 2 ? out : null;
@@ -55,7 +69,9 @@ export function splitUpcomingMatchSides(raw: Record<string, unknown>): string[][
   let names: string[] = [];
   try {
     const md = extractMatchParticipants(raw as never);
-    names = (md.participantsForScoring ?? []).map((n) => String(n).trim()).filter(Boolean);
+    names = dedupeSideNames(
+      (md.participantsForScoring ?? []).map((n) => String(n).trim()).filter(Boolean)
+    );
   } catch {
     return null;
   }

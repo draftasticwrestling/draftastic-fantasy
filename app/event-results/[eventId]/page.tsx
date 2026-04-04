@@ -572,12 +572,17 @@ export default async function EventResultsPage({
   const displayName = (slug: string) =>
     slugToName.get(slug) ?? formatSlug(slug);
 
+  // Must match EventBoxscoreMatchList + getSortedMatchesForEvent: default order is index+1 when missing,
+  // not 0 — otherwise matches without `order` (often main event) get points under 0 while the card looks up N.
   const fantasyPointsBySlugByOrder: Record<
     number,
     Record<string, { points: number; isWinner: boolean; breakdown: string[] }>
   > = {};
-  for (const match of scored.matches) {
-    const order = match.order ?? 0;
+  for (let mi = 0; mi < scored.matches.length; mi++) {
+    const match = scored.matches[mi];
+    const rawM = rawMatches[mi];
+    const order =
+      typeof rawM?.order === "number" ? rawM.order : mi + 1;
     fantasyPointsBySlugByOrder[order] = {};
     if (!match.wrestlerPoints) continue;
     for (const wp of match.wrestlerPoints ?? []) {

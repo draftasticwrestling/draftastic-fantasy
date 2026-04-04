@@ -103,6 +103,21 @@ const getTeams = (participants) => {
   return [];
 };
 
+/** One row per wrestler in tag fantasy grid (duplicate names/slugs in boxscore data). */
+function dedupeTagPartnerSlugs(slugs, wrestlerMap = {}) {
+  const seen = new Set();
+  const out = [];
+  for (const s of slugs) {
+    const w = wrestlerMap[s];
+    const canonical = w?.id ?? s;
+    const k = String(canonical).toLowerCase().trim();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(canonical);
+  }
+  return out;
+}
+
 const parseTeamString = (teamStr, wrestlerMap = {}) => {
   if (!teamStr) {
     return { teamName: '', slugs: [] };
@@ -122,7 +137,7 @@ const parseTeamString = (teamStr, wrestlerMap = {}) => {
       const found = Object.values(wrestlerMap).find(w => w.name === potentialSlug || w.id === potentialSlug);
       return found ? found.id : potentialSlug;
     });
-    return { teamName, slugs };
+    return { teamName, slugs: dedupeTagPartnerSlugs(slugs, wrestlerMap) };
   }
   const potentialSlugs = teamStr.split('&').map(s => s.trim());
   // Convert display names to slugs if needed
@@ -135,7 +150,7 @@ const parseTeamString = (teamStr, wrestlerMap = {}) => {
     const found = Object.values(wrestlerMap).find(w => w.name === potentialSlug || w.id === potentialSlug);
     return found ? found.id : potentialSlug;
   });
-  return { teamName: '', slugs };
+  return { teamName: '', slugs: dedupeTagPartnerSlugs(slugs, wrestlerMap) };
 };
 
 // Helper function to get current champion slug for a title
