@@ -27,8 +27,11 @@ export default async function RootLayout({
     ""
   ).toLowerCase();
   const isMarketingHost = hostHeader.includes(DRAFTASTIC_MARKETING_LANDING_DOMAIN);
+  const pathname = headersList.get("x-draftastic-pathname") ?? "";
+  const isInternalAdminShell = pathname.startsWith("/internal-admin");
 
-  const recentEvents = isMarketingHost ? [] : await getRecentEvents(15);
+  const recentEvents =
+    isMarketingHost || isInternalAdminShell ? [] : await getRecentEvents(15);
 
   return (
     <html lang="en">
@@ -50,6 +53,8 @@ export default async function RootLayout({
       </head>
       <body>
         {isMarketingHost ? (
+          children
+        ) : isInternalAdminShell ? (
           children
         ) : (
           <>

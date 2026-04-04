@@ -5,6 +5,9 @@ import { fetchHubRecentCompleted, fetchHubUpcomingSpotlight } from "@/lib/home/h
 import { listPublishedArticles } from "@/lib/articles";
 import { siteLogoHref } from "@/lib/siteLogo";
 
+/** Headlines pull from DB; avoid stale static shell after publish. */
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Draftastic Pro Wrestling — Results & News",
   description: "Event results, fantasy scoring, and commentary — Draftastic Pro Wrestling.",

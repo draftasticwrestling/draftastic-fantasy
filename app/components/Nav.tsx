@@ -13,13 +13,28 @@ const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
 type LeagueItem = { slug: string; name: string; role: "commissioner" | "owner"; league_type?: string | null };
 
-const ADMIN_LINKS = [
-  { href: "/admin/articles", label: "Articles" },
-  { href: "/league/teams", label: "Legacy League" },
-  { href: "/mvl", label: "MVL Example" },
-  { href: "/admin/draft-testing", label: "Draft Testing" },
-  { href: "/admin/wrestlers", label: "Wrestlers" },
+/** Grouped admin menu: portal vs internal tools vs demos (flat list for mobile order). */
+const ADMIN_MENU_SECTIONS: readonly {
+  title: string;
+  links: readonly { href: string; label: string; primary?: boolean }[];
+}[] = [
+  {
+    title: "Admin portal",
+    links: [{ href: "/internal-admin", label: "Site admin", primary: true }],
+  },
+  {
+    title: "Tools",
+    links: [{ href: "/internal-admin/draft-testing", label: "Draft testing" }],
+  },
+  {
+    title: "Demos",
+    links: [
+      { href: "/league/teams", label: "Legacy league" },
+      { href: "/mvl", label: "MVL example" },
+    ],
+  },
 ] as const;
+
 
 function getLeagueSlugFromPath(pathname: string): string | null {
   if (!pathname.startsWith("/leagues/")) return null;
@@ -309,11 +324,23 @@ export default function Nav() {
                     <span aria-hidden>▾</span>
                   </button>
                   {adminOpen && (
-                    <div className="nav-dropdown-panel">
-                      {ADMIN_LINKS.map(({ href, label }) => (
-                        <Link key={href} href={href} onClick={() => setAdminOpen(false)}>
-                          {label}
-                        </Link>
+                    <div className="nav-dropdown-panel" style={{ minWidth: 200 }}>
+                      {ADMIN_MENU_SECTIONS.map((section) => (
+                        <div key={section.title}>
+                          <div className="nav-dropdown-section-title" role="presentation">
+                            {section.title}
+                          </div>
+                          {section.links.map(({ href, label, primary }) => (
+                            <Link
+                              key={href}
+                              href={href}
+                              className={primary ? "nav-dropdown-link-primary" : undefined}
+                              onClick={() => setAdminOpen(false)}
+                            >
+                              {label}
+                            </Link>
+                          ))}
+                        </div>
                       ))}
                     </div>
                   )}
@@ -366,10 +393,15 @@ export default function Nav() {
             <Link href="/how-it-works" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               How It Works
             </Link>
-            {ADMIN_LINKS.map(({ href, label }) => (
-              <Link key={href} href={href} className="nav-mobile-panel-link" onClick={closeMobileMenu}>
-                {label}
-              </Link>
+            {ADMIN_MENU_SECTIONS.map((section) => (
+              <div key={section.title}>
+                <p className="nav-mobile-admin-section-title">{section.title}</p>
+                {section.links.map(({ href, label }) => (
+                  <Link key={href} href={href} className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+                    {label}
+                  </Link>
+                ))}
+              </div>
             ))}
           </nav>
           <div className="nav-mobile-panel-actions">

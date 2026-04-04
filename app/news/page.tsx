@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { listPublishedArticles } from "@/lib/articles";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "News — Draftastic",
   description: "Fantasy wrestling commentary and articles.",

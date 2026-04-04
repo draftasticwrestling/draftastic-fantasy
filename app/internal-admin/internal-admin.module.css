@@ -1,0 +1,132 @@
+/* Site admin — plain utility chrome, same light tokens as the public site (readable, low drama). */
+
+.wrap {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-header);
+}
+
+.brand {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.brandMuted {
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-left: 6px;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.nav a {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.nav a:hover {
+  color: var(--color-text);
+  background: var(--color-bg-nav-secondary);
+  border-color: var(--color-border-light);
+}
+
+.nav a[data-active="true"] {
+  color: var(--color-blue);
+  background: var(--color-blue-bg);
+  border-color: var(--color-border);
+  font-weight: 600;
+}
+
+.main {
+  flex: 1;
+  padding: 28px 20px 48px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.footerNote {
+  padding: 14px 20px 20px;
+  font-size: 13px;
+  color: var(--color-text-dim);
+  text-align: center;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-header);
+}
+
+.footerNote a {
+  color: var(--color-blue);
+  font-weight: 500;
+}
+
+.footerNote a:hover {
+  color: var(--color-blue-hover);
+}
+
+/* Dashboard cards */
+.cardLink {
+  display: block;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  text-decoration: none;
+  color: var(--color-text);
+  background: var(--color-bg-card);
+}
+
+.cardLink:hover {
+  border-color: var(--color-blue);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.cardTitle {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.cardDesc {
+  display: block;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+.intro {
+  color: var(--color-text-muted);
+  margin-bottom: 28px;
+  max-width: 560px;
+}
+
+.pageTitle {
+  font-size: 1.35rem;
+  margin: 0 0 8px;
+  font-weight: 700;
+  color: var(--color-text);
+}

@@ -1,5 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * Use * so older DBs without `byline` still load; requesting a missing column makes
+ * Supabase error and callers that do `if (error) return []` hide every article.
+ */
+const ARTICLE_SELECT = "*";
+
 export type ArticleRow = {
   id: string;
   slug: string;
@@ -7,6 +13,8 @@ export type ArticleRow = {
   excerpt: string | null;
   body: string;
   author_id: string;
+  /** Present after `articles_add_byline.sql`; public byline override */
+  byline?: string | null;
   status: "draft" | "published";
   published_at: string | null;
   created_at: string;
@@ -17,9 +25,7 @@ export async function listPublishedArticles(limit = 50): Promise<ArticleRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("articles")
-    .select(
-      "id, slug, title, excerpt, body, author_id, status, published_at, created_at, updated_at"
-    )
+    .select(ARTICLE_SELECT)
     .eq("status", "published")
     .not("published_at", "is", null)
     .lte("published_at", new Date().toISOString())
@@ -33,9 +39,7 @@ export async function getPublishedArticleBySlug(slug: string): Promise<ArticleRo
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("articles")
-    .select(
-      "id, slug, title, excerpt, body, author_id, status, published_at, created_at, updated_at"
-    )
+    .select(ARTICLE_SELECT)
     .eq("slug", slug)
     .eq("status", "published")
     .not("published_at", "is", null)
@@ -49,9 +53,7 @@ export async function listAllArticlesForAdmin(): Promise<ArticleRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("articles")
-    .select(
-      "id, slug, title, excerpt, body, author_id, status, published_at, created_at, updated_at"
-    )
+    .select(ARTICLE_SELECT)
     .order("updated_at", { ascending: false });
   if (error) return [];
   return (data ?? []) as ArticleRow[];
@@ -61,9 +63,7 @@ export async function getArticleByIdForAdmin(id: string): Promise<ArticleRow | n
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("articles")
-    .select(
-      "id, slug, title, excerpt, body, author_id, status, published_at, created_at, updated_at"
-    )
+    .select(ARTICLE_SELECT)
     .eq("id", id)
     .maybeSingle();
   if (error || !data) return null;

@@ -12,6 +12,7 @@ create table if not exists public.articles (
   excerpt text null,
   body text not null default '',
   author_id uuid not null references public.profiles (id) on delete restrict,
+  byline text null,
   status text not null default 'draft' check (status in ('draft', 'published')),
   published_at timestamptz null,
   created_at timestamptz not null default now(),
@@ -24,6 +25,9 @@ create index if not exists idx_articles_status_published_at
 create index if not exists idx_articles_updated_at on public.articles (updated_at desc);
 
 comment on table public.articles is 'Editorial posts (Markdown body). Public reads published rows only.';
+
+comment on column public.articles.byline is
+  'Optional public author credit; when null, profiles.display_name for author_id is shown.';
 
 alter table public.articles enable row level security;
 
