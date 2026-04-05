@@ -6,6 +6,34 @@ import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { slugifyTitle, isValidArticleSlug } from "@/lib/articles";
 
 const BYLINE_MAX = 160;
+const SERIES_TITLE_MAX = 120;
+
+type ParsedSeries =
+  | { series_slug: string | null; series_title: string | null; series_part: number | null }
+  | { error: string };
+
+function parseSeries(formData: FormData): ParsedSeries {
+  const slugRaw = (formData.get("series_slug") ?? "").toString().trim().toLowerCase();
+  const series_slug = slugRaw || null;
+  if (series_slug && !isValidArticleSlug(series_slug)) {
+    return { error: "Series slug: use lowercase letters, numbers, and hyphens only." };
+  }
+  const titleRaw = (formData.get("series_title") ?? "").toString().trim();
+  const series_title = titleRaw ? titleRaw.slice(0, SERIES_TITLE_MAX) : null;
+  const partRaw = (formData.get("series_part") ?? "").toString().trim();
+  let series_part: number | null = null;
+  if (partRaw) {
+    const n = parseInt(partRaw, 10);
+    if (!Number.isFinite(n) || n < 1 || String(n) !== partRaw) {
+      return { error: "Series part must be a positive whole number or left empty." };
+    }
+    series_part = n;
+  }
+  if (!series_slug && (series_title || series_part != null)) {
+    return { error: "Add a series slug if you set a series title or part number." };
+  }
+  return { series_slug, series_title, series_part };
+}
 
 /** PostgREST / Supabase when `byline` is missing or API cache is stale. */
 function isBylineSchemaError(message: string): boolean {
@@ -42,6 +70,8 @@ export async function createArticleAction(
   }
   const parsedByline = parseByline(formData);
   if ("error" in parsedByline) return parsedByline;
+  const parsedSeries = parseSeries(formData);
+  if ("error" in parsedSeries) return parsedSeries;
   const published_at = status === "published" ? new Date().toISOString() : null;
   const rowBase = {
     slug,
@@ -51,6 +81,9 @@ export async function createArticleAction(
     author_id: user.id,
     status,
     published_at,
+    series_slug: parsedSeries.series_slug,
+    series_title: parsedSeries.series_title,
+    series_part: parsedSeries.series_part,
   };
   const rowWithByline =
     parsedByline.byline !== null ? { ...rowBase, byline: parsedByline.byline } : rowBase;
@@ -89,6 +122,8 @@ export async function updateArticleAction(
   }
   const parsedByline = parseByline(formData);
   if ("error" in parsedByline) return parsedByline;
+  const parsedSeries = parseSeries(formData);
+  if ("error" in parsedSeries) return parsedSeries;
   let published_at: string | null = null;
   if (status === "published") {
     const { data: existing } = await supabase
@@ -106,6 +141,9 @@ export async function updateArticleAction(
     body,
     status,
     published_at,
+    series_slug: parsedSeries.series_slug,
+    series_title: parsedSeries.series_title,
+    series_part: parsedSeries.series_part,
   };
   const updateRow = { ...updateBase, byline: parsedByline.byline };
   let { error } = await supabase.from("articles").update(updateRow).eq("id", id);

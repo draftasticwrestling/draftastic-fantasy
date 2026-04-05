@@ -247,6 +247,126 @@
   border-color: #fff;
 }
 
+/* Body: ad copy (main) + compact news rail */
+.cs-landing-cols {
+  max-width: min(var(--page-max-width, 1200px), 100%);
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+  gap: 2rem 2.25rem;
+  align-items: start;
+}
+
+.cs-landing-main {
+  min-width: 0;
+}
+
+.cs-landing-main .cs-section-inner {
+  max-width: 40rem;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.cs-hub-rail {
+  min-width: 0;
+}
+
+.cs-hub-rail-sticky {
+  position: sticky;
+  top: 0.75rem;
+}
+
+.cs-hub-rail {
+  background: var(--color-bg-card, #fff);
+  border: 1px solid var(--color-border-light, #e2e8f0);
+  border-radius: var(--radius, 8px);
+  padding: 1rem 1.1rem 1.15rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.cs-hub-rail-section + .cs-hub-rail-section {
+  margin-top: 1.1rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--color-border-light, #e2e8f0);
+}
+
+.cs-hub-rail-heading {
+  margin-bottom: 0.65rem !important;
+  font-size: 0.8rem !important;
+}
+
+.cs-hub-rail .hub-latest-feed {
+  gap: 12px;
+}
+
+.cs-hub-rail .hub-article-feed-bar {
+  padding: 6px 10px;
+  font-size: 0.65rem;
+}
+
+.cs-hub-rail .hub-article-feed-media {
+  aspect-ratio: 16 / 7;
+  max-height: 88px;
+}
+
+.cs-hub-rail .hub-article-feed-media-ph {
+  min-height: 72px;
+}
+
+.cs-hub-rail .hub-article-feed-body {
+  padding: 10px 12px 12px;
+}
+
+.cs-hub-rail .hub-article-feed-title {
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.cs-hub-rail .hub-article-feed-deck {
+  display: none;
+}
+
+.cs-hub-rail .hub-article-feed-cta {
+  font-size: 0.8rem;
+}
+
+.cs-hub-rail .hub-headlines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cs-hub-rail .hub-headlines li {
+  margin-bottom: 0.5rem;
+}
+
+.cs-hub-rail .hub-headlines li:last-child {
+  margin-bottom: 0;
+}
+
+.cs-hub-rail .hub-headlines a {
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 900px) {
+  .cs-landing-cols {
+    grid-template-columns: 1fr;
+    padding-bottom: 2.5rem;
+  }
+
+  .cs-landing-main .cs-section-inner {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 600px;
+  }
+
+  .cs-hub-rail-sticky {
+    position: static;
+  }
+}
+
 /* 2–6. Content sections */
 .cs-section {
   padding: 2.5rem 1.5rem;

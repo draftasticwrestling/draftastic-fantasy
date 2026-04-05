@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { focusArticleMarkdownEditorAtStart } from "@/lib/articleMarkdownEditorFocus";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -12,29 +13,14 @@ type Props = {
   onInsertMarkdown: (markdown: string) => void;
   /** Optional bump so the MD editor remounts (same pattern as Docx import). */
   onInserted?: () => void;
+  /** After a successful upload (e.g. refresh image library). */
+  onUploaded?: () => void;
 };
-
-function focusMarkdownEditorAtEnd() {
-  const run = () => {
-    const root = document.getElementById("article-markdown-editor");
-    root?.scrollIntoView({ behavior: "smooth", block: "center" });
-    const ta = root?.querySelector("textarea");
-    if (ta instanceof HTMLTextAreaElement) {
-      ta.focus();
-      const len = ta.value.length;
-      ta.selectionStart = len;
-      ta.selectionEnd = len;
-      ta.scrollTop = ta.scrollHeight;
-    }
-  };
-  requestAnimationFrame(() => requestAnimationFrame(run));
-  setTimeout(run, 50);
-}
 
 /**
  * Uploads an image to Supabase Storage (site-admin API) and appends ![alt](url) to the article body.
  */
-export function ArticleImageUpload({ articleId, disabled, onInsertMarkdown, onInserted }: Props) {
+export function ArticleImageUpload({ articleId, disabled, onInsertMarkdown, onInserted, onUploaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [alt, setAlt] = useState("");
@@ -84,11 +70,12 @@ export function ArticleImageUpload({ articleId, disabled, onInsertMarkdown, onIn
       const md = `![${caption}](${url})`;
       onInsertMarkdown(md);
       onInserted?.();
+      onUploaded?.();
       setLastInsertedLine(md);
       setInfo(
-        "Added at the end of the Markdown (left pane). If you don’t see it, scroll to the bottom of that text box — then drag the line where you want it and Save."
+        "Added at the top of the Markdown (left pane). You can cut the line and paste it elsewhere if you want it lower in the article. Then Save."
       );
-      focusMarkdownEditorAtEnd();
+      focusArticleMarkdownEditorAtStart();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error while uploading.");
     } finally {
@@ -131,7 +118,7 @@ export function ArticleImageUpload({ articleId, disabled, onInsertMarkdown, onIn
       </div>
       <p style={{ margin: 0, fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.45 }}>
         JPEG, PNG, WebP, or GIF, up to 5 MB. Choosing a file uploads it and <strong>automatically adds</strong> an
-        image line to the <strong>Markdown body under this section</strong> (same as typing{" "}
+        image line at the <strong>top of the Markdown body</strong> (same as typing{" "}
         <code style={{ fontSize: 11 }}>![caption](url)</code>
         ). Then <strong>Save</strong> the article so it appears on the live News page. Run{" "}
         <code style={{ fontSize: 11 }}>supabase/article_images_storage.sql</code> once if upload fails.

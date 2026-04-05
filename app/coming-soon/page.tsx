@@ -1,10 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
+import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
 import { EmailSignupForm } from "./EmailSignupForm";
 
 const IMG = "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/draftastic-screenshots";
 
-export default function ComingSoonPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ComingSoonPage() {
   return (
     <>
       {/* 1. Hero Section (Above the Fold) */}
@@ -24,10 +27,12 @@ export default function ComingSoonPage() {
         </div>
       </section>
 
-      {/* 2. The Hook Section */}
-      <section className="cs-section">
-        <div className="cs-section-inner">
-          <h2 className="cs-section-title">Why Isn&apos;t Fantasy Pro Wrestling a Huge Thing?</h2>
+      <div className="cs-landing-cols">
+        <div className="cs-landing-main">
+          {/* 2. The Hook Section */}
+          <section className="cs-section">
+            <div className="cs-section-inner">
+              <h2 className="cs-section-title">Why Isn&apos;t Fantasy Pro Wrestling a Huge Thing?</h2>
           <p>
             Millions of fans tune in every week to watch professional wrestling. The drama. The rivalries. The moments that make you jump off the couch.
           </p>
@@ -200,6 +205,9 @@ export default function ComingSoonPage() {
           </div>
         </div>
       </section>
+        </div>
+        <HubLatestHeadlinesSection headlineVariant="marketing" layout="marketing-rail" />
+      </div>
     </>
   );
 }

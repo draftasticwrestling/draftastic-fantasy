@@ -15,11 +15,54 @@ export type ArticleRow = {
   author_id: string;
   /** Present after `articles_add_byline.sql`; public byline override */
   byline?: string | null;
+  /** After `articles_series.sql`: multi-part story grouping */
+  series_slug?: string | null;
+  series_title?: string | null;
+  series_part?: number | null;
   status: "draft" | "published";
   published_at: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export type SeriesArticleTeaser = {
+  slug: string;
+  title: string;
+  series_part: number | null;
+};
+
+/**
+ * Published articles sharing a series_slug, ordered for nav (oldest `published_at` first).
+ */
+export async function listPublishedArticlesInSeries(seriesSlug: string): Promise<SeriesArticleTeaser[]> {
+  const raw = seriesSlug?.trim();
+  if (!raw) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("articles")
+    .select("slug, title, series_part, published_at")
+    .eq("status", "published")
+    .not("published_at", "is", null)
+    .eq("series_slug", raw)
+    .lte("published_at", new Date().toISOString());
+  if (error || !data) return [];
+  const rows = data as {
+    slug: string;
+    title: string;
+    series_part: number | null;
+    published_at: string;
+  }[];
+  // Oldest `published_at` first so Prev/Next follows release order. `series_part` is for labels only.
+  // Tie-breaker: part number (so same-timestamp posts still order 1, 2, 3).
+  rows.sort((a, b) => {
+    const t = a.published_at.localeCompare(b.published_at);
+    if (t !== 0) return t;
+    const ap = a.series_part ?? 999_999;
+    const bp = b.series_part ?? 999_999;
+    return ap - bp;
+  });
+  return rows.map(({ slug, title, series_part }) => ({ slug, title, series_part }));
+}
 
 export async function listPublishedArticles(limit = 50): Promise<ArticleRow[]> {
   const supabase = await createClient();

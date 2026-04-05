@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
 import Nav from "./components/Nav";
+import MarketingNav from "./components/MarketingNav";
 import PageLayout from "./components/PageLayout";
 import EventListBar from "./components/EventListBar";
 import { getRecentEvents } from "@/lib/eventsRecent";
-import { DRAFTASTIC_MARKETING_LANDING_DOMAIN } from "@/lib/siteDomains";
+import { isMarketingHostRequest } from "@/lib/marketingSurface";
 
 const GA_MEASUREMENT_ID = "G-NQSQEP66V2";
 
@@ -20,18 +21,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const headersList = await headers();
-  const forwarded = headersList.get("x-forwarded-host");
-  const hostHeader = (
-    forwarded?.split(",")[0]?.trim() ||
-    headersList.get("host") ||
-    ""
-  ).toLowerCase();
-  const isMarketingHost = hostHeader.includes(DRAFTASTIC_MARKETING_LANDING_DOMAIN);
+  const isMarketingHost = await isMarketingHostRequest();
   const pathname = headersList.get("x-draftastic-pathname") ?? "";
   const isInternalAdminShell = pathname.startsWith("/internal-admin");
 
-  const recentEvents =
-    isMarketingHost || isInternalAdminShell ? [] : await getRecentEvents(15);
+  const recentEvents = isInternalAdminShell ? [] : await getRecentEvents(15);
 
   return (
     <html lang="en">
@@ -53,7 +47,21 @@ export default async function RootLayout({
       </head>
       <body>
         {isMarketingHost ? (
-          children
+          <>
+            <EventListBar events={recentEvents} />
+            <div className="nav-sticky-wrap">
+              <MarketingNav />
+            </div>
+            <div className="site-main">
+              <PageLayout>{children}</PageLayout>
+            </div>
+            <footer className="site-footer">
+              <p className="site-footer-copy">© 2026 Draftastic Wrestling. All rights reserved.</p>
+              <p className="site-footer-disclaimer">
+                WWE, Raw, SmackDown, and all related logos and trademarks are the property of World Wrestling Entertainment, Inc. This site is not affiliated with or endorsed by WWE.
+              </p>
+            </footer>
+          </>
         ) : isInternalAdminShell ? (
           children
         ) : (

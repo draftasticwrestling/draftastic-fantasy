@@ -61,6 +61,7 @@ import {
 } from "@/lib/wrestlerMatchTimeline";
 import { WrestlerPointsPeriodSelector, type PointsPeriod } from "./WrestlerPointsPeriodSelector";
 import WrestlerProfileEventsPanel from "./WrestlerProfileEventsPanel";
+import { isMarketingHostRequest } from "@/lib/marketingSurface";
 import { WrestlerProfileBackLink } from "./WrestlerProfileBackLink";
 import { WrestlerProfileImage } from "./WrestlerProfileImage";
 import { getWrestlerFullImageUrl } from "@/lib/wrestlerImages";
@@ -158,8 +159,10 @@ export default async function WrestlerProfilePage({
 }) {
   const { slug } = await params;
   const searchParams = searchParamsPromise ? await searchParamsPromise : {};
+  const isMarketingPublic = await isMarketingHostRequest();
   const periodParam = (searchParams.period ?? "").trim() as PointsPeriod | "";
-  const leagueSlugParam = (searchParams.league ?? "").trim() || null;
+  const leagueSlugFromQuery = (searchParams.league ?? "").trim() || null;
+  const leagueSlugParam = isMarketingPublic ? null : leagueSlugFromQuery;
   const fromParam = (searchParams.from ?? "").trim() || null;
 
   const league = leagueSlugParam ? await getLeagueBySlug(leagueSlugParam) : null;
@@ -630,7 +633,7 @@ export default async function WrestlerProfilePage({
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 900, margin: "0 auto", fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 20 }}>
         <Suspense fallback={<Link href="/wrestlers" style={{ color: "#1a73e8", textDecoration: "none" }}>← Wrestlers</Link>}>
-          <WrestlerProfileBackLink />
+          <WrestlerProfileBackLink marketingPublicSite={isMarketingPublic} />
         </Suspense>
       </p>
 
@@ -769,24 +772,30 @@ export default async function WrestlerProfilePage({
                     + Add
                   </Link>
                 )}
-                <Link
-                  href={leagueSlugParam ? `/leagues/${encodeURIComponent(leagueSlugParam)}/watchlist?add=${encodeURIComponent(wrestler.id)}` : `/wrestlers/watch?add=${encodeURIComponent(wrestler.id)}`}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "5px 10px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "var(--color-text)",
-                    background: "transparent",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 4,
-                    textDecoration: "none",
-                  }}
-                >
-                  ⚑ Watchlist
-                </Link>
+                {!isMarketingPublic && (
+                  <Link
+                    href={
+                      leagueSlugParam
+                        ? `/leagues/${encodeURIComponent(leagueSlugParam)}/watchlist?add=${encodeURIComponent(wrestler.id)}`
+                        : `/wrestlers/watch?add=${encodeURIComponent(wrestler.id)}`
+                    }
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "5px 10px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "var(--color-text)",
+                      background: "transparent",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: 4,
+                      textDecoration: "none",
+                    }}
+                  >
+                    ⚑ Watchlist
+                  </Link>
+                )}
               </>
             )}
             <WrestlerPointsPeriodSelector currentPeriod={currentPeriod} leagueSlug={leagueSlugParam} compact />
@@ -965,16 +974,20 @@ export default async function WrestlerProfilePage({
             <ul style={{ margin: "8px 0 0 0", paddingLeft: 22, fontSize: 15, lineHeight: 1.55, listStyleType: "disc" }}>
               {profileTitleLines.map((line) => (
                 <li key={line.rowKey} style={{ marginBottom: 12 }}>
-                  <Link
-                    href={`/championship/${encodeURIComponent(line.routeSlug)}`}
-                    style={{
-                      fontWeight: 700,
-                      color: "#d0ac56",
-                      textDecoration: "none",
-                    }}
-                  >
-                    {line.displayTitle}
-                  </Link>
+                  {isMarketingPublic ? (
+                    <span style={{ fontWeight: 700, color: "#d0ac56" }}>{line.displayTitle}</span>
+                  ) : (
+                    <Link
+                      href={`/championship/${encodeURIComponent(line.routeSlug)}`}
+                      style={{
+                        fontWeight: 700,
+                        color: "#d0ac56",
+                        textDecoration: "none",
+                      }}
+                    >
+                      {line.displayTitle}
+                    </Link>
+                  )}
                   <span style={{ color: "#e8eaed" }}> — {formatProfileTitleHistoryTail(line)}</span>
                   {line.beltMonthEndsFormatted.length > 0 && (
                     <div style={{ marginTop: 4, fontSize: 12, color: "#b0b8c4", lineHeight: 1.4 }}>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { createArticleAction } from "./actions";
+import { ArticleImageLibrary } from "./ArticleImageLibrary";
 import { ArticleImageUpload } from "./ArticleImageUpload";
 import { ArticleMarkdownEditor } from "./ArticleMarkdownEditor";
 import { DocxBodyImport } from "./DocxBodyImport";
@@ -11,6 +12,7 @@ export function NewArticleForm() {
   const [body, setBody] = useState("");
   const [byline, setByline] = useState("");
   const [mdEditorKey, setMdEditorKey] = useState(0);
+  const [imageLibKey, setImageLibKey] = useState(0);
   const [pending, startTransition] = useTransition();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -70,6 +72,52 @@ export function NewArticleForm() {
           Leave blank to use your account display name. You still post as site admin; this only changes the public credit line.
         </span>
       </label>
+      <fieldset
+        className="admin-article-series-fieldset"
+        style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", padding: 14, margin: 0 }}
+      >
+        <legend style={{ padding: "0 8px", fontSize: 14, fontWeight: 600 }}>Series (optional)</legend>
+        <p className="admin-article-field-hint" style={{ marginTop: 0 }}>
+          Use the same <strong>series slug</strong> on each installment. The live article shows links to every published
+          part in that series. Run <code style={{ fontSize: 11 }}>supabase/articles_series.sql</code> if save errors
+          mention series columns.
+        </p>
+        <label className="admin-article-label">
+          Series slug
+          <input
+            name="series_slug"
+            type="text"
+            className="admin-article-input"
+            disabled={pending}
+            placeholder="e.g. dillster-big-board-2026"
+            maxLength={96}
+            autoComplete="off"
+          />
+        </label>
+        <label className="admin-article-label">
+          Series title (optional)
+          <input
+            name="series_title"
+            type="text"
+            className="admin-article-input"
+            disabled={pending}
+            placeholder="Shown above the part links, e.g. Dillster's Big Board"
+            maxLength={120}
+            autoComplete="off"
+          />
+        </label>
+        <label className="admin-article-label">
+          Part number (optional)
+          <input
+            name="series_part"
+            type="number"
+            min={1}
+            className="admin-article-input"
+            disabled={pending}
+            placeholder="1, 2, 3…"
+          />
+        </label>
+      </fieldset>
       <div className="admin-article-label">
         <span>Body (Markdown)</span>
         <DocxBodyImport
@@ -78,14 +126,25 @@ export function NewArticleForm() {
           disabled={pending}
           hasExistingBody={body.trim().length > 0}
         />
-        <ArticleImageUpload
-          articleId={null}
-          disabled={pending}
-          onInsertMarkdown={(md) => {
-            setBody((b) => (b.trim() ? `${b.trimEnd()}\n\n${md}\n` : `${md}\n`));
-            setMdEditorKey((k) => k + 1);
-          }}
-        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <ArticleImageUpload
+            articleId={null}
+            disabled={pending}
+            onInsertMarkdown={(md) => {
+              setBody((b) => (b.trim() ? `${md}\n\n${b}` : `${md}\n`));
+              setMdEditorKey((k) => k + 1);
+            }}
+            onUploaded={() => setImageLibKey((k) => k + 1)}
+          />
+          <ArticleImageLibrary
+            refreshKey={imageLibKey}
+            disabled={pending}
+            onInsertMarkdown={(md) => {
+              setBody((b) => (b.trim() ? `${md}\n\n${b}` : `${md}\n`));
+              setMdEditorKey((k) => k + 1);
+            }}
+          />
+        </div>
         <ArticleMarkdownEditor key={mdEditorKey} value={body} onChange={setBody} disabled={pending} />
         <input type="hidden" name="body" value={body} />
       </div>

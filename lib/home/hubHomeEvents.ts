@@ -1,5 +1,5 @@
 /**
- * Home hub: upcoming spotlight (today/tomorrow ET) + recent completed events.
+ * Home hub: upcoming spotlight (today or tomorrow ET ≈ within the next day for TV) + recent completed events.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -43,6 +43,7 @@ export type HubUpcomingSpotlight = HubPreviewEventRow & {
 
 /**
  * Single upcoming event dated today or tomorrow (ET) with ≥1 match, not completed.
+ * Used for home “The latest” when the next show is within roughly one day (ET calendar).
  * Prefers today over tomorrow; stable tie-break by date string then name.
  */
 export async function fetchHubUpcomingSpotlight(supabase: SupabaseClient): Promise<HubUpcomingSpotlight | null> {

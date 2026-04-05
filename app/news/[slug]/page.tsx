@@ -7,6 +7,7 @@ import {
 import { getPublishedArticleBySlug } from "@/lib/articles";
 import { createClient } from "@/lib/supabase/server";
 import { ArticleMarkdown } from "@/app/components/articles/ArticleMarkdown";
+import { ArticleSeriesFooter } from "@/app/components/articles/ArticleSeriesFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,13 @@ export default async function NewsArticlePage({
           ) : null}
         </header>
         <ArticleMarkdown markdown={bodyMarkdown.trim() ? bodyMarkdown : "_No body yet._"} />
+        {article.series_slug?.trim() ? (
+          <ArticleSeriesFooter
+            seriesSlug={article.series_slug.trim()}
+            seriesTitle={article.series_title}
+            currentSlug={article.slug}
+          />
+        ) : null}
       </article>
     </main>
   );

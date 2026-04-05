@@ -1,13 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { DRAFTASTIC_MARKETING_LANDING_DOMAIN } from "@/lib/siteDomains";
-
-function isMarketingAllowedPath(pathname: string): boolean {
-  if (pathname === "/" || pathname === "") return true;
-  if (pathname.startsWith("/_next")) return true;
-  if (pathname.startsWith("/api")) return true;
-  return false;
-}
+import { isMarketingAllowedPathname } from "@/lib/marketingSurface";
 
 export async function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
@@ -21,7 +15,7 @@ export async function middleware(request: NextRequest) {
       const httpsUrl = `https://${h}${path}${request.nextUrl.search}`;
       return NextResponse.redirect(httpsUrl, 301);
     }
-    if (!isMarketingAllowedPath(path)) {
+    if (!isMarketingAllowedPathname(path)) {
       return NextResponse.redirect(new URL("/", request.url));
     }
   }

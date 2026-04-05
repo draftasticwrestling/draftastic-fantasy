@@ -2,6 +2,7 @@ import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
+import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 
 export type WrestlerAutolinkEntry = {
   id: string;
@@ -48,8 +49,15 @@ export const getCachedWrestlerAutolinkEntries = cache(async () => {
   return fetchWrestlerAutolinkEntries(supabase);
 });
 
+/** Map curly/smart quotes to ASCII `'` for name equality (Je'Von in copy vs DB). */
+function normalizeAutolinkApostrophes(s: string): string {
+  return s.replace(/[\u2018\u2019\u201A\u201B\u2032\u0060]/g, "'");
+}
+
 function isWordChar(c: string): boolean {
-  return /[A-Za-z0-9'.\-]/.test(c);
+  if (/[A-Za-z0-9'.\-]/.test(c)) return true;
+  const cp = c.codePointAt(0);
+  return cp === 0x2018 || cp === 0x2019 || cp === 0x201a || cp === 0x201b || cp === 0x2032;
 }
 
 function isBoundaryBefore(text: string, start: number): boolean {
@@ -60,7 +68,8 @@ function isBoundaryBefore(text: string, start: number): boolean {
 function isBoundaryAfter(text: string, end: number): boolean {
   if (end >= text.length) return true;
   const c = text[end]!;
-  if (c === "'" && (text[end + 1] === "s" || text[end + 1] === "S")) {
+  const next = text[end + 1];
+  if ((c === "'" || c === "\u2019" || c === "\u2018") && (next === "s" || next === "S")) {
     return true;
   }
   return !isWordChar(c);
@@ -71,7 +80,9 @@ function matchDisplayAt(text: string, start: number, display: string): number {
   if (display.length === 0 || start + display.length > text.length) return 0;
   if (!isBoundaryBefore(text, start)) return 0;
   const slice = text.slice(start, start + display.length);
-  if (slice.toLowerCase() !== display.toLowerCase()) return 0;
+  const a = normalizeAutolinkApostrophes(slice).toLowerCase();
+  const b = normalizeAutolinkApostrophes(display).toLowerCase();
+  if (a !== b) return 0;
   if (!isBoundaryAfter(text, start + display.length)) return 0;
   return display.length;
 }
@@ -98,7 +109,9 @@ export function replaceWrestlerNamesInPlainText(
     }
     if (entry && matchedLen > 0) {
       const raw = text.slice(i, i + matchedLen);
-      const href = `/wrestlers/${encodeURIComponent(entry.id)}`;
+      const slugFromName = normalizeWrestlerName(entry.display);
+      const pathSegment = slugFromName || entry.id;
+      const href = `/wrestlers/${encodeURIComponent(pathSegment)}`;
       out += `[${raw}](${href})`;
       i += matchedLen;
     } else {

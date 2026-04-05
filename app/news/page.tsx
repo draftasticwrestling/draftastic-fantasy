@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { firstArticleImageUrl } from "@/lib/articleFirstImage";
 import { listPublishedArticles } from "@/lib/articles";
 
 export const dynamic = "force-dynamic";
@@ -38,17 +39,39 @@ export default async function NewsPage() {
         </p>
       ) : (
         <ul className="news-list">
-          {articles.map((a) => (
-            <li key={a.id} className="news-list-item">
-              <Link href={`/news/${encodeURIComponent(a.slug)}`} className="news-list-title">
-                {a.title}
-              </Link>
-              <div className="news-list-meta">{formatDate(a.published_at)}</div>
-              {a.excerpt ? (
-                <p className="news-list-excerpt">{a.excerpt}</p>
-              ) : null}
-            </li>
-          ))}
+          {articles.map((a) => {
+            const thumb = firstArticleImageUrl(a.body);
+            const href = `/news/${encodeURIComponent(a.slug)}`;
+            return (
+              <li key={a.id} className="news-list-item">
+                <Link href={href} className="news-list-card">
+                  <div className="news-list-card-inner">
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- arbitrary URLs from Markdown; lazy thumb
+                      <img
+                        src={thumb}
+                        alt=""
+                        className="news-list-thumb"
+                        width={48}
+                        height={48}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <span className="news-list-thumb news-list-thumb-placeholder" aria-hidden="true" />
+                    )}
+                    <div className="news-list-card-text">
+                      <span className="news-list-title">{a.title}</span>
+                      <span className="news-list-meta">{formatDate(a.published_at)}</span>
+                      {a.excerpt ? (
+                        <p className="news-list-excerpt">{a.excerpt}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </main>
