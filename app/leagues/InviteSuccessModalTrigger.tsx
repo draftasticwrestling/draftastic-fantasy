@@ -9,6 +9,7 @@ type Props = {
   leagueId: string;
   leagueName: string;
   leagueSlug: string;
+  joinCode?: string | null;
   /** When true, render an "Invite Managers" primary button that opens the modal */
   showInviteButton?: boolean;
 };
@@ -18,6 +19,7 @@ export function InviteSuccessModalTrigger({
   leagueId,
   leagueName,
   leagueSlug,
+  joinCode,
   showInviteButton = false,
 }: Props) {
   const router = useRouter();
@@ -35,6 +37,7 @@ export function InviteSuccessModalTrigger({
         show={showModal}
         leagueId={leagueId}
         leagueName={leagueName}
+        joinCode={joinCode}
         onClose={handleClose}
       />
       {showInviteButton && (

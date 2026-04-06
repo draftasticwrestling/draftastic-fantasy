@@ -168,8 +168,26 @@ export function LeagueStandingsTable({
                         textOverflow: "ellipsis",
                         overflow: "hidden",
                       }}
+                      title={
+                        m.manager_catchphrase?.trim()
+                          ? `Manager · ${managerDisplay} “${m.manager_catchphrase.trim()}”`
+                          : undefined
+                      }
                     >
                       Manager · {managerDisplay}
+                      {m.manager_catchphrase?.trim() ? (
+                        <>
+                          {" "}
+                          <span
+                            style={{
+                              fontStyle: "italic",
+                              color: "rgba(251,191,36,0.95)",
+                            }}
+                          >
+                            “{m.manager_catchphrase.trim()}”
+                          </span>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 </Link>

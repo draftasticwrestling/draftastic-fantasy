@@ -3,24 +3,51 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createLeague } from "@/lib/leagues";
+import {
+  leagueCreationAccessIsConfigured,
+  validateLeagueCreationAccessCode,
+} from "@/lib/leagueCreationAccess";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
+import { STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
 
 export type CreateLeagueState = { error?: string } | null;
 
-const VALID_LEAGUE_TYPES = ["season_overall", "head_to_head", "legacy"] as const;
+/** Matches DB / createLeague; site admins may pick any of these. */
+const ADMIN_LEAGUE_TYPES = new Set(["season_overall", "head_to_head", "combo", "legacy"]);
 
 const BETA_MIN_TEAMS = 3;
 const BETA_MAX_TEAMS = 6;
+const ADMIN_MIN_TEAMS = 3;
+const ADMIN_MAX_TEAMS = 16;
 
 export async function createLeagueAction(
   _prev: CreateLeagueState,
   formData: FormData
 ): Promise<CreateLeagueState> {
+  const isSiteAdmin = await getIsSiteAdmin();
+  /** Standard beta rules: mailing-list code (if configured), Road to SummerSlam season, season_overall only, 3–6 teams. */
+  const enforceStandardRules =
+    !isSiteAdmin ||
+    (isSiteAdmin && formData.get("enforce_standard_create_rules") === "1");
+
   const name = (formData.get("name") as string)?.trim() ?? "";
   const season_slug = (formData.get("season_slug") as string)?.trim() ?? "";
-  const season_year = Number(formData.get("season_year"));
   const draft_date = (formData.get("draft_date") as string)?.trim() || null;
   const team_count = Math.floor(Number(formData.get("team_count")));
   const league_type = (formData.get("league_type") as string)?.trim() ?? "";
+
+  if (leagueCreationAccessIsConfigured() && enforceStandardRules) {
+    const accessCode = (formData.get("access_code") as string)?.trim() ?? "";
+    if (!accessCode) {
+      return { error: "Enter the beta access code from your mailing list invite." };
+    }
+    if (!validateLeagueCreationAccessCode(accessCode)) {
+      return {
+        error:
+          "That access code isn’t valid. Check the email we sent you, or contact us if you need help.",
+      };
+    }
+  }
 
   if (!name) {
     return { error: "Enter a league name." };
@@ -28,17 +55,34 @@ export async function createLeagueAction(
   if (!season_slug) {
     return { error: "Select a season." };
   }
-  if (league_type !== "season_overall") {
-    return {
-      error:
-        "For the Road to SummerSlam beta, only Total Season Points leagues are available. Head-to-Head and other formats are coming soon.",
-    };
-  }
-  if (team_count < BETA_MIN_TEAMS || team_count > BETA_MAX_TEAMS) {
-    return { error: `Choose between ${BETA_MIN_TEAMS} and ${BETA_MAX_TEAMS} teams for this season.` };
-  }
-  if (!VALID_LEAGUE_TYPES.includes(league_type as (typeof VALID_LEAGUE_TYPES)[number])) {
-    return { error: "Select a league format." };
+
+  if (enforceStandardRules) {
+    if (season_slug !== STANDARD_USER_CREATE_SEASON_SLUG) {
+      return {
+        error:
+          "During the beta, new leagues use the Road to SummerSlam season window. Other seasons are available when creating a league with full admin options.",
+      };
+    }
+    if (league_type !== "season_overall") {
+      return {
+        error:
+          "For the Road to SummerSlam beta, only Total Season Points leagues are available. Head-to-Head and other formats are coming soon.",
+      };
+    }
+    if (team_count < BETA_MIN_TEAMS || team_count > BETA_MAX_TEAMS) {
+      return { error: `Choose between ${BETA_MIN_TEAMS} and ${BETA_MAX_TEAMS} teams for this season.` };
+    }
+  } else {
+    if (!ADMIN_LEAGUE_TYPES.has(league_type)) {
+      return { error: "Select a league format." };
+    }
+    if (
+      !Number.isFinite(team_count) ||
+      team_count < ADMIN_MIN_TEAMS ||
+      team_count > ADMIN_MAX_TEAMS
+    ) {
+      return { error: `Choose between ${ADMIN_MIN_TEAMS} and ${ADMIN_MAX_TEAMS} teams.` };
+    }
   }
 
   const supabase = await createClient();
@@ -52,7 +96,6 @@ export async function createLeagueAction(
   const { league, error } = await createLeague({
     name,
     season_slug,
-    season_year,
     draft_date,
     max_teams: team_count,
     league_type,

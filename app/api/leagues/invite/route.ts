@@ -12,11 +12,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "league_id required" }, { status: 400 });
     }
 
-    const { url, token, error } = await createLeagueInvite(league_id);
+    const { url, token, join_code, error } = await createLeagueInvite(league_id);
     if (error) {
       return NextResponse.json({ error }, { status: 400 });
     }
-    return NextResponse.json({ url, token });
+    return NextResponse.json({ url, token, join_code: join_code ?? null });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

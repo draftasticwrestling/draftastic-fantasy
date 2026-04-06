@@ -8,6 +8,7 @@ import {
   EVENT_TYPES,
   isPLE,
 } from "@/lib/scoring/parsers/eventClassifier.js";
+import { isRoadToSummerSlam2026WithSummerslamFinale } from "@/lib/beltRts2026JulyDeferral";
 
 export type SeasonPhaseId =
   | "road-to-summerslam"
@@ -63,6 +64,8 @@ export type PleFinaleBeltSub = {
   label: string;
   date: string;
   completed: boolean;
+  /** RTS 2026: season-end belt points use holders after this night (not July 31 month-end). */
+  seasonEndBeltHold?: boolean;
 };
 
 export type TimelineStep = {
@@ -160,6 +163,7 @@ export function buildLeagueSeasonTimeline(params: {
   const windowEnd = endDateYmd && /^\d{4}-\d{2}-\d{2}$/.test(endDateYmd) ? endDateYmd : "2099-12-31";
 
   const seasonPhase = seasonPhaseFromYmd(windowStart);
+  const mergeJulyMonthEndIntoSummerslamFinale = isRoadToSummerSlam2026WithSummerslamFinale(windowEnd);
 
   const inWindow = (dateStr: string | null): dateStr is string => {
     if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr.slice(0, 10))) return false;
@@ -244,6 +248,18 @@ export function buildLeagueSeasonTimeline(params: {
     /** Finale arc belt supersedes month-end copy on the same night (e.g. WM Night 2). */
     if (pleFinaleBelt) {
       monthEndBelt = undefined;
+    }
+
+    /** RTS 2026: no separate July month-end row; season-end belt is holders after SummerSlam Night 2. */
+    if (mergeJulyMonthEndIntoSummerslamFinale && monthEndBelt?.beltMonthLabel === "July") {
+      monthEndBelt = undefined;
+    }
+    if (
+      mergeJulyMonthEndIntoSummerslamFinale &&
+      pleFinaleBelt &&
+      pleEventType === EVENT_TYPES.SUMMERSLAM_NIGHT_2
+    ) {
+      pleFinaleBelt = { ...pleFinaleBelt, seasonEndBeltHold: true };
     }
 
     eventOrdinal++;

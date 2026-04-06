@@ -5,6 +5,7 @@ const ALLOWED_TOP_LEVEL = [
   "name",
   "date",
   "location",
+  "event_type",
   "broadcast_start_ts",
   "broadcast_start_ts_source",
   "preview",
@@ -30,6 +31,10 @@ export function sanitizeBoxscoreEventForSupabase(event: Record<string, unknown>)
   }
   if (event.specialWinner !== undefined) {
     out.specialWinner = event.specialWinner;
+  }
+  if (event.event_type !== undefined) {
+    const et = typeof event.event_type === "string" ? event.event_type.trim() : "";
+    out.event_type = et || null;
   }
   return out;
 }

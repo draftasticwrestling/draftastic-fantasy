@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createLeague } from "@/lib/leagues";
 
 /**
- * POST /api/leagues — create a new league. Body: { name, season_slug, season_year, draft_date? }
+ * POST /api/leagues — create a new league. Body: { name, season_slug, season_year?, draft_date? }
+ * season_year defaults to the current calendar year if omitted or invalid.
  * Note: The "Create a league" form uses a Server Action instead; this route is for programmatic use.
  */
 export async function POST(request: Request) {
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
       body = await request.json();
     } catch {
       return NextResponse.json(
-        { error: "Invalid JSON body. Expected { name, season_slug, season_year, draft_date? }." },
+        { error: "Invalid JSON body. Expected { name, season_slug, season_year?, draft_date? }." },
         { status: 400 }
       );
     }

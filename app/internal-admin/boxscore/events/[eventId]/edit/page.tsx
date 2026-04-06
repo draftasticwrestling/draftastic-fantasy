@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import styles from "@/app/internal-admin/internal-admin.module.css";
+import { getMergedBoxscoreUiOptions } from "@/lib/boxscoreAdmin/boxscoreUiOptions";
 import { buildTagTeamDataForVisualBuilder, fetchWrestlersForBoxscoreEditor } from "@/lib/boxscoreAdmin/boxscoreEditorData";
 import { loadBoxscoreEventForEditor } from "@/lib/boxscoreAdmin/boxscoreEventEditorLoad";
 import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
@@ -39,9 +40,10 @@ export default async function BoxscoreEditEventPage({
   const event = await loadBoxscoreEventForEditor(admin, param);
   if (!event) notFound();
 
-  const [wrestlers, initialTagTeamData] = await Promise.all([
+  const [wrestlers, initialTagTeamData, mergedOptions] = await Promise.all([
     fetchWrestlersForBoxscoreEditor(),
     buildTagTeamDataForVisualBuilder(),
+    getMergedBoxscoreUiOptions(admin),
   ]);
 
   return (
@@ -69,7 +71,12 @@ export default async function BoxscoreEditEventPage({
           No wrestlers loaded — check <code>SUPABASE_SERVICE_ROLE_KEY</code>. The match editor needs a roster.
         </p>
       ) : null}
-      <EditBoxscoreEventForm event={event} wrestlers={wrestlers} initialTagTeamData={initialTagTeamData} />
+      <EditBoxscoreEventForm
+        event={event}
+        wrestlers={wrestlers}
+        initialTagTeamData={initialTagTeamData}
+        mergedOptions={mergedOptions}
+      />
     </div>
   );
 }

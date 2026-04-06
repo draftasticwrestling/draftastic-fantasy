@@ -5,7 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeagueId } from "@/lib/leagueStructure";
 import { getActivePerEvent } from "@/lib/leagueStructure";
 import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 import { removeWrestlerFromRoster } from "@/lib/leagues";
@@ -113,14 +113,8 @@ export async function setLineupForEvent(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.id !== userId) return { error: "Not authenticated." };
 
-  const { data: members } = await supabase
-    .from("league_members")
-    .select("user_id")
-    .eq("league_id", leagueId);
-  const count = (members ?? []).length;
-  const activePer = getActivePerEvent(
-    getRosterRulesForLeague(count)?.rosterSize ?? 0
-  );
+  const rulesForLineup = await getRosterRulesForLeagueId(supabase, leagueId);
+  const activePer = getActivePerEvent(rulesForLineup?.rosterSize ?? 0);
   if (activePer == null) return { error: "Invalid league size." };
   if (wrestlerIds.length > activePer)
     return { error: `You can start at most ${activePer} wrestlers.` };
@@ -369,12 +363,7 @@ export async function validateTradeRosters(
   const receiveIds = receiveWrestlerIds.map((id) => id.trim()).filter(Boolean);
   if (giveIds.length === 0 && receiveIds.length === 0) return { error: "Add at least one wrestler to give or receive." };
 
-  const { count: memberCount } = await supabase
-    .from("league_members")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", leagueId);
-  const teamCount = memberCount ?? 0;
-  const rules = getRosterRulesForLeague(teamCount);
+  const rules = await getRosterRulesForLeagueId(supabase, leagueId);
   if (!rules) return { error: "League roster rules could not be loaded." };
 
   const minTotal = rules.minFemale + rules.minMale;
@@ -567,11 +556,7 @@ async function assertTradeExecutable(
   const receiveIds = uniqTrim((items ?? []).filter((i) => (i as { direction: string }).direction === "receive").map((i) => (i as { wrestler_id: string }).wrestler_id));
   const dropIds = uniqTrim(((proposal as { to_user_drop_ids?: string[] | null }).to_user_drop_ids ?? []) as string[]);
 
-  const { count: memberCount } = await admin
-    .from("league_members")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", proposal.league_id);
-  const rules = getRosterRulesForLeague(memberCount ?? 0);
+  const rules = await getRosterRulesForLeagueId(admin, proposal.league_id);
   if (!rules) return { error: "League roster rules could not be loaded." };
   const minTotal = rules.minFemale + rules.minMale;
   const rosterSize = rules.rosterSize;
@@ -857,12 +842,7 @@ export async function respondToTradeProposal(
   const receiveIds = uniqTrim((items ?? []).filter((i) => (i as { direction: string }).direction === "receive").map((i) => (i as { wrestler_id: string }).wrestler_id));
 
   // Load roster rules
-  const { count: memberCount } = await supabase
-    .from("league_members")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", proposal.league_id);
-  const teamCount = memberCount ?? 0;
-  const rules = getRosterRulesForLeague(teamCount);
+  const rules = await getRosterRulesForLeagueId(supabase, proposal.league_id);
   if (!rules) return { error: "League roster rules could not be loaded." };
   const minTotal = rules.minFemale + rules.minMale;
 
@@ -1640,12 +1620,7 @@ export async function dropWrestlerImmediate(
   const tradeLock = await assertWrestlerNotTradeLocked(leagueId, user.id, wid);
   if (tradeLock.error) return tradeLock;
 
-  const { count: memberCount } = await supabase
-    .from("league_members")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", leagueId);
-  const teamCount = memberCount ?? 0;
-  const rules = getRosterRulesForLeague(teamCount);
+  const rules = await getRosterRulesForLeagueId(supabase, leagueId);
   if (rules) {
     const { data: rosterRows } = await supabase
       .from("league_rosters")
@@ -1737,12 +1712,7 @@ export async function addFreeAgentImmediate(
   const currentIds = (rosterRows ?? []).map((r: { wrestler_id: string }) => r.wrestler_id);
   if (currentIds.includes(widToAdd)) return { error: "That wrestler is already on your roster." };
 
-  const { count: memberCountResult } = await supabase
-    .from("league_members")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", leagueId);
-  const teamCount = memberCountResult ?? 0;
-  const rules = getRosterRulesForLeague(teamCount);
+  const rules = await getRosterRulesForLeagueId(supabase, leagueId);
   if (!rules) return { error: "League roster rules could not be loaded." };
 
   const dropGenderRequired = widToDrop ? widToDrop : null;

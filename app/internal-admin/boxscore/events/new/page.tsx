@@ -1,14 +1,18 @@
 import Link from "next/link";
 import styles from "@/app/internal-admin/internal-admin.module.css";
+import { getMergedBoxscoreUiOptions } from "@/lib/boxscoreAdmin/boxscoreUiOptions";
 import { buildTagTeamDataForVisualBuilder, fetchWrestlersForBoxscoreEditor } from "@/lib/boxscoreAdmin/boxscoreEditorData";
+import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
 import { AddBoxscoreEventForm } from "./AddBoxscoreEventForm";
 
 export const metadata = { title: "Add event (Boxscore) — Site admin" };
 
 export default async function BoxscoreAddEventPage() {
-  const [wrestlers, initialTagTeamData] = await Promise.all([
+  const admin = getServiceRoleClient();
+  const [wrestlers, initialTagTeamData, mergedOptions] = await Promise.all([
     fetchWrestlersForBoxscoreEditor(),
     buildTagTeamDataForVisualBuilder(),
+    getMergedBoxscoreUiOptions(admin),
   ]);
 
   return (
@@ -41,7 +45,7 @@ export default async function BoxscoreAddEventPage() {
           No wrestlers loaded (check <code>SUPABASE_SERVICE_ROLE_KEY</code>). Autocomplete and the visual builder need a roster.
         </p>
       ) : null}
-      <AddBoxscoreEventForm wrestlers={wrestlers} initialTagTeamData={initialTagTeamData} />
+      <AddBoxscoreEventForm wrestlers={wrestlers} initialTagTeamData={initialTagTeamData} mergedOptions={mergedOptions} />
     </div>
   );
 }

@@ -1,7 +1,9 @@
 /**
- * MVL (Road to SummerSlam) league structure: roster size and gender minimums
- * depend on number of teams in the league.
+ * MVL league structure: roster size and gender minimums depend on number of teams
+ * and (for small leagues) whether the season is Road to SummerSlam beta.
  */
+
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const MIN_LEAGUE_TEAMS = 3;
 /** Upper bound for legacy leagues already in the database (larger than beta max). */
@@ -10,6 +12,9 @@ export const MAX_LEAGUE_TEAMS = 12;
 /** Road to SummerSlam beta: new leagues may only use 3–6 teams. */
 export const MAX_LEAGUE_TEAMS_BETA = 6;
 
+/** Season slug from `lib/leagueSeasons` — only this season uses RTS beta roster caps for 3–6 teams. */
+export const ROAD_TO_SUMMERSLAM_SEASON_SLUG = "road-to-summerslam";
+
 export type RosterRules = {
   rosterSize: number;
   minFemale: number;
@@ -17,22 +22,35 @@ export type RosterRules = {
 };
 
 /**
- * Roster rules by number of teams (3–12). Index is team count.
- * 3–6: Road to SummerSlam 2026 beta (13 / 11 / 9 / 8 roster caps).
- * Road to SummerSlam: min 4 women on the roster for every roster size except size 8 (then min 3 women).
- * 7–12: legacy leagues created before beta caps.
+ * Legacy roster rules by team count (7–12). Used for all non–Road-to-SummerSlam leagues,
+ * and for RTS leagues with 7+ teams. For non-RTS leagues with 3–6 teams, we use the 7-team row.
  */
-export const ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
-  3: { rosterSize: 13, minFemale: 4, minMale: 5 },
-  4: { rosterSize: 11, minFemale: 4, minMale: 4 },
-  5: { rosterSize: 9, minFemale: 4, minMale: 4 },
-  6: { rosterSize: 8, minFemale: 3, minMale: 4 },
+export const LEGACY_ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
   7: { rosterSize: 10, minFemale: 4, minMale: 4 },
   8: { rosterSize: 8, minFemale: 3, minMale: 4 },
   9: { rosterSize: 8, minFemale: 3, minMale: 4 },
   10: { rosterSize: 6, minFemale: 2, minMale: 2 },
   11: { rosterSize: 6, minFemale: 2, minMale: 2 },
   12: { rosterSize: 5, minFemale: 2, minMale: 2 },
+};
+
+/**
+ * Road to SummerSlam 2026 beta only: roster caps for 3–6 factions (tighter ladder than legacy 7-team baseline).
+ */
+export const RTS_BETA_ROSTER_RULES_3_TO_6: Record<number, RosterRules> = {
+  3: { rosterSize: 13, minFemale: 4, minMale: 5 },
+  4: { rosterSize: 11, minFemale: 4, minMale: 4 },
+  5: { rosterSize: 9, minFemale: 4, minMale: 4 },
+  6: { rosterSize: 8, minFemale: 3, minMale: 4 },
+};
+
+/**
+ * @deprecated Use LEGACY_ROSTER_RULES_BY_TEAMS + RTS_BETA_ROSTER_RULES_3_TO_6 via getRosterRulesForLeague.
+ * Merged view for debugging/docs only — do not use for new code.
+ */
+export const ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
+  ...RTS_BETA_ROSTER_RULES_3_TO_6,
+  ...LEGACY_ROSTER_RULES_BY_TEAMS,
 };
 
 /**
@@ -52,14 +70,40 @@ export const ACTIVE_PER_EVENT_BY_ROSTER_SIZE: Record<number, number> = {
 };
 
 /**
- * Get roster rules for a league based on its current number of teams (members).
- * Returns null if team count is outside 3–12 (league not yet valid or over capacity).
+ * Get roster rules for a league based on team count and season.
+ *
+ * - Road to SummerSlam (`season_slug === road-to-summerslam`) with 3–6 teams: RTS beta caps.
+ * - All other seasons (including Total Season Points test leagues in other seasons): legacy rules.
+ *   For 3–6 teams, legacy uses the same rules as a 7-team league (roster 10 / mins 4F+4M).
+ * - 7–12 teams: same legacy ladder for every season.
  */
-export function getRosterRulesForLeague(teamCount: number): RosterRules | null {
+export function getRosterRulesForLeague(teamCount: number, seasonSlug?: string | null): RosterRules | null {
   if (teamCount < MIN_LEAGUE_TEAMS || teamCount > MAX_LEAGUE_TEAMS) {
     return null;
   }
-  return ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
+  const isRoadToSummerSlam = seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  if (isRoadToSummerSlam && teamCount >= 3 && teamCount <= 6) {
+    return RTS_BETA_ROSTER_RULES_3_TO_6[teamCount] ?? null;
+  }
+  const legacyKey = teamCount < 7 ? 7 : teamCount;
+  return LEGACY_ROSTER_RULES_BY_TEAMS[legacyKey] ?? null;
+}
+
+/**
+ * Load `season_slug` and compute roster rules in one round-trip (plus member count).
+ * Use from server code that only has `leagueId`.
+ */
+export async function getRosterRulesForLeagueId(
+  supabase: Pick<SupabaseClient, "from">,
+  leagueId: string
+): Promise<RosterRules | null> {
+  const [{ count }, { data: league }] = await Promise.all([
+    supabase.from("league_members").select("*", { count: "exact", head: true }).eq("league_id", leagueId),
+    supabase.from("leagues").select("season_slug").eq("id", leagueId).maybeSingle(),
+  ]);
+  const teamCount = count ?? 0;
+  const seasonSlug = (league as { season_slug?: string | null } | null)?.season_slug ?? null;
+  return getRosterRulesForLeague(teamCount, seasonSlug);
 }
 
 /**

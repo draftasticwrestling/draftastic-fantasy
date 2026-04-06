@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode";
 
-type Props = { leagueId: string; leagueName: string };
+type Props = { leagueId: string; leagueName: string; joinCode?: string | null };
 
-export function InviteButton({ leagueId, leagueName }: Props) {
+export function InviteButton({ leagueId, leagueName, joinCode }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -13,6 +14,7 @@ export function InviteButton({ leagueId, leagueName }: Props) {
   const [message, setMessage] = useState("");
   const [emailSending, setEmailSending] = useState(false);
   const [emailResult, setEmailResult] = useState<{ ok?: boolean; error?: string } | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const handleCreateInvite = async () => {
     setLoading(true);
@@ -87,8 +89,40 @@ export function InviteButton({ leagueId, leagueName }: Props) {
     >
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Invite friends</div>
       <p style={{ margin: "0 0 12px", fontSize: 14, color: "#555" }}>
-        Share this link. Anyone with the link can join <strong>{leagueName}</strong> (link expires in 7 days).
+        Share this link. Anyone with the link can join <strong>{leagueName}</strong> (valid {INVITE_LINK_EXPIRY_DAYS}{" "}
+        days; reusable until full or expired). Or share the league code below — it never expires.
       </p>
+      {joinCode ? (
+        <div style={{ marginBottom: 12, padding: 10, background: "#fff", borderRadius: 6, border: "1px solid #e0e0e0" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>League code</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <code style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.05em" }}>{joinCode}</code>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(joinCode);
+                  setCopiedCode(true);
+                  setTimeout(() => setCopiedCode(false), 2000);
+                } catch {
+                  /* ignore */
+                }
+              }}
+              style={{
+                padding: "4px 10px",
+                fontSize: 12,
+                background: "#333",
+                color: "#fff",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              {copiedCode ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {!url ? (
         <button
           type="button"

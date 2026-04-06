@@ -85,7 +85,7 @@ export function MyFactionAvatarEditor({
         <ManagerAvatar
           avatarUrl={previewUrl}
           fallbackLetter={fallbackLetter}
-          size={72}
+          size={168}
           radius="var(--radius)"
           alt=""
           variant="sidebar"

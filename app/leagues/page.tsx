@@ -67,7 +67,12 @@ export default async function LeaguesPage() {
         >
           <p style={{ margin: 0 }}>You’re not in any leagues yet.</p>
           <p style={{ margin: "8px 0 0" }}>
-            Create one above or ask a friend for an invite link.
+            Create one above or ask a friend for a league code or invite link.
+          </p>
+          <p style={{ margin: "16px 0 0" }}>
+            <Link href="/leagues/join" style={{ color: "#1a73e8", fontWeight: 600 }}>
+              Join a league
+            </Link>
           </p>
         </div>
       ) : (

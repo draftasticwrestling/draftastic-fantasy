@@ -129,7 +129,9 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
                         >
                           <span className={styles.beltSubBadge}>Belt</span>
                           <span className={styles.beltSubText}>
-                            {pleFinaleBelt.label} finale · after {formatShortDate(pleFinaleBelt.date)}
+                            {pleFinaleBelt.seasonEndBeltHold
+                              ? `Season-end belt hold (holders after ${pleFinaleBelt.label} Night 2) · ${formatShortDate(pleFinaleBelt.date)}`
+                              : `${pleFinaleBelt.label} finale · after ${formatShortDate(pleFinaleBelt.date)}`}
                           </span>
                         </div>
                       )}

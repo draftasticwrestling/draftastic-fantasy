@@ -1,10 +1,11 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
+import Link from "next/link";
 import { useState } from "react";
 import type { BoxscoreTagTeamDataMap, BoxscoreWrestlerRow } from "@/lib/boxscoreAdmin/boxscoreEditorData";
+import type { MergedBoxscoreUiOptions } from "@/lib/boxscoreAdmin/boxscoreUiOptionsCore";
 import { insertBoxscoreEventAction, type InsertBoxscoreEventState } from "../actions";
-import { BOXSCORE_SPECIAL_WINNER_TYPES } from "@/lib/boxscoreAdmin/specialWinnerOptions";
 import { BoxscoreEventCardPanel } from "./BoxscoreEventCardPanel";
 
 const labelStyle = { display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" } as const;
@@ -60,9 +61,11 @@ async function submitWithBroadcast(
 export function AddBoxscoreEventForm({
   wrestlers,
   initialTagTeamData,
+  mergedOptions,
 }: {
   wrestlers: BoxscoreWrestlerRow[];
   initialTagTeamData: BoxscoreTagTeamDataMap;
+  mergedOptions: MergedBoxscoreUiOptions;
 }) {
   const [state, formAction] = useFormState(submitWithBroadcast, null);
   const [status, setStatus] = useState("upcoming");
@@ -120,6 +123,28 @@ export function AddBoxscoreEventForm({
         </div>
       </div>
 
+      <div style={{ marginBottom: 18 }}>
+        <label style={labelStyle} htmlFor="event_type">
+          Event type (optional)
+        </label>
+        <select id="event_type" name="event_type" style={{ ...fieldStyle, maxWidth: 420 }}>
+          <option value="">— Not set —</option>
+          {mergedOptions.eventTypeLabels.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "8px 0 0", maxWidth: 560 }}>
+          Catalog label for this show (RAW, SmackDown, PLE, etc.). Fantasy scoring still uses{" "}
+          <code style={{ fontSize: 11 }}>classifyEventType</code> from the event name. Add new labels in{" "}
+          <Link href="/internal-admin/boxscore/options" className="app-link">
+            Boxscore dropdown options
+          </Link>
+          .
+        </p>
+      </div>
+
       <fieldset style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", padding: 16, marginBottom: 18 }}>
         <legend style={{ fontSize: 14, fontWeight: 600, padding: "0 8px" }}>Status</legend>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -145,6 +170,8 @@ export function AddBoxscoreEventForm({
         eventDate={eventDate}
         matches={matches}
         setMatches={setMatches}
+        stipulationOptions={mergedOptions.stipulationOptions}
+        specialWinnerOptions={mergedOptions.specialWinnerOptions}
       />
 
       <details style={{ marginBottom: 18 }}>
@@ -206,7 +233,7 @@ export function AddBoxscoreEventForm({
             Type
           </label>
           <select id="special_winner_type" name="special_winner_type" style={fieldStyle}>
-            {BOXSCORE_SPECIAL_WINNER_TYPES.map((t) => (
+            {mergedOptions.specialWinnerOptions.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>

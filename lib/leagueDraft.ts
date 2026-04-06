@@ -5,7 +5,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getLeagueMembers, getRostersForLeague, getRostersForLeagueAdmin, getLeagueMemberUserIdsForAdmin } from "@/lib/leagues";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, getRosterRulesForLeagueId } from "@/lib/leagueStructure";
 import { isBlocklistedSlug } from "@/lib/draftBlocklist";
 import { addWrestlerToRoster } from "@/lib/leagues";
 import { timestamptzForAcquiredAtDate } from "@/lib/rosterTimestamps";
@@ -543,7 +543,10 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
   }
 
   const members = await getLeagueMembers(leagueId);
-  const rules = getRosterRulesForLeague(members.length);
+  const rules = getRosterRulesForLeague(
+    members.length,
+    (league as { season_slug?: string | null }).season_slug ?? null
+  );
   if (!rules) return { error: "League size must be 3–12 teams to generate draft order." };
 
   const runId = await ensureDraftRunForLeague(league);
@@ -611,7 +614,10 @@ export async function generateDraftOrderForScheduledDraft(leagueId: string): Pro
   if (leagueErr || !league) return { error: "League not found." };
 
   const memberIds = await getLeagueMemberUserIdsForAdmin(leagueId);
-  const rules = getRosterRulesForLeague(memberIds.length);
+  const rules = getRosterRulesForLeague(
+    memberIds.length,
+    (league as { season_slug?: string | null }).season_slug ?? null
+  );
   if (!rules) return { error: "League size must be 3–12 teams to generate draft order." };
 
   const runId = await ensureDraftRunForLeague(league);
@@ -678,7 +684,10 @@ export async function setDraftOrderFromRound1(
   }
 
   const members = await getLeagueMembers(leagueId);
-  const rules = getRosterRulesForLeague(members.length);
+  const rules = getRosterRulesForLeague(
+    members.length,
+    (league as { season_slug?: string | null }).season_slug ?? null
+  );
   if (!rules) return { error: "League size must be 3–12 teams to set draft order." };
 
   const runId = await ensureDraftRunForLeague(league);
@@ -1135,8 +1144,7 @@ export async function getTopAvailableWrestlerForUser(
     if (g) rosterGenderCounts[g] = (rosterGenderCounts[g] ?? 0) + 1;
   }
 
-  const members = await getLeagueMembers(leagueId);
-  const rules = getRosterRulesForLeague(members.length);
+  const rules = await getRosterRulesForLeagueId(supabase, leagueId);
   const currentFemale = rosterGenderCounts.F ?? 0;
   const currentMale = rosterGenderCounts.M ?? 0;
   const remainingPicks = rules ? rules.rosterSize - currentRoster.length : 0;
@@ -1374,8 +1382,7 @@ async function performOneAutoPick(
   const draftedIds = new Set<string>();
   for (const entries of Object.values(rosters)) for (const e of entries) draftedIds.add(e.wrestler_id);
   const currentRoster = rosters[current.user_id] ?? [];
-  const members = await getLeagueMembers(leagueId);
-  const rules = getRosterRulesForLeague(members.length);
+  const rules = await getRosterRulesForLeagueId(admin, leagueId);
   const rosterGenderCounts: Record<string, number> = { F: 0, M: 0 };
   if (currentRoster.length > 0) {
     const genderById = await getWrestlerGendersBatch(admin, currentRoster.map((e) => e.wrestler_id));

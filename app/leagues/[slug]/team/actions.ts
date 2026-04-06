@@ -171,3 +171,22 @@ export async function updateLeagueManagerAvatarAction(
   if (user) revalidatePath(`/leagues/${leagueSlug}/team/${user.id}`);
   return {};
 }
+
+export async function updateLeagueCatchphraseAction(
+  leagueSlug: string,
+  catchphrase: string | null
+): Promise<{ error?: string }> {
+  const { getLeagueBySlug, updateLeagueMemberCatchphrase } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+  const result = await updateLeagueMemberCatchphrase(league.id, catchphrase);
+  if (result.error) return result;
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/edit-team-info`);
+  revalidatePath(`/leagues/${leagueSlug}/standings`);
+  revalidatePath(`/leagues/${leagueSlug}/team`);
+  const supabase = await (await import("@/lib/supabase/server")).createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) revalidatePath(`/leagues/${leagueSlug}/team/${user.id}`);
+  return {};
+}

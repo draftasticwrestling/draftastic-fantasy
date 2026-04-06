@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeagueId } from "@/lib/leagueStructure";
 import { getDefaultStartEndForSeason } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { eventPointsForRosterStint, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
@@ -19,12 +19,19 @@ import {
 } from "@/lib/scoring/rosterStintEventWindow";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 import { validateFactionNameForSave } from "@/lib/factionName";
+import { validateManagerCatchphraseForSave } from "@/lib/managerCatchphrase";
 import { validateFactionEmojiForSave } from "@/lib/factionEmoji";
 import { isLeagueManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import {
   CHAMPIONSHIP_CHANGES_TABLE_NAME,
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
+import {
+  beltScoringLastMonthEndInclusive,
+  isRoadToSummerSlam2026WithSummerslamFinale,
+  transformRts2026BeltMonthEnds,
+} from "@/lib/beltRts2026JulyDeferral";
+import { generateJoinCode, INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode";
 
 export type DraftType = "offline" | "linear" | "snake" | "autopick";
 export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
@@ -49,6 +56,8 @@ export type League = {
   draft_status?: "not_started" | "in_progress" | "completed";
   draft_current_pick?: number | null;
   manager_note?: string | null;
+  /** Permanent join code (XXXX-XXXX); does not expire. */
+  join_code?: string | null;
   created_at: string;
 };
 
@@ -64,6 +73,8 @@ export type LeagueMember = {
   faction_emoji?: string | null;
   /** Per-league override; when null, UI uses profiles.avatar_url. */
   manager_avatar_url?: string | null;
+  /** Optional tagline unique per league (case-insensitive) among members. */
+  manager_catchphrase?: string | null;
   /** From profiles — default manager avatar when manager_avatar_url is null. */
   avatar_url?: string | null;
 };
@@ -114,11 +125,12 @@ function makeSlugUnique(base: string, existingSlugs: Set<string>): string {
 /**
  * Create a new league. Caller must be authenticated; they become commissioner.
  * When season_slug and season_year are provided, start_date and end_date are derived from the season.
+ * If season_year is missing or out of range, the current calendar year is used.
  */
 export async function createLeague(params: {
   name: string;
   season_slug: string;
-  season_year: number;
+  season_year?: number | null;
   draft_date?: string | null;
   start_date?: string | null;
   end_date?: string | null;
@@ -135,10 +147,11 @@ export async function createLeague(params: {
   const seasonSlug = params.season_slug?.trim();
   if (!seasonSlug) return { error: "Select a season." };
 
-  const year = Math.floor(Number(params.season_year));
-  if (!Number.isFinite(year) || year < 2020 || year > 2030) {
-    return { error: "Select a valid season year." };
-  }
+  const yearParsed = Math.floor(Number(params.season_year));
+  const year =
+    Number.isFinite(yearParsed) && yearParsed >= 2020 && yearParsed <= 2030
+      ? yearParsed
+      : new Date().getFullYear();
 
   const window = getDefaultStartEndForSeason(seasonSlug, year);
   if (!window) return { error: "Invalid season." };
@@ -162,23 +175,44 @@ export async function createLeague(params: {
       ? Math.min(16, Math.max(3, Math.floor(Number(params.max_teams))))
       : null;
 
-  const { data: league, error } = await admin
-    .from("leagues")
-    .insert({
-      name,
-      slug,
-      commissioner_id: user.id,
-      start_date: window.start_date,
-      end_date: window.end_date,
-      season_slug: seasonSlug,
-      draft_date,
-      league_type,
-      max_teams,
-    })
-    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, created_at")
-    .single();
+  const leagueSelect =
+    "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, join_code, created_at";
 
-  if (error) return { error: error.message };
+  let league: League | null = null;
+  let createError: string | undefined;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const join_code = generateJoinCode();
+    const result = await admin
+      .from("leagues")
+      .insert({
+        name,
+        slug,
+        commissioner_id: user.id,
+        start_date: window.start_date,
+        end_date: window.end_date,
+        season_slug: seasonSlug,
+        draft_date,
+        league_type,
+        max_teams,
+        join_code,
+      })
+      .select(leagueSelect)
+      .single();
+
+    if (!result.error && result.data) {
+      league = result.data as League;
+      break;
+    }
+    const msg = result.error?.message ?? "";
+    const code = (result.error as { code?: string })?.code;
+    if (code === "23505" && msg.includes("join_code")) {
+      continue;
+    }
+    createError = msg || "Failed to create league";
+    break;
+  }
+
+  if (createError) return { error: createError };
   if (!league) return { error: "Failed to create league" };
 
   await admin.from("league_members").insert({
@@ -199,7 +233,8 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const fullSelect = "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
+  const fullSelect =
+    "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
   let result = await supabase
     .from("leagues")
     .select(fullSelect)
@@ -229,6 +264,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
         draft_current_pick: null,
         auto_reactivate: false,
         manager_note: null,
+        join_code: null,
       } as typeof league;
     } else {
       league = minimalResult.data;
@@ -293,23 +329,35 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
     team_name?: string | null;
     faction_emoji?: string | null;
     manager_avatar_url?: string | null;
+    manager_catchphrase?: string | null;
   };
 
-  let full = await supabase
-    .from("league_members")
-    .select("id, league_id, user_id, role, joined_at, team_name, faction_emoji, manager_avatar_url")
-    .eq("league_id", leagueId)
-    .order("joined_at", { ascending: true });
-
-  if (full.error) {
+  let cols = [
+    "id",
+    "league_id",
+    "user_id",
+    "role",
+    "joined_at",
+    "team_name",
+    "faction_emoji",
+    "manager_avatar_url",
+    "manager_catchphrase",
+  ];
+  let full = await supabase.from("league_members").select(cols.join(", ")).eq("league_id", leagueId).order("joined_at", {
+    ascending: true,
+  });
+  for (let attempt = 0; attempt < 4 && full.error; attempt++) {
     const msg = full.error.message ?? "";
-    if (msg.includes("manager_avatar")) {
-      full = (await supabase
-        .from("league_members")
-        .select("id, league_id, user_id, role, joined_at, team_name, faction_emoji")
-        .eq("league_id", leagueId)
-        .order("joined_at", { ascending: true })) as typeof full;
+    if (msg.includes("manager_catchphrase")) {
+      cols = cols.filter((c) => c !== "manager_catchphrase");
+    } else if (msg.includes("manager_avatar")) {
+      cols = cols.filter((c) => c !== "manager_avatar_url");
+    } else {
+      break;
     }
+    full = await supabase.from("league_members").select(cols.join(", ")).eq("league_id", leagueId).order("joined_at", {
+      ascending: true,
+    });
   }
 
   let rowsList: Row[];
@@ -335,11 +383,17 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
             team_name: null as string | null,
             faction_emoji: null as string | null,
             manager_avatar_url: null as string | null,
+            manager_catchphrase: null as string | null,
           })
         );
       } else {
         rowsList = ((partial.data ?? []) as { id: string; league_id: string; user_id: string; role: string; joined_at: string; team_name?: string | null }[]).map(
-          (r) => ({ ...r, faction_emoji: null as string | null, manager_avatar_url: null as string | null })
+          (r) => ({
+            ...r,
+            faction_emoji: null as string | null,
+            manager_avatar_url: null as string | null,
+            manager_catchphrase: null as string | null,
+          })
         );
       }
     } else {
@@ -355,11 +409,12 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
           team_name: null as string | null,
           faction_emoji: null as string | null,
           manager_avatar_url: null as string | null,
+          manager_catchphrase: null as string | null,
         })
       );
     }
   } else {
-    rowsList = (full.data ?? []) as Row[];
+    rowsList = (full.data ?? []) as unknown as Row[];
   }
   if (!rowsList.length) return [];
 
@@ -381,6 +436,7 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
       team_name: r.team_name ?? null,
       faction_emoji: r.faction_emoji ?? null,
       manager_avatar_url: r.manager_avatar_url ?? null,
+      manager_catchphrase: r.manager_catchphrase ?? null,
       avatar_url: p?.avatar_url ?? null,
     };
   }) as LeagueMember[];
@@ -495,25 +551,70 @@ export async function updateLeagueMemberManagerAvatar(
 }
 
 /**
+ * Set or clear per-league manager catchphrase for the current user. Must be unique in the league (case-insensitive).
+ */
+export async function updateLeagueMemberCatchphrase(
+  leagueId: string,
+  catchphrase: string | null
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const validated = validateManagerCatchphraseForSave(catchphrase);
+  if (!validated.ok) return { error: validated.error };
+
+  const { error } = await supabase
+    .from("league_members")
+    .update({ manager_catchphrase: validated.value })
+    .eq("league_id", leagueId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    const msg = error.message ?? "";
+    const code = (error as { code?: string }).code;
+    if (
+      code === "23505" &&
+      (msg.toLowerCase().includes("catchphrase") ||
+        msg.includes("league_members_league_catchphrase_ci_unique"))
+    ) {
+      return {
+        error: "Someone else in this league already uses that catchphrase. Try a different one.",
+      };
+    }
+    if (msg.includes("manager_catchphrase") && (msg.includes("schema cache") || msg.includes("column"))) {
+      return {
+        error:
+          "Catchphrase could not be saved. Run supabase/league_members_manager_catchphrase.sql in the Supabase SQL Editor.",
+      };
+    }
+    return { error: msg };
+  }
+  return {};
+}
+
+/**
  * Create an invite for a league. Returns the full join URL and token. Commissioner only.
  */
 export async function createLeagueInvite(
   leagueId: string,
-  expiresInDays: number = 7
-): Promise<{ url: string; token: string; error?: string }> {
+  expiresInDays: number = INVITE_LINK_EXPIRY_DAYS
+): Promise<{ url: string; token: string; join_code?: string | null; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { url: "", token: "", error: "Not authenticated" };
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, commissioner_id, slug")
+    .select("id, commissioner_id, slug, join_code")
     .eq("id", leagueId)
     .single();
 
   if (!league || league.commissioner_id !== user.id) {
     return { url: "", token: "", error: "Not the GM" };
   }
+
+  const joinCode = (league as { join_code?: string | null }).join_code ?? null;
 
   const token = crypto.randomUUID().replace(/-/g, "").slice(0, 24);
   const expiresAt = new Date();
@@ -530,7 +631,7 @@ export async function createLeagueInvite(
 
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const url = `${base}/leagues/join?token=${token}`;
-  return { url, token };
+  return { url, token, join_code: joinCode };
 }
 
 /**
@@ -545,6 +646,22 @@ export async function joinLeagueWithToken(token: string): Promise<{
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("join_league_with_token", {
     p_token: token.trim(),
+  });
+
+  if (error) return { ok: false, error: error.message };
+  const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
+  return result;
+}
+
+export async function joinLeagueWithCode(code: string): Promise<{
+  ok: boolean;
+  league_slug?: string;
+  error?: string;
+  message?: string;
+}> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("join_league_with_code", {
+    p_code: code.trim(),
   });
 
   if (error) return { ok: false, error: error.message };
@@ -776,12 +893,7 @@ export async function addWrestlerToRoster(
   const wid = String(wrestlerId).trim();
   if (!wid) return { error: "Wrestler is required" };
 
-  const memberCountResult = await supabase
-    .from("league_members")
-    .select("id")
-    .eq("league_id", leagueId);
-  const teamCount = (memberCountResult.data ?? []).length;
-  const rules = getRosterRulesForLeague(teamCount);
+  const rules = await getRosterRulesForLeagueId(supabase, leagueId);
 
   if (rules) {
     const { data: currentRows } = await supabase
@@ -1120,9 +1232,12 @@ export async function getLeagueScoring(
     const changesReigns = inferReignsFromChampionshipChanges(changesRows);
     const reigns = mergeReigns(histRows ?? [], [...inferredReigns, ...changesReigns]);
     const beltFirstMonth = firstMonthEndOnOrAfter(start);
-    const lastMonthCap = end ? utcLastDayOfMonthContaining(String(end).slice(0, 10)) : undefined;
+    const lastMonthCap = beltScoringLastMonthEndInclusive(leagueEndYmd || undefined);
     const today = new Date().toISOString().slice(0, 10);
-    const monthEnds = getCompletedMonthEndsForBeltScoring(beltFirstMonth, lastMonthCap);
+    let monthEnds = getCompletedMonthEndsForBeltScoring(beltFirstMonth, lastMonthCap);
+    if (isRoadToSummerSlam2026WithSummerslamFinale(leagueEndYmd)) {
+      monthEnds = transformRts2026BeltMonthEnds(monthEnds, leagueEndYmd);
+    }
     for (const monthEnd of monthEnds) {
       if (monthEnd >= today) continue;
       const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(reigns, monthEnd, beltFirstMonth);

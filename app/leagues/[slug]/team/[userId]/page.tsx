@@ -40,6 +40,10 @@ import {
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
 import { factionDisplayName } from "@/lib/factionName";
+import {
+  adjustRts2026LeagueAggregateBeltPoints,
+  beltScoringLastMonthEndInclusive,
+} from "@/lib/beltRts2026JulyDeferral";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 10000;
@@ -142,7 +146,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     teamScoringAudit.activeStints.map((s) => [s.wrestler_id, s.acquired_at ?? null])
   );
 
-  const rosterRules = getRosterRulesForLeague(members.length);
+  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
   const rosterWrestlers = rosterEntries.map((e) => {
     const w = wrestlers.find((x) => x.id === e.wrestler_id) as { id: string; name: string | null; gender?: string | null } | undefined;
     return { id: e.wrestler_id, name: w?.name ?? e.wrestler_id, gender: w?.gender ?? null };
@@ -185,7 +189,20 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     const pointsBySlugAllTime = aggregateWrestlerPoints(eventsAll ?? []);
     const matchStatsBySlugSinceStart = aggregateWrestlerMatchStats(eventsSinceStart ?? []);
     const matchStatsBySlugAllTime = aggregateWrestlerMatchStats(eventsAll ?? []);
-    const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
+    const todayYmd = new Date().toISOString().slice(0, 10);
+    const beltLastMonthEnd = beltScoringLastMonthEndInclusive(league.end_date);
+    let endOfMonthBeltPoints = computeEndOfMonthBeltPoints(
+      reigns,
+      firstEligibleMonthEnd,
+      beltLastMonthEnd
+    );
+    endOfMonthBeltPoints = adjustRts2026LeagueAggregateBeltPoints(
+      endOfMonthBeltPoints,
+      reigns,
+      firstEligibleMonthEnd,
+      league.end_date,
+      todayYmd
+    );
     const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
     rosterTableRows = fullWrestlers.map((w: { id: string; name: string | null; gender: string | null; brand: string | null; image_url?: string | null; dob?: string | null; Status?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null }) => {
       const slugKey = w.id;
@@ -391,6 +408,20 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           </Link>
         )}
       </div>
+      {targetMember.manager_catchphrase?.trim() ? (
+        <p
+          style={{
+            margin: "0 0 16px",
+            textAlign: "center",
+            fontSize: 17,
+            fontStyle: "italic",
+            color: "#6b4f1d",
+            fontWeight: 600,
+          }}
+        >
+          “{targetMember.manager_catchphrase.trim()}”
+        </p>
+      ) : null}
       <p
         style={{
           color: "#555",
@@ -693,7 +724,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                     .join(", ")}
                 </span>
                 {(() => {
-                  const rosterRules = getRosterRulesForLeague(members.length);
+                  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
                   const myRosterIds = (rosters[currentUser.id] ?? []).map((e) => e.wrestler_id);
                   const giveCount = p.items.filter((i) => i.direction === "give").length; // recipient receives
                   const receiveCount = p.items.filter((i) => i.direction === "receive").length; // recipient gives

@@ -15,6 +15,7 @@ import { TradeProposalRespond } from "./team/TradeProposalRespond";
 import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
 import { ManagerAvatar } from "@/app/components/ManagerAvatar";
 import { MyFactionAvatarEditor } from "./MyFactionAvatarEditor";
+import { MyFactionCatchphraseBlock } from "./MyFactionCatchphraseBlock";
 import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import { factionDisplayName, truncateFactionDisplay } from "@/lib/factionName";
 
@@ -121,7 +122,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     wrestlersResult = wrestlersData;
     const pointsByUserId = pointsByOwner ?? {};
 
-    const rosterRules = getRosterRulesForLeague(members.length);
+    const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
     const membersByPoints = [...members].sort(
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
     );
@@ -188,14 +189,6 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
     return (
     <>
-      {isCommissioner && showInviteModal && (
-        <InviteSuccessModalTrigger
-          show
-          leagueId={league.id}
-          leagueName={league.name}
-          leagueSlug={slug}
-        />
-      )}
     <main className="lm-dashboard">
       <Link href="/leagues" className="lm-dashboard-back">← My leagues</Link>
 
@@ -227,7 +220,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                   fallbackLetter={
                     (factionDisplayName(currentUserMember, "M").trim().charAt(0) || "?").toUpperCase()
                   }
-                  size={72}
+                  size={168}
                   radius="var(--radius)"
                   alt=""
                   variant="sidebar"
@@ -236,6 +229,12 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             )}
             <p className="lm-myteam-name">{myTeamName}</p>
             <p className="lm-myteam-manager">{myManagerName}</p>
+            {currentUser && currentUserMember ? (
+              <MyFactionCatchphraseBlock
+                leagueSlug={slug}
+                initialCatchphrase={currentUserMember.manager_catchphrase?.trim() ?? ""}
+              />
+            ) : null}
             {currentUser ? (
               <Link href={`/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}`} className="lm-card-title lm-card-link">
                 View Roster
@@ -292,6 +291,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                   leagueId={league.id}
                   leagueName={league.name}
                   leagueSlug={slug}
+                  joinCode={league.join_code ?? null}
                   showInviteButton
                 />
                 <Link href={`/leagues/${slug}/draft`} className="lm-btn-secondary">

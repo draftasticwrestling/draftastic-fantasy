@@ -22,6 +22,12 @@ import {
   CHAMPIONSHIP_CHANGES_TABLE_NAME,
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
+import {
+  beltScoringLastMonthEndInclusive,
+  isRoadToSummerSlam2026WithSummerslamFinale,
+  RTS_2026_LEAGUE_END_DATE,
+  transformRts2026BeltMonthEnds,
+} from "@/lib/beltRts2026JulyDeferral";
 
 export type TeamScoreLedgerRow = {
   eventId: string;
@@ -352,14 +358,19 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     const changesReigns = inferReignsFromChampionshipChanges(changesRows);
     const reigns = mergeReigns(histRows ?? [], [...inferredReigns, ...changesReigns]);
     const beltFirstMonth = firstMonthEndOnOrAfter(leagueStart);
-    const lastMonthCap = leagueEnd ? utcLastDayOfMonthContaining(leagueEnd) : undefined;
+    const lastMonthCap = beltScoringLastMonthEndInclusive(leagueEndYmd || undefined);
     const today = new Date().toISOString().slice(0, 10);
-    const monthEnds = getCompletedMonthEndsForBeltScoring(beltFirstMonth, lastMonthCap);
+    let monthEnds = getCompletedMonthEndsForBeltScoring(beltFirstMonth, lastMonthCap);
+    if (isRoadToSummerSlam2026WithSummerslamFinale(leagueEndYmd)) {
+      monthEnds = transformRts2026BeltMonthEnds(monthEnds, leagueEndYmd);
+    }
     for (const monthEnd of monthEnds) {
       if (monthEnd >= today) continue;
       const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(reigns, monthEnd, beltFirstMonth);
-      const monthName = calendarMonthNameFromMonthEnd(monthEnd);
-      const eventName = `Monthly Belt Points for ${monthName}`;
+      const eventName =
+        monthEnd === RTS_2026_LEAGUE_END_DATE && isRoadToSummerSlam2026WithSummerslamFinale(leagueEndYmd)
+          ? "Season-end belt hold (after SummerSlam Night 2)"
+          : `Monthly Belt Points for ${calendarMonthNameFromMonthEnd(monthEnd)}`;
       for (const pick of teamStints) {
         if (
           !rosterStintActiveForMonthEndBelt({

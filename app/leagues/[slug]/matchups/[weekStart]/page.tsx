@@ -65,7 +65,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   const wrestlerNames: Record<string, string> = Object.fromEntries(
     (wrestlersRows.data ?? []).map((w) => [w.id, w.name ?? w.id])
   );
-  const rosterRules = getRosterRulesForLeague(members.length);
+  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
   const maxRosterLen = Math.max(0, ...Object.values(rosters).map((a) => a.length));
   const maxSlots = Math.max(rosterRules?.rosterSize ?? 12, maxRosterLen);
 

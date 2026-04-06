@@ -3,21 +3,24 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { JoinLeagueForm } from "../JoinLeagueForm";
 
-type Props = { searchParams: Promise<{ token?: string }> };
+type Props = { searchParams: Promise<{ token?: string; code?: string }> };
 
 export const metadata = {
   title: "Join a league — Draftastic Fantasy",
-  description: "Join a league with an invite link",
+  description: "Join a league with an invite link or league code",
 };
 
 export default async function JoinLeaguePage({ searchParams }: Props) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { token } = await searchParams;
+  const { token, code } = await searchParams;
 
   if (!user) {
-    const next = token ? `/leagues/join?token=${encodeURIComponent(token)}` : "/leagues/join";
-    redirect(`/auth/sign-in?next=${encodeURIComponent(next)}`);
+    const qs = new URLSearchParams();
+    if (token) qs.set("token", token);
+    if (code) qs.set("code", code);
+    const joinPath = qs.toString() ? `/leagues/join?${qs.toString()}` : "/leagues/join";
+    redirect(`/auth/sign-in?next=${encodeURIComponent(joinPath)}`);
   }
 
   return (
@@ -45,9 +48,12 @@ export default async function JoinLeaguePage({ searchParams }: Props) {
           <JoinLeagueForm token={token} />
         </>
       ) : (
-        <p style={{ color: "#555" }}>
-          Use the invite link you received. It should look like: …/leagues/join?token=…
-        </p>
+        <>
+          <p style={{ color: "#555", marginBottom: 24 }}>
+            Enter the league code from your GM, or open an invite link they sent you.
+          </p>
+          <JoinLeagueForm initialCode={code ?? ""} />
+        </>
       )}
     </main>
   );

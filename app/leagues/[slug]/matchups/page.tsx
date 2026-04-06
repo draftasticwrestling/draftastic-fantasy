@@ -177,7 +177,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     weekNumber: idx + 1,
   }));
 
-  const rosterRules = getRosterRulesForLeague(members.length);
+  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
 
   let pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let wrestlerNames: Record<string, string> = {};

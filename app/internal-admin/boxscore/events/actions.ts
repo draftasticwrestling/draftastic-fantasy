@@ -88,6 +88,7 @@ export async function insertBoxscoreEventAction(
   const broadcastTsRaw = (formData.get("broadcast_start_ts") ?? "").toString().trim();
   const swType = (formData.get("special_winner_type") ?? "None").toString().trim();
   const swName = (formData.get("special_winner_name") ?? "").toString().trim();
+  const eventType = (formData.get("event_type") ?? "").toString().trim();
 
   if (!name) return { error: "Event name is required." };
   const date = normalizeEventDateInput(dateRaw);
@@ -129,6 +130,7 @@ export async function insertBoxscoreEventAction(
     isLive: status === "live",
     broadcast_start_ts,
     broadcast_start_ts_source,
+    event_type: eventType || null,
   };
 
   if (swType !== "None" && swName) {
@@ -192,6 +194,7 @@ export async function updateBoxscoreEventAction(
   const broadcastTsRaw = (formData.get("broadcast_start_ts") ?? "").toString().trim();
   const swType = (formData.get("special_winner_type") ?? "None").toString().trim();
   const swName = (formData.get("special_winner_name") ?? "").toString().trim();
+  const eventType = (formData.get("event_type") ?? "").toString().trim();
 
   if (!name) return { error: "Event name is required." };
   const date = normalizeEventDateInput(dateRaw);
@@ -231,6 +234,7 @@ export async function updateBoxscoreEventAction(
     isLive: status === "live",
     broadcast_start_ts,
     broadcast_start_ts_source,
+    event_type: eventType || null,
   };
 
   if (swType !== "None" && swName) {

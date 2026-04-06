@@ -20,6 +20,10 @@ import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromCha
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import { isWrestlerStatsCacheUsable, loadWrestlerStatsCacheMaps } from "@/lib/wrestlerStatsCache";
+import {
+  adjustRts2026LeagueAggregateBeltPoints,
+  beltScoringLastMonthEndInclusive,
+} from "@/lib/beltRts2026JulyDeferral";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -157,7 +161,20 @@ export default async function WrestlersFreeAgentsPage({
   const matchStats2026BySlug = cacheUsable ? aggregateWrestlerMatchStats([]) : aggregateWrestlerMatchStats(events2026);
   const matchStatsAllTimeBySlug = cacheUsable ? aggregateWrestlerMatchStats([]) : aggregateWrestlerMatchStats(eventsAll);
   const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
-  const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEnd);
+  const todayYmd = new Date().toISOString().slice(0, 10);
+  const beltLastMonthEnd = beltScoringLastMonthEndInclusive(league.end_date);
+  let endOfMonthBeltPoints = computeEndOfMonthBeltPoints(
+    reigns,
+    firstEligibleMonthEnd,
+    beltLastMonthEnd
+  );
+  endOfMonthBeltPoints = adjustRts2026LeagueAggregateBeltPoints(
+    endOfMonthBeltPoints,
+    reigns,
+    firstEligibleMonthEnd,
+    league.end_date,
+    todayYmd
+  );
   const firstEligibleMonthEndAllTime = "2025-01-31"; // monthly belt points from Jan 2025 onward
   const endOfMonthBeltPointsAllTime = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEndAllTime);
   const endOfMonthBeltPoints2025 = computeEndOfMonthBeltPoints(reigns, "2025-01-31", "2025-12-31");

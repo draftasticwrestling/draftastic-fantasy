@@ -265,7 +265,18 @@ export default function MatchEdit({
   matchOrder,
   wrestlers,
   initialTagTeamData,
+  stipulationOptions,
+  specialWinnerOptions,
 }) {
+  const stipulationOptionsResolved =
+    Array.isArray(stipulationOptions) && stipulationOptions.length > 0
+      ? stipulationOptions
+      : [...STIPULATION_OPTIONS];
+  const specialWinnerOptionsResolved =
+    Array.isArray(specialWinnerOptions) && specialWinnerOptions.length > 0
+      ? specialWinnerOptions
+      : [...SPECIAL_WINNER_OPTIONS];
+
   // Debug: Log the initialMatch object (only on mount)
   useEffect(() => {
     console.log('MatchEdit initialMatch debug - liveStart:', initialMatch.liveStart);
@@ -1279,7 +1290,7 @@ export default function MatchEdit({
           value={match.stipulation}
           onChange={e => setMatch({ ...match, stipulation: e.target.value, customStipulation: '' })}
         >
-          {STIPULATION_OPTIONS.map(opt => (
+          {stipulationOptionsResolved.map(opt => (
             <option key={opt} value={opt}>{opt}</option>
           ))}
         </select>
@@ -2492,7 +2503,7 @@ export default function MatchEdit({
           onChange={e => setMatch({ ...match, specialWinnerType: e.target.value })}
           style={inputStyle}
         >
-          {SPECIAL_WINNER_OPTIONS.map(opt => (
+          {specialWinnerOptionsResolved.map(opt => (
             <option key={opt} value={opt}>{opt}</option>
           ))}
         </select>

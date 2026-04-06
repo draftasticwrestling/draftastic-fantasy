@@ -25,7 +25,7 @@ export default function BoxscoreEventsEditorPage() {
           <Link href="/internal-admin/boxscore/events/new" className={styles.cardLink}>
             <span className={styles.cardTitle}>Add event</span>
             <span className={styles.cardDesc}>
-              Create a new event with the visual match builder and MatchEdit modals (PWBS-shaped payloads).
+              Create a new event with the visual match builder and inline MatchEdit (PWBS-shaped payloads).
             </span>
           </Link>
         </li>

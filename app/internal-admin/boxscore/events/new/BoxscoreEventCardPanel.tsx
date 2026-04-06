@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BoxscoreTagTeamDataMap, BoxscoreWrestlerRow } from "@/lib/boxscoreAdmin/boxscoreEditorData";
 import MatchEdit, { PromoMatchEdit } from "../../match-edit/MatchEdit";
 
@@ -46,6 +46,8 @@ export function BoxscoreEventCardPanel({
   setMatches,
   /** When set (editing an existing event), MatchEdit can persist live commentary via server actions. */
   eventId,
+  stipulationOptions,
+  specialWinnerOptions,
 }: {
   wrestlers: BoxscoreWrestlerRow[];
   initialTagTeamData: BoxscoreTagTeamDataMap;
@@ -54,10 +56,22 @@ export function BoxscoreEventCardPanel({
   matches: Record<string, unknown>[];
   setMatches: (next: Record<string, unknown>[]) => void;
   eventId?: string;
+  stipulationOptions?: string[];
+  specialWinnerOptions?: string[];
 }) {
   const [modal, setModal] = useState<ModalState>(null);
+  const inlineEditorRef = useRef<HTMLDivElement | null>(null);
 
   const closeModal = useCallback(() => setModal(null), []);
+
+  useEffect(() => {
+    if (!modal) return;
+    const el = inlineEditorRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }, [modal]);
 
   const handleSaveWrestling = useCallback(
     (updated: Record<string, unknown>) => {
@@ -221,19 +235,14 @@ export function BoxscoreEventCardPanel({
 
       {modal && (modal.kind === "new-wrestling" || modal.kind === "edit-wrestling") ? (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.82)",
-            zIndex: 1000,
-            overflowY: "auto",
-            padding: "20px 16px 48px",
-          }}
+          ref={inlineEditorRef}
+          role="region"
+          aria-label="Wrestling match editor"
+          style={{ marginTop: matches.length > 0 ? 24 : 16 }}
         >
           <div
             style={{
               maxWidth: 920,
-              margin: "0 auto",
               background: "#1a1a1a",
               border: "1px solid #444",
               borderRadius: 8,
@@ -252,6 +261,8 @@ export function BoxscoreEventCardPanel({
               matchOrder={matchOrderForModal}
               wrestlers={wrestlers}
               initialTagTeamData={initialTagTeamData}
+              stipulationOptions={stipulationOptions}
+              specialWinnerOptions={specialWinnerOptions}
             />
           </div>
         </div>
@@ -259,19 +270,14 @@ export function BoxscoreEventCardPanel({
 
       {modal && (modal.kind === "new-promo" || modal.kind === "edit-promo") ? (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.82)",
-            zIndex: 1000,
-            overflowY: "auto",
-            padding: "20px 16px 48px",
-          }}
+          ref={inlineEditorRef}
+          role="region"
+          aria-label="Promo segment editor"
+          style={{ marginTop: matches.length > 0 ? 24 : 16 }}
         >
           <div
             style={{
               maxWidth: 640,
-              margin: "0 auto",
               background: "#1a1a1a",
               border: "1px solid #444",
               borderRadius: 8,

@@ -17,6 +17,9 @@ export type SeasonOption = {
   crossesCalendarYear: boolean;
 };
 
+/** Public beta: standard (non-admin) creators may only start a league in this season window until we open others. */
+export const STANDARD_USER_CREATE_SEASON_SLUG = "road-to-summerslam" as const;
+
 export const SEASON_OPTIONS: SeasonOption[] = [
   {
     id: "road-to-summerslam",

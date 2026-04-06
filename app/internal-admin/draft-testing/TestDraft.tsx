@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import { isBlocklistedSlug } from "@/lib/draftBlocklist";
 import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
 
@@ -233,7 +233,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
   const [editingTeamPrefsFor, setEditingTeamPrefsFor] = useState<number>(0);
   const autoPickTriggeredForPickRef = useRef<number>(0);
 
-  const rules = getRosterRulesForLeague(teamCount);
+  const rules = getRosterRulesForLeague(teamCount, ROAD_TO_SUMMERSLAM_SEASON_SLUG);
   const totalPicks = rules ? teamCount * rules.rosterSize : 0;
   const currentTeamIndex = draftOrder[currentPick - 1] ?? null;
 

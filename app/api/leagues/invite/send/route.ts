@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@/lib/supabase/server";
+import { INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode";
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "Draftastic Fantasy <onboarding@resend.dev>";
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
     const resend = new Resend(apiKey);
     const subject = `You're invited to join ${leagueName} on Draftastic Fantasy`;
     const intro = `You're invited to join the fantasy league "${leagueName}" on Draftastic Fantasy.`;
-    const cta = "Click the link below to join. The link expires in 7 days.";
+    const cta = `Click the link below to join. The link stays valid for ${INVITE_LINK_EXPIRY_DAYS} days and can be used by multiple people until it expires or the league is full.`;
     const messageBlock = customMessage ? `<p style="margin:16px 0;padding:12px;background:#f5f5f5;border-radius:8px;">${escapeHtml(customMessage)}</p>` : "";
     const html = `
 <!DOCTYPE html>

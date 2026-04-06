@@ -578,9 +578,20 @@ export default function Nav() {
                 </li>
               )}
               <li className="nav-primary-item-create-league">
-                <Link href="/leagues/new" className="nav-primary-link nav-primary-link-create">
-                  +Create a League
-                </Link>
+                <div className="nav-primary-create-join-group" role="group" aria-label="League actions">
+                  <Link
+                    href="/leagues/join"
+                    className={`nav-primary-link-join ${pathname === "/leagues/join" ? "is-active" : ""}`}
+                  >
+                    Join a League
+                  </Link>
+                  <Link
+                    href="/leagues/new"
+                    className={`nav-primary-link nav-primary-link-create ${pathname === "/leagues/new" ? "is-active" : ""}`}
+                  >
+                    +Create a League
+                  </Link>
+                </div>
               </li>
             </ul>
           </nav>

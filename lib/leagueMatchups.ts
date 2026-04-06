@@ -17,6 +17,11 @@ import {
   CHAMPIONSHIP_CHANGES_TABLE_NAME,
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
+import {
+  isRoadToSummerSlam2026WithSummerslamFinale,
+  RTS_2026_LEAGUE_END_DATE,
+  shouldSkipJulyMonthEndBeltForRts2026,
+} from "@/lib/beltRts2026JulyDeferral";
 
 /** Monday of the week containing the given date (YYYY-MM-DD). Weeks are Monday–Sunday. */
 export function getMondayOfWeek(dateStr: string): string {
@@ -364,7 +369,8 @@ export async function getLeagueWeeklyMatchups(
       if (
         monthEndInWeek &&
         monthEndInWeek >= firstEligibleMonthEnd &&
-        monthEndInWeek < today
+        monthEndInWeek < today &&
+        !shouldSkipJulyMonthEndBeltForRts2026(monthEndInWeek, end)
       ) {
         const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(
           reigns,
@@ -390,6 +396,39 @@ export async function getLeagueWeeklyMatchups(
           if (pts > 0) {
             pointsByUserId[s.user_id] =
               (pointsByUserId[s.user_id] ?? 0) + pts;
+          }
+        }
+      }
+
+      if (
+        isRoadToSummerSlam2026WithSummerslamFinale(end) &&
+        today > RTS_2026_LEAGUE_END_DATE &&
+        weekStart <= RTS_2026_LEAGUE_END_DATE &&
+        weekEnd >= RTS_2026_LEAGUE_END_DATE
+      ) {
+        const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(
+          reigns,
+          RTS_2026_LEAGUE_END_DATE,
+          firstEligibleMonthEnd
+        );
+        for (const s of stints) {
+          if (
+            !rosterStintActiveForMonthEndBelt({
+              stint: s,
+              monthEndYmd: RTS_2026_LEAGUE_END_DATE,
+              useBroadcastStart: useBroadcastForMonthlyBelt,
+            })
+          ) {
+            continue;
+          }
+          const pts = sumMonthlyBeltPointsForStint(
+            beltBySlug,
+            s.wrestler_id,
+            monthlyBeltNameByWrestler[s.wrestler_id],
+            RTS_2026_LEAGUE_END_DATE
+          );
+          if (pts > 0) {
+            pointsByUserId[s.user_id] = (pointsByUserId[s.user_id] ?? 0) + pts;
           }
         }
       }
@@ -444,8 +483,8 @@ export async function getLeagueWeeklyMatchups(
 
 /**
  * Monthly (end-of-month) belt points by wrestler slug for the given week, when the week
- * contains a month-end. Used so the matchup roster can show event + monthly per wrestler.
- * Returns empty object when not a month-end week or league doesn't use monthly belt.
+ * contains a month-end. RTS 2026: season-end snapshot falls in the SummerSlam week (Aug 2), not July 31.
+ * Used so the matchup roster can show event + monthly per wrestler.
  */
 export async function getMonthlyBeltBySlugForWeek(
   leagueId: string,
@@ -454,7 +493,6 @@ export async function getMonthlyBeltBySlugForWeek(
   const weekEndSunday = getSundayOfWeek(weekStartMonday);
   const today = new Date().toISOString().slice(0, 10);
   const monthEndInWeek = getMonthEndInWeek(weekStartMonday, weekEndSunday);
-  if (!monthEndInWeek || monthEndInWeek >= today) return {};
 
   const supabase = await createClient();
   const { data: league } = await supabase
@@ -476,7 +514,21 @@ export async function getMonthlyBeltBySlugForWeek(
     lastDayOfStartMonth >= FIRST_END_OF_MONTH_POINTS_DATE
       ? lastDayOfStartMonth
       : FIRST_END_OF_MONTH_POINTS_DATE;
-  if (monthEndInWeek < firstEligibleMonthEnd) return {};
+
+  const seasonEndBeltWeek =
+    isRoadToSummerSlam2026WithSummerslamFinale(end) &&
+    today > RTS_2026_LEAGUE_END_DATE &&
+    weekStartMonday <= RTS_2026_LEAGUE_END_DATE &&
+    weekEndSunday >= RTS_2026_LEAGUE_END_DATE &&
+    RTS_2026_LEAGUE_END_DATE >= firstEligibleMonthEnd;
+
+  const normalMonthEndWeek =
+    !!monthEndInWeek &&
+    monthEndInWeek < today &&
+    monthEndInWeek >= firstEligibleMonthEnd &&
+    !shouldSkipJulyMonthEndBeltForRts2026(monthEndInWeek, end);
+
+  if (!seasonEndBeltWeek && !normalMonthEndWeek) return {};
 
   const [{ data: tableReigns }, { data: eventsInRange }, changesRes] = await Promise.all([
     supabase.from("championship_history").select("*"),
@@ -510,9 +562,16 @@ export async function getMonthlyBeltBySlugForWeek(
   }>;
   if (!reigns.length) return {};
 
+  if (seasonEndBeltWeek) {
+    return computeEndOfMonthBeltPointsForSingleMonth(
+      reigns,
+      RTS_2026_LEAGUE_END_DATE,
+      firstEligibleMonthEnd
+    );
+  }
   return computeEndOfMonthBeltPointsForSingleMonth(
     reigns,
-    monthEndInWeek,
+    monthEndInWeek!,
     firstEligibleMonthEnd
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { EditTeamNameForm } from "../team/EditTeamNameForm";
+import { EditManagerCatchphraseForm } from "../team/EditManagerCatchphraseForm";
 import { LeagueManagerAvatarField } from "../team/LeagueManagerAvatarField";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,7 @@ export default async function EditTeamInfoPage({
   if (!member) notFound();
 
   const currentTeamName = member.team_name?.trim() ?? "";
+  const currentCatchphrase = member.manager_catchphrase?.trim() ?? "";
 
   return (
     <main className="app-page">
@@ -53,11 +55,11 @@ export default async function EditTeamInfoPage({
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24 }}>
         Set your faction name for this league (up to 25 characters). It appears in standings, matchups, and on your roster.
         If you skip a custom name, we show your profile name (shortened if it&apos;s very long). You can set a
-        league-specific manager photo below; otherwise we use your default from{" "}
+        league-specific manager photo and catchphrase below; otherwise we use your default from{" "}
         <Link href="/account" className="app-link">
           Account
-        </Link>
-        .
+        </Link>{" "}
+        for your photo.
       </p>
       <LeagueManagerAvatarField
         leagueSlug={slug}
@@ -66,6 +68,7 @@ export default async function EditTeamInfoPage({
         displayNameForInitial={member.display_name ?? ""}
       />
       <EditTeamNameForm leagueSlug={slug} initialTeamName={currentTeamName} />
+      <EditManagerCatchphraseForm leagueSlug={slug} initialCatchphrase={currentCatchphrase} />
 
       <section
         aria-labelledby="edit-team-auto-draft-heading"

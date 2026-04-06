@@ -1,21 +1,28 @@
 import { NextResponse } from "next/server";
-import { joinLeagueWithToken } from "@/lib/leagues";
+import { joinLeagueWithCode, joinLeagueWithToken } from "@/lib/leagues";
 
 /**
- * POST /api/leagues/join — join a league with an invite token. Body: { token }.
- * Returns { ok, league_slug } on success so client can redirect.
+ * POST /api/leagues/join — join with invite token or permanent league code.
+ * Body: { token } or { code } (exactly one).
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const token = typeof body.token === "string" ? body.token.trim() : "";
-    if (!token) {
-      return NextResponse.json({ error: "token required" }, { status: 400 });
+    const code = typeof body.code === "string" ? body.code.trim() : "";
+
+    if (!token && !code) {
+      return NextResponse.json({ error: "token or code required" }, { status: 400 });
+    }
+    if (token && code) {
+      return NextResponse.json({ error: "Send either token or code, not both" }, { status: 400 });
     }
 
-    const result = await joinLeagueWithToken(token);
+    const result = code ? await joinLeagueWithCode(code) : await joinLeagueWithToken(token);
     if (!result.ok) {
-      return NextResponse.json({ error: result.error ?? "Join failed" }, { status: 400 });
+      const err = result.error ?? "Join failed";
+      const isFull = /league is full/i.test(err);
+      return NextResponse.json({ error: err }, { status: isFull ? 409 : 400 });
     }
     return NextResponse.json({
       ok: true,

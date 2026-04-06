@@ -31,6 +31,11 @@ const SECTIONS = [
     title: "Live results",
     desc: "Update live / in-progress show results.",
   },
+  {
+    href: "/internal-admin/boxscore/options",
+    title: "Dropdown options",
+    desc: "Add Event type, Stipulation, and Special match winner labels (merged with built-in lists).",
+  },
 ] as const;
 
 export default function BoxscoreAdminHubPage() {

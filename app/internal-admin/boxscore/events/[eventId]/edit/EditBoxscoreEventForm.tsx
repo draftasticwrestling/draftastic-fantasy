@@ -5,8 +5,11 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { BoxscoreEventEditorRow } from "@/lib/boxscoreAdmin/boxscoreEventEditorLoad";
 import type { BoxscoreTagTeamDataMap, BoxscoreWrestlerRow } from "@/lib/boxscoreAdmin/boxscoreEditorData";
+import {
+  ensureOptionInList,
+  type MergedBoxscoreUiOptions,
+} from "@/lib/boxscoreAdmin/boxscoreUiOptionsCore";
 import { updateBoxscoreEventAction, type UpdateBoxscoreEventState } from "../../actions";
-import { BOXSCORE_SPECIAL_WINNER_TYPES } from "@/lib/boxscoreAdmin/specialWinnerOptions";
 import { BoxscoreEventCardPanel } from "../../new/BoxscoreEventCardPanel";
 import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
 
@@ -83,10 +86,12 @@ export function EditBoxscoreEventForm({
   event,
   wrestlers,
   initialTagTeamData,
+  mergedOptions,
 }: {
   event: BoxscoreEventEditorRow;
   wrestlers: BoxscoreWrestlerRow[];
   initialTagTeamData: BoxscoreTagTeamDataMap;
+  mergedOptions: MergedBoxscoreUiOptions;
 }) {
   const [state, formAction] = useFormState(submitUpdateWithBroadcast, null);
   const [status, setStatus] = useState(() => initialStatus(event));
@@ -110,6 +115,20 @@ export function EditBoxscoreEventForm({
       name: typeof sw.name === "string" ? sw.name : "",
     };
   }, [event.specialWinner]);
+
+  const eventTypeOptions = useMemo(
+    () =>
+      ensureOptionInList(
+        mergedOptions.eventTypeLabels,
+        typeof event.event_type === "string" ? event.event_type : ""
+      ),
+    [mergedOptions.eventTypeLabels, event.event_type]
+  );
+
+  const specialWinnerSelectOptions = useMemo(
+    () => ensureOptionInList(mergedOptions.specialWinnerOptions, specialInit.type),
+    [mergedOptions.specialWinnerOptions, specialInit.type]
+  );
 
   const publicHref = eventResultsHref({
     id: event.id,
@@ -185,6 +204,32 @@ export function EditBoxscoreEventForm({
         </div>
       </div>
 
+      <div style={{ marginBottom: 18 }}>
+        <label style={labelStyle} htmlFor="event_type">
+          Event type (optional)
+        </label>
+        <select
+          id="event_type"
+          name="event_type"
+          style={{ ...fieldStyle, maxWidth: 420 }}
+          defaultValue={typeof event.event_type === "string" ? event.event_type : ""}
+        >
+          <option value="">— Not set —</option>
+          {eventTypeOptions.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "8px 0 0", maxWidth: 560 }}>
+          Catalog label for this show. Scoring still uses the event name + classifier. Manage options in{" "}
+          <Link href="/internal-admin/boxscore/options" className="app-link">
+            Boxscore dropdown options
+          </Link>
+          .
+        </p>
+      </div>
+
       <fieldset style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", padding: 16, marginBottom: 18 }}>
         <legend style={{ fontSize: 14, fontWeight: 600, padding: "0 8px" }}>Status</legend>
         <input type="hidden" name="status" value={status} readOnly />
@@ -212,6 +257,8 @@ export function EditBoxscoreEventForm({
         matches={matches}
         setMatches={setMatches}
         eventId={event.id}
+        stipulationOptions={mergedOptions.stipulationOptions}
+        specialWinnerOptions={mergedOptions.specialWinnerOptions}
       />
 
       <details style={{ marginBottom: 18 }}>
@@ -275,7 +322,7 @@ export function EditBoxscoreEventForm({
             Type
           </label>
           <select id="special_winner_type" name="special_winner_type" style={fieldStyle} defaultValue={specialInit.type}>
-            {BOXSCORE_SPECIAL_WINNER_TYPES.map((t) => (
+            {specialWinnerSelectOptions.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
