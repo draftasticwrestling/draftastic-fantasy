@@ -71,6 +71,9 @@ export function AccountForm({
       }
       setMessage({ type: "ok", text: "Profile updated." });
       router.refresh();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("draftastic-profile-updated"));
+      }
     } catch {
       setMessage({ type: "err", text: "Request failed." });
     } finally {

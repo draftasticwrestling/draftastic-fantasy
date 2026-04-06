@@ -55,12 +55,6 @@
   --page-max-width: 1200px;
   --hub-center-column-max: 560px;
   --tap-min-height: 44px;
-  /*
-   * League dashboard sidebars use position:sticky. `top` must clear the sticky site nav
-   * (.nav-sticky-wrap: header + league primary + league secondary). If nav layout changes,
-   * adjust this so sidebars sit just below the nav instead of tucking under it.
-   */
-  --lm-sticky-top: 176px;
 
   /* Radius */
   --radius-sm: 6px;
@@ -2144,18 +2138,16 @@ body > .site-footer {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  position: sticky;
-  top: var(--lm-sticky-top);
-  z-index: 2;
   align-self: start;
+  min-width: 0;
 }
 
 .lm-season-rail {
-  position: sticky;
-  top: var(--lm-sticky-top);
-  z-index: 2;
   align-self: start;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .lm-card {
@@ -2331,7 +2323,12 @@ body > .site-footer {
 }
 
 /* My Team in sidebar */
+.lm-myteam-avatar-block {
+  margin-bottom: 12px;
+}
+
 .lm-myteam-avatar {
+  position: relative;
   width: 72px;
   height: 72px;
   border-radius: var(--radius);
@@ -2343,6 +2340,113 @@ body > .site-footer {
   margin-bottom: 12px;
   color: var(--color-blue);
   font-size: 28px;
+  overflow: hidden;
+}
+
+.lm-myteam-avatar-block .lm-myteam-avatar {
+  margin-bottom: 6px;
+}
+
+.lm-myteam-avatar-edit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: inherit;
+  border: none;
+  background: transparent;
+  font: inherit;
+}
+
+.lm-myteam-avatar-dialog {
+  border: none;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  max-width: min(92vw, 300px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  color: var(--color-text);
+  background: var(--color-bg-elevated, #fff);
+}
+
+.lm-myteam-avatar-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.lm-myteam-avatar-dialog-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.lm-myteam-avatar-dialog-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.lm-myteam-avatar-dialog-close {
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.lm-myteam-avatar-edit-chip {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  line-height: 1.2;
+}
+
+.lm-myteam-avatar-edit--busy {
+  cursor: wait;
+  opacity: 0.85;
+}
+
+.lm-myteam-avatar-use-default {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-blue);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.lm-myteam-avatar-use-default:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.lm-myteam-avatar-msg {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #b91c1c;
+  max-width: 200px;
+  line-height: 1.35;
+}
+
+.lm-myteam-avatar--image {
+  padding: 0;
+  font-size: 0;
 }
 
 .lm-myteam-name {
@@ -2396,6 +2500,23 @@ body > .site-footer {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.lm-season-rail-banner {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  line-height: 0;
+  max-width: 100%;
+}
+
+.lm-season-rail-banner-img {
+  width: 100%;
+  max-width: min(240px, 100%);
+  height: auto;
+  display: block;
+  margin: 0 auto;
 }
 
 .lm-league-card .lm-card-title {
@@ -2529,28 +2650,9 @@ body > .site-footer {
   gap: 20px;
 }
 
-@media (max-width: 1100px) {
-  /* League primary row may wrap; keep sidebars below nav when sticky */
-  :root {
-    --lm-sticky-top: 212px;
-  }
-}
-
 @media (max-width: 900px) {
   .lm-layout {
     grid-template-columns: 1fr;
-  }
-
-  .lm-sidebar {
-    position: static;
-    top: auto;
-    z-index: auto;
-  }
-
-  .lm-season-rail {
-    position: static;
-    top: auto;
-    z-index: auto;
   }
 
   .lm-main-grid {

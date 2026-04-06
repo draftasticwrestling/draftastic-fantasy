@@ -126,12 +126,17 @@ export default function Nav() {
       return;
     }
     const supabase = createClient();
-    supabase
-      .from("profiles")
-      .select("id, display_name, avatar_url, created_at, updated_at")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => setProfile(data as Profile | null));
+    const loadProfile = () => {
+      supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url, created_at, updated_at")
+        .eq("id", user.id)
+        .maybeSingle()
+        .then(({ data }) => setProfile(data as Profile | null));
+    };
+    loadProfile();
+    const onProfileUpdated = () => loadProfile();
+    window.addEventListener("draftastic-profile-updated", onProfileUpdated);
     fetch("/api/me/leagues")
       .then((r) => r.json())
       .then((data) => {
@@ -146,6 +151,7 @@ export default function Nav() {
         }
       })
       .catch(() => setLeagues([]));
+    return () => window.removeEventListener("draftastic-profile-updated", onProfileUpdated);
   }, [user?.id]);
 
   const slugFromPath = getLeagueSlugFromPath(pathname);
@@ -345,8 +351,27 @@ export default function Nav() {
                     </div>
                   )}
                 </div>
-                <Link href="/account" className="nav-header-link" title={user.email ?? undefined}>
-                  {profile?.display_name?.trim() || user.email || "Signed in"}
+                <Link
+                  href="/account"
+                  className="nav-header-link nav-header-account"
+                  title={user.email ?? undefined}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+                >
+                  {profile?.avatar_url?.trim() ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={profile.avatar_url.trim()}
+                      alt=""
+                      width={28}
+                      height={28}
+                      style={{
+                        borderRadius: 999,
+                        objectFit: "cover",
+                        border: "1px solid rgba(0,0,0,0.12)",
+                      }}
+                    />
+                  ) : null}
+                  <span>{profile?.display_name?.trim() || user.email || "Signed in"}</span>
                 </Link>
                 <button type="button" onClick={handleSignOut} className="nav-header-btn">
                   Sign out

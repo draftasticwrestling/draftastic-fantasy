@@ -140,6 +140,40 @@
   vertical-align: middle;
 }
 
+.beltSubwrap {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.beltSubline {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+}
+
+.beltSubBadge {
+  flex-shrink: 0;
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #8a5a00;
+  background: rgba(212, 160, 23, 0.18);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+  margin-top: 1px;
+}
+
+.beltSubText {
+  min-width: 0;
+}
+
 .skeletonTitle {
   height: 18px;
   width: 85%;

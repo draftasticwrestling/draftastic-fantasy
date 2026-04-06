@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isProfileManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 
 /**
  * PATCH /api/account/profile — update current user's profile (display_name, etc.)
@@ -12,26 +13,51 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const display_name =
-      typeof body.display_name === "string" ? body.display_name.trim() || null : null;
-    const timezone =
-      typeof body.timezone === "string" ? body.timezone.trim() || null : null;
-    const notify_trade_proposals =
-      typeof body.notify_trade_proposals === "boolean" ? body.notify_trade_proposals : undefined;
-    const notify_draft_reminder =
-      typeof body.notify_draft_reminder === "boolean" ? body.notify_draft_reminder : undefined;
-    const notify_weekly_results =
-      typeof body.notify_weekly_results === "boolean" ? body.notify_weekly_results : undefined;
+    const supabaseOrigin =
+      process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
+
+    const body = await request.json() as Record<string, unknown>;
 
     const updates: Record<string, unknown> = {
-      display_name,
       updated_at: new Date().toISOString(),
     };
-    if (timezone !== undefined) updates.timezone = timezone;
-    if (notify_trade_proposals !== undefined) updates.notify_trade_proposals = notify_trade_proposals;
-    if (notify_draft_reminder !== undefined) updates.notify_draft_reminder = notify_draft_reminder;
-    if (notify_weekly_results !== undefined) updates.notify_weekly_results = notify_weekly_results;
+
+    if ("display_name" in body) {
+      updates.display_name =
+        typeof body.display_name === "string" ? body.display_name.trim() || null : null;
+    }
+    if ("timezone" in body) {
+      updates.timezone =
+        typeof body.timezone === "string" ? body.timezone.trim() || null : null;
+    }
+    if (typeof body.notify_trade_proposals === "boolean") {
+      updates.notify_trade_proposals = body.notify_trade_proposals;
+    }
+    if (typeof body.notify_draft_reminder === "boolean") {
+      updates.notify_draft_reminder = body.notify_draft_reminder;
+    }
+    if (typeof body.notify_weekly_results === "boolean") {
+      updates.notify_weekly_results = body.notify_weekly_results;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "avatar_url")) {
+      const raw = body.avatar_url;
+      if (raw === null) {
+        updates.avatar_url = null;
+      } else if (typeof raw === "string") {
+        const t = raw.trim();
+        if (!t) {
+          updates.avatar_url = null;
+        } else if (isProfileManagerAvatarUrl(t, user.id, supabaseOrigin)) {
+          updates.avatar_url = t;
+        } else {
+          return NextResponse.json(
+            { error: "Invalid avatar URL. Upload a manager avatar from this site or clear it." },
+            { status: 400 }
+          );
+        }
+      }
+    }
 
     const { error } = await supabase
       .from("profiles")

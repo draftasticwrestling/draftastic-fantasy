@@ -22,7 +22,7 @@ export const SEASON_OPTIONS: SeasonOption[] = [
     id: "road-to-summerslam",
     name: "Road to SummerSlam",
     slug: "road-to-summerslam",
-    windowDescription: "First Raw in May through SummerSlam Night 2",
+    windowDescription: "WWE Backlash (May 9) through SummerSlam Night 2 (Aug 2), 2026 schedule",
     startMonth: 5,
     endMonth: 8,
     crossesCalendarYear: false,
@@ -84,6 +84,11 @@ export function getDefaultStartEndForSeason(
 
   const startYear = year;
   const endYear = season.crossesCalendarYear ? year + 1 : year;
+
+  if (seasonSlug === "road-to-summerslam" && year === 2026) {
+    return { start_date: "2026-05-09", end_date: "2026-08-02" };
+  }
+
   const start_date = `${startYear}-${String(season.startMonth).padStart(2, "0")}-01`;
   const lastDay = lastDayOfMonth(endYear, season.endMonth);
   const end_date = `${endYear}-${String(season.endMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;

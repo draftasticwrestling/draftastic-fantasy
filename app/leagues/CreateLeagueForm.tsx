@@ -5,9 +5,13 @@ import { useCallback, useState } from "react";
 import { createLeagueAction, type CreateLeagueState } from "./new/actions";
 import { SEASON_OPTIONS } from "@/lib/leagueSeasons";
 
+/** Default season for new leagues (first option in SEASON_OPTIONS is Road to SummerSlam). */
+const DEFAULT_SEASON_SLUG = "road-to-summerslam";
+
 const currentYear = new Date().getFullYear();
 const SEASON_YEARS = [currentYear, currentYear + 1];
-const TEAM_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const;
+/** Road to SummerSlam beta: 3–6 factions per league. */
+const TEAM_COUNTS = [3, 4, 5, 6] as const;
 
 const LEAGUE_TYPES: Array<{
   id: string;
@@ -19,13 +23,14 @@ const LEAGUE_TYPES: Array<{
     id: "season_overall",
     title: "Total Season Points",
     description:
-      "Compete against your whole league all season. The team with the most overall points wins!",
+      "Compete against your whole league all season. The faction with the most overall points wins the Road to SummerSlam championship.",
   },
   {
     id: "head_to_head",
     title: "Head-to-Head",
     description:
-      "Minimum 4 teams, maximum 16. During the Road to SummerSlam period, teams play head-to-head against an opponent each week. Points only matter for that week's matchup (season overall is not tracked). The team with the best win-loss-draw record at the end of the season wins the league and earns the Draftastic Championship Belt. A short seeded playoff determines the champion, with the final taking place the week of WrestleMania. Teams that don't make the final compete in consolation matchups so full league placement can be determined.",
+      "Weekly matchups and playoffs with win-loss records. Coming after the Total Season Points beta.",
+    comingSoon: true,
   },
   {
     id: "combo",
@@ -45,19 +50,17 @@ const LEAGUE_TYPES: Array<{
 
 export function CreateLeagueForm() {
   const [state, formAction] = useFormState(createLeagueAction, null);
-  const [teamCount, setTeamCount] = useState<number>(10);
-  const [leagueType, setLeagueType] = useState<string>("head_to_head");
+  const [teamCount, setTeamCount] = useState<number>(4);
+  const [leagueType, setLeagueType] = useState<string>("season_overall");
 
   const handleTeamClick = useCallback((n: number) => {
-    if (leagueType === "head_to_head" && n < 4) return;
     setTeamCount(n);
-  }, [leagueType]);
+  }, []);
 
   const handleTypeClick = useCallback((id: string, comingSoon?: boolean) => {
     if (comingSoon) return;
     setLeagueType(id);
-    if (id === "head_to_head" && teamCount < 4) setTeamCount(4);
-  }, [teamCount]);
+  }, []);
 
   return (
     <form action={formAction} className="create-league-form">
@@ -76,21 +79,17 @@ export function CreateLeagueForm() {
       <div className="form-group">
         <label>Number of Teams *</label>
         <div className="create-league-teams-row">
-          {TEAM_COUNTS.map((n) => {
-            const disabled = leagueType === "head_to_head" && n < 4;
-            return (
-              <button
-                key={n}
-                type="button"
-                className={`create-league-teams-option ${teamCount === n ? "selected" : ""} ${disabled ? "disabled" : ""}`}
-                onClick={() => handleTeamClick(n)}
-                aria-pressed={teamCount === n}
-                disabled={disabled}
-              >
-                {n}
-              </button>
-            );
-          })}
+          {TEAM_COUNTS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`create-league-teams-option ${teamCount === n ? "selected" : ""}`}
+              onClick={() => handleTeamClick(n)}
+              aria-pressed={teamCount === n}
+            >
+              {n}
+            </button>
+          ))}
         </div>
         <input type="hidden" name="team_count" value={teamCount} />
       </div>
@@ -118,8 +117,7 @@ export function CreateLeagueForm() {
 
       <div className="form-group">
         <label htmlFor="league-season">Season *</label>
-        <select id="league-season" name="season_slug" required>
-          <option value="">Select a season</option>
+        <select id="league-season" name="season_slug" required defaultValue={DEFAULT_SEASON_SLUG}>
           {SEASON_OPTIONS.map((s) => (
             <option key={s.id} value={s.slug}>
               {s.name} — {s.windowDescription}

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -12,7 +13,9 @@ import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { RostersSection } from "./RostersSection";
 import { TradeProposalRespond } from "./team/TradeProposalRespond";
 import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
-import { factionEmojiForDisplay } from "@/lib/factionEmoji";
+import { ManagerAvatar } from "@/app/components/ManagerAvatar";
+import { MyFactionAvatarEditor } from "./MyFactionAvatarEditor";
+import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import { factionDisplayName, truncateFactionDisplay } from "@/lib/factionName";
 
 function formatLeagueType(type: string | null | undefined): string {
@@ -32,6 +35,11 @@ type Props = {
 };
 
 export const dynamic = "force-dynamic";
+
+const supabaseOrigin =
+  process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ??
+  "https://qvbqxietcmweltxoonvh.supabase.co";
+const ROAD_TO_SUMMERSLAM_BANNER_URL = `${supabaseOrigin}/storage/v1/object/public/Banners/Road%20to%20SummerSlam.png`;
 
 export async function generateMetadata({ params }: Props) {
   try {
@@ -174,7 +182,6 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const myManagerName = truncateFactionDisplay(
       currentUserMember?.display_name?.trim() || "Manager"
     );
-
     const pendingTradesForMe = currentUser
       ? tradeProposals.filter((p) => p.status === "pending" && p.to_user_id === currentUser.id)
       : [];
@@ -197,9 +204,36 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         <aside className="lm-sidebar">
           <div className="lm-card">
             <h2 className="lm-card-title">My Faction</h2>
-            <div className="lm-myteam-avatar" aria-hidden>
-              {factionEmojiForDisplay(currentUserMember)}
-            </div>
+            {currentUser && currentUserMember ? (
+              <MyFactionAvatarEditor
+                leagueSlug={slug}
+                initialLeagueAvatarUrl={currentUserMember.manager_avatar_url ?? null}
+                initialProfileAvatarUrl={currentUserMember.avatar_url ?? null}
+                fallbackLetter={
+                  (factionDisplayName(currentUserMember, "M").trim().charAt(0) || "?").toUpperCase()
+                }
+              />
+            ) : (
+              <div
+                className={`lm-myteam-avatar${
+                  currentUserMember && resolvedManagerAvatarUrl(currentUserMember)?.trim()
+                    ? " lm-myteam-avatar--image"
+                    : ""
+                }`}
+                aria-hidden
+              >
+                <ManagerAvatar
+                  avatarUrl={currentUserMember ? resolvedManagerAvatarUrl(currentUserMember) : null}
+                  fallbackLetter={
+                    (factionDisplayName(currentUserMember, "M").trim().charAt(0) || "?").toUpperCase()
+                  }
+                  size={72}
+                  radius="var(--radius)"
+                  alt=""
+                  variant="sidebar"
+                />
+              </div>
+            )}
             <p className="lm-myteam-name">{myTeamName}</p>
             <p className="lm-myteam-manager">{myManagerName}</p>
             {currentUser ? (
@@ -366,6 +400,18 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             </div>
           )}
 
+          {/* Standings */}
+          <div className="lm-card">
+            <p className="lm-league-meta" style={{ marginBottom: 12 }}>
+              Click a faction to see that manager’s roster and points.
+            </p>
+            <LeagueStandingsTable
+              members={membersByPoints}
+              pointsByUserId={pointsByUserId}
+              leagueSlug={slug}
+            />
+          </div>
+
           {/* Two-column: GM Note + Recent Activity */}
           <div className="lm-main-grid">
             <div className="lm-card">
@@ -474,16 +520,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             </div>
           </div>
 
-          {/* Teams / Standings (same look as standings page) + Rosters section */}
+          {/* Rosters */}
           <div className="lm-card">
-            <p className="lm-league-meta" style={{ marginBottom: 12 }}>
-              Click a faction to see that manager’s roster and points.
-            </p>
-            <LeagueStandingsTable
-              members={membersByPoints}
-              pointsByUserId={pointsByUserId}
-              leagueSlug={slug}
-            />
             <RostersSection
               leagueId={league.id}
               leagueSlug={slug}
@@ -498,6 +536,18 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         </div>
 
         <aside className="lm-season-rail" aria-label="League season timeline">
+          {league.season_slug === "road-to-summerslam" && (
+            <div className="lm-season-rail-banner">
+              <Image
+                src={ROAD_TO_SUMMERSLAM_BANNER_URL}
+                alt="Road to SummerSlam"
+                width={560}
+                height={120}
+                className="lm-season-rail-banner-img"
+                sizes="(max-width: 900px) 100vw, 280px"
+              />
+            </div>
+          )}
           <SeasonTimelineRail leagueSlug={slug} />
         </aside>
       </div>

@@ -136,20 +136,38 @@ export async function respondToTradeByGmAction(
 
 export async function updateFactionInfoAction(
   leagueSlug: string,
-  teamName: string | null,
-  factionEmoji: string | null
+  teamName: string | null
 ): Promise<{ error?: string }> {
   const { getLeagueBySlug, updateLeagueMemberFactionInfo } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
   const supabase = await (await import("@/lib/supabase/server")).createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const result = await updateLeagueMemberFactionInfo(league.id, { teamName, factionEmoji });
+  const result = await updateLeagueMemberFactionInfo(league.id, { teamName, factionEmoji: null });
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/team`);
   revalidatePath(`/leagues/${leagueSlug}/edit-team-info`);
   revalidatePath(`/leagues/${leagueSlug}/standings`);
+  if (user) revalidatePath(`/leagues/${leagueSlug}/team/${user.id}`);
+  return {};
+}
+
+export async function updateLeagueManagerAvatarAction(
+  leagueSlug: string,
+  managerAvatarUrl: string | null
+): Promise<{ error?: string }> {
+  const { getLeagueBySlug, updateLeagueMemberManagerAvatar } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+  const result = await updateLeagueMemberManagerAvatar(league.id, managerAvatarUrl);
+  if (result.error) return result;
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/edit-team-info`);
+  revalidatePath(`/leagues/${leagueSlug}/standings`);
+  revalidatePath(`/leagues/${leagueSlug}/team`);
+  const supabase = await (await import("@/lib/supabase/server")).createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   if (user) revalidatePath(`/leagues/${leagueSlug}/team/${user.id}`);
   return {};
 }

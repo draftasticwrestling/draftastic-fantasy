@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { factionEmojiForDisplay } from "@/lib/factionEmoji";
+import { ManagerAvatar } from "@/app/components/ManagerAvatar";
 import { factionStandingsLabel, truncateFactionDisplay } from "@/lib/factionName";
 import type { LeagueMember } from "@/lib/leagues";
+import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 
 const sectionStyle = {
   borderRadius: 16,
@@ -66,6 +67,8 @@ export function LeagueStandingsTable({
         {members.map((m, idx) => {
           const hasCustomTeamName = !!m.team_name?.trim();
           const teamLabel = factionStandingsLabel(m);
+          const fallbackInitial =
+            (teamLabel.trim().charAt(0) || m.display_name?.trim().charAt(0) || "?").toUpperCase();
           const managerDisplay = truncateFactionDisplay(
             (m.display_name?.trim() || "Unknown").trim() || "Unknown"
           );
@@ -125,20 +128,22 @@ export function LeagueStandingsTable({
                   <span
                     aria-hidden
                     style={{
-                      width: 36,
-                      height: 36,
+                      display: "flex",
+                      flexShrink: 0,
                       borderRadius: 10,
                       border: "1px solid rgba(248,250,252,0.15)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 22,
-                      lineHeight: 1,
+                      overflow: "hidden",
                       background: "rgba(255,255,255,0.06)",
-                      flexShrink: 0,
                     }}
                   >
-                    {factionEmojiForDisplay(m)}
+                    <ManagerAvatar
+                      avatarUrl={resolvedManagerAvatarUrl(m)}
+                      fallbackLetter={fallbackInitial}
+                      size={36}
+                      radius={10}
+                      alt=""
+                      variant="standings"
+                    />
                   </span>
                   <div style={{ minWidth: 0 }}>
                     <div

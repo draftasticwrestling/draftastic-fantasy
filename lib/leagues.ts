@@ -20,6 +20,7 @@ import {
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 import { validateFactionNameForSave } from "@/lib/factionName";
 import { validateFactionEmojiForSave } from "@/lib/factionEmoji";
+import { isLeagueManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import {
   CHAMPIONSHIP_CHANGES_TABLE_NAME,
   inferReignsFromChampionshipChanges,
@@ -59,8 +60,12 @@ export type LeagueMember = {
   joined_at: string;
   display_name?: string | null;
   team_name?: string | null;
-  /** Allowlisted emoji; null → default 🏆 in UI */
+  /** Legacy; UI uses profiles.avatar_url for faction image. */
   faction_emoji?: string | null;
+  /** Per-league override; when null, UI uses profiles.avatar_url. */
+  manager_avatar_url?: string | null;
+  /** From profiles — default manager avatar when manager_avatar_url is null. */
+  avatar_url?: string | null;
 };
 
 export type LeagueWithRole = League & { role: "commissioner" | "owner" };
@@ -279,13 +284,7 @@ export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
  */
 export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]> {
   const supabase = await createClient();
-  const full = await supabase
-    .from("league_members")
-    .select("id, league_id, user_id, role, joined_at, team_name, faction_emoji")
-    .eq("league_id", leagueId)
-    .order("joined_at", { ascending: true });
-
-  let rowsList: {
+  type Row = {
     id: string;
     league_id: string;
     user_id: string;
@@ -293,7 +292,27 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
     joined_at: string;
     team_name?: string | null;
     faction_emoji?: string | null;
-  }[];
+    manager_avatar_url?: string | null;
+  };
+
+  let full = await supabase
+    .from("league_members")
+    .select("id, league_id, user_id, role, joined_at, team_name, faction_emoji, manager_avatar_url")
+    .eq("league_id", leagueId)
+    .order("joined_at", { ascending: true });
+
+  if (full.error) {
+    const msg = full.error.message ?? "";
+    if (msg.includes("manager_avatar")) {
+      full = (await supabase
+        .from("league_members")
+        .select("id, league_id, user_id, role, joined_at, team_name, faction_emoji")
+        .eq("league_id", leagueId)
+        .order("joined_at", { ascending: true })) as typeof full;
+    }
+  }
+
+  let rowsList: Row[];
 
   if (full.error) {
     const msg = full.error.message ?? "";
@@ -311,11 +330,16 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
           .order("joined_at", { ascending: true });
         if (minimal.error || !minimal.data?.length) return [];
         rowsList = (minimal.data as { id: string; league_id: string; user_id: string; role: string; joined_at: string }[]).map(
-          (r) => ({ ...r, team_name: null as string | null, faction_emoji: null as string | null })
+          (r) => ({
+            ...r,
+            team_name: null as string | null,
+            faction_emoji: null as string | null,
+            manager_avatar_url: null as string | null,
+          })
         );
       } else {
         rowsList = ((partial.data ?? []) as { id: string; league_id: string; user_id: string; role: string; joined_at: string; team_name?: string | null }[]).map(
-          (r) => ({ ...r, faction_emoji: null as string | null })
+          (r) => ({ ...r, faction_emoji: null as string | null, manager_avatar_url: null as string | null })
         );
       }
     } else {
@@ -326,38 +350,40 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
         .order("joined_at", { ascending: true });
       if (fallback.error || !fallback.data?.length) return [];
       rowsList = (fallback.data as { id: string; league_id: string; user_id: string; role: string; joined_at: string }[]).map(
-        (r) => ({ ...r, team_name: null as string | null, faction_emoji: null as string | null })
+        (r) => ({
+          ...r,
+          team_name: null as string | null,
+          faction_emoji: null as string | null,
+          manager_avatar_url: null as string | null,
+        })
       );
     }
   } else {
-    rowsList = (full.data ?? []) as {
-      id: string;
-      league_id: string;
-      user_id: string;
-      role: string;
-      joined_at: string;
-      team_name?: string | null;
-      faction_emoji?: string | null;
-    }[];
+    rowsList = (full.data ?? []) as Row[];
   }
   if (!rowsList.length) return [];
 
   const userIds = [...new Set(rowsList.map((r) => r.user_id))];
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, display_name")
+    .select("id, display_name, avatar_url")
     .in("id", userIds);
 
-  const nameByUserId = Object.fromEntries(
-    (profiles ?? []).map((p) => [p.id, p.display_name])
+  const profileByUserId = Object.fromEntries(
+    (profiles ?? []).map((p) => [p.id, p as { display_name: string | null; avatar_url: string | null }])
   );
 
-  return rowsList.map((r) => ({
-    ...r,
-    display_name: nameByUserId[r.user_id] ?? null,
-    team_name: r.team_name ?? null,
-    faction_emoji: r.faction_emoji ?? null,
-  })) as LeagueMember[];
+  return rowsList.map((r) => {
+    const p = profileByUserId[r.user_id];
+    return {
+      ...r,
+      display_name: p?.display_name ?? null,
+      team_name: r.team_name ?? null,
+      faction_emoji: r.faction_emoji ?? null,
+      manager_avatar_url: r.manager_avatar_url ?? null,
+      avatar_url: p?.avatar_url ?? null,
+    };
+  }) as LeagueMember[];
 }
 
 /**
@@ -417,6 +443,50 @@ export async function updateLeagueMemberFactionInfo(
       return {
         error:
           "Team name could not be saved. The database may be missing the team_name column. Run the SQL in supabase/league_members_team_name.sql in your Supabase project (SQL Editor).",
+      };
+    }
+    return { error: msg };
+  }
+  return {};
+}
+
+/**
+ * Set or clear per-league manager avatar for the current user. URL must be under
+ * manager-avatars/{userId}/leagues/{leagueId}/ in this project.
+ */
+export async function updateLeagueMemberManagerAvatar(
+  leagueId: string,
+  managerAvatarUrl: string | null
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const supabaseOrigin =
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
+
+  if (managerAvatarUrl !== null) {
+    const t = managerAvatarUrl.trim();
+    if (!t) {
+      return { error: "Invalid league avatar URL." };
+    }
+    if (!isLeagueManagerAvatarUrl(t, user.id, leagueId, supabaseOrigin)) {
+      return { error: "Invalid league avatar URL. Upload from this page or clear it." };
+    }
+  }
+
+  const { error } = await supabase
+    .from("league_members")
+    .update({ manager_avatar_url: managerAvatarUrl?.trim() || null })
+    .eq("league_id", leagueId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    const msg = error.message ?? "";
+    if (msg.includes("manager_avatar") && (msg.includes("schema cache") || msg.includes("column"))) {
+      return {
+        error:
+          "League avatar could not be saved. Run supabase/league_members_manager_avatar.sql in the Supabase SQL Editor.",
       };
     }
     return { error: msg };

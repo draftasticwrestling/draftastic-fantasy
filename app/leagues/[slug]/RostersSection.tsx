@@ -68,7 +68,7 @@ export function RostersSection({
         : "Roster rules not defined for this league size.";
 
   return (
-    <section style={{ marginTop: 24 }}>
+    <section>
       <h2 style={{ fontSize: "1.1rem", marginBottom: 12, color: "var(--color-text)" }}>Rosters</h2>
       <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 8 }}>
         {rulesText}

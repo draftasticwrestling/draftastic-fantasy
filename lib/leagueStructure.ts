@@ -4,7 +4,11 @@
  */
 
 export const MIN_LEAGUE_TEAMS = 3;
+/** Upper bound for legacy leagues already in the database (larger than beta max). */
 export const MAX_LEAGUE_TEAMS = 12;
+
+/** Road to SummerSlam beta: new leagues may only use 3–6 teams. */
+export const MAX_LEAGUE_TEAMS_BETA = 6;
 
 export type RosterRules = {
   rosterSize: number;
@@ -12,15 +16,20 @@ export type RosterRules = {
   minMale: number;
 };
 
-/** Roster rules by number of teams (3–12). Index is team count. */
+/**
+ * Roster rules by number of teams (3–12). Index is team count.
+ * 3–6: Road to SummerSlam 2026 beta (13 / 11 / 9 / 8 roster caps).
+ * Road to SummerSlam: min 4 women on the roster for every roster size except size 8 (then min 3 women).
+ * 7–12: legacy leagues created before beta caps.
+ */
 export const ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
-  3: { rosterSize: 15, minFemale: 6, minMale: 6 },
-  4: { rosterSize: 15, minFemale: 6, minMale: 6 },
-  5: { rosterSize: 15, minFemale: 6, minMale: 6 },
-  6: { rosterSize: 10, minFemale: 4, minMale: 4 },
+  3: { rosterSize: 13, minFemale: 4, minMale: 5 },
+  4: { rosterSize: 11, minFemale: 4, minMale: 4 },
+  5: { rosterSize: 9, minFemale: 4, minMale: 4 },
+  6: { rosterSize: 8, minFemale: 3, minMale: 4 },
   7: { rosterSize: 10, minFemale: 4, minMale: 4 },
-  8: { rosterSize: 8, minFemale: 3, minMale: 3 },
-  9: { rosterSize: 8, minFemale: 3, minMale: 3 },
+  8: { rosterSize: 8, minFemale: 3, minMale: 4 },
+  9: { rosterSize: 8, minFemale: 3, minMale: 4 },
   10: { rosterSize: 6, minFemale: 2, minMale: 2 },
   11: { rosterSize: 6, minFemale: 2, minMale: 2 },
   12: { rosterSize: 5, minFemale: 2, minMale: 2 },
@@ -32,7 +41,10 @@ export const ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
  */
 export const ACTIVE_PER_EVENT_BY_ROSTER_SIZE: Record<number, number> = {
   15: 8,
+  13: 7,
+  11: 6,
   10: 8,
+  9: 5,
   8: 6,
   6: 4,
   5: 4,

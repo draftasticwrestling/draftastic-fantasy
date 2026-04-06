@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "stats:recompute-cache": "tsx scripts/recompute-wrestler-stats-cache.ts"
+    "stats:recompute-cache": "tsx scripts/recompute-wrestler-stats-cache.ts",
+    "backup:supabase": "bash scripts/supabase-pgdump.sh"
   },
   "dependencies": {
     "@netlify/functions": "^5.1.3",

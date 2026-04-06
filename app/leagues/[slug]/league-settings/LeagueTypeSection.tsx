@@ -19,7 +19,7 @@ const LEAGUE_TYPES: Array<{
     value: "head_to_head",
     label: "Head to Head Points",
     description:
-      "Face-off with one opponent each week, trying to score more total points.",
+      "Face-off with one opponent each week, trying to score more total points. New leagues cannot select this during the Road to SummerSlam beta; existing Head-to-Head leagues keep this option.",
   },
   {
     value: "combo",
@@ -43,7 +43,7 @@ type Props = {
 };
 
 export function LeagueTypeSection({ leagueSlug, leagueType }: Props) {
-  const effectiveType = leagueType ?? "head_to_head";
+  const effectiveType = leagueType ?? "season_overall";
 
   const [state, formAction] = useFormState(updateLeagueTypeFormAction, null as { error?: string } | null);
 
@@ -60,15 +60,19 @@ export function LeagueTypeSection({ leagueSlug, leagueType }: Props) {
         <input type="hidden" name="league_slug" value={leagueSlug} />
 
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {LEAGUE_TYPES.map((opt) => (
+          {LEAGUE_TYPES.map((opt) => {
+            const optionDisabled =
+              Boolean(opt.disabled) ||
+              (opt.value === "head_to_head" && leagueType !== "head_to_head");
+            return (
             <li key={opt.value} style={{ marginBottom: 16 }}>
               <label
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 12,
-                  cursor: opt.disabled ? "not-allowed" : "pointer",
-                  opacity: opt.disabled ? 0.7 : 1,
+                  cursor: optionDisabled ? "not-allowed" : "pointer",
+                  opacity: optionDisabled ? 0.7 : 1,
                 }}
               >
                 <input
@@ -76,12 +80,12 @@ export function LeagueTypeSection({ leagueSlug, leagueType }: Props) {
                   name="league_type"
                   value={opt.value}
                   defaultChecked={effectiveType === opt.value}
-                  disabled={opt.disabled}
+                  disabled={optionDisabled}
                   style={{ marginTop: 4, flexShrink: 0 }}
                 />
                 <span>
                   <span style={{ fontWeight: 600 }}>{opt.label}</span>
-                  {opt.disabled && (
+                  {(opt.disabled || (opt.value === "head_to_head" && leagueType !== "head_to_head")) && (
                     <span style={{ marginLeft: 8, fontSize: 12, color: "var(--color-text-muted)" }}>
                       (Coming soon)
                     </span>
@@ -91,7 +95,8 @@ export function LeagueTypeSection({ leagueSlug, leagueType }: Props) {
                 </span>
               </label>
             </li>
-          ))}
+          );
+          })}
         </ul>
 
         {state?.error && (

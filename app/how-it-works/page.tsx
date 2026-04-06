@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Fragment } from "react";
 import type { BeltKey, EventLogoKey } from "@/lib/howItWorksImages";
 import { BELT_IMAGE_URLS, EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
+import { ROAD_TO_SUMMERSLAM_2026_COPY } from "@/lib/roadToSummerSlam2026Schedule";
+import { MAX_LEAGUE_TEAMS_BETA } from "@/lib/leagueStructure";
 import styles from "./HowItWorks.module.css";
 
 /** Renders event logo image from Supabase when URL exists, otherwise placeholder text. */
@@ -95,19 +97,12 @@ const TITLE_POINTS_WOMENS = [
   { name: "Tag Team Champion (Per Member)", points: 4 },
 ];
 
-const RAW_POINTS = [
-  ["Main Eventing", 3],
-  ["Successful Title Defense", 4],
-  ["Being on the Match Card (non-main event)", 1],
-  ["Entering the Andre the Giant Battle Royal", 1],
-];
-
-const SMACKDOWN_POINTS = [
-  ["Winning the Main Event", 4],
-  ["Title Changes Hands", 5],
-  ["Winning Your Match", 2],
-  ["Eliminating a BR Participant", 2],
-  ["Winning the Battle Royal", 8],
+/** Raw and SmackDown use the same base match-card scoring (Road to SummerSlam 2026). */
+const RAWSMACKDOWN_POINTS = [
+  ["Main eventing (appearance)", 3],
+  ["Winning the main event", 4],
+  ["Being on the match card (non–main event)", 1],
+  ["Winning your match (non–main event)", 2],
 ];
 
 const WRESTLEMANIA_POINTS = [
@@ -120,11 +115,11 @@ const WRESTLEMANIA_POINTS = [
 ];
 
 const SUMMERSLAM_POINTS = [
-  ["Winning the Main Event at Summer Slam either Night", 20],
-  ["Main Eventing Night Two of Summer Slam", 15],
-  ["Main Eventing Night One of Summer Slam", 10],
-  ["Winning Your Match", 10],
-  ["Being on the Non-ME Card", 5],
+  ["Winning the main event (Night 1 or Night 2)", 30],
+  ["Main eventing SummerSlam Night 2 (appearance)", 25],
+  ["Main eventing SummerSlam Night 1 (appearance)", 20],
+  ["Winning your match (non–main event)", 20],
+  ["Being on the card (non–main event)", 10],
 ];
 
 const SURVIVOR_SERIES_POINTS = [
@@ -162,10 +157,10 @@ const ELIMINATION_CHAMBER_POINTS = [
 ];
 
 const NOC_POINTS = [
-  ["Winning the Main Event", 15],
-  ["Main Eventing", 9],
-  ["Winning Your Match", 8],
-  ["Being on the Match Card (non-main event)", 4],
+  ["Winning the main event", 16],
+  ["Main eventing (appearance)", 12],
+  ["Winning your match", 10],
+  ["Being on the card (non–main event)", 5],
 ];
 
 const MITB_POINTS = [
@@ -194,10 +189,10 @@ const KING_QUEEN_POINTS = [
 ];
 
 const MINOR_PLE_BASE_POINTS = [
-  ["Winning the Main Event", 12],
-  ["Main Eventing", 7],
-  ["Winning Your Match", 6],
-  ["Being on the Match Card (non-main event)", 3],
+  ["Winning the main event", 12],
+  ["Main eventing (appearance)", 9],
+  ["Winning your match", 6],
+  ["Being on the card (non–main event)", 3],
 ];
 
 const EVOLUTION_EXTRA_POINTS = [
@@ -218,15 +213,66 @@ export default function HowItWorksPage() {
         Fantasy points are calculated from <strong>Pro Wrestling Boxscore</strong> event data. Your wrestlers earn points for appearing, winning, main eventing, and title matches — with bonuses for premium live events (PLEs) and special match types.
       </p>
 
+      <section style={{ marginBottom: 36, padding: "20px 22px", background: "var(--color-bg-elevated)", borderRadius: 8, border: "1px solid var(--color-border)" }}>
+        <h2 style={{ fontSize: "1.25rem", marginBottom: 12 }}>Road to SummerSlam 2026 (beta)</h2>
+        <p style={{ marginBottom: 12, lineHeight: 1.6 }}>
+          New leagues for this window use <strong>Total Season Points</strong> only, with <strong>3 to {MAX_LEAGUE_TEAMS_BETA} factions</strong>. Roster sizes: 3 factions → 13 wrestlers; 4 → 11; 5 → 9; 6 → 8. Head-to-Head, Combo, and Legacy are{" "}
+          <em>coming soon</em>. Season scoring runs <strong>{ROAD_TO_SUMMERSLAM_2026_COPY.starts}</strong> (Backlash) through{" "}
+          <strong>{ROAD_TO_SUMMERSLAM_2026_COPY.ends}</strong> (SummerSlam Night 2). Event mix: {ROAD_TO_SUMMERSLAM_2026_COPY.countsLabel}.
+        </p>
+        <p style={{ marginBottom: 10, fontWeight: 600 }}>Match points (appearance / win)</p>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "1px solid var(--color-border)" }}>Show type</th>
+                <th style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border)" }}>Under card (app. / win)</th>
+                <th style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border)" }}>Main event (app. / win)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>12 Raws</td>
+                <td style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>1 / 2</td>
+                <td style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>3 / 4</td>
+              </tr>
+              <tr>
+                <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>12 SmackDowns</td>
+                <td style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>1 / 2</td>
+                <td style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>3 / 4</td>
+              </tr>
+              <tr>
+                <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>4 minor PLEs</td>
+                <td style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>3 / 6</td>
+                <td style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>9 / 12</td>
+              </tr>
+              <tr>
+                <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>1 medium PLE (Night of Champions)</td>
+                <td style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>5 / 10</td>
+                <td style={{ textAlign: "right", padding: "8px 10px", borderBottom: "1px solid var(--color-border-light)" }}>12 / 16</td>
+              </tr>
+              <tr>
+                <td style={{ padding: "8px 10px" }}>2 major PLE (SummerSlam N1 &amp; N2)</td>
+                <td style={{ textAlign: "right", padding: "8px 10px" }}>10 / 20</td>
+                <td style={{ textAlign: "right", padding: "8px 10px" }}>Night 1: 20 / 30 · Night 2: 25 / 30</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p style={{ marginTop: 12, fontSize: 13, color: "var(--color-text-muted)" }}>
+          DQ results use half win points where applicable. Title and special-match bonuses below still apply.
+        </p>
+      </section>
+
       {/* League types — keep compact */}
       <section style={{ marginBottom: 40 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>League types</h2>
         <ul style={{ listStyle: "none", paddingLeft: 0 }}>
           <li style={{ marginBottom: 16 }}>
-            <strong>Total Season Points</strong> — Compete against your whole league all season. The faction with the most overall points wins!
+            <strong>Total Season Points</strong> — Available for the Road to SummerSlam beta. Compete against your whole league all season; the faction with the most overall points wins.
           </li>
           <li style={{ marginBottom: 16 }}>
-            <strong>Head-to-Head</strong> — Minimum 4 factions, maximum 16. Weekly matchups during the Road to SummerSlam; the faction with the best win-loss-draw record wins the league and the Draftastic Championship Belt.
+            <strong>Head-to-Head</strong> — <em>Coming soon</em> (after the Total Season Points beta).
           </li>
           <li style={{ marginBottom: 16 }}>
             <strong>Combo League (H2H + Total Season Points)</strong> — <em>Coming soon.</em>
@@ -319,7 +365,7 @@ export default function HowItWorksPage() {
           </div>
           <div className={styles.rawSmackdownFlex}>
             <div className={styles.rawSmackdownCol}>
-              {RAW_POINTS.map(([action, pts], i) => (
+              {RAWSMACKDOWN_POINTS.map(([action, pts], i) => (
                 <div key={i} className={styles.pointRow}>
                   <span>{action}</span>
                   <span className={styles.pointRowPoints}>{pts}</span>
@@ -327,8 +373,8 @@ export default function HowItWorksPage() {
               ))}
             </div>
             <div className={styles.rawSmackdownCol}>
-              {SMACKDOWN_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
+              {RAWSMACKDOWN_POINTS.map(([action, pts], i) => (
+                <div key={`sd-${i}`} className={styles.pointRow}>
                   <span>{action}</span>
                   <span className={styles.pointRowPoints}>{pts}</span>
                 </div>

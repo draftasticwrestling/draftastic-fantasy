@@ -267,6 +267,13 @@ export async function updateLeagueTypeAction(
     return { error: "Invalid league type." };
   }
 
+  if (league_type === "head_to_head" && league.league_type !== "head_to_head") {
+    return {
+      error:
+        "Head-to-Head is not available for new leagues during the Road to SummerSlam beta. Choose Total Season Points.",
+    };
+  }
+
   const { error } = await supabase.from("leagues").update({ league_type }).eq("id", league.id);
   if (error) return { error: error.message };
   revalidatePath(`/leagues/${leagueSlug}`);

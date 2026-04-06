@@ -8,6 +8,9 @@ export type CreateLeagueState = { error?: string } | null;
 
 const VALID_LEAGUE_TYPES = ["season_overall", "head_to_head", "legacy"] as const;
 
+const BETA_MIN_TEAMS = 3;
+const BETA_MAX_TEAMS = 6;
+
 export async function createLeagueAction(
   _prev: CreateLeagueState,
   formData: FormData
@@ -25,12 +28,14 @@ export async function createLeagueAction(
   if (!season_slug) {
     return { error: "Select a season." };
   }
-  if (league_type === "head_to_head") {
-    if (team_count < 4 || team_count > 16) {
-      return { error: "Head-to-Head leagues require between 4 and 16 teams." };
-    }
-  } else if (team_count < 3 || team_count > 16) {
-    return { error: "Number of teams must be between 3 and 16." };
+  if (league_type !== "season_overall") {
+    return {
+      error:
+        "For the Road to SummerSlam beta, only Total Season Points leagues are available. Head-to-Head and other formats are coming soon.",
+    };
+  }
+  if (team_count < BETA_MIN_TEAMS || team_count > BETA_MAX_TEAMS) {
+    return { error: `Choose between ${BETA_MIN_TEAMS} and ${BETA_MAX_TEAMS} teams for this season.` };
   }
   if (!VALID_LEAGUE_TYPES.includes(league_type as (typeof VALID_LEAGUE_TYPES)[number])) {
     return { error: "Select a league format." };

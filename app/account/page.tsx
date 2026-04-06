@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profiles";
+import { AccountAvatarField } from "./AccountAvatarField";
 import { AccountForm } from "./AccountForm";
 
 export const metadata = {
@@ -38,6 +39,10 @@ export default async function AccountPage() {
       <p style={{ color: "#555", marginBottom: 24 }}>
         Your display name is shown in the header and will be used in leagues. Your email is not shared with other users.
       </p>
+      <AccountAvatarField
+        initialAvatarUrl={profile?.avatar_url ?? null}
+        displayNameForInitial={profile?.display_name ?? ""}
+      />
       <AccountForm
         userId={user.id}
         initialDisplayName={profile?.display_name ?? ""}

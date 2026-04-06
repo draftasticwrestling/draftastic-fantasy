@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { EditTeamNameForm } from "../team/EditTeamNameForm";
+import { LeagueManagerAvatarField } from "../team/LeagueManagerAvatarField";
 
 export const dynamic = "force-dynamic";
 
@@ -50,14 +51,21 @@ export default async function EditTeamInfoPage({
         Edit Faction Info
       </h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24 }}>
-        Pick a logo and faction name for this league. Names are up to 25 characters and appear in standings, matchups, and on your roster.
-        If you skip a custom name, we show your profile name (shortened if it&apos;s very long).
+        Set your faction name for this league (up to 25 characters). It appears in standings, matchups, and on your roster.
+        If you skip a custom name, we show your profile name (shortened if it&apos;s very long). You can set a
+        league-specific manager photo below; otherwise we use your default from{" "}
+        <Link href="/account" className="app-link">
+          Account
+        </Link>
+        .
       </p>
-      <EditTeamNameForm
+      <LeagueManagerAvatarField
         leagueSlug={slug}
-        initialTeamName={currentTeamName}
-        initialFactionEmoji={member.faction_emoji ?? null}
+        initialLeagueAvatarUrl={member.manager_avatar_url ?? null}
+        initialProfileAvatarUrl={member.avatar_url ?? null}
+        displayNameForInitial={member.display_name ?? ""}
       />
+      <EditTeamNameForm leagueSlug={slug} initialTeamName={currentTeamName} />
 
       <section
         aria-labelledby="edit-team-auto-draft-heading"

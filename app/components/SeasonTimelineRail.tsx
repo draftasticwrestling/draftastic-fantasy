@@ -76,6 +76,7 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
         <ol className={styles.trackList}>
           {steps.map((step, i) => {
             const last = i === steps.length - 1;
+            const { monthEndBelt, pleFinaleBelt } = step;
             return (
               <li key={step.id} className={styles.trackItem}>
                 <div className={styles.trackCol}>
@@ -107,6 +108,33 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
                     )}
                     {step.name} {formatShortDate(step.date)}
                   </span>
+                  {(monthEndBelt || pleFinaleBelt) && (
+                    <div className={styles.beltSubwrap}>
+                      {monthEndBelt && (
+                        <div
+                          className={styles.beltSubline}
+                          title="End-of-month title hold points"
+                        >
+                          <span className={styles.beltSubBadge}>Belt</span>
+                          <span className={styles.beltSubText}>
+                            Month-end ({monthEndBelt.beltMonthLabel}) · credited{" "}
+                            {formatShortDate(monthEndBelt.creditDate)}
+                          </span>
+                        </div>
+                      )}
+                      {pleFinaleBelt && (
+                        <div
+                          className={styles.beltSubline}
+                          title="Title hold points after the final PLE of this arc"
+                        >
+                          <span className={styles.beltSubBadge}>Belt</span>
+                          <span className={styles.beltSubText}>
+                            {pleFinaleBelt.label} finale · after {formatShortDate(pleFinaleBelt.date)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </li>
             );
