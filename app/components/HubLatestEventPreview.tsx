@@ -97,7 +97,7 @@ function upcomingParticipantRow(nm: string, rowKey: string, wrestlerMap: Wrestle
           </span>
           {img ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={img} alt="" className="hub-condensed-avatar" width={28} height={28} />
+            <img src={img} alt="" className="hub-condensed-avatar" width={24} height={24} />
           ) : (
             <div className="hub-condensed-avatar hub-condensed-avatar-ph" aria-hidden>
               &#128100;
@@ -185,7 +185,7 @@ function completedParticipantRow(entry: CompletedEntry, rowKey: string, wrestler
           </span>
           {img ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={img} alt="" className="hub-condensed-avatar" width={28} height={28} />
+            <img src={img} alt="" className="hub-condensed-avatar" width={24} height={24} />
           ) : (
             <div className="hub-condensed-avatar hub-condensed-avatar-ph" aria-hidden>
               &#128100;
@@ -216,7 +216,7 @@ function completedParticipantFallbackRow(nm: string, rowKey: string, wrestlerMap
           </span>
           {img ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={img} alt="" className="hub-condensed-avatar" width={28} height={28} />
+            <img src={img} alt="" className="hub-condensed-avatar" width={24} height={24} />
           ) : (
             <div className="hub-condensed-avatar hub-condensed-avatar-ph" aria-hidden>
               &#128100;
@@ -238,19 +238,28 @@ export default function HubLatestEventPreview({
   wrestlerRows = [],
   variant = "completed",
   whenLabel,
+  /** When set (including `[]`), only these match `order` values (after default fill) are rendered. Omit for full card. */
+  allowedMatchOrders,
+  /** Shown when there are no match blocks (e.g. filtered roster view). */
+  fallbackOverride,
 }: {
   event: HubPreviewEventRow;
   wrestlerRows: WrestlerRow[];
-  variant?: "completed" | "upcoming";
+  variant?: "completed" | "upcoming" | "live";
   whenLabel?: "Tonight" | "Tomorrow";
+  allowedMatchOrders?: number[];
+  fallbackOverride?: string;
 }) {
   const wrestlerMap = buildWrestlerMap(wrestlerRows);
   const sorted = getSortedMatchesForEvent(event);
+  const orderFilter = allowedMatchOrders !== undefined ? new Set(allowedMatchOrders) : null;
 
   const barParts =
     variant === "upcoming" && whenLabel
       ? [whenLabel, formatEventDateBar(event.date), event.name?.trim() || null, event.location?.trim() || null]
-      : [formatEventDateBar(event.date), event.name?.trim() || null, event.location?.trim() || null];
+      : variant === "live"
+        ? ["LIVE", formatEventDateBar(event.date), event.name?.trim() || null, event.location?.trim() || null]
+        : [formatEventDateBar(event.date), event.name?.trim() || null, event.location?.trim() || null];
   const barText = barParts.filter(Boolean).join(" — ");
 
   const maxMatches = 8;
@@ -263,6 +272,8 @@ export default function HubLatestEventPreview({
     for (let i = 0; i < sorted.length && shown < maxMatches; i++) {
       const raw = sorted[i] as Record<string, unknown>;
       if (isRawPromo(raw)) continue;
+      const ordUp = Number((raw.order as number) ?? i + 1);
+      if (orderFilter && !orderFilter.has(ordUp)) continue;
       shown++;
 
       const { primary, method } = centerLinesUpcoming(raw);
@@ -358,6 +369,8 @@ export default function HubLatestEventPreview({
     for (let i = 0; i < sorted.length && shown < maxMatches; i++) {
       const raw = sorted[i] as Record<string, unknown>;
       if (isRawPromo(raw)) continue;
+      const ordSc = Number((raw.order as number) ?? i + 1);
+      if (orderFilter && !orderFilter.has(ordSc)) continue;
 
       const sm = scored.matches[i] as ScoredMatch | undefined;
       if (!sm || sm.isPromo) continue;
@@ -469,7 +482,7 @@ export default function HubLatestEventPreview({
 
   const href = eventResultsHref(event);
   const showType = getEventShowType(event);
-  const barToneClass =
+  const brandBarClass =
     showType === "raw"
       ? "hub-event-bar-raw"
       : showType === "smackdown"
@@ -477,12 +490,19 @@ export default function HubLatestEventPreview({
         : variant === "upcoming"
           ? "hub-event-bar-upcoming"
           : "";
+  const barToneClass =
+    variant === "live"
+      ? `${brandBarClass} hub-event-bar-live`.trim()
+      : brandBarClass;
 
   const cta = "View Event →";
-  const fallback =
+  const fallbackDefault =
     variant === "upcoming"
       ? "Match details will appear here as the card is finalized — open for the full lineup."
-      : "No scored matches to preview yet — open for full card and promos.";
+      : variant === "live"
+        ? "Scores update as matches finish — open for the full card."
+        : "No scored matches to preview yet — open for full card and promos.";
+  const fallback = fallbackOverride ?? fallbackDefault;
 
   return (
     <Link href={href} className="hub-event-preview-link">

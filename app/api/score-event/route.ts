@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { NextResponse } from "next/server";
 
 /**
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
       const { data: events } = await supabase
         .from("events")
         .select("id, name, date")
-        .eq("status", "completed")
+        .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .order("date", { ascending: false })
         .limit(20);
       return NextResponse.json({

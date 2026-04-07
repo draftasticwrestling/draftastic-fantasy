@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import HubLatestEventPreview from "@/app/components/HubLatestEventPreview";
 import { HubLatestArticleCard } from "@/app/components/HubLatestArticleCard";
 import { firstArticleImageUrl } from "@/lib/articleFirstImage";
-import { fetchHubRecentCompleted, fetchHubUpcomingSpotlight } from "@/lib/home/hubHomeEvents";
+import { fetchHubLiveSpotlight, fetchHubRecentCompleted, fetchHubUpcomingSpotlight } from "@/lib/home/hubHomeEvents";
 import { listPublishedArticles, type ArticleRow } from "@/lib/articles";
 
 /** Slots: top article + (after upcoming) three more in the interleaved feed. */
@@ -83,24 +83,36 @@ export default async function HubLatestHeadlinesSection({
     hasLatestSection = railArticles.length > 0;
   } else {
     const supabase = await createClient();
-    const [upcoming, { data: wrestlersData }, completedRows, art] = await Promise.all([
+    const [upcoming, liveEvent, { data: wrestlersData }, art] = await Promise.all([
       fetchHubUpcomingSpotlight(supabase),
+      fetchHubLiveSpotlight(supabase),
       supabase.from("wrestlers").select("id, name, image_url"),
-      fetchHubRecentCompleted(supabase, 1, null),
       listPublishedArticles(articleLimit),
     ]);
+    const completedRows = await fetchHubRecentCompleted(supabase, 1, liveEvent?.id ?? null);
     articles = art;
     const wrestlerRows = (wrestlersData ?? []) as { id: string; name: string | null; image_url: string | null }[];
     const latestArticles = articles.slice(0, LATEST_SECTION_ARTICLES);
     const completedEvent = completedRows[0];
+    const hasLive = Boolean(liveEvent);
     const hasUpcoming = Boolean(upcoming);
     const hasCompleted = Boolean(completedEvent);
     const hasArticles = latestArticles.length > 0;
-    hasLatestSection = hasUpcoming || hasCompleted || hasArticles;
+    hasLatestSection = hasLive || hasUpcoming || hasCompleted || hasArticles;
 
     const fullFeedNodes: ReactNode[] = [];
+    if (liveEvent) {
+      fullFeedNodes.push(
+        <HubLatestEventPreview
+          key={liveEvent.id}
+          event={liveEvent}
+          wrestlerRows={wrestlerRows}
+          variant="live"
+        />
+      );
+    }
     if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
-    if (upcoming) {
+    if (!liveEvent && upcoming) {
       fullFeedNodes.push(
         <HubLatestEventPreview
           key={upcoming.id}
@@ -126,7 +138,7 @@ export default async function HubLatestHeadlinesSection({
     if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
     feedNodes = fullFeedNodes;
 
-    if (hasCompleted === false && hasUpcoming && upcoming && !hasArticles) {
+    if (hasCompleted === false && hasUpcoming && upcoming && !hasArticles && !hasLive) {
       latestBlockExtras = (
         <p className="hub-muted" style={{ marginTop: 16 }}>
           No completed events to show yet — check back after the show.

@@ -15,6 +15,7 @@ import {
   inferReignsFromEvents,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 
 const LEAGUE_START_DATE = "2025-05-02";
@@ -79,7 +80,7 @@ export default async function TeamPage({
     supabase
       .from("events")
       .select("id, name, date, matches")
-      .eq("status", "completed")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", LEAGUE_START_DATE)
       .order("date", { ascending: true }),
     supabase

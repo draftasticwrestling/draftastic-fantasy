@@ -11,6 +11,7 @@ import { addWrestlerToRoster } from "@/lib/leagues";
 import { timestamptzForAcquiredAtDate } from "@/lib/rosterTimestamps";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { factionDisplayName } from "@/lib/factionName";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 
 const LEAGUE_START_DATE = "2025-05-02";
 const DEFAULT_TIME_PER_PICK_SECONDS = 2 * 60;
@@ -1054,7 +1055,7 @@ export async function getTopAvailableWrestlerByPoints(
   const eventsRes = await supabase
     .from("events")
     .select("id, name, date, matches")
-    .eq("status", "completed")
+    .in("status", [...EVENT_STATUSES_FOR_SCORING])
     .gte("date", LEAGUE_START_DATE)
     .order("date", { ascending: true });
   const events = eventsRes.data ?? [];
@@ -1162,9 +1163,9 @@ export async function getTopAvailableWrestlerForUser(
   const strategyOpts = prefs?.strategy_options;
   if (strategyOpts?.focus != null && strategyOpts?.pointStrategy != null && strategyOpts?.wrestlerStrategy != null) {
     const [events2025, events2026, eventsAll] = await Promise.all([
-      supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
-      supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", "2026-01-01").order("date", { ascending: true }),
-      supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", "2025-01-01").order("date", { ascending: true }),
+      supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
+      supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2026-01-01").order("date", { ascending: true }),
+      supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").order("date", { ascending: true }),
     ]);
     const pts2025 = aggregateWrestlerPoints((events2025.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[]);
     const pts2026 = aggregateWrestlerPoints((events2026.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[]);
@@ -1265,7 +1266,7 @@ export async function getTopAvailableWrestlerForUser(
   const eventsRes = await supabase
     .from("events")
     .select("id, name, date, matches")
-    .eq("status", "completed")
+    .in("status", [...EVENT_STATUSES_FOR_SCORING])
     .gte("date", LEAGUE_START_DATE)
     .order("date", { ascending: true });
   const events = eventsRes.data;

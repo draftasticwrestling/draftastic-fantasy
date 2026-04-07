@@ -1,17 +1,18 @@
 import { supabase } from "@/lib/supabase";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
 import Link from "next/link";
 
 export const metadata = {
   title: "Scored Events — Draftastic Fantasy",
-  description: "Review fantasy scoring for completed events from Pro Wrestling Boxscore.",
+  description: "Review fantasy scoring for completed and in-progress events from Pro Wrestling Boxscore (live shows include finished matches only).",
 };
 
 export default async function ScoredEventsPage() {
   const { data: events, error } = await supabase
     .from("events")
     .select("id, name, date")
-    .eq("status", "completed")
+    .in("status", [...EVENT_STATUSES_FOR_SCORING])
     .order("date", { ascending: false })
     .limit(60);
 
@@ -30,11 +31,13 @@ export default async function ScoredEventsPage() {
 
       <h1 style={{ fontSize: "1.75rem", marginBottom: 8 }}>Scored Events</h1>
       <p style={{ color: "#555", marginBottom: 24, fontSize: 15 }}>
-        When a new event is added and marked completed on{" "}
+        Lists events from{" "}
         <a href="https://prowrestlingboxscore.com" target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8" }}>
-          prowrestlingboxscore.com
-        </a>
-        , it appears here. Click an event to review fantasy scoring and confirm points per wrestler per match.
+          Pro Wrestling Boxscore
+        </a>{" "}
+        with status <strong>live</strong> or <strong>completed</strong>. Fantasy points include only matches marked{" "}
+        <strong>completed</strong> on the card (so totals grow as each match finishes during a live show). Open an event
+        for per-wrestler, per-match scoring.
       </p>
 
       {error && (
@@ -45,7 +48,7 @@ export default async function ScoredEventsPage() {
 
       {events && events.length === 0 && !error && (
         <p style={{ color: "#666" }}>
-          No completed events yet. Add and complete events in Pro Wrestling Boxscore first.
+          No live or completed events yet. Add events in Pro Wrestling Boxscore first.
         </p>
       )}
 

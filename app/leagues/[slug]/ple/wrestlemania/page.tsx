@@ -66,6 +66,19 @@ const WRESTLEMANIA_NIGHTS: WmNight[] = [
         projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
       },
       {
+        label:
+          "6-man tag: The Vision (Logan Paul & Austin Theory) & IShowSpeed vs. The Usos (Jey Uso & Jimmy Uso) & LA Knight",
+        participantSlugs: [
+          "logan-paul",
+          "austin-theory",
+          "ishowspeed",
+          "jey-uso",
+          "jimmy-uso",
+          "la-knight",
+        ],
+        projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
+      },
+      {
         label: "Night 1 main event — Undisputed WWE Championship: Cody Rhodes vs. Randy Orton",
         participantSlugs: ["cody-rhodes", "randy-orton"],
         projectedPts: WM_NIGHT1_MAIN_EVENT_APPEARANCE_PTS,
@@ -92,8 +105,15 @@ const WRESTLEMANIA_NIGHTS: WmNight[] = [
       },
       {
         label:
-          "Men's Intercontinental Championship — ladder match: Penta vs. Rusev vs. Je'Von Evans vs. Dragon Lee vs. JD McDonagh",
-        participantSlugs: ["penta", "rusev", "jevon-evans", "dragon-lee", "jd-mcdonagh"],
+          "Men's Intercontinental Championship — ladder match: Penta vs. Rusev vs. Je'Von Evans vs. Dragon Lee vs. JD McDonagh vs. Rey Mysterio",
+        participantSlugs: [
+          "penta",
+          "rusev",
+          "jevon-evans",
+          "dragon-lee",
+          "jd-mcdonagh",
+          "rey-mysterio",
+        ],
         projectedPts: WM_UNDERCARD_APPEARANCE_PTS,
       },
       {

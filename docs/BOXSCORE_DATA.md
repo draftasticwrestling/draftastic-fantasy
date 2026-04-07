@@ -32,6 +32,7 @@ The live site (prowrestlingboxscore.com) is a Vite + React app that loads events
 ### `events`
 
 - **Columns (relevant):** `id`, `name`, `date`, `location`, `matches`, `status`
+- **Event `status`:** `live` while the show is in progress, `completed` when wrapped. Draftastic fantasy scoring loads both; each match should use `status: "completed"` when its result is final so points roll in during the show (legacy rows with no per-match `status` still score once the event is `completed`).
 - **`matches`:** Array of match objects. Typical shape:
 
 ```js

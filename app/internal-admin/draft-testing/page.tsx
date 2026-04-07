@@ -8,6 +8,7 @@ import {
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { isDraftableWrestler, isDraftableWrestlerForDraftTesting, normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
 import { TestDraft } from "./TestDraft";
 
@@ -52,20 +53,20 @@ export default async function DraftTestingPage() {
     supabase
       .from("events")
       .select("id, name, date, matches")
-      .eq("status", "completed")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", "2025-01-01")
       .lte("date", "2025-12-31")
       .order("date", { ascending: true }),
     supabase
       .from("events")
       .select("id, name, date, matches")
-      .eq("status", "completed")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", "2026-01-01")
       .order("date", { ascending: true }),
     supabase
       .from("events")
       .select("id, name, date, matches")
-      .eq("status", "completed")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", "2025-01-01")
       .order("date", { ascending: true }),
     supabase

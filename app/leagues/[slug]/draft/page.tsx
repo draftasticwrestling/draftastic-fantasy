@@ -21,6 +21,7 @@ import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
 import { CommissionerDraftActions } from "./CommissionerDraftActions";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
 import { LeagueDraftRoom } from "./LeagueDraftRoom";
 
@@ -180,10 +181,10 @@ export default async function LeagueDraftPage({ params }: Props) {
         const ALL_TIME_FROM = "2020-01-01";
         const ALL_TIME_LIMIT = 10000;
         const [sinceStart, events2025, events2026, eventsAll] = await Promise.all([
-          supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", start).order("date", { ascending: true }),
-          supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
-          supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", "2026-01-01").order("date", { ascending: true }),
-          supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", ALL_TIME_FROM).order("date", { ascending: true }).limit(ALL_TIME_LIMIT),
+          supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", start).order("date", { ascending: true }),
+          supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
+          supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2026-01-01").order("date", { ascending: true }),
+          supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", ALL_TIME_FROM).order("date", { ascending: true }).limit(ALL_TIME_LIMIT),
         ]);
         const cast = (d: unknown[]) => d as { id: string; name: string; date: string; matches?: object[] }[];
         return {

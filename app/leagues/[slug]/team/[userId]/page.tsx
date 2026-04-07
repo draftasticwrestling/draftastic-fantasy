@@ -40,10 +40,16 @@ import {
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
 import { factionDisplayName } from "@/lib/factionName";
+import { getTodayTomorrowYmdET } from "@/lib/home/hubHomeEvents";
+import type { LeagueEventDayRow } from "@/lib/league/eventDayRosterMatches";
+import { buildFactionUpcomingRosterCards, enrichFactionCardsWithLiveScores } from "@/lib/league/factionUpcomingMatchCards";
+import { ManagerAvatar } from "@/app/components/ManagerAvatar";
+import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import {
   adjustRts2026LeagueAggregateBeltPoints,
   beltScoringLastMonthEndInclusive,
 } from "@/lib/beltRts2026JulyDeferral";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 10000;
@@ -167,8 +173,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       currentFromChanges,
     ] = await Promise.all([
       supabaseTable.from("wrestlers").select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"').in("id", rosterIds),
-      supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", startDate).order("date", { ascending: true }),
-      supabaseTable.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", ALL_TIME_EVENTS_FROM).order("date", { ascending: true }).limit(ALL_TIME_EVENTS_LIMIT),
+      supabaseTable.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", startDate).order("date", { ascending: true }),
+      supabaseTable.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", ALL_TIME_EVENTS_FROM).order("date", { ascending: true }).limit(ALL_TIME_EVENTS_LIMIT),
       supabaseTable.from("championship_history").select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
       supabaseTable
         .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
@@ -318,6 +324,72 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     }
   }
 
+  const wrestlerNameByIdForRecent = Object.fromEntries(
+    wrestlers.map((w) => [w.id, (w.name ?? w.id).trim()])
+  );
+  const wrestlerImageById = Object.fromEntries(wrestlers.map((w) => [w.id, w.image_url ?? null]));
+  const targetRosterWrestlerIds = rosterEntries.map((e) => e.wrestler_id);
+  const todayYmdEt = getTodayTomorrowYmdET().today;
+
+  const { data: upcomingEventsRows } = await supabase
+    .from("events")
+    .select("id, name, date, location, matches, status")
+    .gte("date", todayYmdEt)
+    .order("date", { ascending: true })
+    .order("name", { ascending: true })
+    .limit(48);
+
+  // Keep non-completed (upcoming / live) plus **today’s completed** shows so boxes + scores stay for the full ET
+  // calendar day after the event finishes; they drop off once the date rolls to tomorrow.
+  const upcomingCandidates = ((upcomingEventsRows ?? []) as LeagueEventDayRow[]).filter((e) => {
+    const s = String(e.status ?? "").toLowerCase().trim();
+    const d = String(e.date ?? "").trim().slice(0, 10);
+    if (d === todayYmdEt && s === "completed") return true;
+    return s !== "completed";
+  });
+
+  const eventByIdForFactionCards = new Map<string, LeagueEventDayRow>();
+  for (const ev of upcomingCandidates) eventByIdForFactionCards.set(ev.id, ev);
+
+  const MAX_UPCOMING_CARDS = 48;
+  let upcomingFactionCards = upcomingCandidates.flatMap((ev) =>
+    buildFactionUpcomingRosterCards(ev, targetRosterWrestlerIds, wrestlerNameByIdForRecent, wrestlerImageById)
+  );
+  if (upcomingFactionCards.length > MAX_UPCOMING_CARDS) {
+    upcomingFactionCards = upcomingFactionCards.slice(0, MAX_UPCOMING_CARDS);
+  }
+
+  let upcomingMatchesSource: "upcoming" | "completed" = "upcoming";
+  if (upcomingFactionCards.length === 0) {
+    upcomingMatchesSource = "completed";
+    const { data: completedRows } = await supabase
+      .from("events")
+      .select("id, name, date, location, matches, status")
+      .eq("status", "completed")
+      .order("date", { ascending: false })
+      .order("name", { ascending: true })
+      .limit(24);
+    for (const ev of (completedRows ?? []) as LeagueEventDayRow[]) {
+      eventByIdForFactionCards.set(ev.id, ev);
+      const chunk = buildFactionUpcomingRosterCards(
+        ev,
+        targetRosterWrestlerIds,
+        wrestlerNameByIdForRecent,
+        wrestlerImageById
+      );
+      upcomingFactionCards.push(...chunk);
+      if (upcomingFactionCards.length >= MAX_UPCOMING_CARDS) break;
+    }
+  }
+
+  upcomingFactionCards.sort((a, b) => {
+    const da = (a.eventDateYmd || "").localeCompare(b.eventDateYmd || "");
+    if (da !== 0) return da;
+    return a.wrestlerName.localeCompare(b.wrestlerName);
+  });
+
+  upcomingFactionCards = enrichFactionCardsWithLiveScores(eventByIdForFactionCards, upcomingFactionCards);
+
   return (
     <main
       style={{
@@ -369,19 +441,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             ‹
           </Link>
         )}
-        <h1
-          style={{
-            margin: 0,
-            fontSize: "2rem",
-            fontWeight: 700,
-            textAlign: "center",
-            flex: "1 1 auto",
-            minWidth: 0,
-            maxWidth: "100%",
-          }}
-        >
-          {teamLabel}
-        </h1>
+        <div style={{ flex: "1 1 auto" }} />
         {nextFactionUserId != null && (
           <Link
             href={`/leagues/${slug}/team/${encodeURIComponent(nextFactionUserId)}`}
@@ -408,53 +468,245 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           </Link>
         )}
       </div>
-      {targetMember.manager_catchphrase?.trim() ? (
-        <p
-          style={{
-            margin: "0 0 16px",
-            textAlign: "center",
-            fontSize: 17,
-            fontStyle: "italic",
-            color: "#6b4f1d",
-            fontWeight: 600,
-          }}
-        >
-          “{targetMember.manager_catchphrase.trim()}”
-        </p>
-      ) : null}
-      <p
+      <section
         style={{
-          color: "#555",
-          marginBottom: 12,
-          fontSize: 18,
-          fontWeight: 600,
-          textAlign: "center",
+          display: "grid",
+          gridTemplateColumns: "minmax(280px, 420px) minmax(0, 1fr)",
+          gap: 20,
+          alignItems: "start",
+          marginBottom: 28,
         }}
       >
-        <span
+        <div
           style={{
-            display: "inline-block",
-            padding: "6px 16px",
-            borderRadius: 999,
-            background: "linear-gradient(135deg, #c00 0%, #7a0000 100%)",
-            color: "#fff",
-            fontWeight: 800,
-            letterSpacing: 0.5,
-            fontSize: 20,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+            display: "flex",
+            gap: 14,
+            alignItems: "center",
+            padding: "10px 6px",
           }}
         >
-          {totalPoints} pts
-        </span>
-      </p>
-      <p style={{ marginTop: 0, marginBottom: 28, textAlign: "center" }}>
-        <Link
-          href={`/leagues/${slug}/team/${encodeURIComponent(userId)}/scoreboard`}
-          style={{ color: "#1a73e8", textDecoration: "none", fontWeight: 700 }}
-        >
-          View Faction Scoreboard
-        </Link>
-      </p>
+          <ManagerAvatar
+            avatarUrl={resolvedManagerAvatarUrl(targetMember)}
+            fallbackLetter={(teamLabel.trim().charAt(0) || "?").toUpperCase()}
+            size={132}
+            radius="14px"
+            alt={`${teamLabel} avatar`}
+            variant="sidebar"
+          />
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ margin: "0 0 6px", fontSize: "2rem", fontWeight: 700 }}>{teamLabel}</h1>
+            {targetMember.manager_catchphrase?.trim() ? (
+              <p
+                style={{
+                  margin: "0 0 8px",
+                  fontSize: 17,
+                  fontStyle: "italic",
+                  color: "#6b4f1d",
+                  fontWeight: 600,
+                }}
+              >
+                "{targetMember.manager_catchphrase.trim()}"
+              </p>
+            ) : null}
+            <p style={{ margin: "0 0 10px" }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "6px 16px",
+                  borderRadius: 999,
+                  background: "linear-gradient(135deg, #c00 0%, #7a0000 100%)",
+                  color: "#fff",
+                  fontWeight: 800,
+                  letterSpacing: 0.5,
+                  fontSize: 20,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+                }}
+              >
+                {totalPoints} pts
+              </span>
+            </p>
+            <p style={{ margin: 0 }}>
+              <Link
+                href={`/leagues/${slug}/team/${encodeURIComponent(userId)}/scoreboard`}
+                style={{ color: "#1a73e8", textDecoration: "none", fontWeight: 700 }}
+              >
+                View Faction Scoreboard
+              </Link>
+            </p>
+          </div>
+        </div>
+        <div>
+          <h2 style={{ fontSize: "1.3rem", margin: "0 0 6px", fontWeight: 700 }}>Upcoming Matches</h2>
+          {upcomingMatchesSource === "completed" && upcomingFactionCards.length > 0 ? (
+            <p style={{ margin: "0 0 10px", fontSize: 12, color: "#666" }}>
+              No upcoming schedule found — showing this faction’s most recent completed appearances instead.
+            </p>
+          ) : null}
+          {upcomingFactionCards.length > 0 ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                gap: 10,
+                maxHeight: 340,
+                overflowY: "auto",
+                paddingRight: 4,
+              }}
+            >
+              {upcomingFactionCards.map((c) => (
+                <div
+                  key={c.key}
+                  style={{
+                    border: "1px solid #d8dee8",
+                    borderRadius: 10,
+                    background: "#fff",
+                    minHeight: 0,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#f8fafc",
+                      background: "linear-gradient(90deg, #1e40af, #2563eb)",
+                      padding: "6px 10px",
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    {c.eventDateLabel}
+                    {" · "}
+                    {c.eventName}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      alignItems: "flex-start",
+                      padding: c.matchPoints !== undefined ? "8px 10px 30px 10px" : "8px 10px",
+                      position: "relative",
+                    }}
+                  >
+                    <div style={{ flexShrink: 0 }}>
+                      {c.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.imageUrl}
+                          alt=""
+                          width={40}
+                          height={40}
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                            border: "1px solid #e5e7eb",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: "50%",
+                            background: "#e5e7eb",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 18,
+                            color: "#9ca3af",
+                          }}
+                          aria-hidden
+                        >
+                          &#128100;
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: 13, color: "#111827", lineHeight: 1.25 }}>
+                        {c.wrestlerName}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 3, lineHeight: 1.3 }}>
+                        {c.matchLabel}
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                        {c.isChampionship ? (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              color: "#92400e",
+                              background: "#fef3c7",
+                              border: "1px solid #fcd34d",
+                              borderRadius: 999,
+                              padding: "2px 8px",
+                            }}
+                          >
+                            Title
+                          </span>
+                        ) : null}
+                        {c.isSpecialStipulation ? (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              color: "#1e40af",
+                              background: "#dbeafe",
+                              border: "1px solid #93c5fd",
+                              borderRadius: 999,
+                              padding: "2px 8px",
+                            }}
+                          >
+                            Stipulation
+                          </span>
+                        ) : null}
+                      </div>
+                      <div style={{ marginTop: 6 }}>
+                        <Link
+                          href={c.eventHref}
+                          style={{ fontSize: 11, color: "#1a73e8", textDecoration: "none", fontWeight: 700 }}
+                        >
+                          Event details →
+                        </Link>
+                      </div>
+                    </div>
+                    {c.matchPoints !== undefined ? (
+                      <div
+                        style={{
+                          position: "absolute",
+                          right: 8,
+                          bottom: 6,
+                          fontSize: 14,
+                          fontWeight: 800,
+                          color: c.matchPoints === null ? "#9ca3af" : "#111827",
+                          lineHeight: 1,
+                          pointerEvents: "none",
+                        }}
+                        aria-label={
+                          c.matchPoints === null
+                            ? "Fantasy points not available yet for this match"
+                            : `Fantasy points: ${c.matchPoints}`
+                        }
+                      >
+                        {c.matchPoints === null ? "—" : `${c.matchPoints >= 0 ? "+" : ""}${c.matchPoints}`}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ margin: 0, fontSize: 14, color: "#666" }}>
+              No upcoming scheduled matches were found for this faction, and no completed matches with this roster are
+              available yet.
+            </p>
+          )}
+        </div>
+      </section>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>

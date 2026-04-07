@@ -147,7 +147,7 @@ export function buildChronologicalWrestlerMatchList(events, wrestlerSlug, wrestl
     return String(a.id ?? '').localeCompare(String(b.id ?? ''));
   });
   for (const event of sortedEvents) {
-    if (event.status !== 'completed') continue;
+    if (event.status !== 'completed' && event.status !== 'live') continue;
     const sortedMatches = getSortedMatchesForEvent(event);
     for (let i = 0; i < sortedMatches.length; i++) {
       const match = sortedMatches[i];
@@ -257,7 +257,7 @@ export function getMatchesForWrestlerForYear(events, wrestlerSlug, year, wrestle
   });
   const results = [];
   for (const event of sortedEvents) {
-    if (event.status !== 'completed') continue;
+    if (event.status !== 'completed' && event.status !== 'live') continue;
     if (getYearFromEventDate(event.date) !== year) continue;
     const sortedMatches = getSortedMatchesForEvent(event);
     for (let i = 0; i < sortedMatches.length; i++) {
@@ -280,7 +280,7 @@ export function getMatchRecordStatsForYear(events, wrestlerSlug, year, wrestlerM
   let dqLoss = 0;
 
   for (const event of events || []) {
-    if (event.status !== 'completed') continue;
+    if (event.status !== 'completed' && event.status !== 'live') continue;
     if (getYearFromEventDate(event.date) !== year) continue;
     const sortedMatches = getSortedMatchesForEvent(event);
     for (const match of sortedMatches) {

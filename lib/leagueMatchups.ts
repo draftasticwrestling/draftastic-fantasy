@@ -22,6 +22,7 @@ import {
   RTS_2026_LEAGUE_END_DATE,
   shouldSkipJulyMonthEndBeltForRts2026,
 } from "@/lib/beltRts2026JulyDeferral";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 
 /** Monday of the week containing the given date (YYYY-MM-DD). Weeks are Monday–Sunday. */
 export function getMondayOfWeek(dateStr: string): string {
@@ -93,7 +94,7 @@ export async function getPointsByOwnerForLeagueForWeek(
   const eventsSelectWithStart = supabase
     .from("events")
     .select("id, name, date, broadcast_start_ts, matches")
-    .eq("status", "completed")
+    .in("status", [...EVENT_STATUSES_FOR_SCORING])
     .order("date", { ascending: true });
   const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
   const events =
@@ -103,7 +104,7 @@ export async function getPointsByOwnerForLeagueForWeek(
           await supabase
             .from("events")
             .select("id, name, date, matches")
-            .eq("status", "completed")
+            .in("status", [...EVENT_STATUSES_FOR_SCORING])
             .order("date", { ascending: true })
         ).data ?? []
       : []);
@@ -178,7 +179,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
   const eventsSelectWithStart = supabase
     .from("events")
     .select("id, name, date, broadcast_start_ts, matches")
-    .eq("status", "completed")
+    .in("status", [...EVENT_STATUSES_FOR_SCORING])
     .order("date", { ascending: true });
   const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
   const events =
@@ -188,7 +189,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
           await supabase
             .from("events")
             .select("id, name, date, matches")
-            .eq("status", "completed")
+            .in("status", [...EVENT_STATUSES_FOR_SCORING])
             .order("date", { ascending: true })
         ).data ?? []
       : []);
@@ -314,7 +315,7 @@ export async function getLeagueWeeklyMatchups(
       supabase
         .from("events")
         .select("id, name, date, matches, broadcast_start_ts")
-        .eq("status", "completed")
+        .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .lte("date", end)
         .order("date", { ascending: true })
@@ -333,7 +334,7 @@ export async function getLeagueWeeklyMatchups(
       const { data: ev2 } = await supabase
         .from("events")
         .select("id, name, date, matches")
-        .eq("status", "completed")
+        .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .lte("date", end)
         .order("date", { ascending: true })
@@ -535,7 +536,7 @@ export async function getMonthlyBeltBySlugForWeek(
     supabase
       .from("events")
       .select("id, name, date, matches")
-      .eq("status", "completed")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
       .lte("date", end)
       .order("date", { ascending: true })

@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { supabase } from "@/lib/supabase";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import {
   closeReignsFromSuccessors,
   inferReignsFromEvents,
@@ -71,7 +72,7 @@ export const getChampionshipHistoryDataset = cache(async (): Promise<Championshi
       supabase
         .from("events")
         .select("id, name, date, matches")
-        .eq("status", "completed")
+        .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", LEAGUE_START_DATE)
         .order("date", { ascending: true }),
       supabase

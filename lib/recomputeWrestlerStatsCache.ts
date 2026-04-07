@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import { computeEndOfMonthBeltPoints, getMonthlyBeltForWrestler } from "@/lib/scoring/endOfMonthBeltPoints.js";
@@ -24,7 +25,12 @@ function inRange(date: string, from: string, to: string | null): boolean {
 export async function recomputeWrestlerStatsCache(supabase: SupabaseClient) {
   const [wrestlersRes, eventsRes, reignsRes] = await Promise.all([
     supabase.from("wrestlers").select("id, name"),
-    supabase.from("events").select("id, name, date, matches").eq("status", "completed").gte("date", ALL_TIME_FROM).order("date", { ascending: true }),
+    supabase
+      .from("events")
+      .select("id, name, date, matches")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
+      .gte("date", ALL_TIME_FROM)
+      .order("date", { ascending: true }),
     supabase.from("championship_history").select("*"),
   ]);
   if (wrestlersRes.error) throw wrestlersRes.error;

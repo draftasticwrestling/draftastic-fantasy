@@ -33,8 +33,11 @@ function hasAtLeastOneMatch(matches: unknown): boolean {
   return Array.isArray(matches) && matches.length >= 1;
 }
 
-function isNotCompleted(status: string | null | undefined): boolean {
-  return (status || "").toLowerCase() !== "completed";
+/** Pre-show card only: not completed and not live (live uses scored preview elsewhere). */
+function isUpcomingSpotlightStatus(status: string | null | undefined): boolean {
+  const s = (status || "").toLowerCase().trim();
+  if (s === "completed" || s === "live") return false;
+  return true;
 }
 
 export type HubUpcomingSpotlight = HubPreviewEventRow & {
@@ -58,7 +61,7 @@ export async function fetchHubUpcomingSpotlight(supabase: SupabaseClient): Promi
   if (error || !data?.length) return null;
 
   const candidates = (data as HubPreviewEventRow[]).filter(
-    (e) => isNotCompleted(e.status) && e.date && hasAtLeastOneMatch(e.matches)
+    (e) => isUpcomingSpotlightStatus(e.status) && e.date && hasAtLeastOneMatch(e.matches)
   );
   if (candidates.length === 0) return null;
 
@@ -93,4 +96,22 @@ export async function fetchHubRecentCompleted(
     rows = rows.filter((e) => e.id !== excludeId);
   }
   return rows.slice(0, limit);
+}
+
+/**
+ * In-progress show (PWBS `status: live`) for the hub condensed card — fantasy points for completed matches only.
+ */
+export async function fetchHubLiveSpotlight(supabase: SupabaseClient): Promise<HubPreviewEventRow | null> {
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, name, date, location, matches, status")
+    .eq("status", "live")
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const row = data as HubPreviewEventRow;
+  if (!hasAtLeastOneMatch(row.matches)) return null;
+  return row;
 }

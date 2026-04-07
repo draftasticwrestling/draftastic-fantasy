@@ -18,6 +18,7 @@ import {
   rosterStintActiveForMonthEndBelt,
 } from "@/lib/scoring/rosterStintEventWindow";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { validateFactionNameForSave } from "@/lib/factionName";
 import { validateManagerCatchphraseForSave } from "@/lib/managerCatchphrase";
 import { validateFactionEmojiForSave } from "@/lib/factionEmoji";
@@ -1083,7 +1084,7 @@ export async function getLeagueScoring(
   const eventsSelectWithStart = supabase
     .from("events")
     .select("id, name, date, broadcast_start_ts, matches")
-    .eq("status", "completed")
+    .in("status", [...EVENT_STATUSES_FOR_SCORING])
     .order("date", { ascending: true });
 
   const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
@@ -1094,7 +1095,7 @@ export async function getLeagueScoring(
           await supabase
             .from("events")
             .select("id, name, date, matches")
-            .eq("status", "completed")
+            .in("status", [...EVENT_STATUSES_FOR_SCORING])
             .order("date", { ascending: true })
         ).data ?? []
       : []);

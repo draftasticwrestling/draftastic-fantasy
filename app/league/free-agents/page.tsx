@@ -12,6 +12,7 @@ import {
   inferReignsFromEvents,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 
@@ -64,7 +65,7 @@ export default async function LeagueFreeAgentsPage() {
     supabase
       .from("events")
       .select("id, name, date, matches")
-      .eq("status", "completed")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", LEAGUE_START_DATE)
       .order("date", { ascending: true }),
     supabase

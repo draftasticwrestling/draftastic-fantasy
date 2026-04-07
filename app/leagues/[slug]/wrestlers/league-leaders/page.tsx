@@ -25,6 +25,7 @@ import {
   adjustRts2026LeagueAggregateBeltPoints,
   beltScoringLastMonthEndInclusive,
 } from "@/lib/beltRts2026JulyDeferral";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -120,7 +121,7 @@ export default async function LeagueLeadersPage({
     const { data: sinceStartData } = await supabase
       .from("events")
       .select("id, name, date, matches")
-      .eq("status", "completed")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", startDate)
       .order("date", { ascending: true });
     eventsSinceStart = (sinceStartData ?? []) as typeof eventsAll;
@@ -131,7 +132,7 @@ export default async function LeagueLeadersPage({
     const { data: allEventsData } = await supabase
       .from("events")
       .select("id, name, date, matches")
-      .eq("status", "completed")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", ALL_TIME_EVENTS_FROM)
       .order("date", { ascending: true })
       .limit(ALL_TIME_EVENTS_LIMIT);

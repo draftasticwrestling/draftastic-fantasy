@@ -18,6 +18,8 @@ import { MyFactionAvatarEditor } from "./MyFactionAvatarEditor";
 import { MyFactionCatchphraseBlock } from "./MyFactionCatchphraseBlock";
 import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import { factionDisplayName, truncateFactionDisplay } from "@/lib/factionName";
+import { getLeagueEventDayViewerSection } from "@/lib/league/getLeagueEventDayViewerSection";
+import { LeagueEventDayRosterCard } from "./LeagueEventDayRosterCard";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -79,7 +81,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
   let league: Awaited<ReturnType<typeof getLeagueBySlug>>;
   let members: Awaited<ReturnType<typeof getLeagueMembers>> = [];
   let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
-  let wrestlersResult: { id: string; name: string | null; gender: string | null }[] = [];
+  let wrestlersResult: { id: string; name: string | null; gender: string | null; image_url: string | null }[] = [];
 
   const fallback = (
     <main className="app-page">
@@ -107,13 +109,18 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       getLeagueMembers(league.id),
       getRostersForLeague(league.id),
       (async () => {
-        const supabase = await createClient();
+        const supabaseInner = await createClient();
         // Column is "Status" (capital S) in DB; avoid .or("status...")
-        const result = await supabase
+        const result = await supabaseInner
           .from("wrestlers")
-          .select("id, name, gender")
+          .select("id, name, gender, image_url")
           .order("name", { ascending: true });
-        return (result.data ?? []) as { id: string; name: string | null; gender: string | null }[];
+        return (result.data ?? []) as {
+          id: string;
+          name: string | null;
+          gender: string | null;
+          image_url: string | null;
+        }[];
       })(),
       getPointsByOwnerForLeagueWithBonuses(league.id),
     ]);
@@ -186,6 +193,11 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const pendingTradesForMe = currentUser
       ? tradeProposals.filter((p) => p.status === "pending" && p.to_user_id === currentUser.id)
       : [];
+
+    const eventDaySection =
+      currentUserMember && currentUser
+        ? await getLeagueEventDayViewerSection(supabase, league, currentUser.id, rosters, wrestlersResult)
+        : null;
 
     return (
     <>
@@ -331,6 +343,14 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               </p>
             )}
           </div>
+
+          {eventDaySection ? (
+            <LeagueEventDayRosterCard
+              todayLabelEt={eventDaySection.todayLabelEt}
+              items={eventDaySection.items}
+              wrestlerRows={eventDaySection.wrestlerRows}
+            />
+          ) : null}
 
           {pendingTradesForMe.length > 0 && currentUser && (
             <div

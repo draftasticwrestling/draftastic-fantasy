@@ -21,7 +21,7 @@ export default function EventListBar({ events }: Props) {
   if (!events.length) return null;
 
   return (
-    <div className="event-list-bar" role="navigation" aria-label="Recent events">
+    <div className="event-list-bar" role="navigation" aria-label="Live and recent events">
       <div className="event-list-bar-inner">
         {events.map((event) => {
           const eventType = classifyEventType(event.name ?? "", event.id);
@@ -29,13 +29,19 @@ export default function EventListBar({ events }: Props) {
           const href = eventResultsHref(event);
           const dateDisplay = formatEventDate(event.date);
           const locationDisplay = event.location?.trim() || "—";
+          const isLive = (event.status || "").toLowerCase() === "live";
           return (
             <Link
               key={event.id}
               href={href}
-              className="event-list-bar-item"
-              title={`${event.name ?? event.id} — ${dateDisplay} — ${locationDisplay}`}
+              className={`event-list-bar-item${isLive ? " event-list-bar-item--live" : ""}`}
+              title={`${event.name ?? event.id} — ${dateDisplay} — ${locationDisplay}${isLive ? " (live)" : ""}`}
             >
+              {isLive ? (
+                <span className="event-list-bar-live-pill" aria-hidden>
+                  LIVE
+                </span>
+              ) : null}
               <span className="event-list-bar-logo">
                 {logoUrl ? (
                   <img src={logoUrl} alt="" width={32} height={32} />

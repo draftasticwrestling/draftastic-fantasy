@@ -28,6 +28,7 @@ import {
   RTS_2026_LEAGUE_END_DATE,
   transformRts2026BeltMonthEnds,
 } from "@/lib/beltRts2026JulyDeferral";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 
 export type TeamScoreLedgerRow = {
   eventId: string;
@@ -144,7 +145,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const eventsSelectWithStart = supabase
     .from("events")
     .select("id, name, date, broadcast_start_ts, matches")
-    .eq("status", "completed")
+    .in("status", [...EVENT_STATUSES_FOR_SCORING])
     .order("date", { ascending: true });
 
   const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
@@ -155,7 +156,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
           await supabase
             .from("events")
             .select("id, name, date, matches")
-            .eq("status", "completed")
+            .in("status", [...EVENT_STATUSES_FOR_SCORING])
             .order("date", { ascending: true })
         ).data ?? []
       : []);

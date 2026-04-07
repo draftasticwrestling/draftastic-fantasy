@@ -20,6 +20,7 @@ import {
   buildProWrestlingBoxscoreEventUrl,
   getEventForResultsRoute,
 } from "@/lib/event-results/eventResultsRoute";
+import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { isWrestlerWinner } from "@/lib/event-results/winnerUtils";
 import type { ScoredEvent } from "@/lib/scoring/types";
 
@@ -157,7 +158,7 @@ export default async function EventResultsPage({
     supabase
       .from("events")
       .select("id, name, date, status, matches")
-      .eq("status", "completed")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .order("date", { ascending: false })
       .limit(180),
   ]);
