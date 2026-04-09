@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { BELT_DEFENSE_NEW_CHAMPION_POINTS } from "@/lib/howItWorksPoints";
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 
 export const metadata = {
   title: "Points System — Draftastic Fantasy",
-  description: "Full fantasy points breakdown: general rules, Raw/SmackDown, title points, and every PLE from WrestleMania to minor events.",
+  description:
+    "Full fantasy points breakdown: general rules, Raw/SmackDown, belt points, and every PLE from WrestleMania to minor events.",
 };
 
 const tableBase = {
@@ -20,7 +22,7 @@ function EventTable({
   rows,
   logoUrl,
 }: {
-  title: string;
+  title?: string;
   rows: [string, number | string][];
   logoUrl?: string | null;
 }) {
@@ -31,7 +33,7 @@ function EventTable({
           <img src={logoUrl} alt="" style={{ height: 40, width: "auto", objectFit: "contain" }} loading="lazy" />
         </div>
       )}
-      <h3 style={{ fontSize: "1.1rem", marginBottom: 8 }}>{title}</h3>
+      {title ? <h3 style={{ fontSize: "1.1rem", marginBottom: 8 }}>{title}</h3> : null}
       <table style={tableBase}>
         <thead>
           <tr>
@@ -92,15 +94,15 @@ export default function PointsPage() {
           </thead>
           <tbody>
             {[
-              ["Main Eventing", 3],
-              ["Successful Title Defense", 4],
-              ["Being on the Match Card (non-main event)", 1],
-              ["Entering the Andre the Giant Battle Royal", 1],
-              ["Winning the Main Event", 4],
+              ["Winning the Battle Royal", 8],
               ["Title Changes Hands", 5],
+              ["Successful Title Defense", 4],
+              ["Winning the Main Event", 4],
+              ["Main Eventing", 3],
               ["Winning Your Match", 2],
               ["Eliminating a BR Participant", 2],
-              ["Winning the Battle Royal", 8],
+              ["Being on the Match Card (non-main event)", 1],
+              ["Entering the Andre the Giant Battle Royal", 1],
             ].map(([action, pts], i) => (
               <tr key={i} style={{ borderBottom: "1px solid #ddd" }}>
                 <td style={tdStyle}>{action}</td>
@@ -111,9 +113,10 @@ export default function PointsPage() {
         </table>
       </section>
 
-      {/* Title points (end of month) */}
+      {/* Belt points — monthly + defense / new champion */}
       <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Title points</h2>
+        <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Belt points</h2>
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 8, fontWeight: 700 }}>Monthly belt points</h3>
         <p style={{ color: "#555", marginBottom: 16 }}>
           Awarded to whoever holds the belt at the end of the last day of each month. Points apply after that month ends (e.g. March holders are credited once we are into April).
         </p>
@@ -139,6 +142,13 @@ export default function PointsPage() {
             ]}
           />
         </div>
+        <h3 style={{ fontSize: "1.15rem", marginTop: 28, marginBottom: 8, fontWeight: 700 }}>
+          Belt defense / New champion points
+        </h3>
+        <p style={{ color: "#555", marginBottom: 16 }}>
+          Awarded during the match when a championship is defended or changes hands (same values for every title).
+        </p>
+        <EventTable rows={BELT_DEFENSE_NEW_CHAMPION_POINTS} />
       </section>
 
       {/* Major PLE — Big Four */}
@@ -151,7 +161,7 @@ export default function PointsPage() {
             rows={[
               ["Winning Main Event Night Two at WrestleMania", 40],
               ["Main Eventing Night Two at WrestleMania", 30],
-              ["Winning Night One Main Event at WrestleMania", 30],
+              ["Winning Night One in Main Event at Wrestlemania", 30],
               ["Main Eventing Night One at WrestleMania", 25],
               ["Winning Non-ME Match at WrestleMania", 16],
               ["Being on the Non-ME Card at WrestleMania", 8],
@@ -161,11 +171,12 @@ export default function PointsPage() {
             title="SummerSlam"
             logoUrl={EVENT_LOGO_URLS.summerslam}
             rows={[
-              ["Winning the Main Event at SummerSlam (either night)", 20],
-              ["Main Eventing Night Two of SummerSlam", 15],
-              ["Main Eventing Night One of SummerSlam", 10],
-              ["Winning Your Match", 10],
-              ["Being on the Non-ME Card", 5],
+              ["Winning main event SummerSlam Night 2", 30],
+              ["Main eventing SummerSlam Night 2 (appearance)", 30],
+              ["Winning main event SummerSlam Night 1", 25],
+              ["Main eventing SummerSlam Night 1 (appearance)", 20],
+              ["Winning your match (non–main event)", 20],
+              ["Being on the card (non–main event)", 10],
             ]}
           />
           <EventTable
@@ -173,11 +184,11 @@ export default function PointsPage() {
             logoUrl={EVENT_LOGO_URLS["survivor-series"]}
             rows={[
               ["Winning the Main Event", 15],
+              ["Winning War Games", 14],
               ["Main Eventing", 12],
               ["Winning Your Match", 10],
               ["Wrestler Who Makes the Pin", 10],
               ["Being on a War Games Team", 8],
-              ["Winning War Games", 14],
               ["Being on the Non-ME Card", 5],
               ["Point bonus for entry order (1st = 5 pts, 5th = 1 pt)", "1–5"],
             ]}
@@ -188,12 +199,12 @@ export default function PointsPage() {
             rows={[
               ["Winning the Royal Rumble", 30],
               ["Winning the Main Event", 15],
-              ["Main Eventing", 12],
               ["Iron Man / Iron Woman", 12],
               ["Person Who Eliminates the Most", 12],
+              ["Main Eventing", 12],
               ["Winning Your Match", 10],
-              ["Points for Each Person Eliminated", 3],
               ["Being on the Non-ME Card", 5],
+              ["Points for Each Person Eliminated", 3],
               ["Being in the Royal Rumble", 2],
             ]}
           />
@@ -208,12 +219,11 @@ export default function PointsPage() {
             title="Elimination Chamber"
             logoUrl={EVENT_LOGO_URLS["elimination-chamber"]}
             rows={[
-              ["Participant (being in the match)", 10],
               ["Winning the Elimination Chamber", 30],
-              ["Qualifying for the Elimination Chamber", 10],
-              ["Eliminating an Opponent in the Chamber", 10],
               ["Longest Lasting Participant in the Chamber", 15],
               ["Winning the Main Event", 15],
+              ["Qualifying for the Elimination Chamber", 10],
+              ["Eliminating an Opponent in the Chamber", 10],
               ["Main Eventing", 9],
               ["Winning Your Match", 8],
               ["Being on the Match Card (non-main event)", 4],
@@ -223,10 +233,10 @@ export default function PointsPage() {
             title="Night of Champions"
             logoUrl={EVENT_LOGO_URLS["night-of-champions"]}
             rows={[
-              ["Winning the Main Event", 15],
-              ["Main Eventing", 9],
-              ["Winning Your Match", 8],
-              ["Being on the Match Card (non-main event)", 4],
+              ["Winning the main event", 16],
+              ["Main eventing (appearance)", 12],
+              ["Winning your match", 10],
+              ["Being on the card (non–main event)", 5],
             ]}
           />
           <EventTable
@@ -244,8 +254,8 @@ export default function PointsPage() {
             logoUrl={EVENT_LOGO_URLS["money-in-the-bank"]}
             rows={[
               ["Money in the Bank Winner", 25],
-              ["Earning a Spot in the Ladder Match", 12],
               ["Winning the Main Event", 15],
+              ["Earning a Spot in the Ladder Match", 12],
               ["Main Eventing", 9],
               ["Winning Your Match", 8],
               ["Being on the Match Card (non-main event)", 4],
@@ -256,8 +266,8 @@ export default function PointsPage() {
             logoUrl={EVENT_LOGO_URLS["crown-jewel"]}
             rows={[
               ["Winning the Crown Jewel Championship", 20],
-              ["Crown Jewel Championship (participating)", 10],
               ["Winning the Main Event (non-CJ Championship)", 15],
+              ["Crown Jewel Championship (participating)", 10],
               ["Main Eventing (non-CJ Championship)", 9],
               ["Winning Your Match", 8],
               ["Being on the Match Card (non-main event)", 4],
@@ -277,23 +287,23 @@ export default function PointsPage() {
             title="Saturday Night's Main Event / Backlash / Clash in Paris / WrestlePalooza"
             logoUrl={EVENT_LOGO_URLS.backlash}
             rows={[
-              ["Winning the Main Event", 12],
-              ["Main Eventing", 7],
-              ["Winning Your Match", 6],
-              ["Being on the Match Card (non-main event)", 3],
+              ["Winning the main event", 12],
+              ["Main eventing (appearance)", 9],
+              ["Winning your match", 6],
+              ["Being on the card (non–main event)", 3],
             ]}
           />
           <EventTable
             title="Evolution (includes Battle Royal)"
             logoUrl={EVENT_LOGO_URLS.evolution}
             rows={[
-              ["Winning the Main Event", 12],
-              ["Main Eventing", 7],
-              ["Winning Your Match", 6],
-              ["Being on the Match Card (non-main event)", 3],
-              ["Entering the Battle Royal", 1],
-              ["Eliminating a BR Participant", 2],
+              ["Winning the main event", 12],
+              ["Main eventing (appearance)", 9],
               ["Winning the Battle Royal", 8],
+              ["Winning your match", 6],
+              ["Being on the card (non–main event)", 3],
+              ["Eliminating a BR Participant", 2],
+              ["Entering the Battle Royal", 1],
             ]}
           />
         </div>

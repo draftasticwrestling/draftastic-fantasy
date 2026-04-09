@@ -2,7 +2,6 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { updateSession } from "@/lib/supabase/middleware";
 import { DRAFTASTIC_MARKETING_LANDING_DOMAIN } from "@/lib/siteDomains";
-import { isMarketingAllowedPathname } from "@/lib/marketingSurface";
 
 function shouldEnforceRequiredAccount(pathname: string): boolean {
   if (pathname.startsWith("/api/")) return false;
@@ -23,9 +22,6 @@ export async function middleware(request: NextRequest) {
       const h = request.headers.get("host") ?? "";
       const httpsUrl = `https://${h}${path}${request.nextUrl.search}`;
       return NextResponse.redirect(httpsUrl, 301);
-    }
-    if (!isMarketingAllowedPathname(path)) {
-      return NextResponse.redirect(new URL("/", request.url));
     }
   }
 
@@ -85,14 +81,6 @@ export async function middleware(request: NextRequest) {
 
   if (isMarketingDomain) {
     sessionRes.headers.set("Content-Security-Policy", "upgrade-insecure-requests");
-    if (path === "/" || path === "") {
-      const rewrite = NextResponse.rewrite(new URL("/coming-soon", request.url));
-      sessionRes.cookies.getAll().forEach((c) => {
-        rewrite.cookies.set(c.name, c.value);
-      });
-      rewrite.headers.set("Content-Security-Policy", "upgrade-insecure-requests");
-      return rewrite;
-    }
   }
 
   return sessionRes;

@@ -131,8 +131,8 @@ export function CreateLeagueForm({
             maxLength={256}
           />
           <p className="form-note" style={{ marginTop: 8 }}>
-            Only people on our beta mailing list receive this code. It unlocks creating a league once; inviting
-            managers uses your league code or invite link as usual.
+            Only people on our beta mailing list receive this code. Invited managers can still join your league using
+            your league code or invite link as usual.
           </p>
         </div>
       ) : null}
@@ -226,14 +226,6 @@ export function CreateLeagueForm({
         </div>
         <input type="hidden" name="league_type" value={leagueType} />
       </div>
-
-      <div className="form-group">
-        <label htmlFor="league-draft">Draft date (optional)</label>
-        <input id="league-draft" name="draft_date" type="date" />
-      </div>
-      <p className="form-note">
-        If the league starts after the season has begun, set the draft date. Points will count from the first event after the draft.
-      </p>
 
       {state?.error && (
         <p style={{ margin: "0 0 16px", color: "var(--color-red)", fontSize: 14 }}>

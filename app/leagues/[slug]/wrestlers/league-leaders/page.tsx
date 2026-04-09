@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
@@ -362,9 +363,10 @@ export default async function LeagueLeadersPage({
         </Link>
       </p>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>League Leaders</h1>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: 24 }}>
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
         Wrestlers ranked by fantasy points to date. Sorted by highest total first; you can re-sort by any column.
       </p>
+      <WrestlerMatchStatsDisclaimer style={{ marginBottom: 24 }} />
 
       {error && (
         <p style={{ color: "var(--color-red)", marginBottom: 16 }}>

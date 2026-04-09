@@ -1,0 +1,51 @@
+/* Full-bleed marketing shell (matches coming-soon gradient) */
+.about-us-marketing {
+  background: linear-gradient(180deg, #1565c0 0%, #0d47a1 45%, #283593 100%);
+  color: #fff;
+  min-height: 100%;
+}
+
+/* Space below back link when the hero banner is hidden */
+.about-us-marketing .cs-landing-cols {
+  padding-top: 0.75rem;
+}
+
+.about-us-back {
+  margin: 0;
+  padding: 1rem 1.5rem 0;
+  max-width: min(var(--page-max-width, 1200px), 100%);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.about-us-back a {
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+}
+
+.about-us-back a:hover {
+  text-decoration: underline;
+  color: #fff;
+}
+
+.about-us-sidebar-contact h2 {
+  margin: 0 0 0.75rem !important;
+  font-size: 1rem !important;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.about-us-sidebar-contact p {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.about-us-sidebar-contact p:last-of-type {
+  margin-bottom: 0;
+}
+
+.about-us-sidebar-contact a {
+  word-break: break-all;
+}

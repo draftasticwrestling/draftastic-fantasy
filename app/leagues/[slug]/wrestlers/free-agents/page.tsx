@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
@@ -351,9 +352,10 @@ export default async function WrestlersFreeAgentsPage({
         </Link>
       </p>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Free Agents</h1>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: 24 }}>
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
         Wrestlers not on any faction in this league. Same table and filters as League Leaders; add them from your faction page (Roster) or during the draft.
       </p>
+      <WrestlerMatchStatsDisclaimer style={{ marginBottom: 24 }} />
 
       {error && (
         <p style={{ color: "var(--color-red)", marginBottom: 16 }}>

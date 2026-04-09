@@ -9,7 +9,7 @@ export const revalidate = 60;
 export const metadata = {
   title: "Championships — Draftastic Fantasy",
   description:
-    "WWE championship titles and full title history from Pro Wrestling Boxscore. Open any belt for reigns, dates, and current champions.",
+    "WWE championships we track. Title history data is still being expanded and may be incomplete.",
 };
 
 export default async function ChampionshipsIndexPage() {
@@ -28,16 +28,8 @@ export default async function ChampionshipsIndexPage() {
 
       <h1 className={styles.pageTitle}>CHAMPIONSHIPS</h1>
       <p className={styles.pageSubtitle}>
-        Full title history for each WWE championship we track. Matches the structure of{" "}
-        <a
-          href="https://prowrestlingboxscore.com/championships"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: "var(--color-blue)" }}
-        >
-          Pro Wrestling Boxscore championships
-        </a>
-        — select a belt for reigns, dates, and days held.
+        We are still in the process of building out the historical data. Title histories are not complete and may be
+        missing data.
       </p>
 
       <div className={styles.indexGrid}>

@@ -10,7 +10,7 @@ import { useSearchParams } from "next/navigation";
 export function WrestlerProfileBackLink({
   marketingPublicSite = false,
 }: {
-  /** When true (draftasticprowrestling.com), never link into league routes. */
+  /** Legacy: when true, back link stays on `/wrestlers` (former marketing-only host). Unused now that the custom domain is full-app. */
   marketingPublicSite?: boolean;
 }) {
   const searchParams = useSearchParams();

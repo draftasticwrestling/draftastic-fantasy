@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
 import WrestlerList from "./WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
@@ -15,7 +16,6 @@ import { sortByChampionshipDisplayOrder } from "@/lib/championshipDisplayOrder";
 import { collapseTagTeamChampionsForCard } from "@/lib/championshipCardTagChampions";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import type { TitleHistoryItem } from "@/lib/championshipTitleHistory";
-import { isMarketingHostRequest } from "@/lib/marketingSurface";
 
 /** Allow cached response for 60s to improve repeat visit speed. */
 export const revalidate = 60;
@@ -34,7 +34,6 @@ export const metadata = {
 };
 
 export default async function WrestlersPage() {
-  const isMarketingPublic = await isMarketingHostRequest();
   const dataset = await getChampionshipHistoryDataset();
 
   const { events, reigns, titleHistoryBySlug, wrestlerBySlug, wrestlerByNameKey, wrestlers: wrestlersFromDb } =
@@ -137,28 +136,19 @@ export default async function WrestlersPage() {
   return (
     <>
       <section style={{ marginTop: 24, marginBottom: 28 }}>
-        <div
+        <h1 style={{ margin: "0 0 14px", fontSize: 40, letterSpacing: "-0.01em" }}>CURRENT CHAMPIONS</h1>
+        <p
           style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "baseline",
-            justifyContent: "space-between",
-            gap: "8px 16px",
-            marginBottom: 14,
+            margin: "0 0 16px",
+            maxWidth: 720,
+            fontSize: 14,
+            lineHeight: 1.5,
+            color: "var(--color-text-muted)",
           }}
         >
-          <h1 style={{ margin: 0, fontSize: 40, letterSpacing: "-0.01em" }}>CURRENT CHAMPIONS</h1>
-          {isMarketingPublic ? (
-            <span style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-muted)" }}>Championships</span>
-          ) : (
-            <Link
-              href="/championship"
-              style={{ fontSize: 15, fontWeight: 600, color: "var(--color-blue)", textDecoration: "none" }}
-            >
-              All championships →
-            </Link>
-          )}
-        </div>
+          We are still in the process of building out the historical data. Title histories are not complete and may be
+          missing data.
+        </p>
         <div className="wrestlers-page-champs-grid">
           {currentChampionCards.map((card) => {
             const slug = card.slug;
@@ -200,15 +190,9 @@ export default async function WrestlersPage() {
                   {card.champs.map((c) => c.champion).join(" & ")}
                 </div>
                 <div className="wrestlers-champ-card__footer">
-                  {isMarketingPublic ? (
-                    <span className="wrestlers-champ-title-history-pill" style={{ cursor: "default", opacity: 0.85 }}>
-                      Title History
-                    </span>
-                  ) : (
-                    <Link href={`/championship/${encodeURIComponent(slug)}`} className="wrestlers-champ-title-history-pill">
-                      Title History
-                    </Link>
-                  )}
+                  <Link href={`/championship/${encodeURIComponent(slug)}`} className="wrestlers-champ-title-history-pill">
+                    Title History
+                  </Link>
                 </div>
               </article>
             );
@@ -229,6 +213,7 @@ export default async function WrestlersPage() {
           <h2 id="wrestlers-roster-heading" className="wrestlers-boxscore-section-title">
             WRESTLERS
           </h2>
+          <WrestlerMatchStatsDisclaimer />
           <WrestlerList wrestlers={rows} variant="boxscore" defaultSortColumn="name" defaultSortDir="asc" />
         </section>
       )}

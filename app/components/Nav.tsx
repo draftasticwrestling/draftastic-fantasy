@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/profiles";
 import { siteLogoHref } from "@/lib/siteLogo";
+import { computeFantasyHomeHref, getLeagueSlugFromPath } from "@/lib/fantasyHomeHref";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
@@ -34,14 +35,6 @@ const ADMIN_MENU_SECTIONS: readonly {
     ],
   },
 ] as const;
-
-
-function getLeagueSlugFromPath(pathname: string): string | null {
-  if (!pathname.startsWith("/leagues/")) return null;
-  const parts = pathname.slice(1).split("/");
-  if (parts[1] === "new" || parts[1] === "join" || !parts[1]) return null;
-  return parts[1];
-}
 
 function getActivePrimary(pathname: string, slug: string): string | null {
   if (!slug) return null;
@@ -229,9 +222,7 @@ export default function Nav() {
     : currentLeagueSlug
       ? `/leagues/${currentLeagueSlug}/team`
       : "#";
-  const fantasyHref = user
-    ? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "/leagues/new")
-    : "/auth/sign-in";
+  const fantasyHref = computeFantasyHomeHref({ user, pathname, leagues, lastVisitedSlug });
 
   const myTeamSub = currentLeagueSlug
     ? [

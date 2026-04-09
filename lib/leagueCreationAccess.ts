@@ -1,43 +1,48 @@
-import { timingSafeEqual } from "node:crypto";
+import "server-only";
 
-/**
- * Comma-separated list of secrets (server env only). When non-empty, "Create a league" requires a match.
- * Example: LEAGUE_CREATION_ACCESS_CODES=beta-winter-2026,another-code
- * If unset or empty, league creation is not gated (local development).
- * Users with profiles.is_site_admin bypass this gate (and beta-only league-type limits) unless they
- * use the form toggle to preview the standard flow (enforce_standard_create_rules=1) — see createLeagueAction.
- */
-function parseCodesFromEnv(): string[] {
-  const raw = process.env.LEAGUE_CREATION_ACCESS_CODES?.trim();
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((c) => c.trim())
-    .filter((c) => c.length > 0);
+import { createClient } from "@/lib/supabase/server";
+
+export async function leagueCreationAccessIsConfigured(): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("league_creation_access_codes_configured");
+  if (error) return false;
+  return data === true;
 }
 
-export function leagueCreationAccessIsConfigured(): boolean {
-  return parseCodesFromEnv().length > 0;
-}
+export async function consumeLeagueCreationAccessCode(
+  input: string
+): Promise<{ ok: boolean; error?: string; remainingUses?: number }> {
+  const code = input.trim();
+  if (!code) return { ok: false, error: "Enter the beta access code from your invite email." };
 
-function timingSafeEqualStrings(a: string, b: string): boolean {
-  try {
-    const ba = Buffer.from(a, "utf8");
-    const bb = Buffer.from(b, "utf8");
-    if (ba.length !== bb.length) return false;
-    return timingSafeEqual(ba, bb);
-  } catch {
-    return false;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("consume_league_creation_access_code", {
+    p_code: code,
+  });
+
+  if (error) {
+    const msg = error.message || "";
+    if (msg.toLowerCase().includes("consume_league_creation_access_code")) {
+      return {
+        ok: false,
+        error:
+          "Access code verification is not configured yet. Run supabase/league_creation_access_codes.sql and insert at least one active code.",
+      };
+    }
+    return { ok: false, error: msg || "Unable to verify access code right now." };
   }
-}
 
-/** When no codes are configured, returns true (no gate). */
-export function validateLeagueCreationAccessCode(input: string): boolean {
-  const codes = parseCodesFromEnv();
-  if (codes.length === 0) return true;
-  const trimmed = input.trim();
-  for (const secret of codes) {
-    if (timingSafeEqualStrings(trimmed, secret)) return true;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || row.ok !== true) {
+    return {
+      ok: false,
+      error:
+        (row && typeof row.error === "string" && row.error) ||
+        "That access code isn’t valid. Check your invite email.",
+    };
   }
-  return false;
+  return {
+    ok: true,
+    remainingUses: typeof row.remaining_uses === "number" ? row.remaining_uses : undefined,
+  };
 }

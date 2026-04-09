@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createLeague } from "@/lib/leagues";
 import {
   leagueCreationAccessIsConfigured,
-  validateLeagueCreationAccessCode,
+  consumeLeagueCreationAccessCode,
 } from "@/lib/leagueCreationAccess";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
@@ -32,20 +32,13 @@ export async function createLeagueAction(
 
   const name = (formData.get("name") as string)?.trim() ?? "";
   const season_slug = (formData.get("season_slug") as string)?.trim() ?? "";
-  const draft_date = (formData.get("draft_date") as string)?.trim() || null;
   const team_count = Math.floor(Number(formData.get("team_count")));
   const league_type = (formData.get("league_type") as string)?.trim() ?? "";
+  const accessCode = (formData.get("access_code") as string)?.trim() ?? "";
 
-  if (leagueCreationAccessIsConfigured() && enforceStandardRules) {
-    const accessCode = (formData.get("access_code") as string)?.trim() ?? "";
+  if (enforceStandardRules) {
     if (!accessCode) {
       return { error: "Enter the beta access code from your mailing list invite." };
-    }
-    if (!validateLeagueCreationAccessCode(accessCode)) {
-      return {
-        error:
-          "That access code isn’t valid. Check the email we sent you, or contact us if you need help.",
-      };
     }
   }
 
@@ -93,10 +86,26 @@ export async function createLeagueAction(
     };
   }
 
+  if (enforceStandardRules) {
+    if (!(await leagueCreationAccessIsConfigured())) {
+      return {
+        error:
+          "League creation access codes are not configured yet. Please contact Draftastic support.",
+      };
+    }
+    const consume = await consumeLeagueCreationAccessCode(accessCode);
+    if (!consume.ok) {
+      return {
+        error:
+          consume.error ??
+          "That access code isn’t valid. Check the email we sent you, or contact us if you need help.",
+      };
+    }
+  }
+
   const { league, error } = await createLeague({
     name,
     season_slug,
-    draft_date,
     max_teams: team_count,
     league_type,
   });

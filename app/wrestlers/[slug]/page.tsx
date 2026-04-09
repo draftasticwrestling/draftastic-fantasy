@@ -61,7 +61,7 @@ import {
 } from "@/lib/wrestlerMatchTimeline";
 import { WrestlerPointsPeriodSelector, type PointsPeriod } from "./WrestlerPointsPeriodSelector";
 import WrestlerProfileEventsPanel from "./WrestlerProfileEventsPanel";
-import { isMarketingHostRequest } from "@/lib/marketingSurface";
+import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
 import { WrestlerProfileBackLink } from "./WrestlerProfileBackLink";
 import { WrestlerProfileImage } from "./WrestlerProfileImage";
 import { getWrestlerFullImageUrl } from "@/lib/wrestlerImages";
@@ -102,7 +102,6 @@ function getPeriodLabel(period: PointsPeriod): string {
   if (period === "2026") return "2026";
   return "since league start";
 }
-const BOXSCORE_WRESTLER_BASE = "https://prowrestlingboxscore.com/wrestler";
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "";
@@ -159,10 +158,9 @@ export default async function WrestlerProfilePage({
 }) {
   const { slug } = await params;
   const searchParams = searchParamsPromise ? await searchParamsPromise : {};
-  const isMarketingPublic = await isMarketingHostRequest();
   const periodParam = (searchParams.period ?? "").trim() as PointsPeriod | "";
   const leagueSlugFromQuery = (searchParams.league ?? "").trim() || null;
-  const leagueSlugParam = isMarketingPublic ? null : leagueSlugFromQuery;
+  const leagueSlugParam = leagueSlugFromQuery;
   const fromParam = (searchParams.from ?? "").trim() || null;
 
   const league = leagueSlugParam ? await getLeagueBySlug(leagueSlugParam) : null;
@@ -623,7 +621,6 @@ export default async function WrestlerProfilePage({
 
   const displayName = wrestler.name ?? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
   const age = calculateAge(wrestler.dob);
-  const boxscoreUrl = `${BOXSCORE_WRESTLER_BASE}/${slug}`;
   const rawStatus = (wrestler as Record<string, unknown>).Status ?? (wrestler as Record<string, unknown>).status;
   const isInjured =
     rawStatus != null &&
@@ -633,7 +630,7 @@ export default async function WrestlerProfilePage({
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 900, margin: "0 auto", fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 20 }}>
         <Suspense fallback={<Link href="/wrestlers" style={{ color: "#1a73e8", textDecoration: "none" }}>← Wrestlers</Link>}>
-          <WrestlerProfileBackLink marketingPublicSite={isMarketingPublic} />
+          <WrestlerProfileBackLink />
         </Suspense>
       </p>
 
@@ -644,14 +641,6 @@ export default async function WrestlerProfilePage({
             <span style={{ color: "#c00", fontWeight: 600, fontSize: "0.85em" }}>INJ</span>
           )}
         </h1>
-        <a
-          href={boxscoreUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: "#1a73e8", textDecoration: "none", fontSize: 15 }}
-        >
-          View profile on Pro Wrestling Boxscore →
-        </a>
         <p style={{ margin: 0, color: "#555", width: "100%" }}>
           {wrestler.brand ?? "—"} · {wrestler.gender ? (String(wrestler.gender).toLowerCase() === "male" || wrestler.gender === "M" ? "Male" : "Female") : "—"}
           {age != null ? ` · ${age} years old` : ""}
@@ -772,30 +761,28 @@ export default async function WrestlerProfilePage({
                     + Add
                   </Link>
                 )}
-                {!isMarketingPublic && (
-                  <Link
-                    href={
-                      leagueSlugParam
-                        ? `/leagues/${encodeURIComponent(leagueSlugParam)}/watchlist?add=${encodeURIComponent(wrestler.id)}`
-                        : `/wrestlers/watch?add=${encodeURIComponent(wrestler.id)}`
-                    }
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "5px 10px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "var(--color-text)",
-                      background: "transparent",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 4,
-                      textDecoration: "none",
-                    }}
-                  >
-                    ⚑ Watchlist
-                  </Link>
-                )}
+                <Link
+                  href={
+                    leagueSlugParam
+                      ? `/leagues/${encodeURIComponent(leagueSlugParam)}/watchlist?add=${encodeURIComponent(wrestler.id)}`
+                      : `/wrestlers/watch?add=${encodeURIComponent(wrestler.id)}`
+                  }
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 10px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--color-text)",
+                    background: "transparent",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    textDecoration: "none",
+                  }}
+                >
+                  ⚑ Watchlist
+                </Link>
               </>
             )}
             <WrestlerPointsPeriodSelector currentPeriod={currentPeriod} leagueSlug={leagueSlugParam} compact />
@@ -873,9 +860,10 @@ export default async function WrestlerProfilePage({
 
       <section style={{ marginBottom: 32 }}>
         <div style={{ marginTop: 0, padding: "12px 16px", background: "var(--color-bg-elevated, #f8f9fa)", borderRadius: 8, border: "1px solid var(--color-border, #e9ecef)" }}>
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: 10, color: "var(--color-text-muted, #555)" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: 8, color: "var(--color-text-muted, #555)" }}>
             Match record ({getPeriodLabel(currentPeriod)})
           </h3>
+          <WrestlerMatchStatsDisclaimer style={{ marginBottom: 12, fontSize: 12 }} />
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 14 }}>
             <span><strong>MW</strong> {matchStats.mw}</span>
             <span><strong>Win</strong> {matchStats.win}</span>
@@ -974,20 +962,16 @@ export default async function WrestlerProfilePage({
             <ul style={{ margin: "8px 0 0 0", paddingLeft: 22, fontSize: 15, lineHeight: 1.55, listStyleType: "disc" }}>
               {profileTitleLines.map((line) => (
                 <li key={line.rowKey} style={{ marginBottom: 12 }}>
-                  {isMarketingPublic ? (
-                    <span style={{ fontWeight: 700, color: "#d0ac56" }}>{line.displayTitle}</span>
-                  ) : (
-                    <Link
-                      href={`/championship/${encodeURIComponent(line.routeSlug)}`}
-                      style={{
-                        fontWeight: 700,
-                        color: "#d0ac56",
-                        textDecoration: "none",
-                      }}
-                    >
-                      {line.displayTitle}
-                    </Link>
-                  )}
+                  <Link
+                    href={`/championship/${encodeURIComponent(line.routeSlug)}`}
+                    style={{
+                      fontWeight: 700,
+                      color: "#d0ac56",
+                      textDecoration: "none",
+                    }}
+                  >
+                    {line.displayTitle}
+                  </Link>
                   <span style={{ color: "#e8eaed" }}> — {formatProfileTitleHistoryTail(line)}</span>
                   {line.beltMonthEndsFormatted.length > 0 && (
                     <div style={{ marginTop: 4, fontSize: 12, color: "#b0b8c4", lineHeight: 1.4 }}>

@@ -3316,12 +3316,6 @@ body > .site-footer {
 .hub-quick-nav a:hover {
   text-decoration: underline;
 }
-.hub-quick-muted {
-  color: var(--color-text-dim);
-  padding: 6px 0;
-  border-bottom: 1px solid var(--color-border);
-  font-size: 0.9rem;
-}
 .hub-event-bar {
   background: linear-gradient(90deg, #1e40af, #2563eb);
   color: #f8fafc;

@@ -17,7 +17,7 @@ export default async function NewLeaguePage() {
     redirect("/auth/sign-in?next=/leagues/new");
   }
 
-  const requiresAccessCodeEnv = leagueCreationAccessIsConfigured();
+  const requiresAccessCodeEnv = await leagueCreationAccessIsConfigured();
   const isSiteAdmin = await getIsSiteAdmin();
 
   return (

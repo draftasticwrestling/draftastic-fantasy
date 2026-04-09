@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FantasyHomeLink } from "@/app/components/FantasyHomeLink";
 import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
 import { siteLogoHref } from "@/lib/siteLogo";
 
@@ -23,7 +24,7 @@ export default async function HubHomePage() {
               <Link href="/coming-soon" className="hub-hero-btn hub-hero-btn-primary">
                 Join the list — get notified at launch
               </Link>
-              <Link href="/fantasy#how-it-works" className="hub-hero-btn hub-hero-btn-outline">
+              <Link href="/how-it-works" className="hub-hero-btn hub-hero-btn-outline">
                 See how it works
               </Link>
             </div>
@@ -38,11 +39,8 @@ export default async function HubHomePage() {
             <nav className="hub-quick-nav">
               <Link href="/event-results">Events</Link>
               <Link href="/wrestlers">Wrestlers</Link>
-              <span className="hub-quick-muted">Statistics (soon)</span>
-              <span className="hub-quick-muted">WrestleMania (soon)</span>
-              <Link href="/fantasy">Fantasy home</Link>
+              <FantasyHomeLink>Fantasy home</FantasyHomeLink>
               <Link href="/how-it-works">Fantasy rules</Link>
-              <span className="hub-quick-muted">FantasyCast (soon)</span>
             </nav>
           </aside>
 
