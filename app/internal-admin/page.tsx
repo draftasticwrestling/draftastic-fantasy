@@ -11,6 +11,15 @@ export default function InternalAdminHomePage() {
       </p>
       <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 12 }}>
         <li>
+          <Link href="/internal-admin/users" className={styles.cardLink}>
+            <span className={styles.cardTitle}>Users</span>
+            <span className={styles.cardDesc}>
+              Read-only directory of registered accounts (email, profile, site-admin flag). Requires service role env on
+              the server.
+            </span>
+          </Link>
+        </li>
+        <li>
           <Link href="/internal-admin/leagues" className={styles.cardLink}>
             <span className={styles.cardTitle}>Leagues</span>
             <span className={styles.cardDesc}>

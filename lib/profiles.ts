@@ -5,6 +5,12 @@ export type Profile = {
   display_name: string | null;
   avatar_url: string | null;
   is_site_admin?: boolean | null;
+  is_suspended?: boolean;
+  suspended_until?: string | null;
+  suspension_reason?: string | null;
+  moderation_note?: string | null;
+  accepted_terms_at?: string | null;
+  accepted_privacy_at?: string | null;
   timezone: string | null;
   notify_trade_proposals: boolean;
   notify_draft_reminder: boolean;
@@ -20,7 +26,9 @@ export async function getProfile(userId: string): Promise<Profile | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_url, timezone, notify_trade_proposals, notify_draft_reminder, notify_weekly_results, created_at, updated_at")
+    .select(
+      "id, display_name, avatar_url, accepted_terms_at, accepted_privacy_at, timezone, notify_trade_proposals, notify_draft_reminder, notify_weekly_results, created_at, updated_at"
+    )
     .eq("id", userId)
     .maybeSingle();
   if (error || !data) return null;

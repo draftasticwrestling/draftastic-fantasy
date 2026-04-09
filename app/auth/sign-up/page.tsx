@@ -29,7 +29,7 @@ export default function SignUpPage({
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Sign up</h1>
       <p style={{ color: "#555", marginBottom: 24 }}>
-        Create an account with email and password, or use Google.
+        Create an account with email and password (or Google), choose a display name, and accept Terms/Privacy.
       </p>
       <AuthForm mode="sign-up" searchParams={searchParams} />
       <p style={{ marginTop: 20, fontSize: 15, color: "#555" }}>

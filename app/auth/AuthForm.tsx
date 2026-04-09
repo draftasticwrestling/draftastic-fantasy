@@ -14,6 +14,7 @@ type Props = {
 
 const ERROR_MESSAGES: Record<string, string> = {
   callback: "Sign-in was interrupted. Please try again.",
+  "reset-success": "Password updated. Sign in with your new password.",
   default: "Something went wrong. Please try again.",
 };
 
@@ -22,12 +23,24 @@ export function AuthForm({ mode, searchParams }: Props) {
   const [resolvedParams, setResolvedParams] = useState<{ error?: string; next?: string } | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [timezone, setTimezone] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
     searchParams.then(setResolvedParams);
   }, [searchParams]);
+
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) setTimezone(tz);
+    } catch {
+      // Browser may not support IANA timezone resolution.
+    }
+  }, []);
 
   const next = resolvedParams?.next ?? "/";
   const errorFromUrl = resolvedParams?.error ? ERROR_MESSAGES[resolvedParams.error] ?? resolvedParams.error : null;
@@ -37,6 +50,14 @@ export function AuthForm({ mode, searchParams }: Props) {
     setMessage(null);
     if (!email.trim() || !password) {
       setMessage({ type: "err", text: "Enter your email and password." });
+      return;
+    }
+    if (mode === "sign-up" && !displayName.trim()) {
+      setMessage({ type: "err", text: "Enter a display name." });
+      return;
+    }
+    if (mode === "sign-up" && !acceptedTerms) {
+      setMessage({ type: "err", text: "You must accept the Terms and Privacy Policy." });
       return;
     }
     setLoading(true);
@@ -49,10 +70,24 @@ export function AuthForm({ mode, searchParams }: Props) {
           return;
         }
       } else {
+        const acceptedAt = new Date().toISOString();
+        const params = new URLSearchParams({ next });
+        params.set("signup", "1");
+        params.set("dn", displayName.trim());
+        if (timezone) params.set("tz", timezone);
+        params.set("ta", acceptedAt);
         const { error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
+          options: {
+            data: {
+              display_name: displayName.trim(),
+              timezone: timezone || null,
+              accepted_terms_at: acceptedAt,
+              accepted_privacy_at: acceptedAt,
+            },
+            emailRedirectTo: `${window.location.origin}/auth/callback?${params.toString()}`,
+          },
         });
         if (error) {
           setMessage({ type: "err", text: error.message });
@@ -74,13 +109,29 @@ export function AuthForm({ mode, searchParams }: Props) {
   };
 
   const handleGoogleClick = async () => {
+    if (mode === "sign-up" && !displayName.trim()) {
+      setMessage({ type: "err", text: "Enter a display name." });
+      return;
+    }
+    if (mode === "sign-up" && !acceptedTerms) {
+      setMessage({ type: "err", text: "You must accept the Terms and Privacy Policy." });
+      return;
+    }
     setLoading(true);
     setMessage(null);
     const supabase = createClient();
+    const params = new URLSearchParams({ next });
+    if (mode === "sign-up") {
+      const acceptedAt = new Date().toISOString();
+      params.set("signup", "1");
+      params.set("dn", displayName.trim());
+      if (timezone) params.set("tz", timezone);
+      params.set("ta", acceptedAt);
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        redirectTo: `${window.location.origin}/auth/callback?${params.toString()}`,
       },
     });
     if (error) {
@@ -155,6 +206,30 @@ export function AuthForm({ mode, searchParams }: Props) {
       </div>
 
       <form onSubmit={handleEmailSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {mode === "sign-up" && (
+          <div>
+            <label htmlFor="auth-display-name" style={{ display: "block", marginBottom: 4, fontWeight: 500 }}>
+              Display name
+            </label>
+            <input
+              id="auth-display-name"
+              type="text"
+              autoComplete="name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="How you appear in leagues"
+              maxLength={100}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                fontSize: 16,
+                border: "1px solid #ccc",
+                borderRadius: 6,
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+        )}
         <div>
           <label htmlFor="auth-email" style={{ display: "block", marginBottom: 4, fontWeight: 500 }}>
             Email
@@ -197,6 +272,22 @@ export function AuthForm({ mode, searchParams }: Props) {
             }}
           />
         </div>
+        {mode === "sign-up" && (
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, color: "#444", cursor: "pointer" }}>
+            <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} />
+            <span>
+              I agree to the{" "}
+              <Link href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8" }}>
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8" }}>
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+        )}
         {message && (
           <p style={{ margin: 0, color: message.type === "err" ? "#b91c1c" : "#166534", fontSize: 14 }}>
             {message.text}

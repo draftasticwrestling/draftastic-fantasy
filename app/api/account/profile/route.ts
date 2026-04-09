@@ -39,6 +39,14 @@ export async function PATCH(request: Request) {
     if (typeof body.notify_weekly_results === "boolean") {
       updates.notify_weekly_results = body.notify_weekly_results;
     }
+    if ("accepted_terms_at" in body) {
+      updates.accepted_terms_at =
+        typeof body.accepted_terms_at === "string" ? body.accepted_terms_at : null;
+    }
+    if ("accepted_privacy_at" in body) {
+      updates.accepted_privacy_at =
+        typeof body.accepted_privacy_at === "string" ? body.accepted_privacy_at : null;
+    }
 
     if (Object.prototype.hasOwnProperty.call(body, "avatar_url")) {
       const raw = body.avatar_url;

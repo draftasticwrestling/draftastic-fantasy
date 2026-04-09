@@ -29,10 +29,6 @@ export function getTodayTomorrowYmdET(): { today: string; tomorrow: string } {
   return { today, tomorrow };
 }
 
-function hasAtLeastOneMatch(matches: unknown): boolean {
-  return Array.isArray(matches) && matches.length >= 1;
-}
-
 /** Pre-show card only: not completed and not live (live uses scored preview elsewhere). */
 function isUpcomingSpotlightStatus(status: string | null | undefined): boolean {
   const s = (status || "").toLowerCase().trim();
@@ -41,16 +37,23 @@ function isUpcomingSpotlightStatus(status: string | null | undefined): boolean {
 }
 
 export type HubUpcomingSpotlight = HubPreviewEventRow & {
-  whenLabel: "Tonight" | "Tomorrow";
+  whenLabel: "Tonight" | "Tomorrow" | "Upcoming";
 };
 
+function whenLabelForDate(date: string | null, today: string, tomorrow: string): "Tonight" | "Tomorrow" | "Upcoming" {
+  if (date === today) return "Tonight";
+  if (date === tomorrow) return "Tomorrow";
+  return "Upcoming";
+}
+
 /**
- * Single upcoming event dated today or tomorrow (ET) with ≥1 match, not completed.
- * Used for home “The latest” when the next show is within roughly one day (ET calendar).
- * Prefers today over tomorrow; stable tie-break by date string then name.
+ * Single next upcoming event for home “The latest”: not completed, not live.
+ * Prefers today (ET), then tomorrow, then earliest future date with status still “upcoming”.
+ * Includes events with no matches yet (card shows “No matches announced yet” in UI).
  */
 export async function fetchHubUpcomingSpotlight(supabase: SupabaseClient): Promise<HubUpcomingSpotlight | null> {
   const { today, tomorrow } = getTodayTomorrowYmdET();
+
   const { data, error } = await supabase
     .from("events")
     .select("id, name, date, location, matches, status")
@@ -58,23 +61,34 @@ export async function fetchHubUpcomingSpotlight(supabase: SupabaseClient): Promi
     .order("date", { ascending: true })
     .order("name", { ascending: true });
 
-  if (error || !data?.length) return null;
+  if (!error && data?.length) {
+    const candidates = (data as HubPreviewEventRow[]).filter((e) => isUpcomingSpotlightStatus(e.status) && e.date);
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => {
+        const da = a.date || "";
+        const db = b.date || "";
+        if (da !== db) return da.localeCompare(db);
+        return (a.name || "").localeCompare(b.name || "");
+      });
+      const chosen = candidates[0];
+      return { ...chosen, whenLabel: whenLabelForDate(chosen.date, today, tomorrow) };
+    }
+  }
 
-  const candidates = (data as HubPreviewEventRow[]).filter(
-    (e) => isUpcomingSpotlightStatus(e.status) && e.date && hasAtLeastOneMatch(e.matches)
-  );
-  if (candidates.length === 0) return null;
+  const { data: futureRows, error: futureErr } = await supabase
+    .from("events")
+    .select("id, name, date, location, matches, status")
+    .gte("date", today)
+    .order("date", { ascending: true })
+    .order("name", { ascending: true })
+    .limit(25);
 
-  candidates.sort((a, b) => {
-    const da = a.date || "";
-    const db = b.date || "";
-    if (da !== db) return da.localeCompare(db);
-    return (a.name || "").localeCompare(b.name || "");
-  });
+  if (futureErr || !futureRows?.length) return null;
 
-  const chosen = candidates[0];
-  const whenLabel: "Tonight" | "Tomorrow" = chosen.date === today ? "Tonight" : "Tomorrow";
-  return { ...chosen, whenLabel };
+  const future = (futureRows as HubPreviewEventRow[]).find((e) => isUpcomingSpotlightStatus(e.status) && e.date);
+  if (!future) return null;
+
+  return { ...future, whenLabel: whenLabelForDate(future.date, today, tomorrow) };
 }
 
 /** Recent completed events with full row payload for hub previews (most recent first). */
@@ -111,7 +125,5 @@ export async function fetchHubLiveSpotlight(supabase: SupabaseClient): Promise<H
     .maybeSingle();
 
   if (error || !data) return null;
-  const row = data as HubPreviewEventRow;
-  if (!hasAtLeastOneMatch(row.matches)) return null;
-  return row;
+  return data as HubPreviewEventRow;
 }

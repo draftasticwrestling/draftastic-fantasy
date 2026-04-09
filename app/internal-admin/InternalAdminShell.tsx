@@ -7,6 +7,11 @@ import styles from "./internal-admin.module.css";
 const NAV = [
   { href: "/internal-admin", label: "Home", match: (p: string) => p === "/internal-admin" },
   {
+    href: "/internal-admin/users",
+    label: "Users",
+    match: (p: string) => p.startsWith("/internal-admin/users"),
+  },
+  {
     href: "/internal-admin/leagues",
     label: "Leagues",
     match: (p: string) => p.startsWith("/internal-admin/leagues"),

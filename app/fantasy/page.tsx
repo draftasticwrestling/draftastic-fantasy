@@ -235,8 +235,7 @@ export default async function FantasyHomePage() {
               <li><Link href="/how-it-works">How it works</Link> — scoring rules and event types</li>
               <li><Link href="/about-us">About Us</Link> · <Link href="/contact-us">Contact Us</Link></li>
               <li>
-                Admin menu: <Link href="/internal-admin">Site admin</Link>, <Link href="/league/teams">Legacy League</Link>,{" "}
-                <Link href="/mvl">MVL Example</Link>, <Link href="/internal-admin/draft-testing">Draft Testing</Link>
+                Examples: <Link href="/league/teams">Legacy League</Link>, <Link href="/mvl">MVL Example</Link>
               </li>
             </ul>
           </div>

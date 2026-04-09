@@ -101,6 +101,17 @@ export default async function HubLatestHeadlinesSection({
     hasLatestSection = hasLive || hasUpcoming || hasCompleted || hasArticles;
 
     const fullFeedNodes: ReactNode[] = [];
+    if (upcoming) {
+      fullFeedNodes.push(
+        <HubLatestEventPreview
+          key={upcoming.id}
+          event={upcoming}
+          wrestlerRows={wrestlerRows}
+          variant="upcoming"
+          whenLabel={upcoming.whenLabel}
+        />
+      );
+    }
     if (liveEvent) {
       fullFeedNodes.push(
         <HubLatestEventPreview
@@ -112,17 +123,6 @@ export default async function HubLatestHeadlinesSection({
       );
     }
     if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
-    if (!liveEvent && upcoming) {
-      fullFeedNodes.push(
-        <HubLatestEventPreview
-          key={upcoming.id}
-          event={upcoming}
-          wrestlerRows={wrestlerRows}
-          variant="upcoming"
-          whenLabel={upcoming.whenLabel}
-        />
-      );
-    }
     if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
     if (completedEvent) {
       fullFeedNodes.push(

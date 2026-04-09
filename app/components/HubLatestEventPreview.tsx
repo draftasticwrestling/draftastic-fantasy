@@ -246,7 +246,7 @@ export default function HubLatestEventPreview({
   event: HubPreviewEventRow;
   wrestlerRows: WrestlerRow[];
   variant?: "completed" | "upcoming" | "live";
-  whenLabel?: "Tonight" | "Tomorrow";
+  whenLabel?: "Tonight" | "Tomorrow" | "Upcoming";
   allowedMatchOrders?: number[];
   fallbackOverride?: string;
 }) {
@@ -498,7 +498,9 @@ export default function HubLatestEventPreview({
   const cta = "View Event →";
   const fallbackDefault =
     variant === "upcoming"
-      ? "Match details will appear here as the card is finalized — open for the full lineup."
+      ? sorted.length === 0
+        ? "No matches announced yet."
+        : "Match details will appear here as the card is finalized — open for the full lineup."
       : variant === "live"
         ? "Scores update as matches finish — open for the full card."
         : "No scored matches to preview yet — open for full card and promos.";

@@ -28,6 +28,8 @@ type Props = {
   initialNotifyTradeProposals: boolean;
   initialNotifyDraftReminder: boolean;
   initialNotifyWeeklyResults: boolean;
+  initialAcceptedTermsAt: string | null;
+  initialAcceptedPrivacyAt: string | null;
   email: string;
 };
 
@@ -37,6 +39,8 @@ export function AccountForm({
   initialNotifyTradeProposals,
   initialNotifyDraftReminder,
   initialNotifyWeeklyResults,
+  initialAcceptedTermsAt,
+  initialAcceptedPrivacyAt,
   email,
 }: Props) {
   const router = useRouter();
@@ -45,14 +49,22 @@ export function AccountForm({
   const [notifyTradeProposals, setNotifyTradeProposals] = useState(initialNotifyTradeProposals);
   const [notifyDraftReminder, setNotifyDraftReminder] = useState(initialNotifyDraftReminder);
   const [notifyWeeklyResults, setNotifyWeeklyResults] = useState(initialNotifyWeeklyResults);
+  const [acceptedTermsChecked, setAcceptedTermsChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const needsRequiredAcceptance = !initialAcceptedTermsAt || !initialAcceptedPrivacyAt;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+    if (needsRequiredAcceptance && !acceptedTermsChecked) {
+      setMessage({ type: "err", text: "You must accept the Terms and Privacy Policy to continue." });
+      setLoading(false);
+      return;
+    }
     try {
+      const acceptedAt = needsRequiredAcceptance && acceptedTermsChecked ? new Date().toISOString() : null;
       const res = await fetch("/api/account/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -62,6 +74,8 @@ export function AccountForm({
           notify_trade_proposals: notifyTradeProposals,
           notify_draft_reminder: notifyDraftReminder,
           notify_weekly_results: notifyWeeklyResults,
+          accepted_terms_at: acceptedAt,
+          accepted_privacy_at: acceptedAt,
         }),
       });
       const data = await res.json();
@@ -167,6 +181,29 @@ export function AccountForm({
             </label>
           </div>
         </div>
+        {needsRequiredAcceptance ? (
+          <div>
+            <span style={labelStyle}>Required</span>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, color: "#444", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={acceptedTermsChecked}
+                onChange={(e) => setAcceptedTermsChecked(e.target.checked)}
+              />
+              <span>
+                I agree to the{" "}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8" }}>
+                  Terms
+                </a>{" "}
+                and{" "}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8" }}>
+                  Privacy Policy
+                </a>
+                .
+              </span>
+            </label>
+          </div>
+        ) : null}
 
         {message && (
           <p style={{ margin: 0, color: message.type === "err" ? "#b91c1c" : "#166534", fontSize: 14 }}>

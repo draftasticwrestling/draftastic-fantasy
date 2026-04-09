@@ -10,7 +10,12 @@ export const metadata = {
   description: "Manage your profile and account settings",
 };
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ suspended?: string }>;
+}) {
+  const { suspended } = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -18,6 +23,10 @@ export default async function AccountPage() {
   }
 
   const profile = await getProfile(user.id);
+  const needsRequiredAccount =
+    !(profile?.display_name ?? "").trim() ||
+    !profile?.accepted_terms_at ||
+    !profile?.accepted_privacy_at;
 
   return (
     <main
@@ -36,6 +45,35 @@ export default async function AccountPage() {
         </Link>
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Account</h1>
+      {suspended === "1" ? (
+        <p
+          style={{
+            color: "#991b1b",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: 8,
+            padding: "10px 12px",
+            marginBottom: 16,
+          }}
+        >
+          Your account is currently suspended from protected areas. Contact draftasticwrestling@gmail.com if you believe this is a
+          mistake.
+        </p>
+      ) : null}
+      {needsRequiredAccount ? (
+        <p
+          style={{
+            color: "#92400e",
+            background: "#fffbeb",
+            border: "1px solid #fcd34d",
+            borderRadius: 8,
+            padding: "10px 12px",
+            marginBottom: 16,
+          }}
+        >
+          Complete required account fields to continue: display name and Terms/Privacy acceptance.
+        </p>
+      ) : null}
       <p style={{ color: "#555", marginBottom: 24 }}>
         Your display name is shown in the header and will be used in leagues. Your email is not shared with other users.
       </p>
@@ -50,6 +88,8 @@ export default async function AccountPage() {
         initialNotifyTradeProposals={profile?.notify_trade_proposals ?? true}
         initialNotifyDraftReminder={profile?.notify_draft_reminder ?? true}
         initialNotifyWeeklyResults={profile?.notify_weekly_results ?? true}
+        initialAcceptedTermsAt={profile?.accepted_terms_at ?? null}
+        initialAcceptedPrivacyAt={profile?.accepted_privacy_at ?? null}
         email={user.email ?? ""}
       />
     </main>

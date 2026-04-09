@@ -4224,3 +4224,26 @@ body > .site-footer {
 .admin-article-md-wrap .w-md-editor {
   box-shadow: none;
 }
+
+/* Same /news body styles as ArticleMarkdown — below the MD editor */
+.admin-article-published-preview {
+  margin-top: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-page);
+  overflow: hidden;
+}
+.admin-article-published-preview-heading {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-subtle, rgba(0, 0, 0, 0.03));
+}
+.admin-article-published-preview-body {
+  padding: 16px 18px;
+  max-height: min(70vh, 720px);
+  overflow: auto;
+}
+.admin-article-published-preview-body .article-md {
+  /* Inherits .article-md from globals; ensure readable max width in admin */
+  max-width: 42rem;
+}

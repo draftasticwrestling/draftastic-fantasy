@@ -129,7 +129,7 @@ export default function Nav() {
     const loadProfile = () => {
       supabase
         .from("profiles")
-        .select("id, display_name, avatar_url, created_at, updated_at")
+        .select("id, display_name, avatar_url, is_site_admin, created_at, updated_at")
         .eq("id", user.id)
         .maybeSingle()
         .then(({ data }) => setProfile(data as Profile | null));
@@ -171,6 +171,7 @@ export default function Nav() {
 
   const currentLeague = leagues.find((l) => l.slug === currentLeagueSlug);
   const isCommissioner = currentLeague?.role === "commissioner";
+  const isSiteAdmin = Boolean(profile?.is_site_admin);
   const activePrimary = currentLeagueSlug ? getActivePrimary(pathname, currentLeagueSlug) : null;
 
   useEffect(() => {
@@ -318,39 +319,41 @@ export default function Nav() {
                 <Link href="/how-it-works" className="nav-top-link">
                   How It Works
                 </Link>
-                <div className="nav-dropdown-wrap" ref={adminRef}>
-                  <button
-                    type="button"
-                    className="nav-dropdown-trigger nav-header-admin-trigger"
-                    onClick={() => setAdminOpen((o) => !o)}
-                    aria-expanded={adminOpen}
-                    aria-haspopup="true"
-                  >
-                    Admin Menu
-                    <span aria-hidden>▾</span>
-                  </button>
-                  {adminOpen && (
-                    <div className="nav-dropdown-panel" style={{ minWidth: 200 }}>
-                      {ADMIN_MENU_SECTIONS.map((section) => (
-                        <div key={section.title}>
-                          <div className="nav-dropdown-section-title" role="presentation">
-                            {section.title}
+                {isSiteAdmin ? (
+                  <div className="nav-dropdown-wrap" ref={adminRef}>
+                    <button
+                      type="button"
+                      className="nav-dropdown-trigger nav-header-admin-trigger"
+                      onClick={() => setAdminOpen((o) => !o)}
+                      aria-expanded={adminOpen}
+                      aria-haspopup="true"
+                    >
+                      Admin Menu
+                      <span aria-hidden>▾</span>
+                    </button>
+                    {adminOpen && (
+                      <div className="nav-dropdown-panel" style={{ minWidth: 200 }}>
+                        {ADMIN_MENU_SECTIONS.map((section) => (
+                          <div key={section.title}>
+                            <div className="nav-dropdown-section-title" role="presentation">
+                              {section.title}
+                            </div>
+                            {section.links.map(({ href, label, primary }) => (
+                              <Link
+                                key={href}
+                                href={href}
+                                className={primary ? "nav-dropdown-link-primary" : undefined}
+                                onClick={() => setAdminOpen(false)}
+                              >
+                                {label}
+                              </Link>
+                            ))}
                           </div>
-                          {section.links.map(({ href, label, primary }) => (
-                            <Link
-                              key={href}
-                              href={href}
-                              className={primary ? "nav-dropdown-link-primary" : undefined}
-                              onClick={() => setAdminOpen(false)}
-                            >
-                              {label}
-                            </Link>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
                 <Link
                   href="/account"
                   className="nav-header-link nav-header-account"
@@ -418,16 +421,18 @@ export default function Nav() {
             <Link href="/how-it-works" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               How It Works
             </Link>
-            {ADMIN_MENU_SECTIONS.map((section) => (
-              <div key={section.title}>
-                <p className="nav-mobile-admin-section-title">{section.title}</p>
-                {section.links.map(({ href, label }) => (
-                  <Link key={href} href={href} className="nav-mobile-panel-link" onClick={closeMobileMenu}>
-                    {label}
-                  </Link>
-                ))}
-              </div>
-            ))}
+            {isSiteAdmin
+              ? ADMIN_MENU_SECTIONS.map((section) => (
+                  <div key={section.title}>
+                    <p className="nav-mobile-admin-section-title">{section.title}</p>
+                    {section.links.map(({ href, label }) => (
+                      <Link key={href} href={href} className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+                        {label}
+                      </Link>
+                    ))}
+                  </div>
+                ))
+              : null}
           </nav>
           <div className="nav-mobile-panel-actions">
             {user ? (

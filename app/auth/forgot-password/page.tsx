@@ -17,7 +17,7 @@ export default function ForgotPasswordPage() {
     setError(null);
     const supabase = createClient();
     const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/auth/callback?next=/auth/sign-in`,
+      redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password&flow=recovery`,
     });
     setLoading(false);
     if (err) {
@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
       </p>
       {sent ? (
         <p style={{ color: "#166534", marginBottom: 16 }}>
-          Check your email for the reset link, then return to sign in.
+          Check your email for the reset link. You&apos;ll be taken to a page to set a new password.
         </p>
       ) : (
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
