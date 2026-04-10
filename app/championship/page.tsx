@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import { comparePwbsChampionshipSlugs } from "@/lib/pwbsChampionshipSlug.js";
@@ -39,7 +40,16 @@ export default async function ChampionshipsIndexPage() {
             <Link key={slug} href={`/championship/${encodeURIComponent(slug)}`} className={styles.indexCard}>
               <h2 className={styles.indexCardTitle}>{displayTitle}</h2>
               <div className={styles.indexCardBelt} aria-hidden={!belt}>
-                {belt ? <img src={belt} alt="" /> : null}
+                {belt ? (
+                  <Image
+                    src={belt}
+                    alt=""
+                    width={200}
+                    height={58}
+                    sizes="200px"
+                    loading="lazy"
+                  />
+                ) : null}
               </div>
             </Link>
           );

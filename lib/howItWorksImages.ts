@@ -2,9 +2,8 @@
  * Image URLs for How It Works: belts (Title Points) and event logos (Raw/Smackdown, PLEs).
  *
  * - Wrestler images already come from Supabase (wrestlers.image_url) populated by Pro Wrestling Boxscore.
- * - Belts and event logos: either (1) add columns/tables in Supabase and populate from Boxscore, then
- *   load them in a server component and pass here (or merge into this map), or (2) use static assets
- *   in public/ and set paths below (e.g. "/belts/undisputed-wwe.png").
+ * - Championship belt PNGs: served from `public/images/belts/` (see BELT_IMAGE_URLS).
+ * - Event logos: `public/images/event-logos/` (EVENT_LOGO_URLS below).
  *
  * If a key has no URL, the How It Works page shows the placeholder. Add URLs when you have them.
  * See docs/HOW_IT_WORKS_IMAGES.md for options.
@@ -43,29 +42,29 @@ export type EventLogoKey =
   | "clash-in-paris"
   | "wrestlepalooza";
 
-const BELTS_BASE =
-  "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/belts";
+/** Same-origin belt art under `public/images/belts/` (no Supabase Storage egress). */
+const BELTS_PUBLIC = "/images/belts";
 
 /** Belt image URL by key. Empty = use placeholder. Crown Jewel belts omitted for now. */
 export const BELT_IMAGE_URLS: Partial<Record<BeltKey, string>> = {
-  "undisputed-wwe": `${BELTS_BASE}/mens-wwe-champion.png`,
-  heavyweight: `${BELTS_BASE}/mens-world-heavyweight.png`,
-  "wwe-womens": `${BELTS_BASE}/womens-wwe-champion.png`,
-  "womens-world": `${BELTS_BASE}/womens-world-champion.png`,
-  "intercontinental-mens": `${BELTS_BASE}/mens-intercontinental.png`,
-  "intercontinental-womens": `${BELTS_BASE}/womens-intercontinental.png`,
-  "us-mens": `${BELTS_BASE}/mens-united-states.png`,
-  "us-womens": `${BELTS_BASE}/womens-united-states.png`,
-  "tag-team-mens": `${BELTS_BASE}/mens-world-tag.png`,
-  /** SmackDown Tag Team Championship (distinct from Raw / World tag belts). */
-  "tag-team-smackdown": `${BELTS_BASE}/mens-wwe-tag.png`,
-  "tag-team-womens": `${BELTS_BASE}/womens-tag.png`,
+  "undisputed-wwe": `${BELTS_PUBLIC}/undisputed-wwe-championship.png`,
+  heavyweight: `${BELTS_PUBLIC}/world-heavyweight-championship.png`,
+  "wwe-womens": `${BELTS_PUBLIC}/womens-wwe-championship.png`,
+  "womens-world": `${BELTS_PUBLIC}/womens-world-championship.png`,
+  "intercontinental-mens": `${BELTS_PUBLIC}/mens-intercontinental-championship.png`,
+  "intercontinental-womens": `${BELTS_PUBLIC}/womens-intercontinental-championship.png`,
+  "us-mens": `${BELTS_PUBLIC}/mens-united-states-championship.png`,
+  "us-womens": `${BELTS_PUBLIC}/womens-united-states-championship.png`,
+  /** Men's tag (non–SmackDown-specific): Raw / world tag style belt. */
+  "tag-team-mens": `${BELTS_PUBLIC}/raw-tag-team-championship.png`,
+  "tag-team-smackdown": `${BELTS_PUBLIC}/smackdown-tag-team-championship.png`,
+  "tag-team-womens": `${BELTS_PUBLIC}/womens-tag-team-championship.png`,
 };
 
-const EVENT_LOGOS_BASE =
-  "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/event-logos";
+/** Same-origin event / brand marks under `public/images/event-logos/`. */
+const EVENT_LOGOS_BASE = "/images/event-logos";
 
-/** Event logo URL by key. Empty = use placeholder. Filenames match Supabase event-logos bucket. */
+/** Event logo URL by key. Empty = use placeholder. Filenames match files in `public/images/event-logos/`. */
 export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
   raw: `${EVENT_LOGOS_BASE}/Raw.png`,
   smackdown: `${EVENT_LOGOS_BASE}/Smackdown.png`,
@@ -83,9 +82,12 @@ export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
   "saturday-nights-main-event": `${EVENT_LOGOS_BASE}/Saturday-Nights-Main-Event.png`,
   backlash: `${EVENT_LOGOS_BASE}/Backlash.png`,
   evolution: `${EVENT_LOGOS_BASE}/Evolution.png`,
-  "clash-in-paris": `${EVENT_LOGOS_BASE}/Clash-In-Italy.png`,
+  "clash-in-paris": `${EVENT_LOGOS_BASE}/clash-in-paris.png`,
   wrestlepalooza: `${EVENT_LOGOS_BASE}/Wrestlepalooza.png`,
 };
+
+/** WWE 2K mark on roster trading cards (not an EventLogoKey). */
+export const WWE_2K_CARD_LOGO_SRC = `${EVENT_LOGOS_BASE}/2K26.png`;
 
 /** Map event type (from eventClassifier) to EventLogoKey for EVENT_LOGO_URLS. */
 export function eventTypeToLogoKey(eventType: string): EventLogoKey | null {

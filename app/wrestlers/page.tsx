@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
 import WrestlerList from "./WrestlerList";
@@ -25,6 +26,32 @@ function read2kRating(row: Record<string, unknown>, key: string): number | null 
   if (v == null || v === "") return null;
   const n = Number(v);
   return Number.isNaN(n) ? null : n;
+}
+
+function isMensIcOrUsBelt(src: string | null | undefined): boolean {
+  if (!src) return false;
+  const base = src.toLowerCase().split("?")[0];
+  return (
+    base.endsWith("mens-intercontinental-championship.png") ||
+    base.endsWith("mens-united-states-championship.png")
+  );
+}
+
+/** Women's IC/US art reads larger in the same slot than men's (after boost); cap on this grid only. */
+function isWomensIcOrUsBelt(src: string | null | undefined): boolean {
+  if (!src) return false;
+  const base = src.toLowerCase().split("?")[0];
+  return (
+    base.endsWith("womens-intercontinental-championship.png") ||
+    base.endsWith("womens-united-states-championship.png")
+  );
+}
+
+function champCardBeltClassName(src: string | null | undefined): string | undefined {
+  const parts: string[] = [];
+  if (isMensIcOrUsBelt(src)) parts.push("wrestlers-champ-card__belt--mens-boost");
+  if (isWomensIcOrUsBelt(src)) parts.push("wrestlers-champ-card__belt--womens-ic-us-cap");
+  return parts.length ? parts.join(" ") : undefined;
 }
 
 export const metadata = {
@@ -154,19 +181,33 @@ export default async function WrestlersPage() {
             const slug = card.slug;
             return (
               <article key={card.slug} className="wrestlers-champ-card">
-                <h3 className="wrestlers-champ-card__title">{card.title}</h3>
+                <h3 className="wrestlers-champ-card__title">
+                  <span className="wrestlers-champ-card__title-text">{card.title}</span>
+                </h3>
                 <div className="wrestlers-champ-card__belt" aria-hidden={!card.beltImageUrl}>
                   {card.beltImageUrl ? (
-                    <img src={card.beltImageUrl} alt="" />
+                    <Image
+                      src={card.beltImageUrl}
+                      alt=""
+                      width={200}
+                      height={58}
+                      sizes="200px"
+                      loading="lazy"
+                      className={champCardBeltClassName(card.beltImageUrl)}
+                    />
                   ) : null}
                 </div>
                 <div className="wrestlers-champ-card__avatars">
                   {card.champs.map((c) => (
                     <div key={`${card.title}-${c.championSlug || c.champion}`}>
                       {c.imageUrl ? (
-                        <img
+                        <Image
                           src={c.imageUrl}
                           alt={c.champion}
+                          width={52}
+                          height={52}
+                          sizes="52px"
+                          loading="lazy"
                           className="wrestlers-champ-card__avatar-img"
                         />
                       ) : (

@@ -8,6 +8,7 @@ const gold = "#C6A04F";
 
 export type EventPageHeaderProps = {
   eventName: string;
+  eventId?: string | null;
   h1Text: string;
   metaLine: string;
   formattedDateLong: string;
@@ -23,6 +24,7 @@ export type EventPageHeaderProps = {
 
 export function EventPageHeader({
   eventName,
+  eventId,
   h1Text,
   metaLine,
   formattedDateLong,
@@ -79,6 +81,7 @@ export function EventPageHeader({
       >
         <EventLogoOrText
           name={eventName}
+          eventId={eventId}
           style={{
             display: "inline-block",
             verticalAlign: "middle",

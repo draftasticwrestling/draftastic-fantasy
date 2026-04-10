@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useMemo } from "react";
 import { useFormState } from "react-dom";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
@@ -583,9 +584,12 @@ export function LeagueDraftRoom({
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                             {w.image_url ? (
-                              <img
+                              <Image
                                 src={w.image_url}
                                 alt=""
+                                width={32}
+                                height={32}
+                                sizes="32px"
                                 style={{ width: 32, height: 32, objectFit: "cover", borderRadius: "50%", background: "var(--color-bg-input)" }}
                               />
                             ) : (
@@ -674,9 +678,12 @@ export function LeagueDraftRoom({
                       return (
                         <li key={`${userId}-${wrestler_id}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                           {imageUrl ? (
-                            <img
+                            <Image
                               src={imageUrl}
                               alt=""
+                              width={24}
+                              height={24}
+                              sizes="24px"
                               style={{
                                 width: 24,
                                 height: 24,

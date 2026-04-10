@@ -18,7 +18,9 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: supabaseStorageHostname(),
-        pathname: "/storage/v1/object/public/**",
+        // Public bucket paths and signed URLs (`/sign/...`) both live under `object/`.
+        // Wrestler headshots may use either; restricting to `public/**` alone breaks next/image.
+        pathname: "/storage/v1/object/**",
       },
     ],
   },

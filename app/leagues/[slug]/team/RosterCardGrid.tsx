@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { WWE_2K_CARD_LOGO_SRC } from "@/lib/howItWorksImages";
 import { getWrestlerFullImageUrl } from "@/lib/wrestlerImages";
 import { WrestlerCardLegend } from "@/app/wrestlers/WrestlerTableLegend";
 
@@ -31,6 +33,40 @@ export type RosterCardWrestler = {
   championBeltImageUrl?: string | null;
   image_url?: string | null;
 };
+
+/** Full-body card photo with fallback to headshot URL (same behavior as previous native onError). */
+function RosterCardWrestlerPhoto({
+  primarySrc,
+  fallbackSrc,
+}: {
+  primarySrc: string;
+  fallbackSrc?: string | null;
+}) {
+  const [src, setSrc] = useState(primarySrc);
+  const [triedFallback, setTriedFallback] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const handleError = () => {
+    if (triedFallback) {
+      setHidden(true);
+      return;
+    }
+    setTriedFallback(true);
+    if (fallbackSrc) setSrc(fallbackSrc);
+    else setHidden(true);
+  };
+  if (hidden) return null;
+  return (
+    <Image
+      key={src}
+      src={src}
+      alt=""
+      fill
+      sizes="(max-width: 900px) 45vw, 320px"
+      style={{ objectFit: "contain", display: "block" }}
+      onError={handleError}
+    />
+  );
+}
 
 const RAW_OUTLINE = "#7a1515";
 const RAW_GRADIENT = "linear-gradient(180deg, #4a0808 0%, #6b1010 50%, #8b2020 100%)";
@@ -132,9 +168,12 @@ function WrestlerCard({
             marginRight: "auto",
           }}
         >
-          <img
-            src="https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/event-logos/wwe-2k.webp"
+          <Image
+            src={WWE_2K_CARD_LOGO_SRC}
             alt="WWE 2K"
+            width={120}
+            height={44}
+            sizes="120px"
             loading="lazy"
             style={{
               display: "block",
@@ -269,26 +308,7 @@ function WrestlerCard({
               overflow: "hidden",
             }}
           >
-            <img
-              src={fullImageUrl}
-              alt=""
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                display: "block",
-              }}
-              onError={(e) => {
-                const target = e.currentTarget;
-                if (target.src && !target.dataset.fallback) {
-                  target.dataset.fallback = "1";
-                  const fallback = (target as HTMLImageElement).getAttribute("data-fallback-src");
-                  if (fallback) target.src = fallback;
-                  else target.style.display = "none";
-                }
-              }}
-              data-fallback-src={w.image_url || undefined}
-            />
+            <RosterCardWrestlerPhoto key={w.id} primarySrc={fullImageUrl} fallbackSrc={w.image_url} />
             {w.championBeltImageUrl && (
               <div
                 style={{
@@ -302,11 +322,19 @@ function WrestlerCard({
                   pointerEvents: "none",
                 }}
               >
-                <img
+                <Image
                   src={w.championBeltImageUrl}
                   alt=""
+                  width={140}
+                  height={48}
+                  sizes="140px"
                   aria-hidden
-                  style={{ width: "100%", height: "auto", display: "block", objectFit: "contain" }}
+                  style={{
+                    width: "100%",
+                    height: "auto",
+                    display: "block",
+                    objectFit: "contain",
+                  }}
                 />
               </div>
             )}

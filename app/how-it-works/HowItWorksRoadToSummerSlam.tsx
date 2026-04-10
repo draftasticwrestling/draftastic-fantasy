@@ -166,7 +166,7 @@ export function HowItWorksRoadToSummerSlam() {
         <h2 className={styles.sectionTitle}>Premium live events in this season</h2>
         <p style={{ marginBottom: 16, color: "#555" }}>
           This window includes four <strong>minor PLEs</strong> (Backlash, two Saturday Night&apos;s Main Events, Clash in
-          Italy), one <strong>medium PLE</strong> (Night of Champions, including King / Queen of the Ring), and{" "}
+          Italy), one <strong>medium PLE</strong> (Night of Champions (King/ Queen of the Ring)), and{" "}
           <strong>SummerSlam</strong> (nights 1 and 2). They use the structures below.
         </p>
         <div className={styles.rulesBlock}>
@@ -212,46 +212,40 @@ export function HowItWorksRoadToSummerSlam() {
           </div>
         </div>
 
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 8, marginTop: 24 }}>
-          Medium PLE — Night of Champions &amp; King / Queen of the Ring
-        </h3>
-        <p style={{ margin: "0 0 14px", fontSize: 14, color: "#555" }}>
+        <p style={{ margin: "24px 0 14px", fontSize: 14, color: "#555" }}>
           This premium live event includes the Night of Champions card and the King / Queen of the Ring tournament — point
           tables below.
         </p>
         <div className={styles.pleDarkBox}>
+          <h3 className={styles.nocKqorCombinedTitle}>
+            Medium PLE — Night of Champions (King/ Queen of the Ring)
+          </h3>
           <div className={styles.nocKqorTwoCol}>
-            <div>
-              <p className={styles.nocMediumPleColTitle}>Night of Champions</p>
-              <div className={styles.mediumPleCard}>
-                <HowItWorksEventLogo
-                  eventKey="night-of-champions"
-                  placeholderText="Night of Champions logo"
-                  className={styles.eventCardLogo}
-                />
-                {NOC_POINTS.map(([action, pts], i) => (
-                  <div key={i} className={styles.pointRow}>
-                    <span>{action}</span>
-                    <span className={styles.pointRowPoints}>{pts}</span>
-                  </div>
-                ))}
-              </div>
+            <div className={styles.mediumPleCard}>
+              <HowItWorksEventLogo
+                eventKey="night-of-champions"
+                placeholderText="Night of Champions logo"
+                className={styles.eventCardLogo}
+              />
+              {NOC_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
             </div>
-            <div>
-              <p className={styles.nocMediumPleColTitle}>King / Queen of the Ring</p>
-              <div className={styles.mediumPleCard}>
-                <HowItWorksEventLogo
-                  eventKey="king-queen"
-                  placeholderText="King & Queen of the Ring logo"
-                  className={styles.eventCardLogo}
-                />
-                {KING_QUEEN_POINTS.map(([action, pts], i) => (
-                  <div key={i} className={styles.pointRow}>
-                    <span>{action}</span>
-                    <span className={styles.pointRowPoints}>{pts}</span>
-                  </div>
-                ))}
-              </div>
+            <div className={styles.mediumPleCard}>
+              <HowItWorksEventLogo
+                eventKey="king-queen"
+                placeholderText="King & Queen of the Ring logo"
+                className={styles.eventCardLogo}
+              />
+              {KING_QUEEN_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

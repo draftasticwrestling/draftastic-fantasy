@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 import { getSortedMatchesForEvent } from "@/components/boxscore-port/utils/eventMatchesOrder.js";
@@ -96,8 +97,14 @@ function upcomingParticipantRow(nm: string, rowKey: string, wrestlerMap: Wrestle
             <span className="hub-condensed-arrow-spacer" />
           </span>
           {img ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={img} alt="" className="hub-condensed-avatar" width={24} height={24} />
+            <Image
+              src={img}
+              alt=""
+              width={24}
+              height={24}
+              sizes="24px"
+              className="hub-condensed-avatar"
+            />
           ) : (
             <div className="hub-condensed-avatar hub-condensed-avatar-ph" aria-hidden>
               &#128100;
@@ -184,8 +191,14 @@ function completedParticipantRow(entry: CompletedEntry, rowKey: string, wrestler
             {isWinner ? <span className="hub-condensed-arrow">▶</span> : <span className="hub-condensed-arrow-spacer" />}
           </span>
           {img ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={img} alt="" className="hub-condensed-avatar" width={24} height={24} />
+            <Image
+              src={img}
+              alt=""
+              width={24}
+              height={24}
+              sizes="24px"
+              className="hub-condensed-avatar"
+            />
           ) : (
             <div className="hub-condensed-avatar hub-condensed-avatar-ph" aria-hidden>
               &#128100;
@@ -215,8 +228,14 @@ function completedParticipantFallbackRow(nm: string, rowKey: string, wrestlerMap
             <span className="hub-condensed-arrow-spacer" />
           </span>
           {img ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={img} alt="" className="hub-condensed-avatar" width={24} height={24} />
+            <Image
+              src={img}
+              alt=""
+              width={24}
+              height={24}
+              sizes="24px"
+              className="hub-condensed-avatar"
+            />
           ) : (
             <div className="hub-condensed-avatar hub-condensed-avatar-ph" aria-hidden>
               &#128100;

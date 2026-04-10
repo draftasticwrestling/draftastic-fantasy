@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -589,12 +590,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                   >
                     <div style={{ flexShrink: 0 }}>
                       {c.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           src={c.imageUrl}
                           alt=""
                           width={40}
                           height={40}
+                          sizes="40px"
                           style={{
                             width: 40,
                             height: 40,

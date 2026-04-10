@@ -14,8 +14,9 @@ So the pattern is: **Boxscore (or a sync job) writes image URLs into Supabase �
 
 ## Belts and event logos — current state
 
-- **Belt images** (Title Points section): We do **not** have a Supabase table or column for championship/belt images. The `championship_history` table has `title` / `title_name` for reign data but no `image_url`. The Boxscore site’s [champions page](https://www.prowrestlingboxscore.com/champions) is client-rendered (“Loading events…”), so we can’t reliably scrape image URLs from the live page.
-- **Event logos** (RAW, SmackDown, WrestleMania, etc.): The `events` table is only queried for `id`, `name`, `date`, `matches`. We don’t currently have an `events.logo_url` (or similar) in use. If the Boxscore app stores event logos in Supabase (e.g. on `events` or a separate `event_assets` table), we could use the same pattern as wrestlers.
+- **Belt images** (Title Points, overlays, championship cards): Static PNGs live in **`public/images/belts/`** and are mapped in `lib/howItWorksImages.ts` (`BELT_IMAGE_URLS`). That avoids Supabase Storage egress for those files.
+- **Event logos** (How It Works, roster cards, etc.): Static files in **`public/images/event-logos/`**, mapped in `lib/howItWorksImages.ts` (`EVENT_LOGO_URLS`, plus `WWE_2K_CARD_LOGO_SRC` for the 2K mark on trading cards).
+- The `championship_history` table has `title` / `title_name` for reign data but no `image_url` for belts; belt art is maintained as static assets, not scraped from the Boxscore [champions page](https://www.prowrestlingboxscore.com/champions). The `events` table is only queried for `id`, `name`, `date`, `matches`; we don’t use `events.logo_url` today—event marks come from the static `EVENT_LOGO_URLS` map unless you add DB-backed logos later.
 
 ---
 

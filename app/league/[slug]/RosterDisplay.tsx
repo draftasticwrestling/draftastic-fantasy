@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import type { RosterEntry } from "@/lib/rosters";
 import { groupRosterByContract } from "@/lib/rosters";
@@ -179,9 +180,12 @@ export default function RosterDisplay({ roster, wrestlerMap, ownerTotal, discove
                     }}
                   >
                     {info?.image_url ? (
-                      <img
+                      <Image
                         src={info.image_url}
                         alt={entry.name}
+                        width={60}
+                        height={60}
+                        sizes="60px"
                         style={{
                           width: 60,
                           height: 60,

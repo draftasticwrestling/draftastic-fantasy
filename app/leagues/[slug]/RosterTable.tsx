@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { LeagueRosterEntry } from "@/lib/leagues";
 
@@ -69,12 +70,13 @@ export function RosterTable({
                 {entry ? (
                   <span className="roster-player-cell">
                     {wrestlerImageUrl?.[entry.wrestler_id] ? (
-                      <img
+                      <Image
                         src={wrestlerImageUrl[entry.wrestler_id]!}
                         alt=""
                         className="roster-player-avatar"
                         width={32}
                         height={32}
+                        sizes="32px"
                         loading="lazy"
                       />
                     ) : null}

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
@@ -80,7 +81,14 @@ export default async function ChampionshipDetailPage({ params }: Props) {
       <article className={styles.hero}>
         <h1 className={styles.title}>{title}</h1>
         {beltImageUrl && (
-          <img src={beltImageUrl} alt="" className={styles.belt} />
+          <Image
+            src={beltImageUrl}
+            alt=""
+            width={280}
+            height={72}
+            sizes="(max-width: 640px) 90vw, 280px"
+            className={styles.belt}
+          />
         )}
         <div className={styles.currentBlock}>
           <p className={styles.currentLabel}>Current champion{currentChamps.length > 1 ? "s" : ""}</p>
@@ -88,7 +96,14 @@ export default async function ChampionshipDetailPage({ params }: Props) {
             {currentChamps.map((c) => (
               <div key={`${c.championSlug}-${c.champion}`}>
                 {c.imageUrl ? (
-                  <img src={c.imageUrl} alt="" className={styles.avatar} />
+                  <Image
+                    src={c.imageUrl}
+                    alt=""
+                    width={56}
+                    height={56}
+                    sizes="56px"
+                    className={styles.avatar}
+                  />
                 ) : (
                   <div className={styles.avatarPlaceholder} aria-hidden>
                     ?
@@ -146,7 +161,14 @@ export default async function ChampionshipDetailPage({ params }: Props) {
                   <td>
                     <div className={styles.cellChampion}>
                       {h.imageUrl ? (
-                        <img src={h.imageUrl} alt="" className={styles.cellThumb} />
+                        <Image
+                          src={h.imageUrl}
+                          alt=""
+                          width={36}
+                          height={36}
+                          sizes="36px"
+                          className={styles.cellThumb}
+                        />
                       ) : (
                         <span className={styles.thumbPh} aria-hidden>
                           ?

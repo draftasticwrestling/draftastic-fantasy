@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { EventLogoKey } from "@/lib/howItWorksImages";
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 import styles from "./HowItWorks.module.css";
@@ -17,7 +18,14 @@ export function HowItWorksEventLogo({
   return (
     <div className={`${className}${hasImg ? ` ${styles.hasImg}` : ""}`}>
       {hasImg && url ? (
-        <img src={url} alt="" loading="lazy" />
+        <Image
+          src={url}
+          alt=""
+          width={180}
+          height={80}
+          sizes="(max-width: 640px) 45vw, 180px"
+          loading="lazy"
+        />
       ) : (
         placeholderText
       )}

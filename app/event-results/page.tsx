@@ -153,7 +153,7 @@ export default async function EventResultsPage({ searchParams }: { searchParams:
             {list.map((event) => {
               const title = getEventResultsCardTitle(event);
               const meta = formatEventResultsListMetaLine(event);
-              const logoSrc = getEventLogoPath(event.name);
+              const logoSrc = getEventLogoPath(event.name, event.id);
               const href = eventResultsHref(event);
               return (
                 <li key={event.id}>

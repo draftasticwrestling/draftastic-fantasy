@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 type Props = {
@@ -71,9 +72,13 @@ export function WrestlerProfileImage({
 
   if (variant === "avatar") {
     return (
-      <img
+      <Image
+        key={src}
         src={src}
         alt={alt}
+        width={120}
+        height={120}
+        sizes="120px"
         onError={handleError}
         style={{
           width: 120,
@@ -90,9 +95,14 @@ export function WrestlerProfileImage({
 
   return (
     <div style={{ position: "relative", width: fullWidth, height: fullHeight, flexShrink: 0 }}>
-      <img
+      <Image
+        key={src}
         src={src}
         alt={alt}
+        width={fullWidth}
+        height={fullHeight}
+        sizes="180px"
+        priority
         onError={handleError}
         style={{
           display: "block",
@@ -116,9 +126,12 @@ export function WrestlerProfileImage({
             pointerEvents: "none",
           }}
         >
-          <img
-            src={beltImageUrl}
+          <Image
+            src={beltImageUrl!}
             alt=""
+            width={fullWidth}
+            height={Math.round(fullWidth * 0.35)}
+            sizes="180px"
             aria-hidden
             style={{
               width: "100%",

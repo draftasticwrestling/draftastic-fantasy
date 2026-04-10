@@ -856,8 +856,11 @@ export default function WrestlerList({
                   <img
                     src={w.image_url}
                     alt=""
+                    width={52}
+                    height={52}
                     className="wrestler-card-img"
                     loading="lazy"
+                    decoding="async"
                   />
                 ) : (
                   <div className="wrestler-card-img wrestler-card-img-placeholder" aria-hidden>—</div>
@@ -968,7 +971,10 @@ export default function WrestlerList({
                       <img
                         src={brandLogo}
                         alt={roster}
+                        width={48}
+                        height={48}
                         loading="lazy"
+                        decoding="async"
                         style={{
                           display: "block",
                           width: "100%",
@@ -996,7 +1002,21 @@ export default function WrestlerList({
                   </div>
                   <div style={{ padding: "10px 6px", textAlign: "center", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center" }}>{rankByWrestlerId.get(w.id) ?? "—"}</div>
                   <div style={{ padding: 6, borderRight: cellBorder, background: rowBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {w.image_url ? <img src={w.image_url} alt={w.name || w.id} loading="lazy" style={{ width: 60, height: 60, objectFit: "cover", borderRadius: "50%", display: "block", background: BORDER_TABLE }} /> : <div style={{ width: 60, height: 60, borderRadius: "50%", background: ROW_BG_ALT, display: "flex", alignItems: "center", justifyContent: "center", color: "#999", fontSize: 20 }} aria-hidden>—</div>}
+                    {w.image_url ? (
+                      <img
+                        src={w.image_url}
+                        alt={w.name || w.id}
+                        width={60}
+                        height={60}
+                        loading="lazy"
+                        decoding="async"
+                        style={{ width: 60, height: 60, objectFit: "cover", borderRadius: "50%", display: "block", background: BORDER_TABLE }}
+                      />
+                    ) : (
+                      <div style={{ width: 60, height: 60, borderRadius: "50%", background: ROW_BG_ALT, display: "flex", alignItems: "center", justifyContent: "center", color: "#999", fontSize: 20 }} aria-hidden>
+                        —
+                      </div>
+                    )}
                   </div>
                   <div style={{ padding: "10px 12px", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -1007,7 +1027,23 @@ export default function WrestlerList({
                     {w.personaDisplay && <div style={{ fontSize: 11, fontWeight: 400, color: "var(--color-text-muted)", fontStyle: "italic", marginTop: 2 }}>{w.personaDisplay}</div>}
                   </div>
                   <div style={{ padding: 6, textAlign: "center", borderRight: cellBorder, background: rowBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {w.championBeltImageUrl ? <img src={w.championBeltImageUrl} alt="" aria-hidden loading="lazy" style={{ width: 56, height: 32, objectFit: "contain", display: "block" }} /> : null}
+                    {w.championBeltImageUrl ? (
+                      <img
+                        src={w.championBeltImageUrl}
+                        alt=""
+                        width={56}
+                        height={32}
+                        aria-hidden
+                        loading="lazy"
+                        decoding="async"
+                        style={{
+                          width: 56,
+                          height: 32,
+                          objectFit: "contain",
+                          display: "block",
+                        }}
+                      />
+                    ) : null}
                   </div>
                   <div style={{ padding: "8px", textAlign: "center", background: rowBg, color: "#1a1a1a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                     {rosterByWrestler?.[w.id] ? (
@@ -1114,7 +1150,15 @@ export default function WrestlerList({
                 </span>
                 <div className="wrestlers-boxscore-photo-wrap">
                   {w.image_url ? (
-                    <img src={w.image_url} alt="" className="wrestlers-boxscore-photo" loading="lazy" />
+                    <img
+                      src={w.image_url}
+                      alt=""
+                      width={108}
+                      height={108}
+                      className="wrestlers-boxscore-photo"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   ) : (
                     <div className="wrestlers-boxscore-photo wrestlers-boxscore-photo-placeholder" aria-hidden>
                       —

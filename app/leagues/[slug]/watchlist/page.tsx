@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -85,11 +86,12 @@ export default async function LeagueWatchlistPage({
               }}
             >
               {w.image_url ? (
-                <img
+                <Image
                   src={w.image_url}
                   alt=""
                   width={40}
                   height={40}
+                  sizes="40px"
                   style={{ borderRadius: "50%", objectFit: "cover" }}
                 />
               ) : (

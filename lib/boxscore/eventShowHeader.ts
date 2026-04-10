@@ -2,6 +2,9 @@
  * Boxscore-style event page header helpers (mirrors wrestling-boxscore App.jsx EventBoxScore).
  */
 
+import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
+import { getEventLogoUrl } from "@/lib/howItWorksImages";
+
 export type EventShowFilter = "raw" | "smackdown" | "ple";
 
 /** Classify event for show filter: raw | smackdown | ple (from name only). */
@@ -24,8 +27,16 @@ const EVENT_LOGO_MAP: Record<string, string> = {
   "saturday night's main event": "saturday_nights_main_event.png",
 };
 
-export function getEventLogoPath(name: string | null | undefined): string {
+/**
+ * Logo URL for an event card or header. Prefer `classifyEventType` + `/images/event-logos/` (same as hub
+ * EventListBar); fall back to legacy `/images/*.png` names when type is unknown.
+ */
+export function getEventLogoPath(name: string | null | undefined, eventId?: string | null): string {
   if (!name) return "/images/raw_logo.png";
+  const typed = classifyEventType(name, eventId ?? "");
+  const fromLogos = getEventLogoUrl(typed);
+  if (fromLogos) return fromLogos;
+
   const key = name.trim().toLowerCase();
   if (EVENT_LOGO_MAP[key]) return `/images/${EVENT_LOGO_MAP[key]}`;
   const auto = `${key.replace(/[^a-z0-9]+/g, "_").replace(/_+$/, "")}.png`;

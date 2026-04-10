@@ -639,6 +639,7 @@ export default async function EventResultsPage({
       </Suspense>
       <EventPageHeader
         eventName={event.name ?? "Event"}
+        eventId={event.id}
         h1Text={`${titleShowLine} Results — ${formattedHeaderDate}`}
         metaLine={buildEventHeaderMetaDescription(event)}
         formattedDateLong={formattedHeaderDate}
