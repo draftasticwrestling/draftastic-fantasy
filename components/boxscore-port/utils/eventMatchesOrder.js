@@ -13,3 +13,20 @@ export function getSortedMatchesForEvent(event) {
   }));
   return [...withDefaultOrder].sort((a, b) => (a.order || 0) - (b.order || 0));
 }
+
+/**
+ * Hub / condensed views: explicit PWBS "Main Event" rows first so they are not cut off by a low max-match cap.
+ */
+export function prioritizeExplicitMainEventMatches(matches) {
+  if (!Array.isArray(matches)) return [];
+  const main = [];
+  const rest = [];
+  for (const m of matches) {
+    const ct = String(m?.cardType ?? m?.card_type ?? "")
+      .trim()
+      .toLowerCase();
+    if (ct === "main event") main.push(m);
+    else rest.push(m);
+  }
+  return [...main, ...rest];
+}

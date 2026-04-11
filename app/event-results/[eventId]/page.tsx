@@ -581,9 +581,16 @@ export default async function EventResultsPage({
   > = {};
   for (let mi = 0; mi < scored.matches.length; mi++) {
     const match = scored.matches[mi];
-    const rawM = rawMatches[mi];
+    const mo = typeof match.order === "number" ? match.order : null;
+    const rawM =
+      mo != null ? rawMatches.find((r) => Number((r as { order?: number }).order) === mo) : null;
+    const rawFallback = rawM ?? rawMatches[mi];
     const order =
-      typeof rawM?.order === "number" ? rawM.order : mi + 1;
+      typeof rawFallback?.order === "number"
+        ? rawFallback.order
+        : mo != null
+          ? mo
+          : mi + 1;
     fantasyPointsBySlugByOrder[order] = {};
     if (!match.wrestlerPoints) continue;
     for (const wp of match.wrestlerPoints ?? []) {

@@ -164,28 +164,39 @@ function WrestlerCard({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 4,
+            gap: 6,
             marginRight: "auto",
+            minWidth: 0,
           }}
         >
-          <Image
-            src={WWE_2K_CARD_LOGO_SRC}
-            alt="WWE 2K"
-            width={120}
-            height={44}
-            sizes="120px"
-            loading="lazy"
+          {/* 2K26 asset is very wide (~567×134); cap box so the bar keeps logo + rating + chrome */}
+          <div
             style={{
-              display: "block",
-              height: 44,
-              width: "auto",
+              position: "relative",
+              width: 76,
+              height: 22,
+              flexShrink: 0,
             }}
-          />
+          >
+            <Image
+              src={WWE_2K_CARD_LOGO_SRC}
+              alt="WWE 2K"
+              fill
+              sizes="76px"
+              loading="lazy"
+              style={{
+                objectFit: "contain",
+                objectPosition: "left center",
+              }}
+            />
+          </div>
           <span
             style={{
               fontSize: 18,
               fontWeight: 700,
               color: "#c00",
+              flexShrink: 0,
+              lineHeight: 1,
             }}
           >
             {rating != null ? rating : "—"}

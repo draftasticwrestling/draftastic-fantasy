@@ -4,10 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import HubLatestEventPreview from "@/app/components/HubLatestEventPreview";
 import { HubLatestArticleCard } from "@/app/components/HubLatestArticleCard";
 import { firstArticleImageUrl } from "@/lib/articleFirstImage";
-import { fetchHubLiveSpotlight, fetchHubRecentCompleted, fetchHubUpcomingSpotlight } from "@/lib/home/hubHomeEvents";
+import { fetchHubRecentCompleted, fetchHubTodayPrimaryEvent, fetchHubUpcomingSpotlight } from "@/lib/home/hubHomeEvents";
 import { listPublishedArticles, type ArticleRow } from "@/lib/articles";
 
-/** Slots: top article + (after upcoming) three more in the interleaved feed. */
+/** Hub “The latest”: up to four article cards; order with events varies by event-day vs non-event-day. */
 const LATEST_SECTION_ARTICLES = 4;
 const HEADLINES_ARTICLE_POOL = 5;
 
@@ -83,62 +83,74 @@ export default async function HubLatestHeadlinesSection({
     hasLatestSection = railArticles.length > 0;
   } else {
     const supabase = await createClient();
-    const [upcoming, liveEvent, { data: wrestlersData }, art] = await Promise.all([
-      fetchHubUpcomingSpotlight(supabase),
-      fetchHubLiveSpotlight(supabase),
+    const [todayPrimary, { data: wrestlersData }, art] = await Promise.all([
+      fetchHubTodayPrimaryEvent(supabase),
       supabase.from("wrestlers").select("id, name, image_url"),
       listPublishedArticles(articleLimit),
     ]);
-    const completedRows = await fetchHubRecentCompleted(supabase, 1, liveEvent?.id ?? null);
+    const upcoming = await fetchHubUpcomingSpotlight(supabase, todayPrimary?.id ?? null);
+    const completedRows = await fetchHubRecentCompleted(supabase, 1, todayPrimary?.id ?? null);
     articles = art;
     const wrestlerRows = (wrestlersData ?? []) as { id: string; name: string | null; image_url: string | null }[];
     const latestArticles = articles.slice(0, LATEST_SECTION_ARTICLES);
     const completedEvent = completedRows[0];
-    const hasLive = Boolean(liveEvent);
+    const isEventDay = Boolean(todayPrimary);
     const hasUpcoming = Boolean(upcoming);
     const hasCompleted = Boolean(completedEvent);
     const hasArticles = latestArticles.length > 0;
-    hasLatestSection = hasLive || hasUpcoming || hasCompleted || hasArticles;
+    hasLatestSection = isEventDay || hasUpcoming || hasCompleted || hasArticles;
 
+    const todayEventCard =
+      todayPrimary != null ? (
+        <HubLatestEventPreview
+          key={todayPrimary.id}
+          event={todayPrimary}
+          wrestlerRows={wrestlerRows}
+          variant={(todayPrimary.status || "").toLowerCase().trim() === "live" ? "live" : "upcoming"}
+          whenLabel={(todayPrimary.status || "").toLowerCase().trim() === "live" ? undefined : "Tonight"}
+        />
+      ) : null;
+
+    const upcomingCard = upcoming ? (
+      <HubLatestEventPreview
+        key={upcoming.id}
+        event={upcoming}
+        wrestlerRows={wrestlerRows}
+        variant="upcoming"
+        whenLabel={upcoming.whenLabel}
+      />
+    ) : null;
+
+    const completedCard = completedEvent ? (
+      <HubLatestEventPreview
+        key={completedEvent.id}
+        event={completedEvent}
+        wrestlerRows={wrestlerRows}
+        variant="completed"
+      />
+    ) : null;
+
+    /** Top of “The latest”: event → article → event (event day) or article → event → article (non-event day). */
     const fullFeedNodes: ReactNode[] = [];
-    if (upcoming) {
-      fullFeedNodes.push(
-        <HubLatestEventPreview
-          key={upcoming.id}
-          event={upcoming}
-          wrestlerRows={wrestlerRows}
-          variant="upcoming"
-          whenLabel={upcoming.whenLabel}
-        />
-      );
+    if (isEventDay) {
+      if (todayEventCard) fullFeedNodes.push(todayEventCard);
+      if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
+      if (upcomingCard) fullFeedNodes.push(upcomingCard);
+      if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
+      if (completedCard) fullFeedNodes.push(completedCard);
+      if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
+      if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
+    } else {
+      if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
+      if (upcomingCard) fullFeedNodes.push(upcomingCard);
+      if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
+      if (completedCard) fullFeedNodes.push(completedCard);
+      if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
+      if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
     }
-    if (liveEvent) {
-      fullFeedNodes.push(
-        <HubLatestEventPreview
-          key={liveEvent.id}
-          event={liveEvent}
-          wrestlerRows={wrestlerRows}
-          variant="live"
-        />
-      );
-    }
-    if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
-    if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
-    if (completedEvent) {
-      fullFeedNodes.push(
-        <HubLatestEventPreview
-          key={completedEvent.id}
-          event={completedEvent}
-          wrestlerRows={wrestlerRows}
-          variant="completed"
-        />
-      );
-    }
-    if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
-    if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
     feedNodes = fullFeedNodes;
 
-    if (hasCompleted === false && hasUpcoming && upcoming && !hasArticles && !hasLive) {
+    if (hasCompleted === false && hasUpcoming && upcoming && !hasArticles && !isEventDay) {
       latestBlockExtras = (
         <p className="hub-muted" style={{ marginTop: 16 }}>
           No completed events to show yet — check back after the show.

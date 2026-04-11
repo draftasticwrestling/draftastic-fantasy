@@ -1,5 +1,5 @@
 /**
- * Home hub: upcoming spotlight (today or tomorrow ET ≈ within the next day for TV) + recent completed events.
+ * Home hub “The latest”: event-day (ET) vs non-event-day ordering is built in HubLatestHeadlinesSection.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -46,12 +46,21 @@ function whenLabelForDate(date: string | null, today: string, tomorrow: string):
   return "Upcoming";
 }
 
+function notExcluded(id: string | undefined, excludeEventId: string | null | undefined): boolean {
+  if (!excludeEventId || !id) return true;
+  return id !== excludeEventId;
+}
+
 /**
  * Single next upcoming event for home “The latest”: not completed, not live.
  * Prefers today (ET), then tomorrow, then earliest future date with status still “upcoming”.
  * Includes events with no matches yet (card shows “No matches announced yet” in UI).
+ * @param excludeEventId — e.g. the live / “today’s show” card so the same event is not shown twice.
  */
-export async function fetchHubUpcomingSpotlight(supabase: SupabaseClient): Promise<HubUpcomingSpotlight | null> {
+export async function fetchHubUpcomingSpotlight(
+  supabase: SupabaseClient,
+  excludeEventId?: string | null
+): Promise<HubUpcomingSpotlight | null> {
   const { today, tomorrow } = getTodayTomorrowYmdET();
 
   const { data, error } = await supabase
@@ -62,7 +71,9 @@ export async function fetchHubUpcomingSpotlight(supabase: SupabaseClient): Promi
     .order("name", { ascending: true });
 
   if (!error && data?.length) {
-    const candidates = (data as HubPreviewEventRow[]).filter((e) => isUpcomingSpotlightStatus(e.status) && e.date);
+    const candidates = (data as HubPreviewEventRow[]).filter(
+      (e) => notExcluded(e.id, excludeEventId) && isUpcomingSpotlightStatus(e.status) && e.date
+    );
     if (candidates.length > 0) {
       candidates.sort((a, b) => {
         const da = a.date || "";
@@ -85,7 +96,9 @@ export async function fetchHubUpcomingSpotlight(supabase: SupabaseClient): Promi
 
   if (futureErr || !futureRows?.length) return null;
 
-  const future = (futureRows as HubPreviewEventRow[]).find((e) => isUpcomingSpotlightStatus(e.status) && e.date);
+  const future = (futureRows as HubPreviewEventRow[]).find(
+    (e) => notExcluded(e.id, excludeEventId) && isUpcomingSpotlightStatus(e.status) && e.date
+  );
   if (!future) return null;
 
   return { ...future, whenLabel: whenLabelForDate(future.date, today, tomorrow) };
@@ -113,17 +126,24 @@ export async function fetchHubRecentCompleted(
 }
 
 /**
- * In-progress show (PWBS `status: live`) for the hub condensed card — fantasy points for completed matches only.
+ * Primary card for **America/New_York calendar “today”**: any non-completed event on that date.
+ * If several exist, prefers `status = live`, then name order. Null when no show that day (hub uses article-first layout).
  */
-export async function fetchHubLiveSpotlight(supabase: SupabaseClient): Promise<HubPreviewEventRow | null> {
-  const { data, error } = await supabase
+export async function fetchHubTodayPrimaryEvent(supabase: SupabaseClient): Promise<HubPreviewEventRow | null> {
+  const { today } = getTodayTomorrowYmdET();
+  const { data: rows, error } = await supabase
     .from("events")
     .select("id, name, date, location, matches, status")
-    .eq("status", "live")
-    .order("date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("date", today)
+    .neq("status", "completed");
 
-  if (error || !data) return null;
-  return data as HubPreviewEventRow;
+  if (error || !rows?.length) return null;
+  const list = rows as HubPreviewEventRow[];
+  list.sort((a, b) => {
+    const liveA = (a.status || "").toLowerCase().trim() === "live" ? 1 : 0;
+    const liveB = (b.status || "").toLowerCase().trim() === "live" ? 1 : 0;
+    if (liveA !== liveB) return liveB - liveA;
+    return (a.name || "").localeCompare(b.name || "");
+  });
+  return list[0];
 }
