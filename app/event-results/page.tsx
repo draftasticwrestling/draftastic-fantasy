@@ -8,8 +8,9 @@ import {
   type EventShowFilter,
 } from "@/lib/boxscore/eventShowHeader";
 import type { EventListingRow } from "@/lib/event-results/listingQueries";
-import { fetchCompletedEventsForListing, fetchUpcomingEventsForListing } from "@/lib/event-results/listingQueries";
+import { fetchCompletedEventsPage, fetchUpcomingEventsForListing } from "@/lib/event-results/listingQueries";
 import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
+import { CompletedEventResultsList } from "./CompletedEventResultsList";
 
 import styles from "./event-results.module.css";
 
@@ -42,14 +43,19 @@ export default async function EventResultsPage({ searchParams }: { searchParams:
     showParam === "raw" || showParam === "smackdown" || showParam === "ple" ? showParam : null;
   const tab: "completed" | "upcoming" = sp?.tab === "upcoming" ? "upcoming" : "completed";
 
-  let sourceRows: EventListingRow[] = [];
+  let completedInitial: EventListingRow[] = [];
+  let completedHasMore = false;
+  let upcomingRows: EventListingRow[] = [];
   if (tab === "completed") {
-    sourceRows = await fetchCompletedEventsForListing(120);
+    const page = await fetchCompletedEventsPage(0, 50);
+    completedInitial = page.events;
+    completedHasMore = page.hasMore;
   } else {
-    sourceRows = await fetchUpcomingEventsForListing(80);
+    upcomingRows = await fetchUpcomingEventsForListing(80);
   }
 
-  const list = filter ? sourceRows.filter((e) => getEventShowType(e) === filter) : sourceRows;
+  const list =
+    tab === "upcoming" && filter ? upcomingRows.filter((e) => getEventShowType(e) === filter) : upcomingRows;
 
   return (
     <main className={styles.pageRoot}>
@@ -118,14 +124,7 @@ export default async function EventResultsPage({ searchParams }: { searchParams:
           ))}
         </div>
 
-        {filter && list.length > 0 && (
-          <p className={styles.filterHint}>
-            Showing <strong style={{ color: "#ccc" }}>{filterLabel(filter)}</strong> only · {list.length} event
-            {list.length === 1 ? "" : "s"}
-          </p>
-        )}
-
-        {sourceRows.length === 0 && tab === "completed" && (
+        {tab === "completed" && completedInitial.length === 0 && (
           <p className={styles.emptyText}>
             No completed events in the list yet. When shows are marked completed on{" "}
             <a href="https://prowrestlingboxscore.com" target="_blank" rel="noopener noreferrer" style={{ color: "#c6a04f" }}>
@@ -135,20 +134,34 @@ export default async function EventResultsPage({ searchParams }: { searchParams:
           </p>
         )}
 
-        {sourceRows.length === 0 && tab === "upcoming" && (
+        {tab === "completed" && completedInitial.length > 0 && (
+          <CompletedEventResultsList
+            initialEvents={completedInitial}
+            initialHasMore={completedHasMore}
+            showFilter={filter}
+          />
+        )}
+
+        {tab === "upcoming" && upcomingRows.length === 0 && (
           <p className={styles.emptyText}>
             No upcoming WWE events in the forward window, or upcoming rows are already marked completed.
           </p>
         )}
 
-        {sourceRows.length > 0 && list.length === 0 && filter && (
-          <p className={styles.emptyText}>
-            No {tab === "upcoming" ? "upcoming " : ""}
-            {filterLabel(filter)} events match this filter.
+        {tab === "upcoming" && upcomingRows.length > 0 && filter && list.length > 0 && (
+          <p className={styles.filterHint}>
+            Showing <strong style={{ color: "#ccc" }}>{filterLabel(filter)}</strong> only · {list.length} event
+            {list.length === 1 ? "" : "s"}
           </p>
         )}
 
-        {list.length > 0 && (
+        {tab === "upcoming" && upcomingRows.length > 0 && list.length === 0 && filter && (
+          <p className={styles.emptyText}>
+            No upcoming {filterLabel(filter)} events match this filter.
+          </p>
+        )}
+
+        {tab === "upcoming" && list.length > 0 && (
           <ul className={styles.cardList}>
             {list.map((event) => {
               const title = getEventResultsCardTitle(event);
@@ -165,9 +178,7 @@ export default async function EventResultsPage({ searchParams }: { searchParams:
                     <div className={styles.cardText}>
                       <h2 className={styles.cardTitle}>{title}</h2>
                       {meta ? <p className={styles.cardMeta}>{meta}</p> : null}
-                      {tab === "upcoming" && (
-                        <p className={styles.upcomingHint}>Scheduled · fantasy scoring after the show airs</p>
-                      )}
+                      <p className={styles.upcomingHint}>Scheduled · fantasy scoring after the show airs</p>
                     </div>
                   </Link>
                 </li>
