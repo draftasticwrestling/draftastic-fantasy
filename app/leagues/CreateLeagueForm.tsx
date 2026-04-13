@@ -1,7 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
-import { useCallback, useState } from "react";
+import { useActionState, useCallback, useState } from "react";
 import { createLeagueAction, type CreateLeagueState } from "./new/actions";
 import {
   SEASON_OPTIONS,
@@ -63,7 +62,7 @@ export function CreateLeagueForm({
   requiresAccessCodeEnv = false,
   isSiteAdmin = false,
 }: FormProps) {
-  const [state, formAction] = useFormState(createLeagueAction, null);
+  const [state, formAction] = useActionState(createLeagueAction, null);
   const [teamCount, setTeamCount] = useState<number>(4);
   const [leagueType, setLeagueType] = useState<string>("season_overall");
   /** When true, admin sees the same fields/rules as a normal user (and submits enforce_standard_create_rules). */

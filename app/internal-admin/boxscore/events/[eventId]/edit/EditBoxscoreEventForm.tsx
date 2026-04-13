@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { BoxscoreEventEditorRow } from "@/lib/boxscoreAdmin/boxscoreEventEditorLoad";
@@ -93,7 +94,7 @@ export function EditBoxscoreEventForm({
   initialTagTeamData: BoxscoreTagTeamDataMap;
   mergedOptions: MergedBoxscoreUiOptions;
 }) {
-  const [state, formAction] = useFormState(submitUpdateWithBroadcast, null);
+  const [state, formAction] = useActionState(submitUpdateWithBroadcast, null);
   const [status, setStatus] = useState(() => initialStatus(event));
   const [eventDate, setEventDate] = useState(() => {
     const d = event.date?.trim() ?? "";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { updateLeagueTypeFormAction } from "../actions";
 
 const LEAGUE_TYPES: Array<{
@@ -45,7 +45,7 @@ type Props = {
 export function LeagueTypeSection({ leagueSlug, leagueType }: Props) {
   const effectiveType = leagueType ?? "season_overall";
 
-  const [state, formAction] = useFormState(updateLeagueTypeFormAction, null as { error?: string } | null);
+  const [state, formAction] = useActionState(updateLeagueTypeFormAction, null as { error?: string } | null);
 
   return (
     <section aria-labelledby="league-type-heading" style={{ marginBottom: 32 }}>

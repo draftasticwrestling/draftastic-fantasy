@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useFormState } from "react-dom";
+import { useState, useActionState } from "react";
 import { updateDraftSettingsFormAction } from "../actions";
 import type { DraftOrderMethod } from "@/lib/leagues";
 
@@ -75,7 +74,7 @@ export function DraftSettingsSection({
     (draftDate && draftDate.length > 10 ? draftDate.slice(11, 16) : "") ||
     "";
 
-  const [state, formAction] = useFormState(updateDraftSettingsFormAction, null as { error?: string } | null);
+  const [state, formAction] = useActionState(updateDraftSettingsFormAction, null as { error?: string } | null);
 
   return (
     <section aria-labelledby="draft-settings-heading" style={{ marginBottom: 32 }}>

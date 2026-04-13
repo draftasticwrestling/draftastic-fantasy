@@ -1,10 +1,10 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { generateDraftOrderWithStateAction } from "./actions";
 
 export function GenerateDraftOrderForm({ leagueSlug }: { leagueSlug: string }) {
-  const [state, formAction] = useFormState(generateDraftOrderWithStateAction, null as { error?: string } | null);
+  const [state, formAction] = useActionState(generateDraftOrderWithStateAction, null as { error?: string } | null);
   const hasError = Boolean(state?.error);
   const hasSuccess = state != null && !state?.error;
 

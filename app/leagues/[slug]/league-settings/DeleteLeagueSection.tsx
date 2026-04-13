@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { deleteLeagueFormAction } from "../actions";
 import { useState } from "react";
 
@@ -13,7 +13,7 @@ export function DeleteLeagueSection({ leagueSlug, leagueName }: Props) {
   const [confirmName, setConfirmName] = useState("");
   const [confirmChecked, setConfirmChecked] = useState(false);
 
-  const [state, formAction] = useFormState(deleteLeagueFormAction, null as { error?: string } | null);
+  const [state, formAction] = useActionState(deleteLeagueFormAction, null as { error?: string } | null);
 
   const nameMatches = confirmName.trim() === leagueName;
   const canSubmit = confirmChecked && nameMatches;

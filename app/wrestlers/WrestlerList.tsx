@@ -7,6 +7,7 @@ import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 import { WrestlerTableLegend } from "./WrestlerTableLegend";
 import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
 import { getNationalityFlagDisplay } from "@/lib/nationalityFlag";
+import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 
 export type WrestlerRow = {
   id: string;
@@ -129,23 +130,6 @@ const BRAND_LOGO_URLS: Record<string, string | undefined> = {
   NXT: EVENT_LOGO_URLS.nxt,
   AAA: EVENT_LOGO_URLS.aaa,
 };
-
-/** Map raw brand string to a filter category. */
-function normalizeRoster(brand: string | null): string {
-  if (!brand || !brand.trim()) return "Unassigned";
-  const lower = brand.trim().toLowerCase();
-  if (lower === "raw") return "Raw";
-  if (lower === "smackdown" || lower === "smack down") return "SmackDown";
-  if (lower === "nxt" || lower.includes("nxt")) return "NXT";
-  if (lower === "aaa") return "AAA";
-  if (lower === "celebrity guests" || lower === "celebrity" || lower === "celebrity guest") return "Celebrity Guests";
-  if (lower === "alumni") return "Alumni";
-  if (lower === "managers" || lower === "manager") return "Front Office";
-  if (lower === "gm" || lower === "gms") return "Front Office";
-  if (lower === "head of creative") return "Front Office";
-  if (lower === "announcers" || lower === "announcer") return "Front Office";
-  return "Other";
-}
 
 function normalizeGender(g: string | null): string {
   if (!g) return "—";
@@ -296,8 +280,8 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, 
   let out = 0;
   switch (col) {
     case "roster": {
-      const ra = normalizeRoster(a.brand);
-      const rb = normalizeRoster(b.brand);
+      const ra = wrestlerRosterFromBrand(a.brand);
+      const rb = wrestlerRosterFromBrand(b.brand);
       const ia = ROSTER_ORDER.indexOf(ra as (typeof ROSTER_ORDER)[number]);
       const ib = ROSTER_ORDER.indexOf(rb as (typeof ROSTER_ORDER)[number]);
       out = ia - ib;
@@ -643,7 +627,7 @@ export default function WrestlerList({
   };
 
   const filteredAndSorted = useMemo(() => {
-    let list = wrestlers.filter((w) => includedRosters.has(normalizeRoster(w.brand)));
+    let list = wrestlers.filter((w) => includedRosters.has(wrestlerRosterFromBrand(w.brand)));
     list = list.filter((w) => passesGenderFilter(w, includeMale, includeFemale));
     const q = search.trim().toLowerCase();
     if (q) {
@@ -662,7 +646,7 @@ export default function WrestlerList({
 
   /** Rank by total points (selected period) among filtered wrestlers; 1 = highest. */
   const rankByWrestlerId = useMemo(() => {
-    let list = wrestlers.filter((w) => includedRosters.has(normalizeRoster(w.brand)));
+    let list = wrestlers.filter((w) => includedRosters.has(wrestlerRosterFromBrand(w.brand)));
     list = list.filter((w) => passesGenderFilter(w, includeMale, includeFemale));
     const q = search.trim().toLowerCase();
     if (q) {
@@ -835,7 +819,7 @@ export default function WrestlerList({
       {/* Mobile: card list (no truncated headers or rotated text) */}
       <div className="wrestler-list-cards">
         {flatList.length === 0 ? null : flatList.map((w) => {
-          const roster = normalizeRoster(w.brand);
+          const roster = wrestlerRosterFromBrand(w.brand);
           const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
           const age = calculateAge(w.dob);
           const pts = getPointsForPeriod(w, pointsPeriod);
@@ -951,7 +935,7 @@ export default function WrestlerList({
               })}
             </div>
             {flatList.map((w, rowIndex) => {
-              const roster = normalizeRoster(w.brand);
+              const roster = wrestlerRosterFromBrand(w.brand);
               const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
               const brandLogo = BRAND_LOGO_URLS[roster];
               const rowBg = rowIndex % 2 === 0 ? ROW_BG_MAIN : ROW_BG_ALT;
@@ -1135,7 +1119,7 @@ export default function WrestlerList({
       {isBoxscore && flatList.length > 0 && (
         <div className="wrestlers-boxscore-grid" role="list">
           {flatList.map((w) => {
-            const roster = normalizeRoster(w.brand);
+            const roster = wrestlerRosterFromBrand(w.brand);
             const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
             const rating = w.rating_2k26 ?? w.rating_2k25;
             return (

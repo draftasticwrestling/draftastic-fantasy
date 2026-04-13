@@ -14,9 +14,21 @@ import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/li
 
 function normalizeGender(g: string | null | undefined): "F" | "M" | null {
   if (g == null || typeof g !== "string") return null;
-  const lower = g.trim().toLowerCase();
-  if (lower === "female" || lower === "f") return "F";
-  if (lower === "male" || lower === "m") return "M";
+  const l = g.trim().toLowerCase();
+  if (
+    l === "female" ||
+    l === "f" ||
+    l === "woman" ||
+    l === "women" ||
+    l === "girl" ||
+    l === "she" ||
+    l.startsWith("fem")
+  ) {
+    return "F";
+  }
+  if (l === "male" || l === "m" || l === "man" || l === "men" || l === "boy" || l.startsWith("mal")) {
+    return "M";
+  }
   return null;
 }
 

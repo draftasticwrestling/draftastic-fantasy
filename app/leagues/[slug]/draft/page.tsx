@@ -12,6 +12,8 @@ import {
   getDraftPreferences,
   getDraftPreferencesForAllMembers,
   runAutoPickIfExpired,
+  MAX_AUTOPICK_PICKS_DRAFT_PAGE,
+  repairDraftAutopickCursor,
   isDraftableWrestler,
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
@@ -24,6 +26,8 @@ import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
 import { LeagueDraftRoom } from "./LeagueDraftRoom";
+import { AutopickClientRunner } from "./AutopickClientRunner";
+import { AutopickDraftBoardView } from "./AutopickDraftBoardView";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -81,21 +85,47 @@ export default async function LeagueDraftPage({ params }: Props) {
     const autopickDisabled = process.env.DISABLE_AUTOPICK_DRAFT === "1" || process.env.DISABLE_AUTOPICK_DRAFT === "true";
     // Only run when a draft is live — avoids admin round-trips on every poll/refresh for not_started/completed.
     const draftStatusEarly = league.draft_status ?? "not_started";
+    const isAutopickInProgress =
+      !autopickDisabled && draftStatusEarly === "in_progress" && league.draft_type === "autopick";
+
+    // Autopick runs via client server actions (AutopickClientRunner) so this RSC response stays fast.
+    // Long synchronous autopick here caused browsers to abort the flight request ("network error").
+    if (isAutopickInProgress) {
+      await repairDraftAutopickCursor(league.id);
+    }
+
     const autoResult =
       autopickDisabled || draftStatusEarly !== "in_progress"
         ? { didAutoPick: false as const }
-        : await runAutoPickIfExpired(league.id);
+        : isAutopickInProgress
+          ? { didAutoPick: false as const }
+          : await runAutoPickIfExpired(league.id, { maxPicksPerInvocation: MAX_AUTOPICK_PICKS_DRAFT_PAGE });
     if (autoResult.didAutoPick) redirect(`/leagues/${slug}/draft`);
 
     // Do not auto-start autopick on page load: let the commissioner change draft order after
     // restart if needed, then click "Begin draft". Scheduled autopick is started by cron only.
+
+    const skipHeavyDraftPool = isAutopickInProgress || draftStatusEarly === "completed";
+
+    const emptyWrestlerDiagnostic = {
+      source: "none" as const,
+      userRawCount: 0,
+      userError: null as string | null,
+      adminUsed: false,
+      adminRawCount: null as number | null,
+      adminError: null as string | null,
+      filteredCount: 0,
+      hasServiceRole: !!getAdminClient(),
+    };
 
     const [membersData, stateData, currentPickData, rostersData, wrestlersResult, picksData, allPrefsData, pointsData] = await Promise.all([
       getLeagueMembers(league.id),
       getLeagueDraftState(league.id),
       getCurrentPick(league.id),
       getRostersForLeague(league.id),
-      (async () => {
+      skipHeavyDraftPool
+        ? Promise.resolve({ rows: [] as typeof wrestlersRows, diagnostic: emptyWrestlerDiagnostic })
+        : (async () => {
         type Row = {
           id: string;
           name: string | null;
@@ -174,26 +204,33 @@ export default async function LeagueDraftPage({ params }: Props) {
         return { rows: filtered, diagnostic };
       })(),
       getDraftPicksHistory(league.id),
-      getDraftPreferencesForAllMembers(league.id),
-      (async () => {
-        const supabase = await createClient();
-        const start = getEffectiveLeagueStartDate(league);
-        const ALL_TIME_FROM = "2020-01-01";
-        const ALL_TIME_LIMIT = 10000;
-        const [sinceStart, events2025, events2026, eventsAll] = await Promise.all([
-          supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", start).order("date", { ascending: true }),
-          supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
-          supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2026-01-01").order("date", { ascending: true }),
-          supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", ALL_TIME_FROM).order("date", { ascending: true }).limit(ALL_TIME_LIMIT),
-        ]);
-        const cast = (d: unknown[]) => d as { id: string; name: string; date: string; matches?: object[] }[];
-        return {
-          pointsBySlug: aggregateWrestlerPoints(cast(sinceStart.data ?? [])),
-          points2025BySlug: aggregateWrestlerPoints(cast(events2025.data ?? [])),
-          points2026BySlug: aggregateWrestlerPoints(cast(events2026.data ?? [])),
-          pointsAllTimeBySlug: aggregateWrestlerPoints(cast(eventsAll.data ?? [])),
-        };
-      })(),
+      skipHeavyDraftPool ? Promise.resolve([] as Awaited<ReturnType<typeof getDraftPreferencesForAllMembers>>) : getDraftPreferencesForAllMembers(league.id),
+      skipHeavyDraftPool
+        ? Promise.resolve({
+            pointsBySlug: {} as Record<string, { rsPoints: number; plePoints: number; beltPoints: number }>,
+            points2025BySlug: {},
+            points2026BySlug: {},
+            pointsAllTimeBySlug: {},
+          })
+        : (async () => {
+            const supabase = await createClient();
+            const start = getEffectiveLeagueStartDate(league);
+            const ALL_TIME_FROM = "2020-01-01";
+            const ALL_TIME_LIMIT = 10000;
+            const [sinceStart, events2025, events2026, eventsAll] = await Promise.all([
+              supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", start).order("date", { ascending: true }),
+              supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
+              supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2026-01-01").order("date", { ascending: true }),
+              supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", ALL_TIME_FROM).order("date", { ascending: true }).limit(ALL_TIME_LIMIT),
+            ]);
+            const cast = (d: unknown[]) => d as { id: string; name: string; date: string; matches?: object[] }[];
+            return {
+              pointsBySlug: aggregateWrestlerPoints(cast(sinceStart.data ?? [])),
+              points2025BySlug: aggregateWrestlerPoints(cast(events2025.data ?? [])),
+              points2026BySlug: aggregateWrestlerPoints(cast(events2026.data ?? [])),
+              pointsAllTimeBySlug: aggregateWrestlerPoints(cast(eventsAll.data ?? [])),
+            };
+          })(),
     ]);
     members = membersData;
     picksHistory = picksData;
@@ -261,15 +298,6 @@ export default async function LeagueDraftPage({ params }: Props) {
 
     const isLiveDraftType = leagueDraftType === "linear" || leagueDraftType === "snake";
 
-    const FOCUS_LABELS: Record<string, string> = { all: "All-time points", "2026": "2026 points", "2025": "2025 points" };
-    const POINT_STRATEGY_LABELS: Record<string, string> = { total: "Total Points", rs: "R/S points", ple: "PLE Points", belt: "Belt Points" };
-    const WRESTLER_STRATEGY_LABELS: Record<string, string> = {
-      best_available: "Best available",
-      balanced_gender: "Balanced male/female",
-      balanced_brands: "Balanced Raw/SmackDown",
-      high_males: "High ranking males",
-      high_females: "High ranking females",
-    };
     const hasAutoDraftSettingsSaved =
       userDraftPrefs != null &&
       (userDraftPrefs.priority_list?.length > 0 || userDraftPrefs.strategy_options != null);
@@ -363,8 +391,10 @@ export default async function LeagueDraftPage({ params }: Props) {
     }
 
     const showDraftRoom = (draftStatus === "in_progress" || draftStatus === "completed") && order.length > 0;
+    const isAutopickRunning = league.draft_type === "autopick" && draftStatus === "in_progress";
+    const wideDraftLayout = showDraftRoom && !isAutopickRunning;
     return (
-    <main className="app-page" style={{ maxWidth: showDraftRoom ? 1100 : 720, margin: "0 auto", padding: showDraftRoom ? "2rem 1rem" : undefined, fontSize: 16, lineHeight: 1.5 }}>
+    <main className="app-page" style={{ maxWidth: wideDraftLayout ? 1100 : 720, margin: "0 auto", padding: showDraftRoom ? "2rem 1rem" : undefined, fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 24 }}>
         <Link href={`/leagues/${slug}`} className="app-link">
           ← {league.name}
@@ -501,28 +531,14 @@ export default async function LeagueDraftPage({ params }: Props) {
           </p>
         )}
         <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
-          If the pick clock runs out, your pick is made automatically using your priority list and strategy.
+          If the pick clock runs out, your pick is made automatically using your priority list; after it runs out,
+          picks use all-time total points and best-available tie-breaks.
         </p>
         {hasAutoDraftSettingsSaved && userDraftPrefs && (
           <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px", fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
             {userDraftPrefs.priority_list?.length > 0 && (
               <li>
                 <strong style={{ color: "var(--color-text)" }}>Priority list:</strong> {userDraftPrefs.priority_list.length} wrestlers
-              </li>
-            )}
-            {userDraftPrefs.strategy_options?.focus && (
-              <li>
-                <strong style={{ color: "var(--color-text)" }}>Focus:</strong> {FOCUS_LABELS[userDraftPrefs.strategy_options.focus] ?? userDraftPrefs.strategy_options.focus}
-              </li>
-            )}
-            {userDraftPrefs.strategy_options?.pointStrategy && (
-              <li>
-                <strong style={{ color: "var(--color-text)" }}>Point strategy:</strong> {POINT_STRATEGY_LABELS[userDraftPrefs.strategy_options.pointStrategy] ?? userDraftPrefs.strategy_options.pointStrategy}
-              </li>
-            )}
-            {userDraftPrefs.strategy_options?.wrestlerStrategy && (
-              <li>
-                <strong style={{ color: "var(--color-text)" }}>Wrestler strategy:</strong> {WRESTLER_STRATEGY_LABELS[userDraftPrefs.strategy_options.wrestlerStrategy] ?? userDraftPrefs.strategy_options.wrestlerStrategy}
               </li>
             )}
           </ul>
@@ -584,7 +600,7 @@ export default async function LeagueDraftPage({ params }: Props) {
         </section>
       )}
 
-      {draftStatus === "completed" ? (
+      {draftStatus === "completed" && order.length === 0 ? (
         <p style={{ color: "#0d7d0d", fontWeight: 600, marginBottom: 24 }}>Draft completed.</p>
       ) : null}
 
@@ -734,44 +750,66 @@ export default async function LeagueDraftPage({ params }: Props) {
       {(draftStatus === "in_progress" || draftStatus === "completed") && order.length > 0 && (
         <>
           {draftStatus === "in_progress" && !autopickDisabled && (
-            <DraftPolling isAutopick={league.draft_type === "autopick"} />
+            <DraftPolling
+              isAutopick={league.draft_type === "autopick"}
+              intervalMs={isAutopickRunning ? 3500 : undefined}
+            />
           )}
-          <LeagueDraftRoom
-            autopickError={autoResult?.error ?? null}
-            order={order}
-            picksHistory={picksHistory}
-            members={members.map((m) => ({ user_id: m.user_id, display_name: m.display_name, team_name: m.team_name }))}
-            wrestlerPoolDiagnostic={wrestlerPoolDiagnostic}
-            wrestlers={wrestlersRows.map((w) => ({
-              id: w.id,
-              name: w.name ?? null,
-              gender: w.gender ?? null,
-              brand: w.brand ?? null,
-              dob: w.dob ?? null,
-              image_url: w.image_url ?? null,
-              rating_2k26: (w as { "2K26 rating"?: number | null })["2K26 rating"] ?? null,
-              rating_2k25: (w as { "2K25 rating"?: number | null })["2K25 rating"] ?? null,
-            }))}
-            pointsBySlug={pointsBySlug}
-            points2025BySlug={points2025BySlug}
-            points2026BySlug={points2026BySlug}
-            pointsAllTimeBySlug={pointsAllTimeBySlug}
-            draftedIds={Array.from(draftedIds)}
-            rosterEntriesByUser={rosters}
-            currentPickSlot={draftCurrentPick}
-            totalPicks={totalPicks}
-            draftStatus={draftStatus}
-            currentPickerUserId={currentPick?.user_id ?? null}
-            isCurrentPicker={isCurrentPicker}
-            leagueSlug={slug}
-            draftCurrentPickStartedAt={state?.draft_current_pick_started_at ?? null}
-            timePerPickSeconds={
-              league.draft_type === "autopick"
-                ? 5
-                : (league.time_per_pick_seconds ?? 120)
-            }
-            showTimerForAll={league.draft_type === "autopick"}
-          />
+          {draftStatus === "in_progress" && !autopickDisabled && league.draft_type === "autopick" && (
+            <AutopickClientRunner leagueSlug={slug} enabled />
+          )}
+          {isAutopickRunning || draftStatus === "completed" ? (
+            <AutopickDraftBoardView
+              leagueSlug={slug}
+              order={order}
+              picksHistory={picksHistory}
+              members={members.map((m) => ({ user_id: m.user_id, display_name: m.display_name, team_name: m.team_name }))}
+              draftStatus={draftStatus === "completed" ? "completed" : "in_progress"}
+              currentPickSlot={draftStatus === "completed" ? null : draftCurrentPick}
+              totalPicks={totalPicks}
+              isAutopickLeague={league.draft_type === "autopick"}
+            />
+          ) : null}
+          {!isAutopickRunning ? (
+            <div style={{ marginTop: draftStatus === "completed" ? 28 : 0 }}>
+            <LeagueDraftRoom
+              autopickError={autoResult?.error ?? null}
+              order={order}
+              picksHistory={picksHistory}
+              members={members.map((m) => ({ user_id: m.user_id, display_name: m.display_name, team_name: m.team_name }))}
+              wrestlerPoolDiagnostic={wrestlerPoolDiagnostic}
+              wrestlers={wrestlersRows.map((w) => ({
+                id: w.id,
+                name: w.name ?? null,
+                gender: w.gender ?? null,
+                brand: w.brand ?? null,
+                dob: w.dob ?? null,
+                image_url: w.image_url ?? null,
+                rating_2k26: (w as { "2K26 rating"?: number | null })["2K26 rating"] ?? null,
+                rating_2k25: (w as { "2K25 rating"?: number | null })["2K25 rating"] ?? null,
+              }))}
+              pointsBySlug={pointsBySlug}
+              points2025BySlug={points2025BySlug}
+              points2026BySlug={points2026BySlug}
+              pointsAllTimeBySlug={pointsAllTimeBySlug}
+              draftedIds={Array.from(draftedIds)}
+              rosterEntriesByUser={rosters}
+              currentPickSlot={draftCurrentPick}
+              totalPicks={totalPicks}
+              draftStatus={draftStatus}
+              currentPickerUserId={currentPick?.user_id ?? null}
+              isCurrentPicker={isCurrentPicker}
+              leagueSlug={slug}
+              draftCurrentPickStartedAt={state?.draft_current_pick_started_at ?? null}
+              timePerPickSeconds={
+                league.draft_type === "autopick"
+                  ? 5
+                  : (league.time_per_pick_seconds ?? 120)
+              }
+              showTimerForAll={league.draft_type === "autopick"}
+            />
+            </div>
+          ) : null}
           {(draftStatus === "in_progress" || draftStatus === "completed") && isCommissioner && (
             <div style={{ marginTop: 24 }}>
               <CommissionerDraftActions leagueSlug={slug} canClearLastPick={picksHistory.length > 0} />

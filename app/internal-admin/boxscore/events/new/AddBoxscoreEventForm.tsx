@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { useState } from "react";
 import type { BoxscoreTagTeamDataMap, BoxscoreWrestlerRow } from "@/lib/boxscoreAdmin/boxscoreEditorData";
@@ -67,7 +68,7 @@ export function AddBoxscoreEventForm({
   initialTagTeamData: BoxscoreTagTeamDataMap;
   mergedOptions: MergedBoxscoreUiOptions;
 }) {
-  const [state, formAction] = useFormState(submitWithBroadcast, null);
+  const [state, formAction] = useActionState(submitWithBroadcast, null);
   const [status, setStatus] = useState("upcoming");
   const [eventDate, setEventDate] = useState("");
   const [matches, setMatches] = useState<Record<string, unknown>[]>([]);

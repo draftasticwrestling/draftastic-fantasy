@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { updateManagerNoteAction } from "./actions";
 
 const DEFAULT_PLACEHOLDER =
@@ -11,7 +11,7 @@ export function EditManagerNoteForm(props: {
   initialNote: string | null;
 }) {
   const { leagueSlug, initialNote } = props;
-  const [state, formAction] = useFormState(updateManagerNoteAction, null as { error?: string } | null);
+  const [state, formAction] = useActionState(updateManagerNoteAction, null as { error?: string } | null);
   const value = initialNote?.trim() ?? "";
 
   return (

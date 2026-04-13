@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import {
   runFullAutopickDraftAtScheduledTime,
+  runAutoPickIfExpired,
   getScheduledDraftTimeMs,
   generateDraftOrderForScheduledDraft,
 } from "@/lib/leagueDraft";
@@ -92,10 +93,35 @@ export async function GET(request: Request) {
     if (result.error) errors.push(`${id}: ${result.error}`);
   }
 
+  const { data: inProgressAutopick } = await admin
+    .from("leagues")
+    .select("id")
+    .eq("draft_type", "autopick")
+    .eq("draft_status", "in_progress")
+    .not("draft_current_pick", "is", null);
+
+  let advancedInProgress = 0;
+  for (const row of inProgressAutopick ?? []) {
+    const id = (row as { id: string }).id;
+    let didWork = false;
+    let safety = 0;
+    while (safety++ < 8) {
+      const r = await runAutoPickIfExpired(id, { skipTimer: true });
+      if (r.error) {
+        errors.push(`${id} (in_progress): ${r.error}`);
+        break;
+      }
+      if (!r.didAutoPick) break;
+      didWork = true;
+    }
+    if (didWork) advancedInProgress += 1;
+  }
+
   return NextResponse.json({
     ran,
     due: due.length,
     orderGenerated,
+    advancedInProgress,
     errors: errors.length ? errors : undefined,
     orderErrors: orderErrors.length ? orderErrors : undefined,
   });

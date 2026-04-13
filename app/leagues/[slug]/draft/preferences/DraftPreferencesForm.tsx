@@ -2,11 +2,41 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { saveDraftPreferencesFormAction } from "../actions";
+import { AUTOPICK_REQUIRED_FEMALE_COUNT, AUTOPICK_REQUIRED_PRIORITY_COUNT } from "@/lib/draftPriorityRequirements";
+import { BIG_BOARD_IDS, DRAFT_BIG_BOARDS, type BigBoardId } from "@/lib/draftBigBoards";
+import { normalizeDraftPoolGender } from "@/lib/wrestlerDraftGender";
 
 const MIN_PRIORITY = 10;
 const MAX_PRIORITY = 50;
+
+/** Case-insensitive id key so priority_list slugs match DB `wrestlers.id` casing. */
+function wrestlerIdKey(id: string | null | undefined): string {
+  return String(id ?? "").trim().toLowerCase();
+}
+
+function buildWrestlerLookup(pool: WrestlerOption[]): Map<string, WrestlerOption> {
+  const m = new Map<string, WrestlerOption>();
+  for (const w of pool) {
+    if (w.id == null || String(w.id).trim() === "") continue;
+    const raw = String(w.id).trim();
+    m.set(raw, w);
+    m.set(raw.toLowerCase(), w);
+  }
+  return m;
+}
+
+function optionForPriorityId(lookup: Map<string, WrestlerOption>, priorityId: string): WrestlerOption | undefined {
+  const k = String(priorityId).trim();
+  return lookup.get(k) ?? lookup.get(k.toLowerCase());
+}
+
+function priorityListContainsId(list: readonly string[], wrestlerId: string): boolean {
+  const key = wrestlerIdKey(wrestlerId);
+  return list.some((x) => wrestlerIdKey(x) === key);
+}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -38,36 +68,16 @@ function normalizeSearch(s: string): string {
     .replace(/\s+/g, " ");
 }
 
-const FOCUS_OPTIONS = [
-  { value: "all", label: "All-time points" },
-  { value: "2026", label: "2026 points" },
-  { value: "2025", label: "2025 points" },
-];
-
-const POINT_STRATEGY_OPTIONS = [
-  { value: "total", label: "Total Points" },
-  { value: "rs", label: "R/S points" },
-  { value: "ple", label: "PLE Points" },
-  { value: "belt", label: "Belt Points" },
-];
-
-const WRESTLER_STRATEGY_OPTIONS = [
-  { value: "best_available", label: "Best available" },
-  { value: "balanced_gender", label: "Balanced male/female" },
-  { value: "balanced_brands", label: "Balanced Raw/SmackDown" },
-  { value: "high_males", label: "High ranking males" },
-  { value: "high_females", label: "High ranking females" },
-];
-
-type WrestlerOption = { id: string; name: string | null };
+type WrestlerOption = { id: string; name: string | null; gender?: string | null };
 
 type Props = {
   leagueSlug: string;
   wrestlerOptions: WrestlerOption[];
   initialPriorityList: string[];
-  initialFocus: string;
-  initialPointStrategy: string;
-  initialWrestlerStrategy: string;
+  /** Autopick: which Big Board is selected, or "custom" (including after editing a board). */
+  initialListSource?: "custom" | BigBoardId;
+  /** When true, show Big Board shortcuts and require 50+ / 16+ female for a custom list. */
+  isAutopickLeague?: boolean;
   disabled?: boolean;
 };
 
@@ -75,31 +85,24 @@ export function DraftPreferencesForm({
   leagueSlug,
   wrestlerOptions,
   initialPriorityList,
-  initialFocus,
-  initialPointStrategy,
-  initialWrestlerStrategy,
+  initialListSource = "custom",
+  isAutopickLeague = false,
   disabled = false,
 }: Props) {
+  const minPreferred = isAutopickLeague ? AUTOPICK_REQUIRED_PRIORITY_COUNT : MIN_PRIORITY;
+  const [listSource, setListSource] = useState<"custom" | BigBoardId>(() =>
+    isAutopickLeague ? initialListSource : "custom"
+  );
   const [priorityList, setPriorityList] = useState<string[]>(initialPriorityList);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  const [focus, setFocus] = useState(initialFocus);
-  const [pointStrategy, setPointStrategy] = useState(initialPointStrategy);
-  const [wrestlerStrategy, setWrestlerStrategy] = useState(initialWrestlerStrategy);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const router = useRouter();
   const priorityListInputRef = useRef<HTMLInputElement>(null);
-  const [formState, formAction] = useFormState(saveDraftPreferencesFormAction, null as { error?: string } | null);
-
-  // Sync radio state when server sends updated initial values (e.g. after save + refresh)
-  useEffect(() => {
-    setFocus(initialFocus);
-    setPointStrategy(initialPointStrategy);
-    setWrestlerStrategy(initialWrestlerStrategy);
-  }, [initialFocus, initialPointStrategy, initialWrestlerStrategy]);
+  const [formState, formAction] = useActionState(saveDraftPreferencesFormAction, null as { error?: string } | null);
 
   useEffect(() => {
     if (priorityListInputRef.current) {
@@ -116,9 +119,9 @@ export function DraftPreferencesForm({
     }
   }, [formState, router]);
 
-  const optionById = useMemo(() => new Map(wrestlerOptions.map((w) => [w.id, w])), [wrestlerOptions]);
+  const wrestlerLookup = useMemo(() => buildWrestlerLookup(wrestlerOptions), [wrestlerOptions]);
   const availableToAdd = useMemo(
-    () => wrestlerOptions.filter((w) => !priorityList.includes(w.id)),
+    () => wrestlerOptions.filter((w) => !priorityListContainsId(priorityList, w.id)),
     [wrestlerOptions, priorityList]
   );
   const searchNorm = normalizeSearch(searchQuery);
@@ -146,20 +149,28 @@ export function DraftPreferencesForm({
     if (highlightedIndex >= searchResults.length) setHighlightedIndex(Math.max(0, searchResults.length - 1));
   }, [searchResults.length, highlightedIndex]);
 
+  const markCustomOnListEdit = () => {
+    setListSource((prev) => (prev !== "custom" ? "custom" : prev));
+  };
+
   const addWrestlerById = (id: string) => {
-    if (!id || priorityList.includes(id) || priorityList.length >= MAX_PRIORITY) return;
-    setPriorityList((prev) => [...prev, id]);
+    if (!id || priorityListContainsId(priorityList, id) || priorityList.length >= MAX_PRIORITY) return;
+    markCustomOnListEdit();
+    const canonical = optionForPriorityId(wrestlerLookup, id)?.id ?? id;
+    setPriorityList((prev) => [...prev, canonical]);
     setSearchQuery("");
     setSearchOpen(false);
     setHighlightedIndex(0);
   };
 
   const removeWrestler = (index: number) => {
+    markCustomOnListEdit();
     setPriorityList((prev) => prev.filter((_, i) => i !== index));
   };
 
   const moveUp = (index: number) => {
     if (index <= 0) return;
+    markCustomOnListEdit();
     setPriorityList((prev) => {
       const next = [...prev];
       [next[index - 1], next[index]] = [next[index], next[index - 1]];
@@ -169,6 +180,7 @@ export function DraftPreferencesForm({
 
   const moveDown = (index: number) => {
     if (index >= priorityList.length - 1) return;
+    markCustomOnListEdit();
     setPriorityList((prev) => {
       const next = [...prev];
       [next[index], next[index + 1]] = [next[index + 1], next[index]];
@@ -193,6 +205,7 @@ export function DraftPreferencesForm({
     setDraggedIndex(null);
     const dragIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
     if (Number.isNaN(dragIndex) || dragIndex === dropIndex) return;
+    markCustomOnListEdit();
     setPriorityList((prev) => {
       const next = [...prev];
       const [removed] = next.splice(dragIndex, 1);
@@ -234,25 +247,193 @@ export function DraftPreferencesForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     setMessage(null);
-    if (priorityList.length > 0 && (priorityList.length < MIN_PRIORITY || priorityList.length > MAX_PRIORITY)) {
-      e.preventDefault();
-      setMessage({ type: "error", text: `Preferred wrestlers list must have between ${MIN_PRIORITY} and ${MAX_PRIORITY} wrestlers when set.` });
+    if (listSource !== "custom") return;
+
+    if (priorityList.length === 0) {
+      if (isAutopickLeague) {
+        e.preventDefault();
+        setMessage({ type: "error", text: "Add your ranked list or choose a Big Board above." });
+      }
       return;
+    }
+
+    if (priorityList.length > MAX_PRIORITY) {
+      e.preventDefault();
+      setMessage({ type: "error", text: `At most ${MAX_PRIORITY} wrestlers on the priority list.` });
+      return;
+    }
+
+    if (isAutopickLeague) {
+      if (priorityList.length < AUTOPICK_REQUIRED_PRIORITY_COUNT) {
+        e.preventDefault();
+        setMessage({
+          type: "error",
+          text: `Autopick needs at least ${AUTOPICK_REQUIRED_PRIORITY_COUNT} wrestlers on your list (currently ${priorityList.length}).`,
+        });
+        return;
+      }
+      const femaleCount = priorityList.reduce(
+        (n, id) => n + (normalizeDraftPoolGender(optionForPriorityId(wrestlerLookup, id)?.gender) === "F" ? 1 : 0),
+        0
+      );
+      if (femaleCount < AUTOPICK_REQUIRED_FEMALE_COUNT) {
+        e.preventDefault();
+        setMessage({
+          type: "error",
+          text: `Autopick needs at least ${AUTOPICK_REQUIRED_FEMALE_COUNT} female wrestlers on your list (currently ${femaleCount}).`,
+        });
+        return;
+      }
+      return;
+    }
+
+    if (priorityList.length < MIN_PRIORITY) {
+      e.preventDefault();
+      setMessage({
+        type: "error",
+        text: `Preferred wrestlers list must have between ${MIN_PRIORITY} and ${MAX_PRIORITY} wrestlers when set.`,
+      });
     }
   };
 
   return (
     <form action={formAction} onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <input type="hidden" name="league_slug" value={leagueSlug} />
+      <input type="hidden" name="list_source" value={listSource} />
       <input ref={priorityListInputRef} type="hidden" name="priority_list" defaultValue={JSON.stringify(priorityList)} />
+      {isAutopickLeague && (
+        <section>
+          <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
+            Priority list source
+          </h2>
+          <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 12 }}>
+            Build your own ranked list, or apply an official Big Board (same 50+ / 16+ female rules apply once the board is filled in on the server).
+            If you reorder, add, or remove anyone after choosing a board, your list is saved as <strong>My own list</strong> with your edits.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 14, cursor: disabled ? "default" : "pointer" }}>
+              <input
+                type="radio"
+                name="list_source_ui"
+                checked={listSource === "custom"}
+                onChange={() => {
+                  setListSource("custom");
+                }}
+                disabled={disabled}
+                style={{ width: 18, height: 18, marginTop: 2 }}
+              />
+              <span>
+                <strong>My own list</strong> — rank at least {AUTOPICK_REQUIRED_PRIORITY_COUNT} wrestlers (include at least{" "}
+                {AUTOPICK_REQUIRED_FEMALE_COUNT} female).
+              </span>
+            </label>
+            {BIG_BOARD_IDS.map((id) => {
+              const board = DRAFT_BIG_BOARDS[id];
+              const ready = board.wrestlerIds.length >= AUTOPICK_REQUIRED_PRIORITY_COUNT;
+              return (
+                <label
+                  key={id}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    fontSize: 14,
+                    cursor: disabled || !ready ? "default" : "pointer",
+                    opacity: ready ? 1 : 0.55,
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="list_source_ui"
+                    checked={listSource === id}
+                    onChange={() => {
+                      setListSource(id);
+                      setPriorityList([]);
+                    }}
+                    disabled={disabled || !ready}
+                    style={{ width: 18, height: 18, marginTop: 2 }}
+                  />
+                  <span>
+                    <strong>{board.label}</strong>
+                    {!ready ? (
+                      <span style={{ color: "var(--color-text-muted)" }}> — not configured yet (needs {AUTOPICK_REQUIRED_PRIORITY_COUNT} IDs in code).</span>
+                    ) : (
+                      <span style={{ color: "var(--color-text-muted)" }}> — {board.wrestlerIds.length} wrestlers</span>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {listSource !== "custom" && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: "12px 14px",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius)",
+                background: "var(--color-bg-surface)",
+              }}
+            >
+              <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>
+                Preview — {DRAFT_BIG_BOARDS[listSource].label}
+              </p>
+              <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--color-text-muted)" }}>
+                This ranked order is what will be saved to your account when you click Save preferences.
+              </p>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, maxHeight: 360, overflowY: "auto" }}>
+                {DRAFT_BIG_BOARDS[listSource].wrestlerIds.map((id, index, ids) => {
+                  const w = optionForPriorityId(wrestlerLookup, id);
+                  const label = w?.name ?? id;
+                  const missing = !w;
+                  return (
+                    <li
+                      key={`${id}-${index}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "7px 0",
+                        borderBottom: index < ids.length - 1 ? "1px solid var(--color-border)" : "none",
+                        fontSize: 14,
+                      }}
+                    >
+                      <span style={{ color: "var(--color-text-muted)", fontWeight: 600, minWidth: 28 }}>#{index + 1}</span>
+                      <span style={{ flex: 1, color: missing ? "var(--color-text-muted)" : "var(--color-text)" }}>
+                        {label}
+                        {missing ? (
+                          <span style={{ fontSize: 12, fontWeight: 400, marginLeft: 6 }}>
+                            (not in draft pool list — ID will still save)
+                          </span>
+                        ) : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
       <section>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
-          Preferred wrestlers (optional)
+          Preferred wrestlers {isAutopickLeague ? "(autopick)" : "(optional)"}
         </h2>
         <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 12 }}>
-          You can list 10–50 wrestlers in ranked order of preference. Auto-pick will choose the highest-ranked available wrestler from this list. Once none from your list are available, your focus and strategies below take over. Leave empty to use only the strategies below.
+          {isAutopickLeague ? (
+            <>
+              When &quot;My own list&quot; is selected, add <strong>{AUTOPICK_REQUIRED_PRIORITY_COUNT}+</strong> wrestlers in order (at least{" "}
+              <strong>{AUTOPICK_REQUIRED_FEMALE_COUNT}</strong> female). When a Big Board is selected, use the preview above, then save.
+            </>
+          ) : (
+            <>
+              You can list 10–50 wrestlers in ranked order of preference. Auto-pick will choose the highest-ranked
+              available wrestler from this list. Once none from your list are available, picks use all-time total
+              points and best-available tie-breaks. Leave empty to rely on those tie-breaks only.
+            </>
+          )}
         </p>
-        {!disabled && (
+        {!disabled && listSource === "custom" && (
           <div ref={searchContainerRef} style={{ position: "relative", marginBottom: 12, maxWidth: 400 }}>
             <input
               type="text"
@@ -335,7 +516,7 @@ export function DraftPreferencesForm({
             </p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, maxHeight: 320, overflowY: "auto" }}>
               {priorityList.map((id, index) => {
-                const w = optionById.get(id);
+                const w = optionForPriorityId(wrestlerLookup, id);
                 const name = w?.name || id;
                 const isDragging = draggedIndex === index;
                 return (
@@ -380,81 +561,15 @@ export function DraftPreferencesForm({
               })}
             </ul>
             <p style={{ padding: "8px 12px", fontSize: 12, color: "var(--color-text-muted)", borderTop: "1px solid var(--color-border)", margin: 0 }}>
-              {priorityList.length} wrestler{priorityList.length !== 1 ? "s" : ""}. {priorityList.length > 0 && priorityList.length < MIN_PRIORITY && "Add at least " + (MIN_PRIORITY - priorityList.length) + " more to save this list, or remove all."}
-              {priorityList.length >= MIN_PRIORITY && priorityList.length <= MAX_PRIORITY && " List is valid."}
+              {priorityList.length} wrestler{priorityList.length !== 1 ? "s" : ""}.{" "}
+              {priorityList.length > 0 &&
+                priorityList.length < minPreferred &&
+                "Add at least " + (minPreferred - priorityList.length) + " more to save this list, or remove all."}
+              {priorityList.length >= minPreferred && priorityList.length <= MAX_PRIORITY && " List is valid."}
               {priorityList.length > MAX_PRIORITY && " Maximum is " + MAX_PRIORITY + "."}
             </p>
           </div>
         )}
-      </section>
-
-      <section>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 8, color: "var(--color-text)" }}>
-          Choose a focus
-        </h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {FOCUS_OPTIONS.map((opt) => (
-            <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: disabled ? "default" : "pointer" }}>
-              <input
-                type="radio"
-                name="focus"
-                value={opt.value}
-                checked={focus === opt.value}
-                onChange={() => setFocus(opt.value)}
-                disabled={disabled}
-                style={{ width: 18, height: 18 }}
-              />
-              {opt.label}
-            </label>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 8, color: "var(--color-text)" }}>
-          Choose a point strategy
-        </h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {POINT_STRATEGY_OPTIONS.map((opt) => (
-            <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: disabled ? "default" : "pointer" }}>
-              <input
-                type="radio"
-                name="pointStrategy"
-                value={opt.value}
-                checked={pointStrategy === opt.value}
-                onChange={() => setPointStrategy(opt.value)}
-                disabled={disabled}
-                style={{ width: 18, height: 18 }}
-              />
-              {opt.label}
-            </label>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
-          Choose a wrestler strategy
-        </h2>
-        <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 8 }}>
-          Best available: top by points. Balanced male/female: balance roster by gender. Balanced Raw/SmackDown: by brand. High ranking males/females: rank by total points × 1.2, draft best.
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {WRESTLER_STRATEGY_OPTIONS.map((opt) => (
-            <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: disabled ? "default" : "pointer" }}>
-              <input
-                type="radio"
-                name="wrestlerStrategy"
-                value={opt.value}
-                checked={wrestlerStrategy === opt.value}
-                onChange={() => setWrestlerStrategy(opt.value)}
-                disabled={disabled}
-                style={{ width: 18, height: 18 }}
-              />
-              {opt.label}
-            </label>
-          ))}
-        </div>
       </section>
 
       {message && (

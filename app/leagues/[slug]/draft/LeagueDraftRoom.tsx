@@ -1,8 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useMemo } from "react";
-import { useFormState } from "react-dom";
+import { useState, useMemo, useActionState } from "react";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { makeDraftPickWithStateAction } from "./actions";
@@ -165,7 +164,7 @@ export function LeagueDraftRoom({
   timePerPickSeconds = 120,
   showTimerForAll = false,
 }: Props) {
-  const [state, formAction] = useFormState(makeDraftPickWithStateAction, { error: undefined });
+  const [state, formAction] = useActionState(makeDraftPickWithStateAction, { error: undefined });
   const [tableSort, setTableSort] = useState<"rank" | "name" | "total">("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("allTime");
@@ -304,6 +303,77 @@ export function LeagueDraftRoom({
 
   const isComplete = draftStatus === "completed";
 
+  const rostersPanel = (
+    <div>
+      <h3 style={{ fontSize: "1rem", marginBottom: 12 }}>Faction rosters</h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {uniqueOrderUserIds.map((userId) => {
+          const member = memberByUserId[userId];
+          const name = factionDisplayName(member, "Unknown");
+          const picks = rosterByUserId[userId] ?? [];
+          const isCurrent = currentPickerUserId === userId && !isComplete;
+          return (
+            <div
+              key={userId}
+              style={{
+                padding: 12,
+                background: isCurrent ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
+                borderRadius: "var(--radius)",
+                border: `1px solid ${isCurrent ? "var(--color-success-muted)" : "var(--color-border)"}`,
+              }}
+            >
+              <strong style={{ fontSize: 14 }}>{name}</strong>
+              <ul style={{ margin: "8px 0 0", paddingLeft: 0, listStyle: "none", fontSize: 14, color: "var(--color-text-muted)" }}>
+                {picks.map(({ wrestler_id, wrestler_name }) => {
+                  const displayName = wrestler_name ?? wrestlerIdToName[wrestler_id] ?? wrestler_id;
+                  const imageUrl = wrestlerIdToImage[wrestler_id];
+                  return (
+                    <li key={`${userId}-${wrestler_id}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      {imageUrl ? (
+                        <Image
+                          src={imageUrl}
+                          alt=""
+                          width={24}
+                          height={24}
+                          sizes="24px"
+                          style={{
+                            width: 24,
+                            height: 24,
+                            objectFit: "cover",
+                            borderRadius: "50%",
+                            background: "var(--color-bg-input)",
+                          }}
+                        />
+                      ) : (
+                        <span
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: "50%",
+                            background: "var(--color-bg-input)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 10,
+                            color: "var(--color-text-muted)",
+                          }}
+                          aria-hidden
+                        >
+                          —
+                        </span>
+                      )}
+                      <span>{displayName}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {autopickError && (
@@ -316,7 +386,14 @@ export function LeagueDraftRoom({
           }}
         >
           <p style={{ margin: 0, fontWeight: 600, color: "var(--color-red, #b91c1c)" }}>
-            Auto-pick failed: {autopickError} Refresh the page to try again. If the problem continues, the GM may need to set SUPABASE_SERVICE_ROLE_KEY in Netlify.
+            Auto-pick failed: {autopickError}{" "}
+            {/duplicate key|unique constraint/i.test(autopickError) || /roster full/i.test(autopickError) ? (
+              <>Refresh once—this often clears after concurrent picks settle. If it keeps happening, use Restart draft (GM) after checking rosters.</>
+            ) : (
+              <>
+                Refresh the page to try again. If the problem continues, the GM may need to set SUPABASE_SERVICE_ROLE_KEY in Netlify.
+              </>
+            )}
           </p>
         </section>
       )}
@@ -355,6 +432,9 @@ export function LeagueDraftRoom({
         </p>
       )}
 
+      {isComplete ? (
+        rostersPanel
+      ) : (
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
         <div>
           <h3 style={{ fontSize: "1rem", marginBottom: 8 }}>Available wrestlers</h3>
@@ -652,75 +732,9 @@ export function LeagueDraftRoom({
           </div>
         </div>
 
-        <div>
-          <h3 style={{ fontSize: "1rem", marginBottom: 12 }}>Rosters</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {uniqueOrderUserIds.map((userId) => {
-              const member = memberByUserId[userId];
-              const name = factionDisplayName(member, "Unknown");
-              const picks = rosterByUserId[userId] ?? [];
-              const isCurrent = currentPickerUserId === userId && !isComplete;
-              return (
-                <div
-                  key={userId}
-                  style={{
-                    padding: 12,
-                    background: isCurrent ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
-                    borderRadius: "var(--radius)",
-                    border: `1px solid ${isCurrent ? "var(--color-success-muted)" : "var(--color-border)"}`,
-                  }}
-                >
-                  <strong style={{ fontSize: 14 }}>{name}</strong>
-                  <ul style={{ margin: "8px 0 0", paddingLeft: 0, listStyle: "none", fontSize: 14, color: "var(--color-text-muted)" }}>
-                    {picks.map(({ wrestler_id, wrestler_name }) => {
-                      const displayName = wrestler_name ?? wrestlerIdToName[wrestler_id] ?? wrestler_id;
-                      const imageUrl = wrestlerIdToImage[wrestler_id];
-                      return (
-                        <li key={`${userId}-${wrestler_id}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                          {imageUrl ? (
-                            <Image
-                              src={imageUrl}
-                              alt=""
-                              width={24}
-                              height={24}
-                              sizes="24px"
-                              style={{
-                                width: 24,
-                                height: 24,
-                                objectFit: "cover",
-                                borderRadius: "50%",
-                                background: "var(--color-bg-input)",
-                              }}
-                            />
-                          ) : (
-                            <span
-                              style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: "50%",
-                                background: "var(--color-bg-input)",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 10,
-                                color: "var(--color-text-muted)",
-                              }}
-                              aria-hidden
-                            >
-                              —
-                            </span>
-                          )}
-                          <span>{displayName}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {rostersPanel}
       </div>
+      )}
     </div>
   );
 }

@@ -6,12 +6,15 @@ import { useEffect, useRef } from "react";
 /** Live draft: balance freshness vs serverless/RSC invocations (each refresh = full draft page render). */
 const LIVE_POLL_INTERVAL_MS = 18_000;
 
-/** Autopick: cron + server advance picks; UI only needs periodic catch-up. */
-const AUTOPICK_POLL_INTERVAL_MS = 45_000;
+/** Autopick when not using a custom interval (e.g. slim board uses faster refresh). */
+const AUTOPICK_POLL_INTERVAL_MS = 120_000;
 
-export function DraftPolling({ isAutopick = false }: { isAutopick?: boolean }) {
+type Props = { isAutopick?: boolean; /** Override default live / autopick intervals (ms). */ intervalMs?: number };
+
+export function DraftPolling({ isAutopick = false, intervalMs: intervalMsProp }: Props) {
   const router = useRouter();
-  const intervalMs = isAutopick ? AUTOPICK_POLL_INTERVAL_MS : LIVE_POLL_INTERVAL_MS;
+  const intervalMs =
+    intervalMsProp ?? (isAutopick ? AUTOPICK_POLL_INTERVAL_MS : LIVE_POLL_INTERVAL_MS);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {

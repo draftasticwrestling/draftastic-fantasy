@@ -721,11 +721,13 @@ export async function getRostersForLeague(
 /**
  * Same as getRostersForLeague but uses service role so all teams' rosters are returned.
  * Use in autopick/cron so draft state is correct regardless of RLS.
+ * Pass `adminClient` when you already hold a service-role client (avoids a redundant lookup).
  */
 export async function getRostersForLeagueAdmin(
-  leagueId: string
+  leagueId: string,
+  adminClient?: ReturnType<typeof getAdminClient>
 ): Promise<Record<string, LeagueRosterEntry[]>> {
-  const admin = getAdminClient();
+  const admin = adminClient ?? getAdminClient();
   if (!admin) return {};
   const { data, error } = await admin
     .from("league_rosters")

@@ -27,6 +27,12 @@ import {
   beltScoringLastMonthEndInclusive,
 } from "@/lib/beltRts2026JulyDeferral";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import {
+  LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM,
+  LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT,
+  LEAGUE_LEADERS_ALL_TIME_FIRST_MONTH_END,
+  allTimeLeadersStylePointBreakdown,
+} from "@/lib/leagueLeadersAllTimeScoring";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -47,10 +53,6 @@ type ChampionshipReign = {
   lost_date?: string | null;
   end_date?: string | null;
 };
-
-/** Match profile: all-time uses events from this date; high limit so we don't hit Supabase 1k default. */
-const ALL_TIME_EVENTS_FROM = "2020-01-01";
-const ALL_TIME_EVENTS_LIMIT = 10000;
 
 /** Allow cached response per league for 5 minutes to reduce repeated heavy queries. */
 export const revalidate = 300;
@@ -134,9 +136,9 @@ export default async function LeagueLeadersPage({
       .from("events")
       .select("id, name, date, matches")
       .in("status", [...EVENT_STATUSES_FOR_SCORING])
-      .gte("date", ALL_TIME_EVENTS_FROM)
+      .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
       .order("date", { ascending: true })
-      .limit(ALL_TIME_EVENTS_LIMIT);
+      .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT);
     eventsAll = (allEventsData ?? []) as typeof eventsAll;
     eventsSinceStart = eventsAll.filter((e) => (e.date ?? "") >= startDate);
     events2025 = eventsAll.filter((e) => (e.date ?? "") >= "2025-01-01" && (e.date ?? "") <= "2025-12-31");
@@ -185,8 +187,7 @@ export default async function LeagueLeadersPage({
     league.end_date,
     todayYmd
   );
-  const firstEligibleMonthEndAllTime = "2025-01-31"; // monthly belt points from Jan 2025 onward
-  const endOfMonthBeltPointsAllTime = computeEndOfMonthBeltPoints(reigns, firstEligibleMonthEndAllTime);
+  const endOfMonthBeltPointsAllTime = computeEndOfMonthBeltPoints(reigns, LEAGUE_LEADERS_ALL_TIME_FIRST_MONTH_END);
   const endOfMonthBeltPoints2025 = computeEndOfMonthBeltPoints(reigns, "2025-01-31", "2025-12-31");
   const endOfMonthBeltPoints2026 = computeEndOfMonthBeltPoints(reigns, "2026-01-31");
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
@@ -270,11 +271,11 @@ export default async function LeagueLeadersPage({
       matchStats2025 = getMatchStatsForWrestler(matchStats2025BySlug, slugKey, nameKey);
       matchStats2026 = getMatchStatsForWrestler(matchStats2026BySlug, slugKey, nameKey);
       matchStatsAllTime = getMatchStatsForWrestler(matchStatsAllTimeBySlug, slugKey, nameKey);
-      const extraBeltAllTime = getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey);
+      const allTimeParts = allTimeLeadersStylePointBreakdown(pointsAllTimeBySlug, endOfMonthBeltPointsAllTime, slugKey, nameKey);
+      beltPointsAllTime = allTimeParts.beltCombined;
+      totalPointsAllTime = allTimeParts.total;
       const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
       const extraBelt2026 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2026, slugKey, nameKey);
-      beltPointsAllTime = pointsAllTime.beltPoints + extraBeltAllTime;
-      totalPointsAllTime = pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
       beltPoints2025 = points2025.beltPoints + extraBelt2025;
       beltPoints2026 = points2026.beltPoints + extraBelt2026;
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { addRosterEntryAction, type AddRosterState } from "./actions";
 import type { LeagueMember } from "@/lib/leagues";
 
@@ -14,7 +14,7 @@ type Props = {
 };
 
 export function AddRosterForm({ leagueId, leagueSlug, members, wrestlers }: Props) {
-  const [state, formAction] = useFormState<AddRosterState | null, FormData>(
+  const [state, formAction] = useActionState<AddRosterState | null, FormData>(
     addRosterEntryAction,
     null
   );

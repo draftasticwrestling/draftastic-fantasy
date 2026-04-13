@@ -3,7 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { generateDraftOrder, setDraftOrderFromRound1, makeDraftPick, restartDraft, clearLastPick, startDraft, setDraftPreferences, clearDraftOrder } from "@/lib/leagueDraft";
+import {
+  generateDraftOrder,
+  setDraftOrderFromRound1,
+  makeDraftPick,
+  restartDraft,
+  clearLastPick,
+  startDraft,
+  setDraftPreferences,
+  clearDraftOrder,
+  runAutoPickIfExpired,
+  MAX_AUTOPICK_PICKS_DRAFT_PAGE,
+  DEFAULT_DRAFT_STRATEGY_OPTIONS,
+} from "@/lib/leagueDraft";
+import { getBigBoardPriorityList, isBigBoardId } from "@/lib/draftBigBoards";
 
 export async function generateDraftOrderAction(
   leagueSlug: string,
@@ -47,7 +60,7 @@ export async function generateDraftOrderFromFormAction(formData: FormData): Prom
   await generateDraftOrderAction(leagueSlug, formData);
 }
 
-/** useFormState-friendly wrapper so the draft page can show success/errors inline. */
+/** useActionState-friendly wrapper so the draft page can show success/errors inline. */
 export async function generateDraftOrderWithStateAction(
   _prevState: { error?: string } | null,
   formData: FormData
@@ -89,6 +102,40 @@ export async function startDraftAction(leagueSlug: string): Promise<{ error?: st
   return {};
 }
 
+/**
+ * Run up to MAX_AUTOPICK_PICKS_DRAFT_PAGE autopicks for an in-progress autopick league.
+ * Invoked from the client so the draft RSC payload stays small (avoids browser "network error" on long renders).
+ */
+export async function runAutopickTickAction(
+  leagueSlug: string
+): Promise<{ didAutoPick: boolean; error?: string }> {
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { didAutoPick: false };
+
+  if (league.draft_type !== "autopick" || league.draft_status !== "in_progress") {
+    return { didAutoPick: false };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { didAutoPick: false, error: "Sign in to run the draft." };
+
+  const { data: member } = await supabase
+    .from("league_members")
+    .select("league_id")
+    .eq("league_id", league.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!member) return { didAutoPick: false, error: "You are not a member of this league." };
+
+  const result = await runAutoPickIfExpired(league.id, { maxPicksPerInvocation: MAX_AUTOPICK_PICKS_DRAFT_PAGE });
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
+  return result;
+}
+
 /** FormData-only wrapper for Start Draft. */
 export async function startDraftFromFormAction(formData: FormData): Promise<void> {
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
@@ -103,7 +150,7 @@ export async function makeDraftPickFromFormAction(formData: FormData): Promise<v
   await makeDraftPickAction(leagueSlug, formData);
 }
 
-/** For useFormState: returns error so the make-pick form can display it. */
+/** For useActionState: returns error so the make-pick form can display it. */
 export async function makeDraftPickWithStateAction(
   _prev: { error?: string },
   formData: FormData
@@ -181,14 +228,13 @@ export async function clearLastPickFromFormAction(formData: FormData): Promise<v
   await clearLastPickAction(leagueSlug);
 }
 
-/** Save a user's auto-draft preferences (optional priority_list 10-50, strategy_options: focus, pointStrategy, wrestlerStrategy). */
+/** Save a user's auto-draft preferences (optional priority_list 10-50; strategy is fixed defaults). */
 export async function saveDraftPreferencesAction(
   leagueSlug: string,
   payload: {
     priority_list?: string[] | string;
-    focus: string;
-    pointStrategy: string;
-    wrestlerStrategy: string;
+    /** Autopick: "custom" or a Big Board id (which board was used, or custom after edits). */
+    priorityListSource?: string;
   }
 ): Promise<{ error?: string }> {
   const { getLeagueBySlug } = await import("@/lib/leagues");
@@ -215,13 +261,19 @@ export async function saveDraftPreferencesAction(
       priority_list = [];
     }
   }
+  let priorityListSource: string = "custom";
+  if (payload.priorityListSource === "custom") {
+    priorityListSource = "custom";
+  } else if (payload.priorityListSource && isBigBoardId(payload.priorityListSource)) {
+    priorityListSource = payload.priorityListSource;
+  }
+
   const result = await setDraftPreferences(league.id, user.id, {
     priority_list,
     strategy: [],
     strategy_options: {
-      focus: payload.focus as "2026" | "2025" | "all",
-      pointStrategy: payload.pointStrategy as "total" | "rs" | "ple" | "belt",
-      wrestlerStrategy: payload.wrestlerStrategy as "best_available" | "balanced_gender" | "balanced_brands" | "high_males" | "high_females",
+      ...DEFAULT_DRAFT_STRATEGY_OPTIONS,
+      priorityListSource,
     },
   });
   if (result.error) return result;
@@ -237,24 +289,39 @@ export async function saveDraftPreferencesFormAction(
 ): Promise<{ error?: string } | null> {
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return { error: "League slug is required." };
-  const priorityListRaw = formData.get("priority_list");
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+
+  const listSource = (formData.get("list_source") as string)?.trim() || "custom";
   let priority_list: string[] = [];
-  if (typeof priorityListRaw === "string") {
-    try {
-      const parsed = JSON.parse(priorityListRaw) as unknown;
-      priority_list = Array.isArray(parsed) ? (parsed as string[]) : [];
-    } catch {
-      priority_list = [];
+
+  if (league.draft_type === "autopick" && isBigBoardId(listSource)) {
+    const boardList = getBigBoardPriorityList(listSource);
+    if (!boardList) {
+      return {
+        error:
+          "That Big Board is not available yet (it needs a full list in the app). Choose another board or build your own list.",
+      };
+    }
+    priority_list = boardList;
+  } else {
+    const priorityListRaw = formData.get("priority_list");
+    if (typeof priorityListRaw === "string") {
+      try {
+        const parsed = JSON.parse(priorityListRaw) as unknown;
+        priority_list = Array.isArray(parsed) ? (parsed as string[]) : [];
+      } catch {
+        priority_list = [];
+      }
     }
   }
-  const focus = (formData.get("focus") as string)?.trim() || "all";
-  const pointStrategy = (formData.get("pointStrategy") as string)?.trim() || "total";
-  const wrestlerStrategy = (formData.get("wrestlerStrategy") as string)?.trim() || "best_available";
+  const priorityListSource =
+    listSource === "custom" || isBigBoardId(listSource) ? listSource : "custom";
+
   const result = await saveDraftPreferencesAction(leagueSlug, {
     priority_list,
-    focus,
-    pointStrategy,
-    wrestlerStrategy,
+    priorityListSource,
   });
   if (result.error) return { error: result.error };
   return null;

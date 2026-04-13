@@ -2,6 +2,7 @@
  * Private Leagues: draft order generation (snake/linear), current pick, and making a pick.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getLeagueMembers, getRostersForLeague, getRostersForLeagueAdmin, getLeagueMemberUserIdsForAdmin } from "@/lib/leagues";
@@ -9,16 +10,153 @@ import { getRosterRulesForLeague, getRosterRulesForLeagueId } from "@/lib/league
 import { isBlocklistedSlug } from "@/lib/draftBlocklist";
 import { addWrestlerToRoster } from "@/lib/leagues";
 import { timestamptzForAcquiredAtDate } from "@/lib/rosterTimestamps";
-import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import {
+  getCurrentChampionsBySlug,
+  inferReignsFromEvents,
+  mergeReigns,
+  REIGN_EFFECTIVE_START,
+} from "@/lib/scoring/endOfMonthBeltPoints.js";
+import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormalize";
+import type { ChampionshipReignRow } from "@/lib/championshipTitleHistory";
 import { factionDisplayName } from "@/lib/factionName";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { isRawOrSmackDownWrestlerRoster } from "@/lib/wrestlerRosterFromBrand";
+import {
+  AUTOPICK_REQUIRED_FEMALE_COUNT,
+  AUTOPICK_REQUIRED_PRIORITY_COUNT,
+} from "@/lib/draftPriorityRequirements";
+import { normalizeDraftPoolGender as normalizeGender } from "@/lib/wrestlerDraftGender";
+import {
+  LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM,
+  LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT,
+} from "@/lib/leagueLeadersAllTimeScoring";
 
 const LEAGUE_START_DATE = "2025-05-02";
+
+type AutopickPointsTriple = { rsPoints: number; plePoints: number; beltPoints: number };
+
+function cloneAutopickPoints(p: AutopickPointsTriple): AutopickPointsTriple {
+  return { rsPoints: p.rsPoints, plePoints: p.plePoints, beltPoints: p.beltPoints };
+}
+
+function autopickSumPoints(p: AutopickPointsTriple): number {
+  const f = (n: number) => (Number.isFinite(n) ? n : 0);
+  return f(p.rsPoints) + f(p.plePoints) + f(p.beltPoints);
+}
+
+/**
+ * Match rows use slug-like keys; `wrestlers.id` may be a UUID. Resolve each roster row to the best
+ * aggregate bucket so totals are not all zero (which made autopick follow DB `order("id")` / alphabetical).
+ */
+function resolveAutopickPointsForRow(
+  aggregate: ReturnType<typeof aggregateWrestlerPoints>,
+  w: { id: string; name?: string | null }
+): AutopickPointsTriple {
+  const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
+  const direct = getPointsForWrestler(aggregate, w.id, nameKey);
+  if (autopickSumPoints(direct) > 0) return cloneAutopickPoints(direct);
+
+  const idNorm = w.id ? normalizeWrestlerName(String(w.id)) : "";
+  let best = cloneAutopickPoints(direct);
+  let bestSum = autopickSumPoints(best);
+  for (const [k, pts] of Object.entries(aggregate)) {
+    if (!pts || typeof pts.rsPoints !== "number") continue;
+    const s = autopickSumPoints(pts);
+    if (s <= 0) continue;
+    const kn = normalizeWrestlerName(String(k));
+    const match =
+      k === w.id ||
+      (idNorm && kn === idNorm) ||
+      (nameKey && (kn === nameKey || k === nameKey));
+    if (match && s > bestSum) {
+      best = cloneAutopickPoints(pts);
+      bestSum = s;
+    }
+  }
+  return best;
+}
+
+function augmentAggregateForAutopickWrestlers(
+  aggregate: ReturnType<typeof aggregateWrestlerPoints>,
+  rows: { id: string; name?: string | null }[]
+): ReturnType<typeof aggregateWrestlerPoints> {
+  const out: ReturnType<typeof aggregateWrestlerPoints> = { ...aggregate };
+  for (const w of rows) {
+    if (!w?.id) continue;
+    const pts = resolveAutopickPointsForRow(aggregate, w);
+    const id = String(w.id).trim();
+    if (!id) continue;
+    out[id] = pts;
+    out[id.toLowerCase()] = pts;
+    const nk = w.name ? normalizeWrestlerName(w.name) : "";
+    if (nk) out[nk] = pts;
+  }
+  return out;
+}
+
+/** Autopick ranks by all-time totals keyed by `wrestler_id` when cache exists, else event-derived fallback. */
+async function loadAutopickEventPointsBySlug(admin: AdminClient): Promise<ReturnType<typeof aggregateWrestlerPoints>> {
+  const [eventsRes, wrestlersRes, cacheRes] = await Promise.all([
+    admin
+      .from("events")
+      .select("id, name, date, matches")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
+      .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
+      .order("date", { ascending: true })
+      .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT),
+    admin.from("wrestlers").select("id, name").order("id"),
+    admin
+      .from("wrestler_stats_cache")
+      .select("wrestler_id, total_points")
+      .eq("season_key", "all_time"),
+  ]);
+  const aggregate = aggregateWrestlerPoints(
+    (eventsRes.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
+  );
+  const wrestlerRows = ((wrestlersRes.data ?? []) as { id: string; name?: string | null }[]) ?? [];
+  const out = augmentAggregateForAutopickWrestlers(aggregate, wrestlerRows);
+  for (const row of (cacheRes.data ?? []) as { wrestler_id?: string | null; total_points?: number | null }[]) {
+    const id = row.wrestler_id != null ? String(row.wrestler_id).trim() : "";
+    if (!id) continue;
+    const total = Number(row.total_points ?? 0);
+    if (!Number.isFinite(total)) continue;
+    // Put total into rsPoints so existing sum path remains unchanged.
+    const p = { rsPoints: total, plePoints: 0, beltPoints: 0 };
+    out[id] = p;
+    out[id.toLowerCase()] = p;
+  }
+  return out;
+}
+
+function autopickEventPointsTotal(
+  pointsBySlug: ReturnType<typeof aggregateWrestlerPoints>,
+  slugKey: string,
+  nameKey: string
+): number {
+  const p = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
+  return autopickSumPoints(p);
+}
+
 const DEFAULT_TIME_PER_PICK_SECONDS = 2 * 60;
 const FIRST_PICK_BUFFER_SECONDS = 60; // extra buffer after draft begins before first auto-pick
 /** For autopick leagues, use a short clock so the draft moves quickly (no human picking). */
 const AUTOPICK_TIME_PER_PICK_SECONDS = 5;
 const CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER = 3;
+/** Cap serverless work per request when batching autopick picks (cron / default). */
+const MAX_AUTOPICK_PICKS_PER_REQUEST = 120;
+/** Draft page: smaller batches avoid serverless timeouts while still making progress across redirects. */
+export const MAX_AUTOPICK_PICKS_DRAFT_PAGE = 45;
+/** Hard stop so a stuck cursor / race loop cannot hang one HTTP request forever. */
+const MAX_AUTOPICK_WHILE_ITERATIONS = 600;
+
+function isPostgresUniqueViolation(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false;
+  if (err.code === "23505") return true;
+  const m = err.message ?? "";
+  return /duplicate key|unique constraint/i.test(m);
+}
 
 /** Strategy keys for auto-draft when priority list does not apply (legacy). */
 export const DRAFT_STRATEGY_KEYS = [
@@ -44,6 +182,8 @@ export type DraftStrategyOptions = {
   focus: DraftFocus;
   pointStrategy: DraftPointStrategy;
   wrestlerStrategy: DraftWrestlerStrategy;
+  /** Autopick: last Big Board applied, or "custom" after the manager edits the list. */
+  priorityListSource?: "custom" | string;
 };
 
 export type DraftPreferences = {
@@ -51,6 +191,52 @@ export type DraftPreferences = {
   strategy: string[];
   strategy_options?: DraftStrategyOptions | null;
 };
+
+function isDraftFocus(v: unknown): v is DraftFocus {
+  return v === "2026" || v === "2025" || v === "all";
+}
+
+function isDraftPointStrategy(v: unknown): v is DraftPointStrategy {
+  return v === "total" || v === "rs" || v === "ple" || v === "belt";
+}
+
+function isDraftWrestlerStrategy(v: unknown): v is DraftWrestlerStrategy {
+  return (
+    v === "best_available" ||
+    v === "balanced_gender" ||
+    v === "balanced_brands" ||
+    v === "high_males" ||
+    v === "high_females"
+  );
+}
+
+/** Shown strategy when saving draft preferences without per-user picks (all-time total, best available). */
+export const DEFAULT_DRAFT_STRATEGY_OPTIONS: DraftStrategyOptions = {
+  focus: "all",
+  pointStrategy: "total",
+  wrestlerStrategy: "best_available",
+};
+
+/**
+ * Resolves strategy for autopick: uses DB strategy_options (with per-field defaults),
+ * or when the row has no strategy_options and no legacy strategy[] (common for
+ * priority-only saves / pre-migration rows), uses {@link DEFAULT_DRAFT_STRATEGY_OPTIONS}.
+ */
+function resolvedStrategyOptions(prefs: DraftPreferences | null): DraftStrategyOptions | null {
+  const raw = prefs?.strategy_options;
+  if (raw != null && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    return {
+      focus: isDraftFocus(r.focus) ? r.focus : "all",
+      pointStrategy: isDraftPointStrategy(r.pointStrategy) ? r.pointStrategy : "total",
+      wrestlerStrategy: isDraftWrestlerStrategy(r.wrestlerStrategy) ? r.wrestlerStrategy : "best_available",
+    };
+  }
+  if (prefs != null && (!prefs.strategy || prefs.strategy.length === 0)) {
+    return { ...DEFAULT_DRAFT_STRATEGY_OPTIONS };
+  }
+  return null;
+}
 
 export const MIN_PRIORITY_LIST = 10;
 export const MAX_PRIORITY_LIST = 50;
@@ -111,10 +297,11 @@ export async function getDraftPreferencesForAllMembers(
     high_males: "High ranking males",
     high_females: "High ranking females",
   };
+  const db = getAdminClient() ?? (await createClient());
   const out: { user_id: string; display_name: string; hasPreferences: boolean; summary: string }[] = [];
   for (const m of members) {
     const name = factionDisplayName(m, "Unknown");
-    const prefs = await getDraftPreferences(leagueId, m.user_id);
+    const prefs = await getDraftPreferences(leagueId, m.user_id, db);
     const hasPreferences =
       prefs != null &&
       (prefs.priority_list?.length > 0 || prefs.strategy_options != null);
@@ -159,9 +346,11 @@ export async function getDraftPreferencesForAllMembers(
  */
 export async function getDraftPreferences(
   leagueId: string,
-  userId: string
+  userId: string,
+  /** Service role (or any) client; when omitted, uses the current session (RLS: own row only). */
+  db?: SupabaseClient
 ): Promise<DraftPreferences | null> {
-  const supabase = await createClient();
+  const supabase = db ?? (await createClient());
   let result = await supabase
     .from("league_draft_preferences")
     .select("priority_list, strategy, strategy_options")
@@ -194,7 +383,8 @@ export async function getDraftPreferences(
   if (typeof strategy_options === "string") {
     try {
       const parsed = JSON.parse(strategy_options) as unknown;
-      strategy_options = (parsed && typeof parsed === "object" && "focus" in parsed) ? (parsed as DraftStrategyOptions) : null;
+      strategy_options =
+        parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as DraftStrategyOptions) : null;
     } catch {
       strategy_options = null;
     }
@@ -203,6 +393,75 @@ export async function getDraftPreferences(
     priority_list: list as string[],
     strategy: strategy as string[],
     strategy_options: strategy_options ?? null,
+  };
+}
+
+async function validateAutopickPriorityCoverage(
+  admin: AdminClient,
+  leagueId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const memberIds = await getLeagueMemberUserIdsForAdmin(leagueId);
+  if (memberIds.length === 0) return { ok: false, error: "No league members found for autopick draft." };
+
+  const { data: prefRows } = await admin
+    .from("league_draft_preferences")
+    .select("user_id, priority_list")
+    .eq("league_id", leagueId)
+    .in("user_id", memberIds);
+  const rows = (prefRows ?? []) as { user_id?: string | null; priority_list?: unknown }[];
+  const listByUser = new Map<string, string[]>();
+  for (const r of rows) {
+    const uid = r.user_id ? String(r.user_id) : "";
+    if (!uid) continue;
+    let ids: string[] = [];
+    if (Array.isArray(r.priority_list)) ids = r.priority_list.map((v) => String(v)).filter(Boolean);
+    else if (typeof r.priority_list === "string") {
+      try {
+        const parsed = JSON.parse(r.priority_list) as unknown;
+        if (Array.isArray(parsed)) ids = parsed.map((v) => String(v)).filter(Boolean);
+      } catch {}
+    }
+    listByUser.set(uid, ids);
+  }
+
+  const allIds = Array.from(
+    new Set(
+      Array.from(listByUser.values())
+        .flat()
+        .map((v) => String(v).trim())
+        .filter(Boolean)
+    )
+  );
+  const genderById: Record<string, "F" | "M" | null> = {};
+  if (allIds.length > 0) {
+    const g = await getWrestlerGendersBatch(admin, allIds);
+    for (const [id, raw] of Object.entries(g)) {
+      const ng = normalizeGender(raw);
+      genderById[id] = ng;
+      genderById[id.toLowerCase()] = ng;
+    }
+  }
+
+  const failures: string[] = [];
+  for (const uid of memberIds) {
+    const list = listByUser.get(uid) ?? [];
+    const femaleCount = list.reduce((n, id) => {
+      const key = String(id).trim();
+      const gen = genderById[key] ?? genderById[key.toLowerCase()] ?? null;
+      return n + (gen === "F" ? 1 : 0);
+    }, 0);
+    if (list.length < AUTOPICK_REQUIRED_PRIORITY_COUNT || femaleCount < AUTOPICK_REQUIRED_FEMALE_COUNT) {
+      failures.push(
+        `${uid.slice(0, 8)}… (${list.length}/${AUTOPICK_REQUIRED_PRIORITY_COUNT} listed, ${femaleCount}/${AUTOPICK_REQUIRED_FEMALE_COUNT} female)`
+      );
+    }
+  }
+  if (failures.length === 0) return { ok: true };
+  return {
+    ok: false,
+    error:
+      `Autopick requires each manager to set at least ${AUTOPICK_REQUIRED_PRIORITY_COUNT} ranked wrestlers ` +
+      `including at least ${AUTOPICK_REQUIRED_FEMALE_COUNT} female. Missing coverage: ${failures.join("; ")}`,
   };
 }
 
@@ -375,10 +634,11 @@ async function getLeagueDraftStateUsingAdmin(
   draft_style: "snake" | "linear";
   total_picks: number;
   draft_current_pick_started_at: string | null;
+  draft_type: string | null;
 } | null> {
   const { data: league, error } = await admin
     .from("leagues")
-    .select("draft_status, draft_current_pick, draft_style, draft_current_pick_started_at")
+    .select("draft_status, draft_current_pick, draft_style, draft_current_pick_started_at, draft_type")
     .eq("id", leagueId)
     .maybeSingle();
   if (error || !league) return null;
@@ -392,6 +652,7 @@ async function getLeagueDraftStateUsingAdmin(
     draft_style: (league.draft_style ?? "snake") as "snake" | "linear",
     total_picks: count ?? 0,
     draft_current_pick_started_at: league.draft_current_pick_started_at ?? null,
+    draft_type: league.draft_type != null ? String(league.draft_type) : null,
   };
 }
 
@@ -870,7 +1131,8 @@ export async function getDraftPicksHistory(
 ): Promise<
   { overall_pick: number; user_id: string; wrestler_id: string; wrestler_name: string | null; picked_at: string; is_auto_pick?: boolean }[]
 > {
-  const supabase = await createClient();
+  /** Prefer service role so every member sees full pick log (RLS on league_draft_picks can otherwise hide rows). */
+  const supabase = getAdminClient() ?? (await createClient());
   let rows: DraftPickRow[] | null = null;
   let err: { code?: string; message?: string } | null = null;
 
@@ -911,14 +1173,6 @@ export async function getDraftPicksHistory(
     picked_at: r.picked_at,
     is_auto_pick: r.is_auto_pick ?? false,
   }));
-}
-
-function normalizeGender(g: string | null | undefined): "F" | "M" | null {
-  if (!g) return null;
-  const l = String(g).toLowerCase();
-  if (l === "female" || l === "f") return "F";
-  if (l === "male" || l === "m") return "M";
-  return null;
 }
 
 function normalizeBrand(b: string | null | undefined): string {
@@ -1007,22 +1261,32 @@ export function isDraftableWrestlerForDraftTesting(row: DraftPoolRow): boolean {
   return true;
 }
 
+/**
+ * Pool for `draft_type === "autopick"` simplified picks. Same as Draft Testing: **injured talent counts**.
+ * Strict `isDraftableWrestler` often empties the pool (many active stars are marked injured) and blocks the whole draft.
+ */
+function isAutopickDraftableWrestler(row: DraftPoolRow): boolean {
+  return isDraftableWrestlerForDraftTesting(row);
+}
+
 type PointsFallbackOptions = {
   draftedIds?: Set<string>;
   /** When set (e.g. from autopick), only consider wrestlers of this gender so roster min F/M rules are satisfied. */
   requiredGender?: "F" | "M" | null;
+  /** Service-role client from autopick; avoids relying on a second getAdminClient() call. */
+  supabase?: SupabaseClient;
 };
 
 /**
  * Returns the available wrestler with the most points to-date (for auto-pick fallback).
  * Uses completed events from LEAGUE_START_DATE; excludes inactive and non-draftable (Front Office, etc.).
- * When options.requiredGender is set, only considers wrestlers of that gender; if none available, falls back to any.
+ * When options.requiredGender is set, only considers wrestlers of that gender; if none available, returns null.
  */
 export async function getTopAvailableWrestlerByPoints(
   leagueId: string,
   options?: PointsFallbackOptions
 ): Promise<string | null> {
-  const supabase = await createClient();
+  const supabase = options?.supabase ?? getAdminClient() ?? (await createClient());
   let draftedIds: Set<string>;
   if (options?.draftedIds) {
     draftedIds = options.draftedIds;
@@ -1050,6 +1314,7 @@ export async function getTopAvailableWrestlerByPoints(
   if (needGender) {
     const byGender = list.filter((w) => normalizeGender(w.gender) === needGender);
     if (byGender.length > 0) list = byGender;
+    else return null;
   }
 
   const eventsRes = await supabase
@@ -1088,7 +1353,27 @@ type WrestlerWithStats = {
 type RosterOverride = {
   rosters: Record<string, { wrestler_id: string }[]>;
   draftedIds: Set<string>;
+  /** When set (including `null`), from performOneAutoPick — constrains priority list + strategy for roster mins. */
+  requiredGender?: "F" | "M" | null;
+  /** Pass the same service-role client as roster/order writes (autopick). */
+  supabase?: SupabaseClient;
 };
+
+/** Next pick must be this gender to satisfy min F/M with remaining slots (league rules). */
+export function requiredGenderForNextPick(
+  rules: { rosterSize: number; minFemale: number; minMale: number },
+  currentRosterLength: number,
+  currentFemale: number,
+  currentMale: number
+): "F" | "M" | null {
+  const remainingPicks = rules.rosterSize - currentRosterLength;
+  if (remainingPicks <= 0) return null;
+  const needFemale = Math.max(0, rules.minFemale - currentFemale);
+  const needMale = Math.max(0, rules.minMale - currentMale);
+  if (needFemale > 0 && remainingPicks - 1 < needFemale) return "F";
+  if (needMale > 0 && remainingPicks - 1 < needMale) return "M";
+  return null;
+}
 
 /**
  * Get the best available wrestler for a user's auto-pick: uses priority list first if set,
@@ -1100,7 +1385,8 @@ export async function getTopAvailableWrestlerForUser(
   userId: string,
   opts?: RosterOverride
 ): Promise<string | null> {
-  const supabase = await createClient();
+  /** Autopick passes service role via opts; otherwise prefer admin so prefs bypass RLS. */
+  const supabase = opts?.supabase ?? getAdminClient() ?? (await createClient());
   const rosters = opts?.rosters ?? (await getRostersForLeague(leagueId));
   const draftedIds = opts?.draftedIds ?? (() => {
     const set = new Set<string>();
@@ -1108,11 +1394,46 @@ export async function getTopAvailableWrestlerForUser(
     return set;
   })();
 
-  const prefs = await getDraftPreferences(leagueId, userId);
+  const prefs = await getDraftPreferences(leagueId, userId, supabase);
+
+  const rules = await getRosterRulesForLeagueId(supabase, leagueId);
+  const currentRoster = rosters[userId] ?? [];
+  const rosterIdsForGender = currentRoster.map((e) => e.wrestler_id).filter(Boolean);
+  let rosterFemale = 0;
+  let rosterMale = 0;
+  const skipLocalGenderCount = opts != null && "requiredGender" in opts;
+  if (!skipLocalGenderCount && rosterIdsForGender.length > 0) {
+    const { data: gRows } = await supabase.from("wrestlers").select("id,gender").in("id", rosterIdsForGender);
+    for (const row of (gRows ?? []) as { id: string; gender?: string | null }[]) {
+      const g = normalizeGender(row.gender);
+      if (g === "F") rosterFemale += 1;
+      else if (g === "M") rosterMale += 1;
+    }
+  }
+  const requiredGender: "F" | "M" | null =
+    skipLocalGenderCount
+      ? opts!.requiredGender ?? null
+      : rules
+        ? requiredGenderForNextPick(rules, currentRoster.length, rosterFemale, rosterMale)
+        : null;
 
   if (prefs?.priority_list?.length) {
-    for (const wid of prefs.priority_list) {
-      if (wid && !draftedIds.has(wid)) return wid;
+    const undraftedPriorityIds = prefs.priority_list.filter((wid): wid is string => Boolean(wid) && !draftedIds.has(wid));
+    if (undraftedPriorityIds.length > 0) {
+      const { data: priG } = await supabase.from("wrestlers").select("id,gender").in("id", undraftedPriorityIds);
+      const genderById = new Map<string, "F" | "M" | null>();
+      for (const row of (priG ?? []) as { id: string; gender?: string | null }[]) {
+        const ng = normalizeGender(row.gender);
+        const id = String(row.id);
+        genderById.set(id, ng);
+        genderById.set(id.toLowerCase(), ng);
+      }
+      for (const wid of prefs.priority_list) {
+        if (!wid || draftedIds.has(wid)) continue;
+        const g = genderById.get(wid) ?? genderById.get(String(wid).toLowerCase()) ?? null;
+        if (requiredGender && g !== requiredGender) continue;
+        return wid;
+      }
     }
   }
 
@@ -1133,7 +1454,6 @@ export async function getTopAvailableWrestlerForUser(
   }
   wrestlers = (rawWrestlers ?? []).map((w) => ({ ...w, ...normalizeWrestlerRowFromApi(w) })).filter(isDraftableWrestler) as WrestlerRow[];
 
-  const currentRoster = rosters[userId] ?? [];
   const wrestlerById = new Map((wrestlers ?? []).map((x) => [x.id, x]));
   const rosterBrandCounts: Record<string, number> = { Raw: 0, SmackDown: 0, Unassigned: 0 };
   const rosterGenderCounts: Record<string, number> = { F: 0, M: 0 };
@@ -1145,23 +1465,8 @@ export async function getTopAvailableWrestlerForUser(
     if (g) rosterGenderCounts[g] = (rosterGenderCounts[g] ?? 0) + 1;
   }
 
-  const rules = await getRosterRulesForLeagueId(supabase, leagueId);
-  const currentFemale = rosterGenderCounts.F ?? 0;
-  const currentMale = rosterGenderCounts.M ?? 0;
-  const remainingPicks = rules ? rules.rosterSize - currentRoster.length : 0;
-  const needFemale = rules ? Math.max(0, rules.minFemale - currentFemale) : 0;
-  const needMale = rules ? Math.max(0, rules.minMale - currentMale) : 0;
-  const requiredGender: "F" | "M" | null =
-    rules && remainingPicks > 0
-      ? needFemale > 0 && remainingPicks - 1 < needFemale
-        ? "F"
-        : needMale > 0 && remainingPicks - 1 < needMale
-          ? "M"
-          : null
-      : null;
-
-  const strategyOpts = prefs?.strategy_options;
-  if (strategyOpts?.focus != null && strategyOpts?.pointStrategy != null && strategyOpts?.wrestlerStrategy != null) {
+  const strategyOpts = resolvedStrategyOptions(prefs);
+  if (strategyOpts) {
     const [events2025, events2026, eventsAll] = await Promise.all([
       supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
       supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2026-01-01").order("date", { ascending: true }),
@@ -1218,9 +1523,15 @@ export async function getTopAvailableWrestlerForUser(
     let pool = baseAvailable;
     if (requiredGender) {
       const byGender = baseAvailable.filter((w) => normalizeGender(w.gender) === requiredGender);
-      if (byGender.length > 0) pool = byGender;
+      if (byGender.length > 0) {
+        pool = byGender;
+      } else {
+        const byGenderAll = available.filter((w) => normalizeGender(w.gender) === requiredGender);
+        pool = byGenderAll;
+      }
     }
     let sorted = [...pool];
+    if (sorted.length === 0) return null;
     if (strategyOpts.pointStrategy === "total") sorted.sort((a, b) => b.totalPoints - a.totalPoints);
     else if (strategyOpts.pointStrategy === "rs") sorted.sort((a, b) => b.rsPoints - a.rsPoints);
     else if (strategyOpts.pointStrategy === "ple") sorted.sort((a, b) => b.plePoints - a.plePoints);
@@ -1249,12 +1560,20 @@ export async function getTopAvailableWrestlerForUser(
       return sorted[0]?.id ?? null;
     }
     if (strategyOpts.wrestlerStrategy === "high_males") {
+      if (requiredGender === "F") {
+        sorted.sort((a, b) => b.totalPoints - a.totalPoints);
+        return sorted[0]?.id ?? null;
+      }
       const male = sorted.filter((w) => normalizeGender(w.gender) === "M");
       const pool = male.length > 0 ? male : sorted;
       pool.sort((a, b) => b.totalPoints * 1.2 - a.totalPoints * 1.2);
       return pool[0]?.id ?? null;
     }
     if (strategyOpts.wrestlerStrategy === "high_females") {
+      if (requiredGender === "M") {
+        sorted.sort((a, b) => b.totalPoints - a.totalPoints);
+        return sorted[0]?.id ?? null;
+      }
       const female = sorted.filter((w) => normalizeGender(w.gender) === "F");
       const pool = female.length > 0 ? female : sorted;
       pool.sort((a, b) => b.totalPoints * 1.2 - a.totalPoints * 1.2);
@@ -1295,8 +1614,8 @@ export async function getTopAvailableWrestlerForUser(
 
   let legacyPool = available;
   if (requiredGender) {
-    const byGender = available.filter((w) => normalizeGender(w.gender) === requiredGender);
-    if (byGender.length > 0) legacyPool = byGender;
+    legacyPool = available.filter((w) => normalizeGender(w.gender) === requiredGender);
+    if (legacyPool.length === 0) return null;
   }
 
   const strategy = prefs?.strategy?.length ? prefs.strategy[0] : null;
@@ -1324,12 +1643,20 @@ export async function getTopAvailableWrestlerForUser(
     return legacyPool[0]?.id ?? null;
   }
   if (strategy === "prioritize_high_female") {
+    if (requiredGender === "M") {
+      legacyPool.sort((a, b) => b.rating2k - a.rating2k || b.totalPoints - a.totalPoints);
+      return legacyPool[0]?.id ?? null;
+    }
     const female = legacyPool.filter((w) => normalizeGender(w.gender) === "F");
     const pool = female.length > 0 ? female : legacyPool;
     pool.sort((a, b) => b.rating2k - a.rating2k || b.totalPoints - a.totalPoints);
     return pool[0]?.id ?? null;
   }
   if (strategy === "prioritize_high_male") {
+    if (requiredGender === "F") {
+      legacyPool.sort((a, b) => b.rating2k - a.rating2k || b.totalPoints - a.totalPoints);
+      return legacyPool[0]?.id ?? null;
+    }
     const male = legacyPool.filter((w) => normalizeGender(w.gender) === "M");
     const pool = male.length > 0 ? male : legacyPool;
     pool.sort((a, b) => b.rating2k - a.rating2k || b.totalPoints - a.totalPoints);
@@ -1341,47 +1668,393 @@ export async function getTopAvailableWrestlerForUser(
 }
 
 /**
- * Perform one auto-pick for the current slot and advance. Returns next pick number and total for chaining.
- * Uses priority list first, then draft preferences. Records is_auto_pick and increments consecutive_auto_picks (sets takeover at 3).
+ * If `draft_current_pick` points at a slot that already has a `league_draft_picks` row, the league row
+ * was never advanced (e.g. update failed after insert). The next autopick then hits a unique violation
+ * and can spin forever in skippedDueToRace. Advance the cursor once to match reality.
  */
-/**
- * Advance draft to the next slot (or completed) without assigning a wrestler. Used when the pool is
- * exhausted so the draft does not freeze.
- */
-async function advanceDraftToNextSlot(
-  admin: AdminClient,
-  leagueId: string,
-  state: { draft_current_pick: number; total_picks: number }
-): Promise<{ nextPick: number; totalPicks: number }> {
-  const nextPick = state.draft_current_pick + 1;
+async function healOneStaleDraftCursorStep(admin: AdminClient, leagueId: string): Promise<boolean> {
+  const state = await getLeagueDraftStateUsingAdmin(admin, leagueId);
+  if (!state || state.draft_status !== "in_progress" || state.draft_current_pick == null) return false;
+
+  const pickNum = state.draft_current_pick;
+  const { data: orderRow } = await admin
+    .from("league_draft_order")
+    .select("draft_run_id")
+    .eq("league_id", leagueId)
+    .eq("overall_pick", pickNum)
+    .maybeSingle();
+  const draftRunId = (orderRow as { draft_run_id?: string } | null)?.draft_run_id ?? null;
+  if (!draftRunId) return false;
+
+  const { data: pickRow } = await admin
+    .from("league_draft_picks")
+    .select("overall_pick")
+    .eq("draft_run_id", draftRunId)
+    .eq("overall_pick", pickNum)
+    .maybeSingle();
+  if (!pickRow) return false;
+
   const totalPicks = state.total_picks ?? 0;
+  const nextPick = pickNum + 1;
   const updates: {
     draft_current_pick: number | null;
     draft_status: string;
-    draft_current_pick_started_at?: string;
+    draft_current_pick_started_at?: string | null;
   } =
     nextPick > totalPicks
-      ? { draft_current_pick: null, draft_status: "completed" }
+      ? { draft_current_pick: null, draft_status: "completed", draft_current_pick_started_at: null }
       : {
           draft_current_pick: nextPick,
           draft_status: "in_progress",
           draft_current_pick_started_at: new Date().toISOString(),
         };
   const { error } = await admin.from("leagues").update(updates).eq("id", leagueId);
-  if (error) return { nextPick: state.draft_current_pick, totalPicks };
-  return { nextPick, totalPicks };
+  return !error;
+}
+
+async function healStaleDraftCursorChain(admin: AdminClient, leagueId: string): Promise<void> {
+  for (let i = 0; i < 200; i++) {
+    const healed = await healOneStaleDraftCursorStep(admin, leagueId);
+    if (!healed) break;
+  }
+}
+
+/** Cheap cursor repair only (no picks). Safe on every draft page load for autopick. */
+export async function repairDraftAutopickCursor(leagueId: string): Promise<void> {
+  const admin = getAdminClient();
+  if (!admin) return;
+  await healStaleDraftCursorChain(admin, leagueId);
+}
+
+/** Track drafted wrestlers with case variants so roster/pick UUIDs match `wrestlers.id` queries. */
+function addToDraftedSet(set: Set<string>, id: string | null | undefined): void {
+  if (id == null || typeof id !== "string") return;
+  const t = id.trim();
+  if (!t) return;
+  set.add(t);
+  set.add(t.toLowerCase());
+}
+
+function isInDraftedSet(set: Set<string>, id: string | null | undefined): boolean {
+  if (id == null || typeof id !== "string") return false;
+  const t = id.trim();
+  return t !== "" && (set.has(t) || set.has(t.toLowerCase()));
+}
+
+/** Same key resolution as /wrestlers grid for `getCurrentChampionsBySlug` maps. */
+function autopickWrestlerIsCurrentChampion(
+  w: { id: string; name?: string | null },
+  currentChampionsBySlug: Record<string, string[]>
+): boolean {
+  if (!currentChampionsBySlug || Object.keys(currentChampionsBySlug).length === 0) return false;
+  const slugKey = w.id;
+  const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
+  const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
+  const titles =
+    currentChampionsBySlug[canonicalKey] ??
+    currentChampionsBySlug[slugKey] ??
+    (nameKey ? currentChampionsBySlug[nameKey] : null) ??
+    [];
+  return titles.length > 0;
+}
+
+/**
+ * Merged table + inferred reigns (same sources as /wrestlers). Fetched once per autopick batch.
+ */
+async function loadAutopickChampionsBySlug(admin: AdminClient): Promise<Record<string, string[]>> {
+  const [{ data: rawReigns }, { data: eventsForReignInference }] = await Promise.all([
+    admin.from("championship_history").select("*"),
+    admin
+      .from("events")
+      .select("id, name, date, matches")
+      .eq("status", "completed")
+      .gte("date", REIGN_EFFECTIVE_START)
+      .order("date", { ascending: true }),
+  ]);
+  const tableReigns = (rawReigns ?? [])
+    .map((row) => normalizeChampionshipHistoryRow(row as Record<string, unknown>))
+    .sort((a, b) => {
+      const ax = (a.won_date ?? a.start_date ?? "").slice(0, 10);
+      const bx = (b.won_date ?? b.start_date ?? "").slice(0, 10);
+      return ax.localeCompare(bx);
+    }) as ChampionshipReignRow[];
+  const inferredReigns = inferReignsFromEvents(
+    (eventsForReignInference ?? []) as Parameters<typeof inferReignsFromEvents>[0]
+  );
+  const reigns = mergeReigns(tableReigns, inferredReigns) as Parameters<typeof getCurrentChampionsBySlug>[0];
+  return getCurrentChampionsBySlug(reigns);
+}
+
+/**
+ * Any undrafted wrestler whose Roster column is Raw or SmackDown (`wrestlers.brand` via `wrestlerRosterFromBrand`).
+ * Stable id order; last resort if the points-based path returns null.
+ */
+async function findFirstUndraftedAutopickRawSdWrestlerId(
+  admin: AdminClient,
+  draftedIds: Set<string>,
+  requiredGender: "F" | "M" | null
+): Promise<string | null> {
+  const selectCols = 'id, name, gender, status, "Status", brand, classification, "Classification"';
+  let wrestlersRes = await admin.from("wrestlers").select(selectCols).order("id");
+  let list = ((wrestlersRes.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+    ...r,
+    ...normalizeWrestlerRowFromApi(r),
+  })) as (DraftPoolRow & { id?: string })[];
+  if (wrestlersRes.error && !list.length) {
+    const fallback = await admin.from("wrestlers").select(selectCols).order("id");
+    list = ((fallback.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      ...normalizeWrestlerRowFromApi(r),
+    })) as (DraftPoolRow & { id?: string })[];
+  }
+  if (!list.length) {
+    const noClassification = await admin.from("wrestlers").select('id, name, gender, status, "Status", brand').order("id");
+    list = ((noClassification.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      ...normalizeWrestlerRowFromApi(r),
+    })) as (DraftPoolRow & { id?: string })[];
+  }
+  for (const w of list) {
+    const id = w.id != null ? String(w.id) : "";
+    if (!id || isInDraftedSet(draftedIds, id)) continue;
+    if (!isAutopickDraftableWrestler(w)) continue;
+    if (!isRawOrSmackDownWrestlerRoster(w.brand)) continue;
+    if (requiredGender != null && normalizeGender((w as { gender?: string | null }).gender) !== requiredGender) {
+      continue;
+    }
+    return id;
+  }
+  return null;
+}
+
+/**
+ * Autopick leagues (`draft_type === "autopick"`): no priority lists or strategy prefs.
+ * - Pool: autopick-eligible wrestlers (injured allowed; see `isAutopickDraftableWrestler`) whose **Roster** is Raw or SmackDown (`wrestlers.brand` via `wrestlerRosterFromBrand`).
+ * - Order: while any current champion remains undrafted in that pool, pick best **event-derived** total (RS+PLE+belt) among them; else best overall in pool.
+ * - Gender: `requiredGenderFromRules` from roster mins; if no match, relax gender.
+ * - If that pool is exhausted, `performOneAutoPick` falls back to best score among all draftable wrestlers, then any draftable (so large drafts can finish).
+ * @param eventPointsBySlug When set (e.g. from `runAutoPickIfExpired`), skips a second identical events query for this pick.
+ */
+async function pickAutopickLeagueWrestler(
+  admin: AdminClient,
+  draftedIds: Set<string>,
+  requiredGenderFromRules: "F" | "M" | null,
+  championsBySlug: Record<string, string[]>,
+  eventPointsBySlug?: ReturnType<typeof aggregateWrestlerPoints> | null
+): Promise<string | null> {
+  const selectCols = 'id, name, gender, status, "Status", brand, classification, "Classification"';
+  let wrestlersRes = await admin.from("wrestlers").select(selectCols).order("id");
+  let list = ((wrestlersRes.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+    ...r,
+    ...normalizeWrestlerRowFromApi(r),
+  })) as (DraftPoolRow & { gender?: string | null; id?: string })[];
+  if (wrestlersRes.error && !list.length) {
+    const fallback = await admin.from("wrestlers").select(selectCols).order("id");
+    list = ((fallback.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      ...normalizeWrestlerRowFromApi(r),
+    })) as (DraftPoolRow & { gender?: string | null; id?: string })[];
+  }
+  if (!list.length) {
+    const noClassification = await admin.from("wrestlers").select('id, name, gender, status, "Status", brand').order("id");
+    list = ((noClassification.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      ...normalizeWrestlerRowFromApi(r),
+    })) as (DraftPoolRow & { gender?: string | null; id?: string })[];
+  }
+  const rawSmackdownRosterPool = list
+    .filter(isAutopickDraftableWrestler)
+    .filter((w): w is DraftPoolRow & { id: string; gender?: string | null } => Boolean(w.id))
+    .filter((w) => isRawOrSmackDownWrestlerRoster(w.brand));
+  if (rawSmackdownRosterPool.length === 0) return null;
+
+  const pointsBySlug = eventPointsBySlug ?? (await loadAutopickEventPointsBySlug(admin));
+
+  const bestIn = (
+    candidates: (DraftPoolRow & { id: string; name?: string | null; gender?: string | null })[],
+    gender: "F" | "M" | null
+  ): string | null => {
+    let pool = candidates;
+    if (gender != null) {
+      const byG = pool.filter((w) => normalizeGender(w.gender) === gender);
+      if (byG.length === 0) return null;
+      pool = byG;
+    }
+    // Only prefer champions who are still available. If every champion in this slice is already
+    // drafted, narrowing to "champions" would leave only drafted rows and we would pick no one.
+    const champsUndrafted = pool.filter(
+      (w) =>
+        Boolean(w.id) &&
+        !isInDraftedSet(draftedIds, w.id) &&
+        autopickWrestlerIsCurrentChampion(w, championsBySlug)
+    );
+    if (champsUndrafted.length > 0) pool = champsUndrafted;
+    const contenders = pool
+      .filter((w) => Boolean(w.id) && !isInDraftedSet(draftedIds, w.id))
+      .map((w) => {
+        const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
+        return { w, total: autopickEventPointsTotal(pointsBySlug, w.id, nameKey) };
+      })
+      .sort((a, b) => b.total - a.total || String(a.w.id).localeCompare(String(b.w.id)));
+    return contenders[0]?.w.id ?? null;
+  };
+
+  let id = bestIn(rawSmackdownRosterPool, requiredGenderFromRules);
+  if (!id && requiredGenderFromRules != null) {
+    id = bestIn(rawSmackdownRosterPool, null);
+  }
+  return id;
+}
+
+/** Best undrafted wrestler by event-derived total (RS+PLE+belt), optional gender filter. */
+async function getBestAutopickWrestlerAllTimeTotal(
+  admin: AdminClient,
+  draftedIds: Set<string>,
+  needGender: "F" | "M" | null,
+  eventPointsBySlug?: ReturnType<typeof aggregateWrestlerPoints> | null
+): Promise<string | null> {
+  const selectCols =
+    needGender != null
+      ? 'id, name, gender, status, "Status", brand, classification, "Classification"'
+      : 'id, name, status, "Status", brand, classification, "Classification"';
+  let wrestlersRes = await admin.from("wrestlers").select(selectCols).order("id");
+  let list = ((wrestlersRes.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+    ...r,
+    ...normalizeWrestlerRowFromApi(r),
+  })) as (DraftPoolRow & { gender?: string | null; id?: string })[];
+  if (wrestlersRes.error && !list.length) {
+    const fallback = await admin.from("wrestlers").select(selectCols).order("id");
+    list = ((fallback.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      ...normalizeWrestlerRowFromApi(r),
+    })) as (DraftPoolRow & { gender?: string | null; id?: string })[];
+  }
+  if (!list.length) {
+    const noClassification = await admin
+      .from("wrestlers")
+      .select(needGender != null ? 'id, name, gender, status, "Status", brand' : 'id, name, status, "Status", brand')
+      .order("id");
+    list = ((noClassification.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      ...normalizeWrestlerRowFromApi(r),
+    })) as (DraftPoolRow & { gender?: string | null; id?: string })[];
+  }
+  type AutopickPointsWrestler = DraftPoolRow & { id: string; name?: string | null; gender?: string | null };
+  let pooled: AutopickPointsWrestler[] = list
+    .filter(isAutopickDraftableWrestler)
+    .filter((w): w is AutopickPointsWrestler => Boolean(w.id));
+  if (needGender != null) {
+    const byGender = pooled.filter((w) => normalizeGender(w.gender) === needGender);
+    if (byGender.length > 0) pooled = byGender as AutopickPointsWrestler[];
+    else return null;
+  }
+
+  const pointsBySlug = eventPointsBySlug ?? (await loadAutopickEventPointsBySlug(admin));
+  const contenders = pooled
+    .filter((w) => !isInDraftedSet(draftedIds, w.id))
+    .map((w) => {
+      const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
+      return { w, total: autopickEventPointsTotal(pointsBySlug, w.id, nameKey) };
+    })
+    .sort((a, b) => b.total - a.total || String(a.w.id).localeCompare(String(b.w.id)));
+  return contenders[0]?.w.id ?? null;
+}
+
+/** Last resort: any draftable wrestler not in the drafted set (stable id order). */
+async function getAnyUndraftedDraftableWrestlerId(
+  admin: AdminClient,
+  draftedIds: Set<string>
+): Promise<string | null> {
+  const { data } = await admin
+    .from("wrestlers")
+    .select('id, status, "Status", brand, classification, "Classification"')
+    .order("id");
+  const rows = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    ...r,
+    ...normalizeWrestlerRowFromApi(r),
+  })) as DraftPoolRow[];
+  for (const w of rows) {
+    const id = w.id != null ? String(w.id) : "";
+    if (!id || isInDraftedSet(draftedIds, id)) continue;
+    if (!isDraftableWrestler(w)) continue;
+    return id;
+  }
+  return null;
+}
+
+/** Autopick last resort: any autopick-eligible wrestler (injured OK), stable id order. */
+async function getAnyUndraftedAutopickWrestlerId(
+  admin: AdminClient,
+  draftedIds: Set<string>
+): Promise<string | null> {
+  const { data } = await admin
+    .from("wrestlers")
+    .select('id, status, "Status", brand, classification, "Classification"')
+    .order("id");
+  const rows = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    ...r,
+    ...normalizeWrestlerRowFromApi(r),
+  })) as DraftPoolRow[];
+  for (const w of rows) {
+    const id = w.id != null ? String(w.id) : "";
+    if (!id || isInDraftedSet(draftedIds, id)) continue;
+    if (!isAutopickDraftableWrestler(w)) continue;
+    return id;
+  }
+  return null;
+}
+
+/**
+ * If every row fails classification/brand/status filters, assign the first undrafted wrestler that is not
+ * blocklisted so an autopick league cannot brick (data hygiene / gender rules should be fixed separately).
+ */
+async function getAnyUndraftedNonBlocklistedForAutopickEmergency(
+  admin: AdminClient,
+  draftedIds: Set<string>
+): Promise<string | null> {
+  const { data } = await admin.from("wrestlers").select("id").order("id");
+  for (const row of data ?? []) {
+    const id = row.id != null ? String(row.id) : "";
+    if (!id || isInDraftedSet(draftedIds, id)) continue;
+    if (isBlocklistedSlug(id)) continue;
+    return id;
+  }
+  return null;
 }
 
 async function performOneAutoPick(
   admin: AdminClient,
   leagueId: string,
   current: { overall_pick: number; user_id: string },
-  state: { draft_current_pick: number; total_picks: number }
-): Promise<{ error?: string; nextPick?: number; totalPicks?: number }> {
+  state: { draft_current_pick: number; total_picks: number },
+  /** Autopick leagues: simplified picker (Raw/SmackDown roster from `w.brand`, healthy, roster mins, points + champions); live timer uses full prefs. */
+  simplifiedAutopick?: boolean,
+  /** Preloaded `getCurrentChampionsBySlug` map; avoids N championship queries during batched autopick. */
+  autopickChampionsBySlug?: Record<string, string[]>,
+  /** Preloaded event aggregate for ranking; one query per `runAutoPickIfExpired` batch instead of per pick. */
+  autopickEventPointsBySlug?: ReturnType<typeof aggregateWrestlerPoints> | null
+): Promise<{ error?: string; nextPick?: number; totalPicks?: number; skippedDueToRace?: boolean }> {
+  const { data: orderRow } = await admin
+    .from("league_draft_order")
+    .select("draft_run_id")
+    .eq("league_id", leagueId)
+    .eq("overall_pick", current.overall_pick)
+    .maybeSingle();
+  const draftRunId = (orderRow as { draft_run_id?: string } | null)?.draft_run_id ?? null;
+  if (!draftRunId) return { error: "Draft run not found. Generate or set draft order first." };
+
   // Use admin rosters so we see all teams' picks (RLS would otherwise limit to current user) and assign correctly.
-  const rosters = await getRostersForLeagueAdmin(leagueId);
+  const rosters = await getRostersForLeagueAdmin(leagueId, admin);
   const draftedIds = new Set<string>();
-  for (const entries of Object.values(rosters)) for (const e of entries) draftedIds.add(e.wrestler_id);
+  for (const entries of Object.values(rosters)) for (const e of entries) addToDraftedSet(draftedIds, e.wrestler_id);
+  const { data: existingPickRows } = await admin
+    .from("league_draft_picks")
+    .select("wrestler_id")
+    .eq("draft_run_id", draftRunId);
+  for (const row of existingPickRows ?? []) {
+    addToDraftedSet(draftedIds, (row as { wrestler_id?: string | null }).wrestler_id);
+  }
+
   const currentRoster = rosters[current.user_id] ?? [];
   const rules = await getRosterRulesForLeagueId(admin, leagueId);
   const rosterGenderCounts: Record<string, number> = { F: 0, M: 0 };
@@ -1394,31 +2067,89 @@ async function performOneAutoPick(
   }
   const currentFemale = rosterGenderCounts.F ?? 0;
   const currentMale = rosterGenderCounts.M ?? 0;
-  const remainingPicks = rules ? rules.rosterSize - currentRoster.length : 0;
-  const needFemale = rules ? Math.max(0, rules.minFemale - currentFemale) : 0;
-  const needMale = rules ? Math.max(0, rules.minMale - currentMale) : 0;
-  const requiredGender: "F" | "M" | null =
-    rules && remainingPicks > 0
-      ? needFemale > 0 && remainingPicks - 1 < needFemale
-        ? "F"
-        : needMale > 0 && remainingPicks - 1 < needMale
-          ? "M"
-          : null
-      : null;
+  const requiredGender: "F" | "M" | null = rules
+    ? requiredGenderForNextPick(rules, currentRoster.length, currentFemale, currentMale)
+    : null;
 
-  let wrestlerId = await getTopAvailableWrestlerForUser(leagueId, current.user_id, { rosters, draftedIds });
-  if (!wrestlerId) {
-    wrestlerId = await getTopAvailableWrestlerByPoints(leagueId, { draftedIds, requiredGender });
+  let wrestlerId: string | null = null;
+  if (simplifiedAutopick) {
+    const champs = autopickChampionsBySlug ?? (await loadAutopickChampionsBySlug(admin));
+    wrestlerId = await pickAutopickLeagueWrestler(
+      admin,
+      draftedIds,
+      requiredGender,
+      champs,
+      autopickEventPointsBySlug
+    );
+    if (!wrestlerId) {
+      wrestlerId = await findFirstUndraftedAutopickRawSdWrestlerId(admin, draftedIds, requiredGender);
+    }
+    if (!wrestlerId && requiredGender != null) {
+      wrestlerId = await findFirstUndraftedAutopickRawSdWrestlerId(admin, draftedIds, null);
+    }
+    // Raw/SmackDown pool can run out before the draft ends (large leagues, heavy drafting, or sparse brands).
+    // Prefer best all-time score among all draftable talent, then any undrafted draftable, so the draft can finish.
+    if (!wrestlerId) {
+      wrestlerId = await getBestAutopickWrestlerAllTimeTotal(admin, draftedIds, requiredGender, autopickEventPointsBySlug);
+    }
+    if (!wrestlerId && requiredGender != null) {
+      wrestlerId = await getBestAutopickWrestlerAllTimeTotal(admin, draftedIds, null, autopickEventPointsBySlug);
+    }
+    if (!wrestlerId) {
+      wrestlerId = await getAnyUndraftedAutopickWrestlerId(admin, draftedIds);
+    }
+    if (!wrestlerId) {
+      wrestlerId = await getAnyUndraftedNonBlocklistedForAutopickEmergency(admin, draftedIds);
+    }
+  } else {
+    wrestlerId = await getTopAvailableWrestlerForUser(leagueId, current.user_id, {
+      rosters,
+      draftedIds,
+      requiredGender,
+      supabase: admin,
+    });
+    if (!wrestlerId) {
+      wrestlerId = await getTopAvailableWrestlerByPoints(leagueId, { draftedIds, requiredGender, supabase: admin });
+    }
+    if (!wrestlerId) {
+      wrestlerId = await getBestAutopickWrestlerAllTimeTotal(admin, draftedIds, null);
+    }
+    if (!wrestlerId) {
+      wrestlerId = await getAnyUndraftedDraftableWrestlerId(admin, draftedIds);
+    }
   }
   if (!wrestlerId) {
-    // Pool exhausted: advance without assigning so the draft does not freeze
-    return advanceDraftToNextSlot(admin, leagueId, state);
+    return {
+      error: simplifiedAutopick
+        ? "Autopick could not assign anyone: every wrestler may already be rostered/picked, or gender minimums cannot be met with anyone left in the database. If the draft should continue, check for duplicate picks, restart the draft, or lower min F/M vs roster size."
+        : "Auto-pick could not find an available wrestler for this slot.",
+    };
   }
 
   if (!rules) return { error: "Invalid league size." };
   const currentIds = currentRoster.map((e) => e.wrestler_id);
-  if (currentIds.includes(wrestlerId)) return { error: "Wrestler already on roster." };
+  if (currentIds.some((id) => id === wrestlerId || id.toLowerCase() === wrestlerId.toLowerCase())) {
+    return { error: "Wrestler already on roster." };
+  }
   if (currentIds.length >= rules.rosterSize) return { error: "Roster full." };
+
+  const nextPick = (state.draft_current_pick ?? 0) + 1;
+  const totalPicks = state.total_picks ?? 0;
+
+  // Claim the slot before roster insert so concurrent page loads cannot each add a roster row
+  // for the same overall_pick (which used to leave orphan rosters and duplicate-key errors).
+  const { error: pickErr } = await admin.from("league_draft_picks").insert({
+    league_id: leagueId,
+    draft_run_id: draftRunId,
+    overall_pick: current.overall_pick,
+    user_id: current.user_id,
+    wrestler_id: wrestlerId,
+    is_auto_pick: true,
+  });
+  if (pickErr) {
+    if (isPostgresUniqueViolation(pickErr)) return { skippedDueToRace: true };
+    return { error: pickErr.message };
+  }
 
   const clock = new Date();
   const draftDate = clock.toISOString().slice(0, 10);
@@ -1443,33 +2174,17 @@ async function performOneAutoPick(
         acquired_at: draftDate,
         released_at: null,
       });
-      if (rosterErr2) return { error: rosterErr2.message };
+      if (rosterErr2) {
+        await admin.from("league_draft_picks").delete().eq("draft_run_id", draftRunId).eq("overall_pick", current.overall_pick);
+        if (isPostgresUniqueViolation(rosterErr2)) return { skippedDueToRace: true };
+        return { error: rosterErr2.message };
+      }
     } else {
+      await admin.from("league_draft_picks").delete().eq("draft_run_id", draftRunId).eq("overall_pick", current.overall_pick);
+      if (isPostgresUniqueViolation(rosterErr)) return { skippedDueToRace: true };
       return { error: rosterErr.message };
     }
   }
-
-  const { data: orderRow } = await admin
-    .from("league_draft_order")
-    .select("draft_run_id")
-    .eq("league_id", leagueId)
-    .eq("overall_pick", current.overall_pick)
-    .maybeSingle();
-  const draftRunId = (orderRow as { draft_run_id?: string } | null)?.draft_run_id ?? null;
-  if (!draftRunId) return { error: "Draft run not found. Generate or set draft order first." };
-
-  const nextPick = (state.draft_current_pick ?? 0) + 1;
-  const totalPicks = state.total_picks ?? 0;
-
-  const { error: pickErr } = await admin.from("league_draft_picks").insert({
-    league_id: leagueId,
-    draft_run_id: draftRunId,
-    overall_pick: current.overall_pick,
-    user_id: current.user_id,
-    wrestler_id: wrestlerId,
-    is_auto_pick: true,
-  });
-  if (pickErr) return { error: pickErr.message };
 
   await afterAutoPickIncrementState(admin, leagueId, current.user_id);
 
@@ -1492,7 +2207,11 @@ async function performOneAutoPick(
 }
 
 /** When true, auto-pick runs without waiting for the per-pick timer (e.g. scheduled full autopick). */
-export type RunAutoPickOptions = { skipTimer?: boolean };
+export type RunAutoPickOptions = {
+  skipTimer?: boolean;
+  /** Max successful picks in this invocation; default MAX_AUTOPICK_PICKS_PER_REQUEST. Draft page uses a lower cap. */
+  maxPicksPerInvocation?: number;
+};
 
 /**
  * If the current pick has exceeded the allotted time (or user is in "takeover" after 3 missed picks), perform auto-pick(s).
@@ -1510,6 +2229,8 @@ export async function runAutoPickIfExpired(
   const admin = getAdminClient();
   if (!admin) return { didAutoPick: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
 
+  await healStaleDraftCursorChain(admin, leagueId);
+
   const state = await getLeagueDraftStateUsingAdmin(admin, leagueId);
   if (!state || state.draft_status !== "in_progress" || state.draft_current_pick == null) {
     return { didAutoPick: false };
@@ -1526,7 +2247,8 @@ export async function runAutoPickIfExpired(
     .select("time_per_pick_seconds, draft_type")
     .eq("id", leagueId)
     .maybeSingle();
-  const draftType = (leagueRow as { draft_type?: string } | null)?.draft_type ?? null;
+  const draftType =
+    (leagueRow as { draft_type?: string } | null)?.draft_type ?? state.draft_type ?? null;
   const rawSec = (leagueRow as { time_per_pick_seconds?: number } | null)?.time_per_pick_seconds;
   const timePerPickSeconds =
     draftType === "autopick"
@@ -1536,10 +2258,12 @@ export async function runAutoPickIfExpired(
         : DEFAULT_TIME_PER_PICK_SECONDS;
 
   const startedAt = state.draft_current_pick_started_at;
+  // Autopick has no human on the clock — the 5s value is for display only. Always run picks immediately
+  // so one server invocation can finish the whole draft (and cron does not wait on artificial delays).
   const skipTimer =
     skipTimerByOption ||
     userState.auto_pick_rest_of_draft ||
-    (draftType === "autopick" && !startedAt); // Autopick league with no clock: run immediately so draft never gets stuck
+    draftType === "autopick";
   if (!skipTimer) {
     if (!startedAt) return { didAutoPick: false };
     const isFirstPick = state.draft_current_pick === 1;
@@ -1549,18 +2273,63 @@ export async function runAutoPickIfExpired(
     if (Date.now() < deadline) return { didAutoPick: false };
   }
 
+  const runBatchAutopick = draftType === "autopick" && skipTimer;
+  const pickBudget = options?.maxPicksPerInvocation ?? MAX_AUTOPICK_PICKS_PER_REQUEST;
+  if (draftType === "autopick") {
+    const coverage = await validateAutopickPriorityCoverage(admin, leagueId);
+    if (!coverage.ok) return { didAutoPick: false, error: coverage.error };
+  }
+  let autopickChampionsBySlug: Record<string, string[]> | undefined;
+  let autopickEventPointsBySlug: ReturnType<typeof aggregateWrestlerPoints> | null = null;
+  if (draftType === "autopick") {
+    const [champRes, ptsRes] = await Promise.all([
+      loadAutopickChampionsBySlug(admin).catch(() => ({} as Record<string, string[]>)),
+      loadAutopickEventPointsBySlug(admin).catch(() => null),
+    ]);
+    autopickChampionsBySlug = champRes;
+    autopickEventPointsBySlug = ptsRes;
+  }
   let didAny = false;
   let cursor: { overall_pick: number; user_id: string } = current;
   let currentPickNum = state.draft_current_pick;
   let totalPicks = state.total_picks ?? 0;
+  let batchCount = 0;
+  let whileSafety = 0;
 
   while (true) {
-    const result = await performOneAutoPick(admin, leagueId, cursor, {
-      draft_current_pick: currentPickNum,
-      total_picks: totalPicks,
-    });
+    if (++whileSafety > MAX_AUTOPICK_WHILE_ITERATIONS) {
+      return {
+        didAutoPick: didAny,
+        error: didAny ? undefined : "Autopick stalled (iteration limit). Refresh or ask the GM to check draft state.",
+      };
+    }
+    const result = await performOneAutoPick(
+      admin,
+      leagueId,
+      cursor,
+      {
+        draft_current_pick: currentPickNum,
+        total_picks: totalPicks,
+      },
+      false,
+      autopickChampionsBySlug,
+      autopickEventPointsBySlug
+    );
+    if (result.skippedDueToRace) {
+      await healStaleDraftCursorChain(admin, leagueId);
+      const s2 = await getLeagueDraftStateUsingAdmin(admin, leagueId);
+      const c2 = await getCurrentPickUsingAdmin(admin, leagueId);
+      if (!s2 || s2.draft_status !== "in_progress" || s2.draft_current_pick == null || !c2) {
+        return { didAutoPick: didAny };
+      }
+      cursor = c2;
+      currentPickNum = s2.draft_current_pick;
+      totalPicks = s2.total_picks ?? 0;
+      continue;
+    }
     if (result.error) return { didAutoPick: didAny, error: result.error };
     didAny = true;
+    batchCount += 1;
 
     const nextPick = result.nextPick ?? currentPickNum + 1;
     if (nextPick > totalPicks) return { didAutoPick: true };
@@ -1572,6 +2341,20 @@ export async function runAutoPickIfExpired(
       .eq("overall_pick", nextPick)
       .maybeSingle();
     if (!nextOrderRow) return { didAutoPick: true };
+
+    if (runBatchAutopick) {
+      if (batchCount >= pickBudget) return { didAutoPick: true };
+      const s2 = await getLeagueDraftStateUsingAdmin(admin, leagueId);
+      const c2 = await getCurrentPickUsingAdmin(admin, leagueId);
+      if (!s2 || s2.draft_status !== "in_progress" || s2.draft_current_pick == null || !c2) {
+        return { didAutoPick: true };
+      }
+      cursor = c2;
+      currentPickNum = s2.draft_current_pick;
+      totalPicks = s2.total_picks ?? 0;
+      continue;
+    }
+
     const nextUserState = await getDraftUserState(
       admin,
       leagueId,

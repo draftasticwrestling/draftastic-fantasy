@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { useFormState } from "react-dom";
 import { updateBasicSettingsFormAction } from "../actions";
 
 const TEAM_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const;
@@ -18,7 +17,7 @@ export function BasicSettingsSection(props: Props) {
   const { leagueSlug, leagueName, maxTeams, autoReactivate } = props;
   const effectiveMaxTeams = maxTeams ?? 6;
   const router = useRouter();
-  const [state, formAction] = useFormState(updateBasicSettingsFormAction, null as { error?: string } | null);
+  const [state, formAction] = useActionState(updateBasicSettingsFormAction, null as { error?: string } | null);
 
   // After a successful save, refresh so the page gets updated league data and the key/props update
   useEffect(() => {

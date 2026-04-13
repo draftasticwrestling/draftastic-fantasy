@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { makeDraftPickWithStateAction } from "./actions";
 
 type Props = {
@@ -9,7 +9,7 @@ type Props = {
 };
 
 export function MakePickForm({ leagueSlug, availableWrestlers }: Props) {
-  const [state, formAction] = useFormState(makeDraftPickWithStateAction, { error: undefined });
+  const [state, formAction] = useActionState(makeDraftPickWithStateAction, { error: undefined });
 
   return (
     <div

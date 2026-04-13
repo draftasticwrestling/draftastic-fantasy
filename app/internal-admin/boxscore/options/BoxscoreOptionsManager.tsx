@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import Link from "next/link";
 import type { BoxscoreUiOptionCategory } from "@/lib/boxscoreAdmin/boxscoreUiOptionsCore";
 import {
@@ -18,7 +18,7 @@ const CATEGORY_LABELS: Record<BoxscoreUiOptionCategory, string> = {
 type Row = { id: string; label: string; sort_order: number; category: BoxscoreUiOptionCategory };
 
 function AddForm({ category }: { category: BoxscoreUiOptionCategory }) {
-  const [state, formAction] = useFormState(addBoxscoreUiOptionAction, null);
+  const [state, formAction] = useActionState(addBoxscoreUiOptionAction, null);
   return (
     <form action={formAction} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
       <input type="hidden" name="category" value={category} />
@@ -68,7 +68,7 @@ function AddForm({ category }: { category: BoxscoreUiOptionCategory }) {
 }
 
 function DeleteButton({ id }: { id: string }) {
-  const [state, formAction] = useFormState(deleteBoxscoreUiOptionAction, null);
+  const [state, formAction] = useActionState(deleteBoxscoreUiOptionAction, null);
   return (
     <form action={formAction} style={{ display: "inline" }}>
       <input type="hidden" name="id" value={id} />

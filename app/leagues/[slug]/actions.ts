@@ -162,7 +162,7 @@ export async function updateDraftSettingsAction(
   return {};
 }
 
-/** For useFormState: (prevState, formData) => update draft settings. */
+/** For useActionState: (prevState, formData) => update draft settings. */
 export async function updateDraftSettingsFormAction(
   _prevState: { error?: string } | null,
   formData: FormData
