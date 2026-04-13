@@ -2,7 +2,10 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
-import { getSortedMatchesForEvent } from "@/components/boxscore-port/utils/eventMatchesOrder.js";
+import {
+  getSortedMatchesForEvent,
+  prioritizeExplicitMainEventMatches,
+} from "@/components/boxscore-port/utils/eventMatchesOrder.js";
 import { getEventShowType } from "@/lib/boxscore/eventShowHeader";
 import type { HubPreviewEventRow } from "@/lib/home/hubHomeEvents";
 import { splitUpcomingMatchSides } from "@/lib/home/hubUpcomingMatchSides";
@@ -270,7 +273,11 @@ export default function HubLatestEventPreview({
   fallbackOverride?: string;
 }) {
   const wrestlerMap = buildWrestlerMap(wrestlerRows);
-  const sorted = getSortedMatchesForEvent(event);
+  const sortedBase = getSortedMatchesForEvent(event);
+  const sorted =
+    variant === "live" || variant === "completed"
+      ? prioritizeExplicitMainEventMatches(sortedBase)
+      : sortedBase;
   const orderFilter = allowedMatchOrders !== undefined ? new Set(allowedMatchOrders) : null;
 
   const barParts =
@@ -385,13 +392,19 @@ export default function HubLatestEventPreview({
     const scored = scoreEvent({ ...event, matches: sorted }) as ScoredEvent;
     let shown = 0;
 
+    const scoredForRaw = (raw: Record<string, unknown>, i: number): ScoredMatch | undefined => {
+      const ord = raw.order != null && raw.order !== "" ? Number(raw.order) : i + 1;
+      const byOrder = scored.matches.find((m) => Number((m as ScoredMatch).order) === ord);
+      return (byOrder ?? scored.matches[i]) as ScoredMatch | undefined;
+    };
+
     for (let i = 0; i < sorted.length && shown < maxMatches; i++) {
       const raw = sorted[i] as Record<string, unknown>;
       if (isRawPromo(raw)) continue;
       const ordSc = Number((raw.order as number) ?? i + 1);
       if (orderFilter && !orderFilter.has(ordSc)) continue;
 
-      const sm = scored.matches[i] as ScoredMatch | undefined;
+      const sm = scoredForRaw(raw, i);
       if (!sm || sm.isPromo) continue;
 
       shown++;
