@@ -10,7 +10,6 @@ import { getTradeProposalsForLeague, getLeagueRosterActivity, processTradeTimerD
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 import { LeagueStandingsTable } from "./LeagueStandingsTable";
-import { RostersSection } from "./RostersSection";
 import { TradeProposalRespond } from "./team/TradeProposalRespond";
 import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
 import { ManagerAvatar } from "@/app/components/ManagerAvatar";
@@ -181,10 +180,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const creatorLabel = factionDisplayName(commissionerMember, "GM");
     const maxTeams = league.max_teams ?? 12;
     const leagueNotFull = members.length < maxTeams;
-    const hasDraftDate = !!(league.draft_date && String(league.draft_date).trim().slice(0, 10));
-    const draftNotScheduled =
-      (!league.draft_status || league.draft_status === "not_started") && !hasDraftDate;
-    const showAlert = isCommissioner && (leagueNotFull || draftNotScheduled);
+    const showAlert = isCommissioner && leagueNotFull;
+    const showPrepareForDraft = (league.draft_status ?? "not_started") === "not_started";
 
     const myTeamName = factionDisplayName(currentUserMember, "My Faction");
     const myManagerName = truncateFactionDisplay(
@@ -289,11 +286,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             </p>
             {showAlert && (
               <div className="lm-alert" role="alert">
-                {leagueNotFull && draftNotScheduled
-                  ? "Your league is not full and your draft has not been scheduled."
-                  : leagueNotFull
-                    ? "Your league is not full."
-                    : "Your draft has not been scheduled."}
+                {leagueNotFull ? "Your league is not full." : null}
               </div>
             )}
             {isCommissioner && (
@@ -306,11 +299,20 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                   joinCode={league.join_code ?? null}
                   showInviteButton
                 />
-                <Link href={`/leagues/${slug}/draft`} className="lm-btn-secondary">
-                  Schedule Your Draft
-                </Link>
+                {showPrepareForDraft && (
+                  <Link href={`/leagues/${slug}/draft`} className="lm-btn-secondary">
+                    Prepare for your draft
+                  </Link>
+                )}
                 <Link href={`/leagues/${slug}/proposals`} className="lm-btn-secondary">
                   Pending proposals
+                </Link>
+              </div>
+            )}
+            {!isCommissioner && showPrepareForDraft && (
+              <div className="lm-actions">
+                <Link href={`/leagues/${slug}/draft`} className="lm-btn-secondary">
+                  Prepare for your draft
                 </Link>
               </div>
             )}
@@ -540,19 +542,6 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             </div>
           </div>
 
-          {/* Rosters */}
-          <div className="lm-card">
-            <RostersSection
-              leagueId={league.id}
-              leagueSlug={slug}
-              members={members}
-              rosters={rosters}
-              wrestlers={wrestlersResult}
-              isCommissioner={isCommissioner}
-              rosterRules={rosterRules}
-              teamCount={members.length}
-            />
-          </div>
         </div>
 
         <aside className="lm-season-rail" aria-label="League season timeline">

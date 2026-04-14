@@ -83,6 +83,7 @@ export default async function InternalAdminLeaguesPage({
                 <th style={{ padding: "10px 8px" }}>Slug</th>
                 <th style={{ padding: "10px 8px" }}>Commissioner</th>
                 <th style={{ padding: "10px 8px" }}>Season</th>
+                <th style={{ padding: "10px 8px" }}>Draft review</th>
                 <th style={{ padding: "10px 8px" }}>Created</th>
               </tr>
             </thead>
@@ -105,6 +106,11 @@ export default async function InternalAdminLeaguesPage({
                   </td>
                   <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>
                     {row.start_date || "—"} → {row.end_date || "—"}
+                  </td>
+                  <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>
+                    {row.draft_status === "ready_for_review" ? (
+                      <span style={{ color: "var(--color-warning)" }}>Ready for review</span>
+                    ) : row.draft_status ?? "—"}
                   </td>
                   <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>{row.created_at.slice(0, 10)}</td>
                 </tr>

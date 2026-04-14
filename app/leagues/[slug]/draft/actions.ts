@@ -293,7 +293,13 @@ export async function saveDraftPreferencesFormAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
 
-  const listSource = (formData.get("list_source") as string)?.trim() || "custom";
+  const rawListSource = (formData.get("list_source") as string)?.trim();
+  const listSource =
+    league.draft_type === "autopick"
+      ? rawListSource === "custom" || isBigBoardId(rawListSource)
+        ? rawListSource
+        : "default"
+      : rawListSource || "custom";
   let priority_list: string[] = [];
 
   if (league.draft_type === "autopick" && isBigBoardId(listSource)) {

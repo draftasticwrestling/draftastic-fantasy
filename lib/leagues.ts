@@ -54,7 +54,7 @@ export type League = {
   draft_type?: DraftType | null;
   time_per_pick_seconds?: number | null;
   draft_order_method?: DraftOrderMethod | null;
-  draft_status?: "not_started" | "in_progress" | "completed";
+  draft_status?: "not_started" | "in_progress" | "ready_for_review" | "completed";
   draft_current_pick?: number | null;
   manager_note?: string | null;
   /** Permanent join code (XXXX-XXXX); does not expire. */
@@ -169,7 +169,7 @@ export async function createLeague(params: {
   const existingSlugs = new Set((existing ?? []).map((r) => r.slug));
   const slug = makeSlugUnique(baseSlug, existingSlugs);
 
-  const draft_date = params.draft_date?.trim() || null;
+  const draft_date = null;
   const league_type = params.league_type?.trim() || null;
   const max_teams =
     params.max_teams != null && Number.isFinite(Number(params.max_teams))
@@ -193,6 +193,10 @@ export async function createLeague(params: {
         end_date: window.end_date,
         season_slug: seasonSlug,
         draft_date,
+        draft_time: null,
+        draft_type: "autopick",
+        draft_style: "snake",
+        draft_order_method: "random_one_hour_before",
         league_type,
         max_teams,
         join_code,
@@ -258,7 +262,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
         ...minimalResult.data,
         draft_time: null,
         draft_style: "snake",
-        draft_type: "snake",
+        draft_type: "autopick",
         time_per_pick_seconds: 120,
         draft_order_method: "random_one_hour_before",
         draft_status: "not_started",
@@ -701,6 +705,27 @@ export async function getRostersForLeague(
   leagueId: string
 ): Promise<Record<string, LeagueRosterEntry[]>> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: leagueRow } = await supabase
+    .from("leagues")
+    .select("draft_status")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const draftStatus = (leagueRow as { draft_status?: string } | null)?.draft_status ?? "not_started";
+  if (draftStatus === "ready_for_review") {
+    let isSiteAdmin = false;
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_site_admin")
+        .eq("id", user.id)
+        .maybeSingle();
+      isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
+    }
+    if (!isSiteAdmin) return {};
+  }
   const { data, error } = await supabase
     .from("league_rosters")
     .select("user_id, wrestler_id, contract")

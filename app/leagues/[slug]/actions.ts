@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import type { DraftOrderMethod, DraftType } from "@/lib/leagues";
+import type { DraftOrderMethod } from "@/lib/leagues";
 import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster } from "@/lib/leagues";
 import { assertWrestlerNotTradeLocked } from "@/lib/leagueOwner";
 
@@ -96,11 +96,6 @@ export async function updateDraftDateFromFormAction(formData: FormData): Promise
   await updateDraftDateAction(leagueSlug, formData);
 }
 
-const DRAFT_TYPES: DraftType[] = ["offline", "linear", "snake", "autopick"];
-const DRAFT_STYLES = ["linear", "snake"] as const;
-const TIME_PER_PICK_VALUES = [5, 30, 60, 90, 120, 150, 180] as const;
-const DRAFT_ORDER_METHODS: DraftOrderMethod[] = ["random_one_hour_before", "manual_by_gm"];
-
 export async function updateDraftSettingsAction(
   leagueSlug: string,
   formData: FormData
@@ -115,50 +110,34 @@ export async function updateDraftSettingsAction(
   }
 
   const draft_type_ui = (formData.get("draft_type_ui") as string)?.trim();
-  const draft_style = (formData.get("draft_style") as string)?.trim();
-  const time_per_pick_seconds = formData.get("time_per_pick_seconds");
-  const draft_order_method = (formData.get("draft_order_method") as string)?.trim() as DraftOrderMethod | undefined;
-  const draft_date_raw = (formData.get("draft_date") as string)?.trim() || "";
-  const draft_time_raw = (formData.get("draft_time") as string)?.trim() || "";
-
-  // draft_date is a DATE column (no time); draft_time is stored separately so it persists.
-  const draft_date = draft_date_raw || null;
-  const draft_time = draft_date && draft_time_raw ? draft_time_raw : null;
 
   const payload: Record<string, unknown> = {
-    draft_date,
-    draft_time,
+    draft_date: null,
+    draft_time: null,
+    draft_style: "snake",
+    draft_order_method: "random_one_hour_before" satisfies DraftOrderMethod,
+    time_per_pick_seconds: null,
   };
 
-  if (draft_type_ui === "live" && draft_style && DRAFT_STYLES.includes(draft_style as "linear" | "snake")) {
-    payload.draft_type = draft_style;
-    payload.draft_style = draft_style;
-  } else if (draft_type_ui === "offline" || draft_type_ui === "autopick") {
-    payload.draft_type = draft_type_ui;
-  } else if (draft_type_ui && DRAFT_TYPES.includes(draft_type_ui as DraftType)) {
-    payload.draft_type = draft_type_ui;
+  if (draft_type_ui === "offline") {
+    payload.draft_type = "offline";
+  } else {
+    payload.draft_type = "autopick";
   }
 
-  if (time_per_pick_seconds != null) {
-    const sec = Number(time_per_pick_seconds);
-    if (sec === 5) {
-      payload.time_per_pick_seconds = null;
-    } else if ((TIME_PER_PICK_VALUES as readonly number[]).includes(sec)) {
-      payload.time_per_pick_seconds = sec;
-    }
-  }
-  if (draft_order_method && DRAFT_ORDER_METHODS.includes(draft_order_method)) {
-    payload.draft_order_method = draft_order_method;
-  }
-
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from("leagues")
     .update(payload)
-    .eq("id", league.id);
+    .eq("id", league.id)
+    .select("id");
 
   if (error) return { error: error.message };
+  if (!updatedRows?.length) {
+    return { error: "Update did not apply. You may not have permission to change this league." };
+  }
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/league-settings`);
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
   return {};
 }
 

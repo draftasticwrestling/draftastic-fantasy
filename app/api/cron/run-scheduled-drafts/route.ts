@@ -6,6 +6,7 @@ import {
   getScheduledDraftTimeMs,
   generateDraftOrderForScheduledDraft,
 } from "@/lib/leagueDraft";
+import { isInBetaAutopickRunWindow } from "@/lib/betaAutopickSchedule";
 
 const FIFTY_MIN_MS = 50 * 60 * 1000;
 const SEVENTY_MIN_MS = 70 * 60 * 1000;
@@ -56,28 +57,33 @@ export async function GET(request: Request) {
 
   for (const league of leagues) {
     const scheduledMs = getScheduledDraftTimeMs(league);
-    if (scheduledMs == null) continue;
-
-    const msUntilDraft = scheduledMs - now;
-
-    if (msUntilDraft >= FIFTY_MIN_MS && msUntilDraft <= SEVENTY_MIN_MS) {
-      const method = (league as { draft_order_method?: string }).draft_order_method;
-      if (method === "manual_by_gm") continue;
-      const { count } = await admin
-        .from("league_draft_order")
-        .select("*", { count: "exact", head: true })
-        .eq("league_id", league.id);
-      if (count && count > 0) continue;
-      const res = await generateDraftOrderForScheduledDraft(league.id);
-      if (res.error) orderErrors.push(`${league.id}: ${res.error}`);
-      else orderGenerated += 1;
+    let inOneHourWindow = false;
+    if (scheduledMs != null) {
+      const msUntilDraft = scheduledMs - now;
+      inOneHourWindow = msUntilDraft >= FIFTY_MIN_MS && msUntilDraft <= SEVENTY_MIN_MS;
+    } else if (isInBetaAutopickRunWindow(now)) {
+      inOneHourWindow = true;
     }
+    if (!inOneHourWindow) continue;
+
+    const method = (league as { draft_order_method?: string }).draft_order_method;
+    if (method === "manual_by_gm") continue;
+    const { count } = await admin
+      .from("league_draft_order")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", league.id);
+    if (count && count > 0) continue;
+    const res = await generateDraftOrderForScheduledDraft(league.id);
+    if (res.error) orderErrors.push(`${league.id}: ${res.error}`);
+    else orderGenerated += 1;
   }
 
   const due: { id: string }[] = [];
   for (const league of leagues) {
     const scheduledMs = getScheduledDraftTimeMs(league);
-    if (scheduledMs == null || now < scheduledMs) continue;
+    const dueBySchedule = scheduledMs != null && now >= scheduledMs;
+    const dueByBeta = scheduledMs == null && isInBetaAutopickRunWindow(now);
+    if (!dueBySchedule && !dueByBeta) continue;
     const { count } = await admin
       .from("league_draft_order")
       .select("*", { count: "exact", head: true })

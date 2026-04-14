@@ -24,6 +24,7 @@ import { factionDisplayName } from "@/lib/factionName";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { isRawOrSmackDownWrestlerRoster } from "@/lib/wrestlerRosterFromBrand";
 import {
+  AUTOPICK_LIST_EXHAUSTED_TIE_BREAK,
   AUTOPICK_REQUIRED_FEMALE_COUNT,
   AUTOPICK_REQUIRED_PRIORITY_COUNT,
 } from "@/lib/draftPriorityRequirements";
@@ -32,8 +33,19 @@ import {
   LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM,
   LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT,
 } from "@/lib/leagueLeadersAllTimeScoring";
+import { bigBoardLabel, getBigBoardPriorityList, isBigBoardId, type BigBoardId } from "@/lib/draftBigBoards";
+import { isInBetaAutopickRunWindow } from "@/lib/betaAutopickSchedule";
 
 const LEAGUE_START_DATE = "2025-05-02";
+
+/** Live snake/linear: `draft_type` is canonical when it is `linear` or `snake` (matches generateDraftOrder). */
+export function effectiveLiveDraftStyle(
+  draft_type: string | null | undefined,
+  draft_style: string | null | undefined
+): "linear" | "snake" {
+  if (draft_type === "linear" || draft_type === "snake") return draft_type;
+  return draft_style === "linear" ? "linear" : "snake";
+}
 
 type AutopickPointsTriple = { rsPoints: number; plePoints: number; beltPoints: number };
 
@@ -266,8 +278,7 @@ export async function getDraftOrder(
 }
 
 /** Default behavior when a manager has not set auto-draft preferences. */
-export const DEFAULT_AUTOPICK_DESCRIPTION =
-  "Best available by total points (all-time).";
+export const DEFAULT_AUTOPICK_DESCRIPTION = AUTOPICK_LIST_EXHAUSTED_TIE_BREAK;
 
 /**
  * Get preference status for all league members (for pre-draft "auto-draft readiness" display).
@@ -279,61 +290,50 @@ export async function getDraftPreferencesForAllMembers(
   { user_id: string; display_name: string; hasPreferences: boolean; summary: string }[]
 > {
   const members = await getLeagueMembers(leagueId);
-  const FOCUS_LABELS: Record<string, string> = {
-    all: "All-time points",
-    "2026": "2026 points",
-    "2025": "2025 points",
-  };
-  const POINT_STRATEGY_LABELS: Record<string, string> = {
-    total: "Total Points",
-    rs: "R/S points",
-    ple: "PLE Points",
-    belt: "Belt Points",
-  };
-  const WRESTLER_STRATEGY_LABELS: Record<string, string> = {
-    best_available: "Best available",
-    balanced_gender: "Balanced male/female",
-    balanced_brands: "Balanced Raw/SmackDown",
-    high_males: "High ranking males",
-    high_females: "High ranking females",
-  };
   const db = getAdminClient() ?? (await createClient());
+  const { data: leagueRow } = await db.from("leagues").select("draft_type").eq("id", leagueId).maybeSingle();
+  const leagueIsAutopick = (leagueRow as { draft_type?: string } | null)?.draft_type === "autopick";
+
   const out: { user_id: string; display_name: string; hasPreferences: boolean; summary: string }[] = [];
   for (const m of members) {
     const name = factionDisplayName(m, "Unknown");
     const prefs = await getDraftPreferences(leagueId, m.user_id, db);
-    const hasPreferences =
-      prefs != null &&
-      (prefs.priority_list?.length > 0 || prefs.strategy_options != null);
-    let summary = DEFAULT_AUTOPICK_DESCRIPTION;
-    if (hasPreferences && prefs) {
-      if (prefs.priority_list?.length) {
-        summary = `Priority list: ${prefs.priority_list.length} wrestlers`;
-        if (prefs.strategy_options?.focus || prefs.strategy_options?.pointStrategy || prefs.strategy_options?.wrestlerStrategy) {
-          const parts: string[] = [];
-          if (prefs.strategy_options.focus)
-            parts.push(FOCUS_LABELS[prefs.strategy_options.focus] ?? prefs.strategy_options.focus);
-          if (prefs.strategy_options.pointStrategy)
-            parts.push(POINT_STRATEGY_LABELS[prefs.strategy_options.pointStrategy] ?? prefs.strategy_options.pointStrategy);
-          if (prefs.strategy_options.wrestlerStrategy)
-            parts.push(WRESTLER_STRATEGY_LABELS[prefs.strategy_options.wrestlerStrategy] ?? prefs.strategy_options.wrestlerStrategy);
-          if (parts.length) summary += ` · ${parts.join(", ")}`;
-        }
-      } else if (prefs.strategy_options) {
-        const parts: string[] = [];
-        if (prefs.strategy_options.focus)
-          parts.push(FOCUS_LABELS[prefs.strategy_options.focus] ?? prefs.strategy_options.focus);
-        if (prefs.strategy_options.pointStrategy)
-          parts.push(POINT_STRATEGY_LABELS[prefs.strategy_options.pointStrategy] ?? prefs.strategy_options.pointStrategy);
-        if (prefs.strategy_options.wrestlerStrategy)
-          parts.push(WRESTLER_STRATEGY_LABELS[prefs.strategy_options.wrestlerStrategy] ?? prefs.strategy_options.wrestlerStrategy);
-        summary = parts.length ? parts.join(", ") : DEFAULT_AUTOPICK_DESCRIPTION;
+    const so = prefs?.strategy_options as { priorityListSource?: string } | undefined;
+    const listSrc = so?.priorityListSource;
+    const listLen = prefs?.priority_list?.length ?? 0;
+    const isCustom = listSrc === "custom";
+    const customOk = isCustom && listLen >= AUTOPICK_REQUIRED_PRIORITY_COUNT;
+    const hasPreferencesNonAutopick =
+      prefs != null && (listLen > 0 || prefs.strategy_options != null);
+
+    let hasPreferencesDisplay: boolean;
+    let summary: string;
+
+    if (!leagueIsAutopick) {
+      hasPreferencesDisplay = hasPreferencesNonAutopick;
+      summary = DEFAULT_AUTOPICK_DESCRIPTION;
+      if (hasPreferencesNonAutopick && prefs) {
+        if (listLen > 0) summary = `Priority list: ${listLen} wrestlers · ${DEFAULT_AUTOPICK_DESCRIPTION}`;
       }
+    } else if (!isCustom) {
+      hasPreferencesDisplay = true;
+      const boardId: BigBoardId =
+        listSrc && isBigBoardId(String(listSrc)) ? (listSrc as BigBoardId) : "default";
+      summary =
+        boardId === "default"
+          ? `Default Big Board · ${DEFAULT_AUTOPICK_DESCRIPTION}`
+          : `${bigBoardLabel(boardId)} · ${listLen} wrestlers · ${DEFAULT_AUTOPICK_DESCRIPTION}`;
+    } else if (customOk) {
+      hasPreferencesDisplay = true;
+      summary = `My own list: ${listLen} wrestlers · ${DEFAULT_AUTOPICK_DESCRIPTION}`;
+    } else {
+      hasPreferencesDisplay = false;
+      summary = `My own list incomplete (${listLen}/${AUTOPICK_REQUIRED_PRIORITY_COUNT}). The Default Big Board will be used at draft time until this is complete.`;
     }
     out.push({
       user_id: m.user_id,
       display_name: name,
-      hasPreferences,
+      hasPreferences: hasPreferencesDisplay,
       summary,
     });
   }
@@ -509,19 +509,25 @@ export async function setDraftPreferences(
  * Tolerates missing draft_current_pick_started_at column (pre-migration).
  */
 export async function getLeagueDraftState(leagueId: string): Promise<{
-  draft_status: "not_started" | "in_progress" | "completed";
+  draft_status: "not_started" | "in_progress" | "ready_for_review" | "completed";
   draft_current_pick: number | null;
   draft_style: "snake" | "linear";
   total_picks: number;
   draft_current_pick_started_at: string | null;
 } | null> {
   const supabase = await createClient();
-  let league: { draft_status?: string; draft_current_pick?: number | null; draft_style?: string; draft_current_pick_started_at?: string | null } | null = null;
+  let league: {
+    draft_status?: string;
+    draft_current_pick?: number | null;
+    draft_style?: string;
+    draft_type?: string | null;
+    draft_current_pick_started_at?: string | null;
+  } | null = null;
   let err: { code?: string } | null = null;
 
   const full = await supabase
     .from("leagues")
-    .select("draft_status, draft_current_pick, draft_style, draft_current_pick_started_at")
+    .select("draft_status, draft_current_pick, draft_style, draft_type, draft_current_pick_started_at")
     .eq("id", leagueId)
     .maybeSingle();
   if (full.error) {
@@ -546,9 +552,13 @@ export async function getLeagueDraftState(leagueId: string): Promise<{
     .eq("league_id", leagueId);
 
   return {
-    draft_status: (league.draft_status ?? "not_started") as "not_started" | "in_progress" | "completed",
+    draft_status: (league.draft_status ?? "not_started") as
+      | "not_started"
+      | "in_progress"
+      | "ready_for_review"
+      | "completed",
     draft_current_pick: league.draft_current_pick ?? null,
-    draft_style: (league.draft_style ?? "snake") as "snake" | "linear",
+    draft_style: effectiveLiveDraftStyle(league.draft_type, league.draft_style),
     total_picks: count ?? 0,
     draft_current_pick_started_at: league.draft_current_pick_started_at ?? null,
   };
@@ -629,7 +639,7 @@ async function getLeagueDraftStateUsingAdmin(
   admin: AdminClient,
   leagueId: string
 ): Promise<{
-  draft_status: "not_started" | "in_progress" | "completed";
+  draft_status: "not_started" | "in_progress" | "ready_for_review" | "completed";
   draft_current_pick: number | null;
   draft_style: "snake" | "linear";
   total_picks: number;
@@ -647,9 +657,13 @@ async function getLeagueDraftStateUsingAdmin(
     .select("*", { count: "exact", head: true })
     .eq("league_id", leagueId);
   return {
-    draft_status: (league.draft_status ?? "not_started") as "not_started" | "in_progress" | "completed",
+    draft_status: (league.draft_status ?? "not_started") as
+      | "not_started"
+      | "in_progress"
+      | "ready_for_review"
+      | "completed",
     draft_current_pick: league.draft_current_pick ?? null,
-    draft_style: (league.draft_style ?? "snake") as "snake" | "linear",
+    draft_style: effectiveLiveDraftStyle(league.draft_type, league.draft_style),
     total_picks: count ?? 0,
     draft_current_pick_started_at: league.draft_current_pick_started_at ?? null,
     draft_type: league.draft_type != null ? String(league.draft_type) : null,
@@ -804,6 +818,20 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
     return { error: "Only the GM can generate draft order." };
   }
 
+  const draftType = (league as { draft_type?: string }).draft_type ?? null;
+  if (draftType === "autopick") {
+    const { count } = await supabase
+      .from("league_draft_order")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", leagueId);
+    if (count && count > 0) {
+      return { error: "Draft order is already set for this league. It cannot be changed." };
+    }
+  }
+  if (draftType === "offline") {
+    return { error: "Offline leagues do not use an on-site draft order. Add rosters from each team page when your draft is done." };
+  }
+
   const members = await getLeagueMembers(leagueId);
   const rules = getRosterRulesForLeague(
     members.length,
@@ -816,8 +844,8 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
 
   const numRounds = rules.rosterSize;
   const memberIds = members.map((m) => m.user_id);
-  const draftType = (league as { draft_type?: string }).draft_type ?? league.draft_style;
-  const snake = draftType !== "linear";
+  const draftTypeForSnake = (league as { draft_type?: string }).draft_type ?? league.draft_style;
+  const snake = draftTypeForSnake !== "linear";
 
   // Round 1 order is randomized; snake reverses every even round.
   const round1Order = shuffle(memberIds);
@@ -1112,7 +1140,7 @@ export async function makeDraftPick(
     draft_current_pick_started_at?: string;
   } =
     nextPick > totalPicks
-      ? { draft_current_pick: null, draft_status: "completed" }
+      ? { draft_current_pick: null, draft_status: "ready_for_review" }
       : {
           draft_current_pick: nextPick,
           draft_status: "in_progress",
@@ -1396,6 +1424,9 @@ export async function getTopAvailableWrestlerForUser(
 
   const prefs = await getDraftPreferences(leagueId, userId, supabase);
 
+  const { data: leagueDraftMeta } = await supabase.from("leagues").select("draft_type").eq("id", leagueId).maybeSingle();
+  const isAutopickLeague = (leagueDraftMeta as { draft_type?: string } | null)?.draft_type === "autopick";
+
   const rules = await getRosterRulesForLeagueId(supabase, leagueId);
   const currentRoster = rosters[userId] ?? [];
   const rosterIdsForGender = currentRoster.map((e) => e.wrestler_id).filter(Boolean);
@@ -1417,8 +1448,24 @@ export async function getTopAvailableWrestlerForUser(
         ? requiredGenderForNextPick(rules, currentRoster.length, rosterFemale, rosterMale)
         : null;
 
-  if (prefs?.priority_list?.length) {
-    const undraftedPriorityIds = prefs.priority_list.filter((wid): wid is string => Boolean(wid) && !draftedIds.has(wid));
+  let priorityWalkList: string[] = [];
+  if (isAutopickLeague) {
+    const so = prefs?.strategy_options as { priorityListSource?: string } | undefined;
+    const src = so?.priorityListSource?.trim();
+    if (src === "custom") {
+      const own = prefs?.priority_list ?? [];
+      priorityWalkList =
+        own.length > 0 ? own : (getBigBoardPriorityList("default") ?? []);
+    } else {
+      const boardId = src && isBigBoardId(src) ? src : "default";
+      priorityWalkList = getBigBoardPriorityList(boardId) ?? [];
+    }
+  } else if (prefs?.priority_list?.length) {
+    priorityWalkList = prefs.priority_list;
+  }
+
+  if (priorityWalkList.length) {
+    const undraftedPriorityIds = priorityWalkList.filter((wid): wid is string => Boolean(wid) && !draftedIds.has(wid));
     if (undraftedPriorityIds.length > 0) {
       const { data: priG } = await supabase.from("wrestlers").select("id,gender").in("id", undraftedPriorityIds);
       const genderById = new Map<string, "F" | "M" | null>();
@@ -1428,7 +1475,7 @@ export async function getTopAvailableWrestlerForUser(
         genderById.set(id, ng);
         genderById.set(id.toLowerCase(), ng);
       }
-      for (const wid of prefs.priority_list) {
+      for (const wid of priorityWalkList) {
         if (!wid || draftedIds.has(wid)) continue;
         const g = genderById.get(wid) ?? genderById.get(String(wid).toLowerCase()) ?? null;
         if (requiredGender && g !== requiredGender) continue;
@@ -1702,7 +1749,7 @@ async function healOneStaleDraftCursorStep(admin: AdminClient, leagueId: string)
     draft_current_pick_started_at?: string | null;
   } =
     nextPick > totalPicks
-      ? { draft_current_pick: null, draft_status: "completed", draft_current_pick_started_at: null }
+      ? { draft_current_pick: null, draft_status: "ready_for_review", draft_current_pick_started_at: null }
       : {
           draft_current_pick: nextPick,
           draft_status: "in_progress",
@@ -2194,7 +2241,7 @@ async function performOneAutoPick(
     draft_current_pick_started_at?: string;
   } =
     nextPick > totalPicks
-      ? { draft_current_pick: null, draft_status: "completed" }
+      ? { draft_current_pick: null, draft_status: "ready_for_review" }
       : {
           draft_current_pick: nextPick,
           draft_status: "in_progress",
@@ -2410,11 +2457,18 @@ export async function runFullAutopickDraftAtScheduledTime(
   const draftStatus = (league as { draft_status?: string }).draft_status ?? "not_started";
   if (draftType !== "autopick" || draftStatus !== "not_started") return { didRun: false };
 
-  const order = await getDraftOrderUsingAdmin(admin, leagueId);
-  if (order.length === 0) return { didRun: false, error: "Draft order not found. Generate or set draft order before draft time." };
-
   const scheduledMs = getScheduledDraftTimeMs(league as { draft_date?: string | null; draft_time?: string | null });
-  if (scheduledMs == null || Date.now() < scheduledMs) return { didRun: false };
+  const dueByTime = scheduledMs != null && Date.now() >= scheduledMs;
+  const dueByBetaWindow = scheduledMs == null && isInBetaAutopickRunWindow(Date.now());
+  if (!dueByTime && !dueByBetaWindow) return { didRun: false };
+
+  let order = await getDraftOrderUsingAdmin(admin, leagueId);
+  if (order.length === 0) {
+    const gen = await generateDraftOrderForScheduledDraft(leagueId);
+    if (gen.error) return { didRun: false, error: gen.error };
+    order = await getDraftOrderUsingAdmin(admin, leagueId);
+    if (order.length === 0) return { didRun: false, error: "Could not build draft order." };
+  }
 
   const { error: updateErr } = await admin.from("leagues").update({
     draft_status: "in_progress",
@@ -2441,6 +2495,22 @@ export async function runFullAutopickDraftAtScheduledTime(
 export async function clearDraftOrder(leagueId: string): Promise<{ error?: string }> {
   const admin = getAdminClient();
   if (!admin) return { error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+
+  const { data: leagueMeta } = await admin
+    .from("leagues")
+    .select("draft_type")
+    .eq("id", leagueId)
+    .maybeSingle();
+  if ((leagueMeta as { draft_type?: string } | null)?.draft_type === "autopick") {
+    const { count } = await admin
+      .from("league_draft_order")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", leagueId);
+    if (count && count > 0) {
+      return { error: "Autopick draft order cannot be cleared after it is generated." };
+    }
+  }
+
   await admin.from("league_draft_order").delete().eq("league_id", leagueId);
   const { error: updateErr } = await admin
     .from("leagues")

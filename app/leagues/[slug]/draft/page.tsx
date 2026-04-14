@@ -11,13 +11,20 @@ import {
   getDraftPicksHistory,
   getDraftPreferences,
   getDraftPreferencesForAllMembers,
+  DEFAULT_AUTOPICK_DESCRIPTION,
   runAutoPickIfExpired,
   MAX_AUTOPICK_PICKS_DRAFT_PAGE,
   repairDraftAutopickCursor,
   isDraftableWrestler,
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
-import { generateDraftOrderFromFormAction, startDraftFromFormAction, clearDraftOrderFromFormAction } from "./actions";
+import { AUTOPICK_REQUIRED_PRIORITY_COUNT } from "@/lib/draftPriorityRequirements";
+import {
+  BETA_AUTOPICK_DRAFT_WINDOW_LABEL,
+  BETA_AUTOPICK_FIRST_EVENT_LABEL,
+  BETA_AUTOPICK_PREF_DEADLINE_LABEL,
+  BETA_AUTOPICK_ROSTERS_LIVE_LABEL,
+} from "@/lib/betaAutopickSchedule";
 import { MakePickForm } from "./MakePickForm";
 import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
@@ -28,6 +35,7 @@ import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
 import { LeagueDraftRoom } from "./LeagueDraftRoom";
 import { AutopickClientRunner } from "./AutopickClientRunner";
 import { AutopickDraftBoardView } from "./AutopickDraftBoardView";
+import { startDraftFromFormAction } from "./actions";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -105,7 +113,8 @@ export default async function LeagueDraftPage({ params }: Props) {
     // Do not auto-start autopick on page load: let the commissioner change draft order after
     // restart if needed, then click "Begin draft". Scheduled autopick is started by cron only.
 
-    const skipHeavyDraftPool = isAutopickInProgress || draftStatusEarly === "completed";
+    const skipHeavyDraftPool =
+      isAutopickInProgress || draftStatusEarly === "completed" || draftStatusEarly === "ready_for_review";
 
     const emptyWrestlerDiagnostic = {
       source: "none" as const,
@@ -265,93 +274,24 @@ export default async function LeagueDraftPage({ params }: Props) {
       (currentPick.user_id === user.id || isCommissioner);
 
     const draftStatus = state?.draft_status ?? "not_started";
-    const draftStyle = state?.draft_style ?? "snake";
     const totalPicks = state?.total_picks ?? 0;
     const draftCurrentPick = state?.draft_current_pick ?? null;
     const picksBySlot = Object.fromEntries(picksHistory.map((p) => [p.overall_pick, p]));
 
-    const leagueDraftType = league.draft_type ?? (league.draft_style === "linear" ? "linear" : "snake");
-    const timePerPickLabel =
-      league.time_per_pick_seconds != null
-        ? league.time_per_pick_seconds === 60
-          ? "1 minute"
-          : league.time_per_pick_seconds === 90
-            ? "90 seconds"
-            : league.time_per_pick_seconds === 150
-              ? "2 mins 30 seconds"
-              : league.time_per_pick_seconds === 180
-                ? "3 minutes"
-                : league.time_per_pick_seconds === 30
-                  ? "30 seconds"
-                  : `${league.time_per_pick_seconds} seconds`
-        : null;
-    const draftOrderLabel =
-      league.draft_order_method === "manual_by_gm"
-        ? "Manually set by General Manager"
-        : league.draft_order_method === "random_one_hour_before"
-          ? "Randomized one hour before draft"
-          : null;
-    const hasLeagueDraftDetails =
-      leagueDraftType || league.draft_date || timePerPickLabel || draftOrderLabel;
+    const leagueDraftType =
+      league.draft_type === "offline" ? "offline" : league.draft_type === "autopick" ? "autopick" : "autopick";
 
-    const hasDraftScheduled = Boolean(league.draft_date);
-
-    const isLiveDraftType = leagueDraftType === "linear" || leagueDraftType === "snake";
-
+    const prefSrc = userDraftPrefs?.strategy_options as { priorityListSource?: string } | undefined;
+    const customPrefs = prefSrc?.priorityListSource === "custom";
+    const listLen = userDraftPrefs?.priority_list?.length ?? 0;
     const hasAutoDraftSettingsSaved =
-      userDraftPrefs != null &&
-      (userDraftPrefs.priority_list?.length > 0 || userDraftPrefs.strategy_options != null);
-
-    let canStartDraftNow = true;
-    let scheduledDraftMessage: string | null = null;
-    let scheduledMs: number | null = null;
-    if (league.draft_date) {
-      const raw = String(league.draft_date);
-      const datePart = raw.slice(0, 10);
-      const timePart =
-        (league.draft_time && String(league.draft_time).trim()) ||
-        (raw.length > 10 ? raw.slice(11, 16) : null);
-      if (datePart) {
-        const timeForDate = timePart && /^\d{1,2}:\d{2}/.test(timePart) ? timePart.slice(0, 5) : "00:00";
-        const candidate = new Date(`${datePart}T${timeForDate}:00`);
-        if (!Number.isNaN(candidate.getTime())) {
-          scheduledMs = candidate.getTime();
-        }
-      }
-      if (scheduledMs != null) {
-        const nowMs = Date.now();
-        canStartDraftNow = nowMs >= scheduledMs;
-        if (!canStartDraftNow) {
-          const rawTime =
-            (league.draft_time && String(league.draft_time).trim()) ||
-            (raw.length > 10 ? raw.slice(11, 16) : null);
-          scheduledDraftMessage = rawTime
-            ? `Draft is scheduled for ${datePart} at ${rawTime}. The Begin Draft button will appear at that time.`
-            : `Draft is scheduled for ${datePart}. The Begin Draft button will appear on that date.`;
-        }
-      }
-    }
+      league.draft_type === "autopick"
+        ? !customPrefs || listLen >= AUTOPICK_REQUIRED_PRIORITY_COUNT
+        : userDraftPrefs != null &&
+          (userDraftPrefs.priority_list?.length > 0 || userDraftPrefs.strategy_options != null);
 
     const orderInitial = await getDraftOrder(league.id);
     order = orderInitial;
-
-    // Auto-generate draft order when we are within one hour of the scheduled draft time (or later),
-    // method is not manual_by_gm, and no order exists yet. Only succeeds for the commissioner.
-    const ONE_HOUR_MS = 60 * 60 * 1000;
-    if (
-      order.length === 0 &&
-      scheduledMs != null &&
-      Date.now() >= scheduledMs - ONE_HOUR_MS &&
-      league.draft_order_method !== "manual_by_gm"
-    ) {
-      const { generateDraftOrder } = await import("@/lib/leagueDraft");
-      const autoResult = await generateDraftOrder(league.id);
-      if (!autoResult.error) {
-        order = await getDraftOrder(league.id);
-      }
-    }
-
-    const hasServiceRole = getAdminClient() !== null;
 
     function normGender(g: string | null | undefined): "F" | "M" | null {
       if (g == null || typeof g !== "string") return null;
@@ -390,7 +330,11 @@ export default async function LeagueDraftPage({ params }: Props) {
       return needs.length ? needs.join(", ") : null;
     }
 
-    const showDraftRoom = (draftStatus === "in_progress" || draftStatus === "completed") && order.length > 0;
+    const isReviewPending = draftStatus === "ready_for_review";
+    const showDraftRoom =
+      (draftStatus === "in_progress" || draftStatus === "completed" || isReviewPending) &&
+      order.length > 0 &&
+      league.draft_type !== "offline";
     const isAutopickRunning = league.draft_type === "autopick" && draftStatus === "in_progress";
     const wideDraftLayout = showDraftRoom && !isAutopickRunning;
     return (
@@ -402,8 +346,7 @@ export default async function LeagueDraftPage({ params }: Props) {
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem", color: "var(--color-text)" }}>Draft</h1>
 
-      {hasLeagueDraftDetails && (
-        <section
+      <section
           aria-labelledby="league-draft-details-heading"
           style={{
             marginBottom: 24,
@@ -413,53 +356,28 @@ export default async function LeagueDraftPage({ params }: Props) {
             border: "1px solid var(--color-border)",
           }}
         >
-          {hasDraftScheduled && (
-            <p style={{ fontSize: "1rem", fontWeight: 700, color: "#0d7d0d", marginBottom: 12 }}>
-              Your draft is scheduled
-            </p>
-          )}
           <h2 id="league-draft-details-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12, color: "var(--color-text)" }}>
             League draft details
           </h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
-            {leagueDraftType && (
+            <li>
+              <strong style={{ color: "var(--color-text)" }}>Draft type:</strong>{" "}
+              {leagueDraftType === "offline" ? "Offline" : "Autopick"}
+            </li>
+            <li>
+              <strong style={{ color: "var(--color-text)" }}>Pick order:</strong> Snake (same pattern for any on-site autopick run).
+            </li>
+            {leagueDraftType === "autopick" && (
               <li>
-                <strong style={{ color: "var(--color-text)" }}>Draft type:</strong>{" "}
-                {leagueDraftType === "offline"
-                  ? "Offline"
-                  : leagueDraftType === "autopick"
-                    ? "Autopick"
-                    : leagueDraftType === "linear"
-                      ? "Live (Linear)"
-                      : leagueDraftType === "snake"
-                        ? "Live (Snake)"
-                        : leagueDraftType}
+                <strong style={{ color: "var(--color-text)" }}>Beta schedule:</strong> Set preferences by end of day{" "}
+                {BETA_AUTOPICK_PREF_DEADLINE_LABEL}. Autopick runs {BETA_AUTOPICK_DRAFT_WINDOW_LABEL}. Rosters should appear{" "}
+                {BETA_AUTOPICK_ROSTERS_LIVE_LABEL}, before {BETA_AUTOPICK_FIRST_EVENT_LABEL}.
               </li>
             )}
-            {league.draft_date && (
+            {leagueDraftType === "offline" && (
               <li>
-                <strong style={{ color: "var(--color-text)" }}>Draft date:</strong>{" "}
-                {league.draft_date}
-                {league.draft_time && (() => {
-                  const t = String(league.draft_time).trim();
-                  const match = t.match(/^(\d{1,2}):(\d{2})/);
-                  if (!match) return null;
-                  const h = parseInt(match[1], 10);
-                  const m = match[2];
-                  const ampm = h >= 12 ? "PM" : "AM";
-                  const h12 = h % 12 || 12;
-                  return <span> at {h12}:{m} {ampm}</span>;
-                })()}
-              </li>
-            )}
-            {timePerPickLabel && (
-              <li>
-                <strong style={{ color: "var(--color-text)" }}>Time per pick:</strong> {timePerPickLabel}
-              </li>
-            )}
-            {draftOrderLabel && (
-              <li>
-                <strong style={{ color: "var(--color-text)" }}>Draft order:</strong> {draftOrderLabel}
+                <strong style={{ color: "var(--color-text)" }}>Rosters:</strong> When your offline draft is done, the GM adds wrestlers
+                to each faction from that team&apos;s page (full roster workflow coming soon).
               </li>
             )}
           </ul>
@@ -471,46 +389,6 @@ export default async function LeagueDraftPage({ params }: Props) {
             </p>
           )}
         </section>
-      )}
-
-      {isCommissioner && (
-        <section
-          aria-labelledby="draft-readiness-heading"
-          style={{
-            marginBottom: 24,
-            padding: "14px 18px",
-            background: "var(--color-bg-elevated)",
-            borderRadius: "var(--radius)",
-            border: "1px solid var(--color-border)",
-          }}
-        >
-          <h2 id="draft-readiness-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 10, color: "var(--color-text)" }}>
-            Draft readiness
-          </h2>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14, color: "var(--color-text)", lineHeight: 1.9 }}>
-            <li>
-              Service role: {hasServiceRole ? <span style={{ color: "var(--color-success)" }}>✓ Configured</span> : <span style={{ color: "var(--color-red)" }}>✗ Not set (autopick and draft order will fail)</span>}
-            </li>
-            <li>
-              Draft order: {order.length > 0 ? <span style={{ color: "var(--color-success)" }}>✓ {order.length} picks</span> : <span style={{ color: "var(--color-text-muted)" }}>No order yet</span>}
-            </li>
-            <li>
-              Draft status: <span style={{ fontWeight: 500 }}>{draftStatus}</span>
-            </li>
-          </ul>
-          <p style={{ marginTop: 10, marginBottom: 0, fontSize: 12, color: "var(--color-text-muted)" }}>
-            See <code>docs/DRAFT_VERIFICATION.md</code> in the repo for a step-by-step test procedure.
-          </p>
-        </section>
-      )}
-
-      {!hasLeagueDraftDetails && isCommissioner && (
-        <p style={{ marginBottom: 24, fontSize: 14, color: "var(--color-text-muted)" }}>
-          <Link href={`/leagues/${slug}/league-settings#draft-settings-heading`} className="app-link">
-            Set draft details in League Settings
-          </Link>
-        </p>
-      )}
 
       <section
         aria-labelledby="auto-draft-settings-heading"
@@ -531,8 +409,18 @@ export default async function LeagueDraftPage({ params }: Props) {
           </p>
         )}
         <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
-          If the pick clock runs out, your pick is made automatically using your priority list; after it runs out,
-          picks use all-time total points and best-available tie-breaks.
+          {leagueDraftType === "autopick" ? (
+            <>
+              Autopick uses your saved priority order (or the site Default Big Board until you deliberately choose another
+              provided Big Board or <strong>My own list</strong> via the link below).{" "}
+              <strong>Tie-break after your list runs out</strong> (same for everyone): {DEFAULT_AUTOPICK_DESCRIPTION}
+            </>
+          ) : (
+            <>
+              If the pick clock runs out, your pick is made automatically using your priority list; after it runs out,
+              picks use all-time total points and best-available tie-breaks.
+            </>
+          )}
         </p>
         {hasAutoDraftSettingsSaved && userDraftPrefs && (
           <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px", fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
@@ -595,51 +483,43 @@ export default async function LeagueDraftPage({ params }: Props) {
             ))}
           </ul>
           <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 12, marginBottom: 0 }}>
-            <strong>Default settings</strong> (when not set): Best available by total points (all-time). Owners can change this under &quot;Set your auto-draft preferences&quot; above.
+            <strong>Tie-break after your list runs out</strong> (same for everyone): {DEFAULT_AUTOPICK_DESCRIPTION} Everyone defaults to the
+            site Default Big Board until they deliberately choose another provided Big Board or &quot;My own list&quot; under &quot;Set your
+            auto-draft preferences&quot; above.
           </p>
         </section>
       )}
 
-      {draftStatus === "completed" && order.length === 0 ? (
+      {(draftStatus === "completed" || isReviewPending) && order.length === 0 ? (
         <p style={{ color: "#0d7d0d", fontWeight: 600, marginBottom: 24 }}>Draft completed.</p>
       ) : null}
 
-      {draftStatus !== "completed" && (
+      {draftStatus !== "completed" && !isReviewPending && league.draft_type !== "offline" && (
         <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
-          {draftStyle === "linear" ? "Linear" : "Snake"} order · {totalPicks} total picks
+          Snake order · {totalPicks} total picks
+        </p>
+      )}
+      {isReviewPending && (
+        <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
+          Draft completed. Rosters are being reviewed and will appear shortly.
         </p>
       )}
 
       {draftStatus === "not_started" && order.length === 0 && (
         <>
-          <p style={{ marginBottom: 16 }}>
-            {league.draft_order_method === "manual_by_gm"
-              ? "No draft order yet. The General Manager can set the pick order manually."
-              : "No draft order yet. The GM can generate a randomized order (uses draft type from League Settings)."}
-          </p>
-          {isCommissioner && league.draft_order_method === "manual_by_gm" && (
-            <p style={{ marginBottom: 16 }}>
-              <Link
-                href={`/leagues/${slug}/draft/set-order`}
-                style={{
-                  display: "inline-block",
-                  padding: "10px 20px",
-                  background: "#1a73e8",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 16,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  textDecoration: "none",
-                }}
-              >
-                Set draft order
-              </Link>
+          {league.draft_type === "offline" ? (
+            <p style={{ marginBottom: 16, color: "var(--color-text-muted)" }}>
+              Offline league: there is no on-site draft order. When your draft is finished, the GM adds wrestlers to each roster from the
+              team pages (full workflow coming soon).
             </p>
-          )}
-          {isCommissioner && league.draft_order_method !== "manual_by_gm" && (
-            <GenerateDraftOrderForm leagueSlug={slug} />
+          ) : (
+            <>
+              <p style={{ marginBottom: 16 }}>
+                No pick order yet. The GM must click once below to randomize the full snake order for all managers. This cannot be undone;
+                if the GM skips it, a random order is created automatically when autopick runs during {BETA_AUTOPICK_DRAFT_WINDOW_LABEL}.
+              </p>
+              {isCommissioner && <GenerateDraftOrderForm leagueSlug={slug} />}
+            </>
           )}
         </>
       )}
@@ -647,77 +527,22 @@ export default async function LeagueDraftPage({ params }: Props) {
       {draftStatus === "not_started" && order.length > 0 && (
         <>
           <p style={{ marginBottom: 8, color: "#555" }}>
-            Draft order is set. When all managers are ready, the GM can begin the draft.
+            {league.draft_type === "autopick"
+              ? "Pick order is locked in (snake). Autopick runs during the beta window — you do not start the draft manually."
+              : "Draft order is listed below for reference."}
           </p>
-          {scheduledDraftMessage && (
-            <p style={{ marginBottom: 8, fontSize: 13, color: "var(--color-text-muted)" }}>
-              {scheduledDraftMessage}
-            </p>
-          )}
-          {isCommissioner && (isLiveDraftType || leagueDraftType === "autopick") && canStartDraftNow && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 24, alignItems: "center" }}>
-              <form action={startDraftFromFormAction}>
-                <input type="hidden" name="league_slug" value={slug} />
-                <button
-                  type="submit"
-                  style={{
-                    padding: "12px 24px",
-                    background: "#0d7d0d",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 8,
-                    fontSize: 16,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Begin draft
-                </button>
-              </form>
-              {league.draft_order_method === "manual_by_gm" && (
-                <Link
-                  href={`/leagues/${slug}/draft/set-order`}
-                  style={{
-                    padding: "12px 24px",
-                    background: "transparent",
-                    color: "var(--color-blue)",
-                    border: "1px solid var(--color-blue)",
-                    borderRadius: 8,
-                    fontSize: 16,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    textDecoration: "none",
-                  }}
-                >
-                  Change draft order
-                </Link>
-              )}
-              {leagueDraftType === "autopick" && league.draft_order_method !== "manual_by_gm" && (
-                <form action={clearDraftOrderFromFormAction} style={{ display: "inline" }}>
-                  <input type="hidden" name="league_slug" value={slug} />
-                  <button
-                    type="submit"
-                    style={{
-                      padding: "12px 24px",
-                      background: "transparent",
-                      color: "var(--color-blue)",
-                      border: "1px solid var(--color-blue)",
-                      borderRadius: 8,
-                      fontSize: 16,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Generate new draft order
-                  </button>
-                </form>
-              )}
-            </div>
-          )}
-          {!isCommissioner && (
+          {!isCommissioner && league.draft_type === "autopick" && (
             <p style={{ marginBottom: 24, fontSize: 14, color: "#666" }}>
-              Waiting for the GM to start the draft.
+              Waiting for the scheduled autopick run. You can still set preferences until the deadline in League draft details.
             </p>
+          )}
+          {isCommissioner && league.draft_type === "autopick" && (
+            <form action={startDraftFromFormAction} style={{ marginBottom: 16 }}>
+              <input type="hidden" name="league_slug" value={slug} />
+              <button type="submit" className="app-button">
+                Begin draft now
+              </button>
+            </form>
           )}
           <section style={{ marginBottom: 24 }}>
             <h2 style={{ fontSize: "1.1rem", marginBottom: 12, color: "var(--color-text)" }}>Draft board</h2>
@@ -747,7 +572,7 @@ export default async function LeagueDraftPage({ params }: Props) {
         </>
       )}
 
-      {(draftStatus === "in_progress" || draftStatus === "completed") && order.length > 0 && (
+      {(draftStatus === "in_progress" || draftStatus === "completed" || isReviewPending) && order.length > 0 && (
         <>
           {draftStatus === "in_progress" && !autopickDisabled && (
             <DraftPolling
@@ -758,20 +583,20 @@ export default async function LeagueDraftPage({ params }: Props) {
           {draftStatus === "in_progress" && !autopickDisabled && league.draft_type === "autopick" && (
             <AutopickClientRunner leagueSlug={slug} enabled />
           )}
-          {isAutopickRunning || draftStatus === "completed" ? (
+          {isAutopickRunning || draftStatus === "completed" || isReviewPending ? (
             <AutopickDraftBoardView
               leagueSlug={slug}
               order={order}
               picksHistory={picksHistory}
               members={members.map((m) => ({ user_id: m.user_id, display_name: m.display_name, team_name: m.team_name }))}
-              draftStatus={draftStatus === "completed" ? "completed" : "in_progress"}
-              currentPickSlot={draftStatus === "completed" ? null : draftCurrentPick}
+              draftStatus={draftStatus === "completed" || isReviewPending ? "completed" : "in_progress"}
+              currentPickSlot={draftStatus === "completed" || isReviewPending ? null : draftCurrentPick}
               totalPicks={totalPicks}
               isAutopickLeague={league.draft_type === "autopick"}
             />
           ) : null}
           {!isAutopickRunning ? (
-            <div style={{ marginTop: draftStatus === "completed" ? 28 : 0 }}>
+            <div style={{ marginTop: draftStatus === "completed" || isReviewPending ? 28 : 0 }}>
             <LeagueDraftRoom
               autopickError={autoResult?.error ?? null}
               order={order}
@@ -810,7 +635,7 @@ export default async function LeagueDraftPage({ params }: Props) {
             />
             </div>
           ) : null}
-          {(draftStatus === "in_progress" || draftStatus === "completed") && isCommissioner && (
+          {(draftStatus === "in_progress" || draftStatus === "completed" || isReviewPending) && isCommissioner && (
             <div style={{ marginTop: 24 }}>
               <CommissionerDraftActions leagueSlug={slug} canClearLastPick={picksHistory.length > 0} />
             </div>

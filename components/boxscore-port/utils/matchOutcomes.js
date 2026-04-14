@@ -177,6 +177,68 @@ function findMatchIndexInTimeline(timeline, { eventId, matchIndex, matchOrder })
   return -1;
 }
 
+/** Card order for timeline comparison (aligns with getSortedMatchesForEvent + buildChronologicalWrestlerMatchList). */
+function matchOrderForCompare(match, matchIndex) {
+  if (match && match.order != null && Number.isFinite(Number(match.order))) return Number(match.order);
+  if (matchIndex != null && Number.isFinite(Number(matchIndex))) return Number(matchIndex) + 1;
+  return 0;
+}
+
+function eventMatchPositionTuple(event, match, matchIndex) {
+  const d = parseEventDate(event?.date);
+  const dateMs = d && !isNaN(d.getTime()) ? d.getTime() : 0;
+  const id = String(event?.id ?? '');
+  const ord = matchOrderForCompare(match, matchIndex);
+  return { dateMs, id, ord };
+}
+
+function compareEventMatchPosition(a, b) {
+  if (a.dateMs !== b.dateMs) return a.dateMs - b.dateMs;
+  const c = a.id.localeCompare(b.id);
+  if (c !== 0) return c;
+  return a.ord - b.ord;
+}
+
+/**
+ * When the card is on a scheduled/upcoming (or otherwise non-scored) show, that event never appears in
+ * `buildChronologicalWrestlerMatchList`, so findMatchIndexInTimeline returns -1. Resolve the cut index by
+ * comparing (event date, id, match order) against the anchor card so prior completed matches still show.
+ */
+function findVirtualTimelineIndex(events, list, priorToMatch) {
+  const anchorEvent = (events || []).find((e) => String(e?.id) === String(priorToMatch.eventId));
+  if (!anchorEvent) return -1;
+
+  const sortedAnchorMatches = getSortedMatchesForEvent(anchorEvent);
+  let anchorMatch = null;
+  let anchorMatchIndex = null;
+
+  if (priorToMatch.matchOrder != null && Number.isFinite(Number(priorToMatch.matchOrder))) {
+    const mo = Number(priorToMatch.matchOrder);
+    const ai = sortedAnchorMatches.findIndex((m) => (m.order ?? 0) === mo);
+    if (ai >= 0) {
+      anchorMatchIndex = ai;
+      anchorMatch = sortedAnchorMatches[ai];
+    }
+  }
+  if (anchorMatch == null && priorToMatch.matchIndex != null) {
+    const ai = priorToMatch.matchIndex;
+    if (sortedAnchorMatches[ai]) {
+      anchorMatchIndex = ai;
+      anchorMatch = sortedAnchorMatches[ai];
+    }
+  }
+  if (anchorMatch == null) return -1;
+
+  const anchorPos = eventMatchPositionTuple(anchorEvent, anchorMatch, anchorMatchIndex);
+
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i];
+    const pos = eventMatchPositionTuple(item.event, item.match, item.matchIndex);
+    if (compareEventMatchPosition(pos, anchorPos) >= 0) return i;
+  }
+  return list.length;
+}
+
 /**
  * Get last N matches (excluding promos) that the wrestler participated in, newest first in the returned array.
  * Only includes matches from completed events.
@@ -192,7 +254,10 @@ export function getLastMatchesForWrestler(events, wrestlerSlug, limit = 5, optio
   const list = buildChronologicalWrestlerMatchList(events, wrestlerSlug, wrestlerMap);
 
   if (priorToMatch && priorToMatch.eventId != null) {
-    const idx = findMatchIndexInTimeline(list, priorToMatch);
+    let idx = findMatchIndexInTimeline(list, priorToMatch);
+    if (idx < 0) {
+      idx = findVirtualTimelineIndex(events, list, priorToMatch);
+    }
     if (idx <= 0) return [];
     const start = Math.max(0, idx - limit);
     return list.slice(start, idx).reverse();

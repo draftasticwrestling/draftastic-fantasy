@@ -1,78 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useActionState } from "react";
+import { useState, useActionState, useEffect } from "react";
 import { updateDraftSettingsFormAction } from "../actions";
-import type { DraftOrderMethod } from "@/lib/leagues";
+import {
+  BETA_AUTOPICK_DRAFT_WINDOW_LABEL,
+  BETA_AUTOPICK_FIRST_EVENT_LABEL,
+  BETA_AUTOPICK_PREF_DEADLINE_LABEL,
+  BETA_AUTOPICK_ROSTERS_LIVE_LABEL,
+} from "@/lib/betaAutopickSchedule";
 
-/** Draft Type: how the draft runs. Stored as draft_type (offline | live→linear/snake | autopick). */
-const DRAFT_TYPE_OPTIONS: { value: "offline" | "live" | "autopick"; label: string; description: string }[] = [
-  { value: "offline", label: "Offline", description: "Your league conducts its own offline draft. You submit the results manually." },
-  { value: "live", label: "Live", description: "Schedule a day and time and host your draft live on the site." },
-  { value: "autopick", label: "Autopick", description: "Your league's rosters are automatically drafted based on each manager's pre-draft rankings list. Each manager will receive an email upon the draft's completion." },
-];
-
-/** Draft Style: only when type is Live. Stored as draft_type (linear/snake) + draft_style. */
-const DRAFT_STYLE_OPTIONS: { value: "linear" | "snake"; label: string }[] = [
-  { value: "linear", label: "Linear" },
-  { value: "snake", label: "Snake" },
-];
-
-const TIME_PER_PICK_OPTIONS: { value: number; label: string }[] = [
-  { value: 5, label: "5 seconds" },
-  { value: 30, label: "30 seconds" },
-  { value: 60, label: "1 minute" },
-  { value: 90, label: "90 seconds" },
-  { value: 120, label: "2 minutes" },
-  { value: 150, label: "2 mins 30 seconds" },
-  { value: 180, label: "3 minutes" },
-];
-
-const AUTOPICK_TIME_PER_PICK_SECONDS = 5;
-
-const DRAFT_ORDER_OPTIONS: { value: DraftOrderMethod; label: string }[] = [
-  { value: "random_one_hour_before", label: "Randomized one hour before draft time" },
-  { value: "manual_by_gm", label: "Manually set by General Manager" },
+/** Beta: only Offline and Autopick (stored as draft_type). Live drafts are disabled. */
+const DRAFT_TYPE_OPTIONS: { value: "offline" | "autopick"; label: string; description: string }[] = [
+  {
+    value: "offline",
+    label: "Offline",
+    description:
+      "Your league runs its own draft outside the site. When you are ready, the GM adds wrestlers to each roster (roster tools on each team page — more guidance coming soon).",
+  },
+  {
+    value: "autopick",
+    label: "Autopick",
+    description:
+      "Each manager sets auto-draft preferences (everyone defaults to the site Default Big Board until they deliberately choose another provided Big Board or My own list). Drafts run during the beta window, and rosters appear in your league in time for the first scored show.",
+  },
 ];
 
 type Props = {
   leagueSlug: string;
-  /** Stored draft_type: offline | linear | snake | autopick */
+  /** Stored draft_type: offline | autopick | legacy linear/snake (treated as Autopick in UI). */
   draftType: string | null | undefined;
-  /** Stored draft_style: linear | snake (used when type is live) */
-  draftStyle: "linear" | "snake" | null | undefined;
-  timePerPickSeconds: number | null | undefined;
-  draftOrderMethod: DraftOrderMethod | null | undefined;
-  draftDate: string | null | undefined;
-  /** Stored draft time (HH:MM or HH:MM:SS). When set, shown in time input. */
-  draftTime: string | null | undefined;
 };
 
-/** Map stored draft_type to UI type (offline | live | autopick). */
-function toUiType(stored: string | null | undefined): "offline" | "live" | "autopick" {
-  if (stored === "offline" || stored === "autopick") return stored;
-  return "live"; // linear or snake → live
+function toUiDraftType(stored: string | null | undefined): "offline" | "autopick" {
+  if (stored === "offline") return "offline";
+  if (stored === "autopick") return "autopick";
+  return "autopick";
 }
 
-export function DraftSettingsSection({
-  leagueSlug,
-  draftType,
-  draftStyle,
-  timePerPickSeconds,
-  draftOrderMethod,
-  draftDate,
-  draftTime,
-}: Props) {
-  const uiType = toUiType(draftType);
-  const [selectedUiType, setSelectedUiType] = useState<"offline" | "live" | "autopick">(uiType);
-  const effectiveStyle = draftStyle ?? (draftType === "linear" ? "linear" : "snake");
-  const isAutopick = selectedUiType === "autopick";
-  const effectiveTime = isAutopick ? AUTOPICK_TIME_PER_PICK_SECONDS : (timePerPickSeconds ?? 120);
-  const effectiveOrder = draftOrderMethod ?? "random_one_hour_before";
-  const draftTimeDefault =
-    (draftTime && draftTime.trim()) ||
-    (draftDate && draftDate.length > 10 ? draftDate.slice(11, 16) : "") ||
-    "";
+export function DraftSettingsSection({ leagueSlug, draftType }: Props) {
+  const storedUi = toUiDraftType(draftType);
+  const [selectedType, setSelectedType] = useState<"offline" | "autopick">(storedUi);
+
+  useEffect(() => {
+    setSelectedType(toUiDraftType(draftType));
+  }, [draftType]);
 
   const [state, formAction] = useActionState(updateDraftSettingsFormAction, null as { error?: string } | null);
 
@@ -81,17 +53,55 @@ export function DraftSettingsSection({
       <h2 id="draft-settings-heading" style={{ fontSize: "1.25rem", marginBottom: 12 }}>
         Draft
       </h2>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: 24, maxWidth: 560 }}>
-        Draft settings can be changed until one hour before the scheduled start time.
-        In order for your draft to take place, all team managers must be joined by the scheduled start time.
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 16, maxWidth: 640 }}>
+        Road to SummerSlam beta: choose <strong>Offline</strong> or <strong>Autopick</strong>. There is no live on-site draft and no scheduled draft date — timing follows the beta schedule below.
+      </p>
+
+      <div
+        style={{
+          marginBottom: 24,
+          padding: "14px 16px",
+          background: "var(--color-bg-elevated)",
+          borderRadius: "var(--radius)",
+          border: "1px solid var(--color-border)",
+          fontSize: 14,
+          color: "var(--color-text-muted)",
+          lineHeight: 1.65,
+        }}
+      >
+        <p style={{ margin: "0 0 10px", fontWeight: 600, color: "var(--color-text)" }}>Autopick beta schedule</p>
+        <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+          <li>
+            Managers can set preferences through end of day <strong>{BETA_AUTOPICK_PREF_DEADLINE_LABEL}</strong> (everyone defaults to the
+            site Default Big Board until they deliberately choose another provided Big Board or &quot;My own list&quot;).
+          </li>
+          <li>Drafts are intended to run <strong>{BETA_AUTOPICK_DRAFT_WINDOW_LABEL}</strong>.</li>
+          <li>Rosters should appear <strong>{BETA_AUTOPICK_ROSTERS_LIVE_LABEL}</strong>, ahead of <strong>{BETA_AUTOPICK_FIRST_EVENT_LABEL}</strong>.</li>
+        </ul>
+      </div>
+
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 20, maxWidth: 640, fontSize: 14 }}>
+        <strong>Snake draft order</strong> is used for any on-site autopick run (same order reverses each round). The GM uses the{" "}
+        <Link href={`/leagues/${leagueSlug}/draft`} className="app-link">
+          Draft
+        </Link>{" "}
+        tab to <strong>randomize pick order once</strong> before the draft window so managers know their slot while building lists. That order cannot be changed after it is generated; if the GM never clicks it, a random order is created automatically when the autopick draft runs.
       </p>
 
       <form action={formAction}>
         <input type="hidden" name="league_slug" value={leagueSlug} />
+        <input type="hidden" name="draft_type_ui" value={selectedType} readOnly />
+        <input type="hidden" name="draft_style" value="snake" readOnly />
 
         <div style={{ marginBottom: 28 }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>Draft Type</h3>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <h3 id="draft-type-options-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>
+            Draft type
+          </h3>
+          <ul
+            role="radiogroup"
+            aria-labelledby="draft-type-options-heading"
+            style={{ listStyle: "none", padding: 0, margin: 0 }}
+          >
             {DRAFT_TYPE_OPTIONS.map((opt) => (
               <li key={opt.value} style={{ marginBottom: 16 }}>
                 <label
@@ -104,10 +114,10 @@ export function DraftSettingsSection({
                 >
                   <input
                     type="radio"
-                    name="draft_type_ui"
+                    name="draft_type_ui_display"
                     value={opt.value}
-                    checked={selectedUiType === opt.value}
-                    onChange={() => setSelectedUiType(opt.value)}
+                    checked={selectedType === opt.value}
+                    onChange={() => setSelectedType(opt.value)}
                     style={{ marginTop: 4, flexShrink: 0 }}
                   />
                   <span>
@@ -122,132 +132,12 @@ export function DraftSettingsSection({
           </ul>
         </div>
 
-        <div style={{ marginBottom: 28 }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>Draft Style</h3>
-          <p style={{ color: "var(--color-text-muted)", fontSize: 14, marginBottom: 12 }}>
-            Applies when draft type is Live. Linear: same pick order every round. Snake: order reverses each round.
-          </p>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-            {DRAFT_STYLE_OPTIONS.map((opt) => (
-              <li key={opt.value}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="draft_style"
-                    value={opt.value}
-                    defaultChecked={effectiveStyle === opt.value}
-                    style={{ width: 18, height: 18 }}
-                  />
-                  <span style={{ fontWeight: 500 }}>{opt.label}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div style={{ marginBottom: 28 }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>Draft Settings</h3>
-          <p style={{ color: "var(--color-text-muted)", fontSize: 14, marginBottom: 16 }}>
-            Reminder: You must fill your league prior to your draft. Your league will not draft if it is not full one hour before the scheduled draft time.
-          </p>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
-            <div>
-              <label htmlFor="draft_date" style={{ display: "block", fontWeight: 500, marginBottom: 6 }}>
-                Draft Date
-              </label>
-              <input
-                id="draft_date"
-                type="date"
-                name="draft_date"
-                defaultValue={draftDate ?? ""}
-                className="app-input"
-                style={{ minWidth: 160 }}
-              />
-            </div>
-            <div>
-              <label htmlFor="draft_time" style={{ display: "block", fontWeight: 500, marginBottom: 6 }}>
-                Draft Time
-              </label>
-              <input
-                id="draft_time"
-                type="time"
-                name="draft_time"
-                defaultValue={draftTimeDefault}
-                className="app-input"
-                style={{ minWidth: 140 }}
-              />
-            </div>
-            <div>
-              <label htmlFor="time_per_pick_seconds" style={{ display: "block", fontWeight: 500, marginBottom: 6 }}>
-                Time Per Pick
-              </label>
-              {isAutopick ? (
-                <>
-                  <input type="hidden" name="time_per_pick_seconds" value={AUTOPICK_TIME_PER_PICK_SECONDS} readOnly />
-                  <select
-                    id="time_per_pick_seconds"
-                    className="app-input"
-                    value={AUTOPICK_TIME_PER_PICK_SECONDS}
-                    disabled
-                    style={{ minWidth: 180, opacity: 0.8, cursor: "not-allowed" }}
-                    aria-label="Time per pick (fixed at 5 seconds for Autopick)"
-                  >
-                    <option value={AUTOPICK_TIME_PER_PICK_SECONDS}>5 seconds</option>
-                  </select>
-                  <p style={{ marginTop: 6, fontSize: 13, color: "var(--color-text-muted)" }}>
-                    Fixed at 5 seconds for Autopick drafts; not editable.
-                  </p>
-                </>
-              ) : (
-                <select
-                  id="time_per_pick_seconds"
-                  name="time_per_pick_seconds"
-                  className="app-input"
-                  defaultValue={String(effectiveTime)}
-                  style={{ minWidth: 180 }}
-                >
-                  {TIME_PER_PICK_OPTIONS.filter((o) => o.value !== AUTOPICK_TIME_PER_PICK_SECONDS).map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-            <div>
-              <label htmlFor="draft_order_method" style={{ display: "block", fontWeight: 500, marginBottom: 6 }}>
-                Draft Order
-              </label>
-              <select
-                id="draft_order_method"
-                name="draft_order_method"
-                className="app-input"
-                defaultValue={effectiveOrder}
-                style={{ minWidth: 260 }}
-              >
-                {DRAFT_ORDER_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <p style={{ marginTop: 8, fontSize: 14, color: "var(--color-text-muted)" }}>
-                To generate or change who picks when: go to the{" "}
-                <Link href={`/leagues/${leagueSlug}/draft`} className="app-link">Draft</Link> tab and use &quot;Generate draft order&quot; or &quot;Set draft order&quot;.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {state?.error && (
-          <p style={{ color: "var(--color-red)", marginBottom: 12 }}>{state.error}</p>
-        )}
+        {state?.error && <p style={{ color: "var(--color-red)", marginBottom: 12 }}>{state.error}</p>}
         {state && !state.error && (
           <p style={{ color: "var(--color-success)", marginBottom: 12 }}>Draft settings saved.</p>
         )}
         <button type="submit" className="app-btn-primary">
-          Save Draft Settings
+          Save draft settings
         </button>
       </form>
     </section>

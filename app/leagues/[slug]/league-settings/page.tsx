@@ -26,12 +26,15 @@ export default async function LeagueSettingsPage({
   const isCommissioner = league.role === "commissioner";
   const members = isCommissioner ? await getLeagueMembers(league.id) : [];
 
-  const draftType = league.draft_type ?? (league.draft_style as "snake" | "linear" | undefined) ?? "snake";
-  const draftStyle = league.draft_style ?? (draftType === "linear" ? "linear" : "snake");
-  const timePerPickSeconds = league.time_per_pick_seconds ?? 120;
-  const draftOrderMethod = league.draft_order_method ?? "random_one_hour_before";
-  const draftDate = league.draft_date ?? null;
-  const draftTime = league.draft_time ?? null;
+  const draftType = league.draft_type ?? (league.draft_style as "snake" | "linear" | undefined) ?? "autopick";
+  const draftTypeLabel =
+    draftType === "offline"
+      ? "Offline"
+      : draftType === "autopick"
+        ? "Autopick"
+        : draftType === "linear" || draftType === "snake"
+          ? "Autopick (legacy)"
+          : String(draftType);
   const leagueType = league.league_type ?? null;
   const maxTeams = league.max_teams ?? null;
   const autoReactivate = league.auto_reactivate ?? false;
@@ -58,16 +61,10 @@ export default async function LeagueSettingsPage({
             autoReactivate={autoReactivate}
           />
           <LeagueTypeSection leagueSlug={slug} leagueType={leagueType} />
-          <DraftSettingsSection
-            leagueSlug={slug}
-            draftType={draftType}
-            draftStyle={draftStyle}
-            timePerPickSeconds={timePerPickSeconds}
-            draftOrderMethod={draftOrderMethod}
-            draftDate={draftDate}
-            draftTime={draftTime}
-          />
-          {(league.draft_status !== "in_progress" && league.draft_status !== "completed") && (
+          <DraftSettingsSection leagueSlug={slug} draftType={draftType} />
+          {(league.draft_status !== "in_progress" &&
+            league.draft_status !== "completed" &&
+            league.draft_status !== "ready_for_review") && (
             <RemoveOwnerSection leagueSlug={slug} members={members} />
           )}
           <DeleteLeagueSection leagueSlug={slug} leagueName={league.name} />
@@ -95,10 +92,8 @@ export default async function LeagueSettingsPage({
               Draft
             </h2>
             <p style={{ color: "var(--color-text-muted)" }}>
-              Only the GM can change draft settings. Current settings:{" "}
-              <strong>{draftType}</strong> draft, {timePerPickSeconds === 60 ? "1 minute" : `${timePerPickSeconds} seconds`} per pick,
-              {draftOrderMethod === "manual_by_gm" ? " order set by General Manager" : " order randomized one hour before draft"}.
-              {draftDate && ` Draft date: ${draftDate}.`}
+              Only the GM can change draft settings. Current draft type: <strong>{draftTypeLabel}</strong>. On-site autopick uses snake
+              pick order; the GM randomizes round-1 order once on the Draft tab before the beta draft window.
             </p>
           </section>
         </>

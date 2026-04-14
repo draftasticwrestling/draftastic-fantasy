@@ -5,8 +5,14 @@ import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { saveDraftPreferencesFormAction } from "../actions";
-import { AUTOPICK_REQUIRED_FEMALE_COUNT, AUTOPICK_REQUIRED_PRIORITY_COUNT } from "@/lib/draftPriorityRequirements";
-import { BIG_BOARD_IDS, DRAFT_BIG_BOARDS, type BigBoardId } from "@/lib/draftBigBoards";
+import {
+  AUTOPICK_LIST_EXHAUSTED_TIE_BREAK,
+  AUTOPICK_REQUIRED_FEMALE_COUNT,
+  AUTOPICK_REQUIRED_PRIORITY_COUNT,
+} from "@/lib/draftPriorityRequirements";
+import { BIG_BOARD_IDS, DRAFT_BIG_BOARDS, getBigBoardPriorityList, type BigBoardId } from "@/lib/draftBigBoards";
+
+const OTHER_BIG_BOARD_IDS = BIG_BOARD_IDS.filter((id): id is BigBoardId => id !== "default");
 import { normalizeDraftPoolGender } from "@/lib/wrestlerDraftGender";
 
 const MIN_PRIORITY = 10;
@@ -68,7 +74,42 @@ function normalizeSearch(s: string): string {
     .replace(/\s+/g, " ");
 }
 
-type WrestlerOption = { id: string; name: string | null; gender?: string | null };
+type WrestlerOption = {
+  id: string;
+  name: string | null;
+  gender?: string | null;
+  brand?: string | null;
+  rating2k?: number | null;
+  dob?: string | null;
+};
+
+function canonicalBrand(brand: string | null | undefined): "RAW" | "SmackDown" | "NXT" | null {
+  const value = String(brand ?? "").trim().toLowerCase();
+  if (!value) return null;
+  if (value.includes("raw")) return "RAW";
+  if (value.includes("smack")) return "SmackDown";
+  if (value.includes("nxt")) return "NXT";
+  return null;
+}
+
+function ageFromDob(dob: string | null | undefined): number | null {
+  if (!dob) return null;
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getUTCFullYear() - d.getUTCFullYear();
+  const monthDiff = now.getUTCMonth() - d.getUTCMonth();
+  const dayDiff = now.getUTCDate() - d.getUTCDate();
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) age -= 1;
+  return age >= 0 && age <= 100 ? age : null;
+}
+
+function wrestlerDetailLine(w: WrestlerOption): string {
+  const brand = canonicalBrand(w.brand) ?? "—";
+  const rating = typeof w.rating2k === "number" && Number.isFinite(w.rating2k) ? String(Math.round(w.rating2k)) : "—";
+  const age = ageFromDob(w.dob);
+  return `Roster: ${brand} · 2K: ${rating} · Age: ${age != null ? age : "—"}`;
+}
 
 type Props = {
   leagueSlug: string;
@@ -93,6 +134,7 @@ export function DraftPreferencesForm({
   const [listSource, setListSource] = useState<"custom" | BigBoardId>(() =>
     isAutopickLeague ? initialListSource : "custom"
   );
+  const defaultBoardIds = getBigBoardPriorityList("default") ?? [];
   const [priorityList, setPriorityList] = useState<string[]>(initialPriorityList);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -131,7 +173,8 @@ export function DraftPreferencesForm({
     return availableToAdd.filter((w) => {
       const name = (w.name || "").toLowerCase();
       const id = (w.id || "").toLowerCase();
-      return name.includes(q) || id.includes(q) || name.replace(/-/g, " ").includes(q);
+      const brand = (w.brand || "").toLowerCase();
+      return name.includes(q) || id.includes(q) || brand.includes(q) || name.replace(/-/g, " ").includes(q);
     }).slice(0, 50);
   }, [availableToAdd, searchNorm]);
 
@@ -307,29 +350,33 @@ export function DraftPreferencesForm({
             Priority list source
           </h2>
           <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 12 }}>
-            Build your own ranked list, or apply an official Big Board (same 50+ / 16+ female rules apply once the board is filled in on the server).
-            If you reorder, add, or remove anyone after choosing a board, your list is saved as <strong>My own list</strong> with your edits.
+            Everyone defaults to the site <strong>Default Big Board</strong> until you deliberately choose another provided Big Board or{" "}
+            <strong>My own list</strong> and save. If you reorder, add, or remove anyone after choosing a board, your source becomes{" "}
+            <strong>My own list</strong> with your edits. <strong>Tie-break after your list runs out</strong> (same for everyone):{" "}
+            {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 14, cursor: disabled ? "default" : "pointer" }}>
               <input
                 type="radio"
                 name="list_source_ui"
-                checked={listSource === "custom"}
+                checked={listSource === "default"}
                 onChange={() => {
-                  setListSource("custom");
+                  setListSource("default");
+                  setPriorityList([...defaultBoardIds]);
                 }}
                 disabled={disabled}
                 style={{ width: 18, height: 18, marginTop: 2 }}
               />
               <span>
-                <strong>My own list</strong> — rank at least {AUTOPICK_REQUIRED_PRIORITY_COUNT} wrestlers (include at least{" "}
-                {AUTOPICK_REQUIRED_FEMALE_COUNT} female).
+                <strong>{DRAFT_BIG_BOARDS.default.label}</strong>
+                <span style={{ color: "var(--color-text-muted)" }}> — {defaultBoardIds.length} wrestlers (recommended default)</span>
               </span>
             </label>
-            {BIG_BOARD_IDS.map((id) => {
+            {OTHER_BIG_BOARD_IDS.map((id) => {
               const board = DRAFT_BIG_BOARDS[id];
-              const ready = board.wrestlerIds.length >= AUTOPICK_REQUIRED_PRIORITY_COUNT;
+              const ids = getBigBoardPriorityList(id);
+              const ready = Boolean(ids && ids.length >= AUTOPICK_REQUIRED_PRIORITY_COUNT);
               return (
                 <label
                   key={id}
@@ -348,7 +395,7 @@ export function DraftPreferencesForm({
                     checked={listSource === id}
                     onChange={() => {
                       setListSource(id);
-                      setPriorityList([]);
+                      setPriorityList([...(getBigBoardPriorityList(id) ?? [])]);
                     }}
                     disabled={disabled || !ready}
                     style={{ width: 18, height: 18, marginTop: 2 }}
@@ -356,7 +403,10 @@ export function DraftPreferencesForm({
                   <span>
                     <strong>{board.label}</strong>
                     {!ready ? (
-                      <span style={{ color: "var(--color-text-muted)" }}> — not configured yet (needs {AUTOPICK_REQUIRED_PRIORITY_COUNT} IDs in code).</span>
+                      <span style={{ color: "var(--color-text-muted)" }}>
+                        {" "}
+                        — not available yet (needs {AUTOPICK_REQUIRED_PRIORITY_COUNT}+ IDs in code).
+                      </span>
                     ) : (
                       <span style={{ color: "var(--color-text-muted)" }}> — {board.wrestlerIds.length} wrestlers</span>
                     )}
@@ -364,6 +414,22 @@ export function DraftPreferencesForm({
                 </label>
               );
             })}
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 14, cursor: disabled ? "default" : "pointer" }}>
+              <input
+                type="radio"
+                name="list_source_ui"
+                checked={listSource === "custom"}
+                onChange={() => {
+                  setListSource("custom");
+                }}
+                disabled={disabled}
+                style={{ width: 18, height: 18, marginTop: 2 }}
+              />
+              <span>
+                <strong>My own list</strong> — rank at least {AUTOPICK_REQUIRED_PRIORITY_COUNT} wrestlers (include at least{" "}
+                {AUTOPICK_REQUIRED_FEMALE_COUNT} female).
+              </span>
+            </label>
           </div>
           {listSource !== "custom" && (
             <div
@@ -428,8 +494,8 @@ export function DraftPreferencesForm({
           ) : (
             <>
               You can list 10–50 wrestlers in ranked order of preference. Auto-pick will choose the highest-ranked
-              available wrestler from this list. Once none from your list are available, picks use all-time total
-              points and best-available tie-breaks. Leave empty to rely on those tie-breaks only.
+              available wrestler from this list. Once none from your list are available, the tie-break is the same for
+              everyone: {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK} Leave empty to rely on that tie-break only.
             </>
           )}
         </p>
@@ -487,23 +553,29 @@ export function DraftPreferencesForm({
                           : "Type to search."}
                   </li>
                 ) : (
-                  searchResults.map((w, i) => (
-                    <li
-                      key={w.id}
-                      role="option"
-                      aria-selected={i === highlightedIndex}
-                      style={{
-                        padding: "10px 14px",
-                        fontSize: 14,
-                        cursor: "pointer",
-                        background: i === highlightedIndex ? "var(--color-blue-bg, #e8f0fe)" : "transparent",
-                      }}
-                      onClick={() => addWrestlerById(w.id)}
-                      onMouseEnter={() => setHighlightedIndex(i)}
-                    >
-                      {w.name || w.id}
-                    </li>
-                  ))
+                  searchResults.map((w, i) => {
+                    const details = wrestlerDetailLine(w);
+                    return (
+                      <li
+                        key={w.id}
+                        role="option"
+                        aria-selected={i === highlightedIndex}
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: 14,
+                          cursor: "pointer",
+                          background: i === highlightedIndex ? "var(--color-blue-bg, #e8f0fe)" : "transparent",
+                        }}
+                        onClick={() => addWrestlerById(w.id)}
+                        onMouseEnter={() => setHighlightedIndex(i)}
+                      >
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span>{w.name || w.id}</span>
+                          {details ? <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{details}</span> : null}
+                        </div>
+                      </li>
+                    );
+                  })
                 )}
               </ul>
             )}

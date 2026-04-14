@@ -24,7 +24,7 @@ export function GenerateDraftOrderForm({ leagueSlug }: { leagueSlug: string }) {
           cursor: "pointer",
         }}
       >
-        Generate draft order
+        Randomize draft order (one time only)
       </button>
       {hasError && (
         <p style={{ marginTop: 8, fontSize: 13, color: "#b91c1c" }}>{state?.error}</p>

@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
 
 const LEAGUE_LIST_SELECT =
-  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, created_at";
+  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at";
 
 export type SiteAdminLeagueSummary = {
   id: string;
@@ -17,6 +17,7 @@ export type SiteAdminLeagueSummary = {
   draft_date: string | null;
   league_type: string | null;
   max_teams: number | null;
+  draft_status: string | null;
   created_at: string;
   commissioner_display_name: string | null;
 };
