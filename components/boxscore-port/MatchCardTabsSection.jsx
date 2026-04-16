@@ -4,13 +4,6 @@ import React from 'react';
 import { Link } from '@/components/boxscore-port/router-bridge';
 import { shouldShowLastFiveStats } from './utils/matchOutcomes';
 
-function formatCommentaryElapsedTime(ts, liveStart, commentary) {
-  let start = liveStart;
-  if (!start && commentary?.length) start = commentary[0].timestamp;
-  if (!ts || !start) return "0'";
-  return `${Math.max(0, Math.ceil((ts - start) / 60000))}'`;
-}
-
 const pillBase = {
   padding: '6px 14px',
   borderRadius: 999,
@@ -24,7 +17,7 @@ const pillBase = {
 const pillActive = { ...pillBase, background: '#C6A04F', color: '#232323' };
 
 /**
- * Summary / Commentary / Statistics block shared by MatchCard and MatchPageHero layouts.
+ * Summary / Statistics block shared by MatchCard and MatchPageHero layouts.
  */
 export default function MatchCardTabsSection({
   match,
@@ -33,13 +26,12 @@ export default function MatchCardTabsSection({
   events,
   matchIndex,
   royalRumbleHighlights,
-  wrestlerTo,
+  wrestlerTo = undefined,
   summaryContent,
   hasSummary,
-  hasCommentary,
   statisticsExtraHint,
-  cardView: cardViewControlled,
-  setCardView: setCardViewControlled,
+  cardView: cardViewControlled = undefined,
+  setCardView: setCardViewControlled = undefined,
   /** When true (match page hero layout), no top border — tabs sit in their own card */
   standalone = false,
 }) {
@@ -48,7 +40,9 @@ export default function MatchCardTabsSection({
   const cardView = isControlled ? cardViewControlled : cardViewInner;
   const setCardView = isControlled ? setCardViewControlled : setCardViewInner;
 
-  const toProfile = wrestlerTo;
+  const toProfile =
+    wrestlerTo ||
+    ((slug) => `/wrestlers/${encodeURIComponent(String(slug ?? '').trim())}`);
 
   return (
     <div
@@ -64,19 +58,14 @@ export default function MatchCardTabsSection({
           Summary
         </button>
         {match?.matchType !== 'Promo' && (
-          <>
-            <button type="button" onClick={() => setCardView('commentary')} style={cardView === 'commentary' ? pillActive : pillBase}>
-              Commentary
-            </button>
-            <button
-              type="button"
-              onClick={() => setCardView('statistics')}
-              title="Last 5 matches: Win / Draw / Loss"
-              style={cardView === 'statistics' ? pillActive : pillBase}
-            >
-              Statistics
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => setCardView('statistics')}
+            title="Last 5 matches: Win / Draw / Loss"
+            style={cardView === 'statistics' ? pillActive : pillBase}
+          >
+            Statistics
+          </button>
         )}
       </div>
       {cardView != null && (cardView !== 'statistics' || !events || !shouldShowLastFiveStats(match)) && (
@@ -126,23 +115,6 @@ export default function MatchCardTabsSection({
               <div style={{ color: '#ccc', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                 {summaryContent || (match?.matchType === 'Promo' ? 'No recap added.' : 'No summary added for this match.')}
               </div>
-            </div>
-          )}
-          {cardView === 'commentary' && (
-            <div>
-              <div style={{ color: '#C6A04F', fontWeight: 600, fontSize: 12, marginBottom: 4 }}>Match Commentary</div>
-              {hasCommentary ? (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {match.commentary.map((c, i) => (
-                    <li key={i} style={{ marginBottom: 4, fontSize: 13, color: '#ccc' }}>
-                      <span style={{ color: '#C6A04F', marginRight: 6 }}>{formatCommentaryElapsedTime(c.timestamp, match.liveStart, match.commentary)}</span>
-                      {c.text}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div style={{ color: '#888', fontSize: 13 }}>No match commentary available for this match.</div>
-              )}
             </div>
           )}
           {cardView === 'statistics' && (

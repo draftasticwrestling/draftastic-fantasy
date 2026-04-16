@@ -3,6 +3,7 @@
 import type { ComponentType } from "react";
 import MatchCardUntyped from "./MatchCard";
 import { getSortedMatchesForEvent } from "./utils/eventMatchesOrder";
+import { shouldUseMatchDetailPage } from "./utils/matchDetailPageEligibility";
 
 export type FantasyPointsBySlug = Record<
   string,
@@ -62,7 +63,7 @@ export default function EventBoxscoreMatchList({
               wrestlerMap={wrestlerMap}
               matchIndex={matchIndex}
               events={events}
-              isClickable={false}
+              isClickable={shouldUseMatchDetailPage(match)}
               fantasyPointsBySlug={fantasyPointsBySlug}
             />
           </div>

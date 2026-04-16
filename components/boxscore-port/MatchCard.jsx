@@ -425,7 +425,6 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
   const [showRumbleDetails, setShowRumbleDetails] = React.useState(false);
   const hasSummary = !!(match?.summary || (match?.matchType === 'Promo' && match?.notes));
   const [cardView, setCardView] = React.useState(() => (hasSummary ? 'summary' : null));
-  const hasCommentary = Array.isArray(match?.commentary) && match.commentary.length > 0;
   const summaryContent = match?.matchType === 'Promo' ? (match?.notes || '') : (match?.summary || '');
 
   const showStatsLastFive = useMemo(
@@ -546,7 +545,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
       e.preventDefault();
     }
     
-    navigate(`${eventResultsPath}?match=${navigationIndex}`);
+    navigate(`${eventResultsPath}/match/${navigationIndex}`);
   }, [isClickable, eventResultsPath, navigationIndex, navigate]);
 
   const isMatchInProgress = event?.status === 'live' && match?.isLive;
@@ -591,7 +590,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
           if (isClickable && eventResultsPath && navigationIndex != null) {
             e.preventDefault();
             e.stopPropagation();
-            navigate(`${eventResultsPath}?match=${navigationIndex}`);
+            navigate(`${eventResultsPath}/match/${navigationIndex}`);
           }
         }}
         style={{
@@ -919,7 +918,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
           if (isClickable && eventResultsPath && navigationIndex != null) {
             e.preventDefault();
             e.stopPropagation();
-            navigate(`${eventResultsPath}?match=${navigationIndex}`);
+            navigate(`${eventResultsPath}/match/${navigationIndex}`);
           }
         }}
         style={{
@@ -1131,7 +1130,6 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
           wrestlerTo={wrestlerTo}
           summaryContent={summaryContent}
           hasSummary={hasSummary}
-          hasCommentary={hasCommentary}
           cardView={cardView}
           setCardView={setCardView}
         />
@@ -1269,7 +1267,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
         if (isClickable && eventResultsPath && navigationIndex != null) {
           e.preventDefault();
           e.stopPropagation();
-          navigate(`${eventResultsPath}?match=${navigationIndex}`);
+          navigate(`${eventResultsPath}/match/${navigationIndex}`);
         }
       }}
       style={{
@@ -3106,7 +3104,6 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
         wrestlerTo={wrestlerTo}
         summaryContent={summaryContent}
         hasSummary={hasSummary}
-        hasCommentary={hasCommentary}
         cardView={cardView}
         setCardView={setCardView}
       />

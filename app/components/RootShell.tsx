@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import EventListBar from "./EventListBar";
 import Nav from "./Nav";
 import PageLayout from "./PageLayout";
+import EmailSignupPrompt from "./EmailSignupPrompt";
 import type { RecentEvent } from "@/lib/eventsRecent";
 
 type RootShellProps = {
@@ -32,6 +33,7 @@ export default function RootShell({ children, recentEvents }: RootShellProps) {
           WWE, Raw, SmackDown, and all related logos and trademarks are the property of World Wrestling Entertainment, Inc. This site is not affiliated with or endorsed by WWE.
         </p>
       </footer>
+      <EmailSignupPrompt />
     </>
   );
 }

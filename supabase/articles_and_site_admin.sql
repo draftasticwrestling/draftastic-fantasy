@@ -34,6 +34,7 @@ comment on column public.articles.byline is
 
 alter table public.articles enable row level security;
 
+drop policy if exists "articles_select_published" on public.articles;
 create policy "articles_select_published"
   on public.articles for select
   to anon, authenticated
@@ -43,6 +44,7 @@ create policy "articles_select_published"
     and published_at <= now()
   );
 
+drop policy if exists "articles_select_admin" on public.articles;
 create policy "articles_select_admin"
   on public.articles for select
   to authenticated
@@ -54,6 +56,7 @@ create policy "articles_select_admin"
     )
   );
 
+drop policy if exists "articles_insert_admin" on public.articles;
 create policy "articles_insert_admin"
   on public.articles for insert
   to authenticated
@@ -66,6 +69,7 @@ create policy "articles_insert_admin"
     and author_id = auth.uid()
   );
 
+drop policy if exists "articles_update_admin" on public.articles;
 create policy "articles_update_admin"
   on public.articles for update
   to authenticated
@@ -84,6 +88,7 @@ create policy "articles_update_admin"
     )
   );
 
+drop policy if exists "articles_delete_admin" on public.articles;
 create policy "articles_delete_admin"
   on public.articles for delete
   to authenticated
@@ -98,6 +103,7 @@ create policy "articles_delete_admin"
 create or replace function public.set_articles_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at := now();

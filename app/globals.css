@@ -3260,6 +3260,35 @@ body > .site-footer {
   font-size: 0.92rem;
   opacity: 0.92;
 }
+.hub-hero-countdown {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 2px 0 14px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(254, 202, 202, 0.75);
+  background: linear-gradient(90deg, rgba(185, 28, 28, 0.88), rgba(220, 38, 38, 0.88));
+  color: #fff7f7;
+  box-shadow: 0 0 0 1px rgba(127, 29, 29, 0.55), 0 8px 20px rgba(127, 29, 29, 0.28);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.hub-hero-countdown-label {
+  opacity: 0.96;
+}
+.hub-hero-countdown-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+}
+.hub-hero-countdown-expired {
+  border-color: rgba(134, 239, 172, 0.7);
+  background: linear-gradient(90deg, rgba(22, 101, 52, 0.9), rgba(21, 128, 61, 0.9));
+  color: #f0fdf4;
+}
 .hub-hero-actions {
   display: flex;
   flex-wrap: wrap;
@@ -4275,4 +4304,120 @@ body > .site-footer {
 .admin-article-published-preview-body .article-md {
   /* Inherits .article-md from globals; ensure readable max width in admin */
   max-width: 42rem;
+}
+
+.email-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.email-prompt-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.52);
+  cursor: pointer;
+}
+
+.email-prompt-modal {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  padding: 24px 20px 18px;
+}
+
+.email-prompt-brand {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.email-prompt-logo {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  display: inline-block;
+}
+
+.email-prompt-kicker {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.email-prompt-modal h2 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  text-align: center;
+}
+
+.email-prompt-modal p {
+  margin: 0 0 16px;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.email-prompt-close {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.email-prompt-close:hover {
+  color: var(--color-text);
+  background: var(--color-bg-surface);
+}
+
+.email-prompt-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--color-blue);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.email-prompt-cta:hover {
+  background: var(--color-blue-hover);
+}
+
+.email-prompt-secondary {
+  margin-top: 10px;
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .email-prompt-modal {
+    padding: 22px 16px 16px;
+  }
 }
