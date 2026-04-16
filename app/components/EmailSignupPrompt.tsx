@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
+import { CONSTANT_CONTACT_SIGNUP_URL } from "@/lib/constantContact";
 import { siteLogoHref } from "@/lib/siteLogo";
-
-const CONSTANT_CONTACT_SIGNUP_URL = "https://lp.constantcontactpages.com/sl/Qe4DAFj";
 const PROMPT_DISMISS_KEY = "draftastic_email_prompt_dismissed_until";
 const PROMPT_SUBMITTED_KEY = "draftastic_email_prompt_submitted";
 const PROMPT_SHOWN_KEY = "draftastic_email_prompt_shown";

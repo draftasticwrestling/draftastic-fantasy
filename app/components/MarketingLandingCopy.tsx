@@ -2,8 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { EmailSignupForm } from "@/app/coming-soon/EmailSignupForm";
-
-const IMG = "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/draftastic-screenshots";
+import { DRAFTASTIC_SCREENSHOTS } from "@/lib/draftasticScreenshots";
 
 /** Full marketing story + CTAs (same as coming-soon). `sidebar` renders in the right column (headlines, contact, etc.). */
 export function MarketingLandingCopy({
@@ -116,7 +115,7 @@ export function MarketingLandingCopy({
                 <figure className="cs-inline-screenshot">
                   <div className="cs-screenshot-img-wrap">
                     <Image
-                      src={`${IMG}/draftastic-roster.png`}
+                      src={DRAFTASTIC_SCREENSHOTS.roster}
                       alt="Draftastic roster page"
                       fill
                       className="cs-screenshot-img"
@@ -150,8 +149,8 @@ export function MarketingLandingCopy({
               </p>
               <figure className="cs-inline-screenshot">
                 <div className="cs-screenshot-img-wrap">
-                  <Image
-                    src={`${IMG}/draftastic-standings.png`}
+                    <Image
+                      src={DRAFTASTIC_SCREENSHOTS.standings}
                     alt="Draftastic league standings"
                     fill
                     className="cs-screenshot-img"
@@ -174,8 +173,8 @@ export function MarketingLandingCopy({
               </p>
               <figure className="cs-inline-screenshot">
                 <div className="cs-screenshot-img-wrap">
-                  <Image
-                    src={`${IMG}/draftastic-leaderboard.png`}
+                    <Image
+                      src={DRAFTASTIC_SCREENSHOTS.leaderboard}
                     alt="Draftastic league leaders table"
                     fill
                     className="cs-screenshot-img"
@@ -198,8 +197,8 @@ export function MarketingLandingCopy({
               </p>
               <figure className="cs-inline-screenshot">
                 <div className="cs-screenshot-img-wrap">
-                  <Image
-                    src={`${IMG}/draftastic-profile.png`}
+                    <Image
+                      src={DRAFTASTIC_SCREENSHOTS.profile}
                     alt="Draftastic wrestler profile"
                     fill
                     className="cs-screenshot-img"

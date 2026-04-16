@@ -1,6 +1,6 @@
 "use client";
 
-const CONSTANT_CONTACT_SIGNUP_URL = "https://lp.constantcontactpages.com/sl/Qe4DAFj";
+import { CONSTANT_CONTACT_SIGNUP_URL } from "@/lib/constantContact";
 
 export function EmailSignupForm() {
   return (
