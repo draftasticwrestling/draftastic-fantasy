@@ -14,6 +14,8 @@ import { CompletedEventResultsList } from "./CompletedEventResultsList";
 
 import styles from "./event-results.module.css";
 
+export const revalidate = 120;
+
 export const metadata = {
   title: "WWE Event Results — Draftastic Fantasy",
   description:

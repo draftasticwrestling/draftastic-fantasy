@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import type { ComponentType } from "react";
 import MatchCardUntyped from "@/components/boxscore-port/MatchCard";
 import MatchPageHero from "@/components/boxscore-port/MatchPageHero";
@@ -26,7 +27,7 @@ const MatchCard = MatchCardUntyped as ComponentType<{
   fantasyPointsBySlug?: Record<string, { points: number; isWinner: boolean; breakdown: string[] }> | null;
 }>;
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 type Params = { eventId: string; matchNumber: string };
 
@@ -34,6 +35,10 @@ export default async function EventMatchDetailPage({ params }: { params: Promise
   const { eventId, matchNumber } = await params;
   const event = await getEventForResultsRoute(eventId);
   if (!event) notFound();
+  if ((event.status ?? "").toLowerCase() === "live") {
+    // Keep live match pages uncached while cards are changing.
+    noStore();
+  }
 
   const canonicalSlug = buildEventResultsSlug(event);
   const decodedEventParam = decodeURIComponent(eventId.trim());

@@ -15,6 +15,9 @@ export type Profile = {
   notify_trade_proposals: boolean;
   notify_draft_reminder: boolean;
   notify_weekly_results: boolean;
+  marketing_opt_in?: boolean;
+  marketing_opt_in_at?: string | null;
+  marketing_opt_in_source?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -24,15 +27,33 @@ export type Profile = {
  */
 export async function getProfile(userId: string): Promise<Profile | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const primary = await supabase
     .from("profiles")
     .select(
-      "id, display_name, avatar_url, accepted_terms_at, accepted_privacy_at, timezone, notify_trade_proposals, notify_draft_reminder, notify_weekly_results, created_at, updated_at"
+      "id, display_name, avatar_url, accepted_terms_at, accepted_privacy_at, timezone, notify_trade_proposals, notify_draft_reminder, notify_weekly_results, marketing_opt_in, marketing_opt_in_at, marketing_opt_in_source, created_at, updated_at"
     )
     .eq("id", userId)
     .maybeSingle();
-  if (error || !data) return null;
-  return data as Profile;
+  let row: Record<string, unknown> | null = (primary.data as Record<string, unknown> | null) ?? null;
+  let error = primary.error;
+  if (error && /marketing_opt_in/i.test(error.message ?? "")) {
+    const fallback = await supabase
+      .from("profiles")
+      .select(
+        "id, display_name, avatar_url, accepted_terms_at, accepted_privacy_at, timezone, notify_trade_proposals, notify_draft_reminder, notify_weekly_results, created_at, updated_at"
+      )
+      .eq("id", userId)
+      .maybeSingle();
+    row = (fallback.data as Record<string, unknown> | null) ?? null;
+    error = fallback.error;
+  }
+  if (error || !row) return null;
+  return {
+    ...(row as Profile),
+    marketing_opt_in: Boolean((row as { marketing_opt_in?: boolean }).marketing_opt_in),
+    marketing_opt_in_at: (row as { marketing_opt_in_at?: string | null }).marketing_opt_in_at ?? null,
+    marketing_opt_in_source: (row as { marketing_opt_in_source?: string | null }).marketing_opt_in_source ?? null,
+  };
 }
 
 /**
@@ -47,6 +68,9 @@ export async function updateProfile(
     notify_trade_proposals?: boolean;
     notify_draft_reminder?: boolean;
     notify_weekly_results?: boolean;
+    marketing_opt_in?: boolean;
+    marketing_opt_in_at?: string | null;
+    marketing_opt_in_source?: string | null;
   }
 ): Promise<{ error: string | null }> {
   const supabase = await createClient();

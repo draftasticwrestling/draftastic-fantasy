@@ -2,7 +2,7 @@ import Link from "next/link";
 import { firstArticleImageUrl } from "@/lib/articleFirstImage";
 import { listPublishedArticles } from "@/lib/articles";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 export const metadata = {
   title: "News — Draftastic",

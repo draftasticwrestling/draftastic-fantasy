@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isProfileManagerAvatarUrl } from "@/lib/managerAvatarBucket";
+import { syncMarketingOptInToConstantContact } from "@/lib/constantContactSync";
 
 /**
  * PATCH /api/account/profile — update current user's profile (display_name, etc.)
@@ -17,6 +18,7 @@ export async function PATCH(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 
     const body = await request.json() as Record<string, unknown>;
+    let shouldSyncMarketing = false;
 
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -38,6 +40,12 @@ export async function PATCH(request: Request) {
     }
     if (typeof body.notify_weekly_results === "boolean") {
       updates.notify_weekly_results = body.notify_weekly_results;
+    }
+    if (typeof body.marketing_opt_in === "boolean") {
+      updates.marketing_opt_in = body.marketing_opt_in;
+      updates.marketing_opt_in_at = body.marketing_opt_in ? new Date().toISOString() : null;
+      updates.marketing_opt_in_source = body.marketing_opt_in ? "account_settings" : null;
+      shouldSyncMarketing = body.marketing_opt_in;
     }
     if ("accepted_terms_at" in body) {
       updates.accepted_terms_at =
@@ -67,13 +75,33 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from("profiles")
       .update(updates)
       .eq("id", user.id);
+    if (error && /marketing_opt_in/i.test(error.message ?? "")) {
+      delete updates.marketing_opt_in;
+      delete updates.marketing_opt_in_at;
+      delete updates.marketing_opt_in_source;
+      const fallback = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", user.id);
+      error = fallback.error;
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (shouldSyncMarketing && user.email) {
+      const sync = await syncMarketingOptInToConstantContact({
+        email: user.email,
+        firstName: typeof body.display_name === "string" ? body.display_name : null,
+        source: "account_settings",
+      });
+      if (!sync.ok && !sync.skipped) {
+        console.warn("Constant Contact account-settings sync failed:", sync.reason);
+      }
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

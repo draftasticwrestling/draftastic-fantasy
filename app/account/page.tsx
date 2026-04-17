@@ -88,6 +88,7 @@ export default async function AccountPage({
         initialNotifyTradeProposals={profile?.notify_trade_proposals ?? true}
         initialNotifyDraftReminder={profile?.notify_draft_reminder ?? true}
         initialNotifyWeeklyResults={profile?.notify_weekly_results ?? true}
+        initialMarketingOptIn={profile?.marketing_opt_in ?? false}
         initialAcceptedTermsAt={profile?.accepted_terms_at ?? null}
         initialAcceptedPrivacyAt={profile?.accepted_privacy_at ?? null}
         email={user.email ?? ""}

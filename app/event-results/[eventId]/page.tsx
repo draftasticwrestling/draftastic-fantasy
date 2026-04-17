@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { notFound, permanentRedirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import { Suspense } from "react";
 
 import { EventResultsMatchScroll } from "./EventResultsMatchScroll";
@@ -24,8 +25,7 @@ import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { isWrestlerWinner } from "@/lib/event-results/winnerUtils";
 import type { ScoredEvent } from "@/lib/scoring/types";
 
-// Always compute fresh so King/Queen points and prior carryover are correct
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 export async function generateMetadata({
   params,
@@ -143,6 +143,10 @@ export default async function EventResultsPage({
   const event = await getEventForResultsRoute(eventId);
   if (!event) {
     notFound();
+  }
+  if ((event.status ?? "").toLowerCase() === "live") {
+    // Keep live cards uncached while a show is in progress.
+    noStore();
   }
 
   const canonicalSlug = buildEventResultsSlug(event);

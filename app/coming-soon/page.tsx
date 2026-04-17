@@ -1,7 +1,7 @@
 import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
 import { MarketingLandingCopy } from "@/app/components/MarketingLandingCopy";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function ComingSoonPage() {
   return (

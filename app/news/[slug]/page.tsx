@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ArticleMarkdown } from "@/app/components/articles/ArticleMarkdown";
 import { ArticleSeriesFooter } from "@/app/components/articles/ArticleSeriesFooter";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 export async function generateMetadata({
   params,

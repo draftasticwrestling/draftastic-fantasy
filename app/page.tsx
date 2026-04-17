@@ -3,8 +3,8 @@ import { FantasyHomeLink } from "@/app/components/FantasyHomeLink";
 import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
 import FantasyHubHero from "@/app/components/FantasyHubHero";
 
-/** Headlines pull from DB; avoid stale static shell after publish. */
-export const dynamic = "force-dynamic";
+/** Cache homepage shell and revalidate frequently to reduce SSR compute. */
+export const revalidate = 120;
 
 export const metadata = {
   title: "Draftastic Pro Wrestling — Results & News",

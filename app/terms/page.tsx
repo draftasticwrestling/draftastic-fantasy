@@ -93,24 +93,30 @@ export default function TermsPage() {
         warranties of uninterrupted availability.
       </p>
 
-      <h2>9) Limitation of Liability</h2>
+      <h2>9) Communications Preferences</h2>
+      <p style={{ color: "#444" }}>
+        By creating an account, you may receive required transactional emails related to account security and core league activity.
+        Marketing/product update emails are optional and require explicit opt-in consent, which you can revoke at any time.
+      </p>
+
+      <h2>10) Limitation of Liability</h2>
       <p style={{ color: "#444" }}>
         To the maximum extent allowed by law, Draftastic is not liable for indirect, incidental, special, consequential, or punitive
         damages, or any loss of data, revenue, or goodwill arising from use of the Service.
       </p>
 
-      <h2>10) Governing Law</h2>
+      <h2>11) Governing Law</h2>
       <p style={{ color: "#444" }}>
         These Terms are governed by applicable laws of the jurisdiction where the operator is established, unless otherwise required by
         consumer protection law.
       </p>
 
-      <h2>11) Changes to Terms</h2>
+      <h2>12) Changes to Terms</h2>
       <p style={{ color: "#444" }}>
         We may update these Terms from time to time. Material changes will be posted in the Service with an updated effective date.
       </p>
 
-      <h2>12) Contact</h2>
+      <h2>13) Contact</h2>
       <p style={{ color: "#444" }}>
         For legal notices, takedown requests, or Terms questions, contact: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
       </p>

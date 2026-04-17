@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { syncMarketingOptInToConstantContact } from "@/lib/constantContactSync";
 
 /**
  * OAuth callback: Supabase redirects here after sign-in with Google (or other provider).
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
   const displayName = requestUrl.searchParams.get("dn")?.trim() ?? "";
   const timezone = requestUrl.searchParams.get("tz")?.trim() ?? "";
   const acceptedAt = requestUrl.searchParams.get("ta")?.trim() ?? "";
+  const marketingOptIn = requestUrl.searchParams.get("mo") === "1";
   const next = nextRaw.startsWith("/") ? nextRaw : "/";
 
   if (code) {
@@ -36,10 +38,23 @@ export async function GET(request: Request) {
             timezone: timezone || null,
             accepted_terms_at: acceptedAt || null,
             accepted_privacy_at: acceptedAt || null,
+            marketing_opt_in: marketingOptIn,
+            marketing_opt_in_at: marketingOptIn ? acceptedAt || new Date().toISOString() : null,
+            marketing_opt_in_source: marketingOptIn ? "signup" : null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "id" }
         );
+        if (marketingOptIn && user.email) {
+          const sync = await syncMarketingOptInToConstantContact({
+            email: user.email,
+            firstName: displayName || user.user_metadata?.full_name || null,
+            source: "signup",
+          });
+          if (!sync.ok && !sync.skipped) {
+            console.warn("Constant Contact signup sync failed:", sync.reason);
+          }
+        }
       }
     }
   }

@@ -28,6 +28,7 @@ type Props = {
   initialNotifyTradeProposals: boolean;
   initialNotifyDraftReminder: boolean;
   initialNotifyWeeklyResults: boolean;
+  initialMarketingOptIn: boolean;
   initialAcceptedTermsAt: string | null;
   initialAcceptedPrivacyAt: string | null;
   email: string;
@@ -39,6 +40,7 @@ export function AccountForm({
   initialNotifyTradeProposals,
   initialNotifyDraftReminder,
   initialNotifyWeeklyResults,
+  initialMarketingOptIn,
   initialAcceptedTermsAt,
   initialAcceptedPrivacyAt,
   email,
@@ -49,6 +51,7 @@ export function AccountForm({
   const [notifyTradeProposals, setNotifyTradeProposals] = useState(initialNotifyTradeProposals);
   const [notifyDraftReminder, setNotifyDraftReminder] = useState(initialNotifyDraftReminder);
   const [notifyWeeklyResults, setNotifyWeeklyResults] = useState(initialNotifyWeeklyResults);
+  const [marketingOptIn, setMarketingOptIn] = useState(initialMarketingOptIn);
   const [acceptedTermsChecked, setAcceptedTermsChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -74,6 +77,7 @@ export function AccountForm({
           notify_trade_proposals: notifyTradeProposals,
           notify_draft_reminder: notifyDraftReminder,
           notify_weekly_results: notifyWeeklyResults,
+          marketing_opt_in: marketingOptIn,
           accepted_terms_at: acceptedAt,
           accepted_privacy_at: acceptedAt,
         }),
@@ -149,6 +153,20 @@ export function AccountForm({
           </p>
         </div>
 
+        <div>
+          <span style={labelStyle}>Marketing emails</span>
+          <p style={{ margin: "0 0 12px", fontSize: 13, color: "#666" }}>
+            Optional updates about league openings, product launches, and beta announcements.
+          </p>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={marketingOptIn}
+              onChange={(e) => setMarketingOptIn(e.target.checked)}
+            />
+            <span>Email me Draftastic marketing updates (unsubscribe anytime)</span>
+          </label>
+        </div>
         <div>
           <span style={labelStyle}>Email notifications</span>
           <p style={{ margin: "0 0 12px", fontSize: 13, color: "#666" }}>

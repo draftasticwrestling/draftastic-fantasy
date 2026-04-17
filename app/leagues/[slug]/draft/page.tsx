@@ -456,9 +456,16 @@ export default async function LeagueDraftPage({ params }: Props) {
           </h2>
           <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
             Before the draft runs at the scheduled time, confirm each manager has set preferences. If not set, the default is used.
+            {" "}
+            <strong style={{ color: "var(--color-text)" }}>
+              Strategy details (board choice, list length, etc.) are shown only on your own row
+            </strong>{" "}
+            so the GM and other managers can see who is ready without an unfair scouting advantage.
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
-            {allMembersPrefs.map((entry) => (
+            {allMembersPrefs.map((entry) => {
+              const isOwnRow = Boolean(user?.id && entry.user_id === user.id);
+              return (
               <li
                 key={entry.user_id}
                 style={{
@@ -478,9 +485,12 @@ export default async function LeagueDraftPage({ params }: Props) {
                 ) : (
                   <span style={{ color: "var(--color-text-muted)" }}>Default</span>
                 )}
-                <span style={{ width: "100%", fontSize: 13, marginTop: 2 }}>{entry.summary}</span>
+                {isOwnRow ? (
+                  <span style={{ width: "100%", fontSize: 13, marginTop: 2 }}>{entry.summary}</span>
+                ) : null}
               </li>
-            ))}
+            );
+            })}
           </ul>
           <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 12, marginBottom: 0 }}>
             <strong>Tie-break after your list runs out</strong> (same for everyone): {DEFAULT_AUTOPICK_DESCRIPTION} Everyone defaults to the

@@ -26,6 +26,7 @@ export function AuthForm({ mode, searchParams }: Props) {
   const [displayName, setDisplayName] = useState("");
   const [timezone, setTimezone] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
@@ -76,6 +77,7 @@ export function AuthForm({ mode, searchParams }: Props) {
         params.set("dn", displayName.trim());
         if (timezone) params.set("tz", timezone);
         params.set("ta", acceptedAt);
+        if (marketingOptIn) params.set("mo", "1");
         const { error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -85,6 +87,9 @@ export function AuthForm({ mode, searchParams }: Props) {
               timezone: timezone || null,
               accepted_terms_at: acceptedAt,
               accepted_privacy_at: acceptedAt,
+              marketing_opt_in: marketingOptIn,
+              marketing_opt_in_at: marketingOptIn ? acceptedAt : null,
+              marketing_opt_in_source: marketingOptIn ? "signup_email" : null,
             },
             emailRedirectTo: `${window.location.origin}/auth/callback?${params.toString()}`,
           },
@@ -127,6 +132,7 @@ export function AuthForm({ mode, searchParams }: Props) {
       params.set("dn", displayName.trim());
       if (timezone) params.set("tz", timezone);
       params.set("ta", acceptedAt);
+      if (marketingOptIn) params.set("mo", "1");
     }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -285,6 +291,14 @@ export function AuthForm({ mode, searchParams }: Props) {
                 Privacy Policy
               </Link>
               .
+            </span>
+          </label>
+        )}
+        {mode === "sign-up" && (
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, color: "#444", cursor: "pointer" }}>
+            <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} />
+            <span>
+              Email me product updates, new league openings, and beta announcements. You can unsubscribe anytime.
             </span>
           </label>
         )}
