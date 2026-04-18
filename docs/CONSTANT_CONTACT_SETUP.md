@@ -23,11 +23,11 @@ This guide explains how to connect Draftastic to your Constant Contact account s
 2. Open the **Developer Portal** (search “Constant Contact developer” or use the link from your CC account menus).
 3. Open **My Applications** and select your app (for example “Draftastic Marketing Sync”), or create a new application.
 4. Open the **OAuth2** (or similar) tab.
-5. Under **Redirect URIs**, add **every** address you will use. Examples:
+5. Under **Redirect URIs**, add **every** address you will use. Use a **dedicated path**, not the site home page:
    - Local testing: `http://localhost:3000/callback`  
      (If your computer runs the site on a different port, use that port instead of `3000` — it must match what Terminal prints when you run `npm run dev`.)
-   - Production: `https://draftastic-fantasy.netlify.app/`  
-     (only if you use the site root; the path must match exactly including `/` at the end if you registered it that way.)
+   - Production: `https://draftastic-fantasy.netlify.app/constant-contact-callback` or `https://draftastic-fantasy.netlify.app/callback`  
+     **Do not use the bare site root (`https://…netlify.app/`)** as the redirect: Supabase sign-in also sends users back with `?code=` on `/`, and that code is for account login, not Constant Contact.
 6. Click **Save**. If save fails with “CSRF”, refresh the page, sign out and back in, or try another browser.
 
 ---

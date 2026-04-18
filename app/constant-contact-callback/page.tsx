@@ -7,10 +7,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/**
- * Production-friendly callback path. If you register the site root as redirect, the home page
- * forwards OAuth query params here.
- */
+/** Production-friendly Constant Contact OAuth return URL. Register this exact path in the CC portal. */
 export default async function ConstantContactCallbackPage({
   searchParams,
 }: {
