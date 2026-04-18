@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { FantasyHomeLink } from "@/app/components/FantasyHomeLink";
 import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
 import FantasyHubHero from "@/app/components/FantasyHubHero";
@@ -11,7 +12,25 @@ export const metadata = {
   description: "Event results, fantasy scoring, and commentary — Draftastic Pro Wrestling.",
 };
 
-export default async function HubHomePage() {
+export default async function HubHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const code = typeof sp.code === "string" ? sp.code : undefined;
+  const oauthErr = typeof sp.error === "string" ? sp.error : undefined;
+  if (code || oauthErr) {
+    const qs = new URLSearchParams();
+    if (code) qs.set("code", code);
+    if (oauthErr) qs.set("error", oauthErr);
+    const ed = sp.error_description;
+    if (typeof ed === "string") qs.set("error_description", ed);
+    const st = sp.state;
+    if (typeof st === "string") qs.set("state", st);
+    redirect(`/constant-contact-callback?${qs.toString()}`);
+  }
+
   return (
     <>
       <FantasyHubHero />

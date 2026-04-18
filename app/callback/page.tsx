@@ -8,10 +8,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * Production-friendly callback path. If you register the site root as redirect, the home page
- * forwards OAuth query params here.
+ * Local dev redirect target matching the Constant Contact Developer Portal entry:
+ * http://localhost:3000/callback
+ *
+ * Set CONSTANT_CONTACT_OAUTH_REDIRECT_URI=http://localhost:3000/callback in .env
  */
-export default async function ConstantContactCallbackPage({
+export default async function CallbackPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

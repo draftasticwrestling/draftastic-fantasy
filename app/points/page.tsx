@@ -100,9 +100,9 @@ export default function PointsPage() {
               ["Winning the Main Event", 4],
               ["Main Eventing", 3],
               ["Winning Your Match", 2],
-              ["Eliminating a BR Participant", 2],
+              ["Each elimination (non–Royal Rumble battle royal), per opponent removed", 2],
               ["Being on the Match Card (non-main event)", 1],
-              ["Entering the Andre the Giant Battle Royal", 1],
+              ["Entering the Battle Royal (appearance)", 1],
             ].map(([action, pts], i) => (
               <tr key={i} style={{ borderBottom: "1px solid #ddd" }}>
                 <td style={tdStyle}>{action}</td>
@@ -302,8 +302,8 @@ export default function PointsPage() {
               ["Winning the Battle Royal", 8],
               ["Winning your match", 6],
               ["Being on the card (non–main event)", 3],
-              ["Eliminating a BR Participant", 2],
-              ["Entering the Battle Royal", 1],
+              ["Each elimination (per opponent removed)", 2],
+              ["Entering the Battle Royal (appearance)", 1],
             ]}
           />
         </div>

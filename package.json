@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "stats:recompute-cache": "tsx scripts/recompute-wrestler-stats-cache.ts",
+    "cc:list-ids": "tsx scripts/constant-contact-list-ids.ts",
+    "cc:refresh-token": "tsx scripts/constant-contact-refresh-access-token.ts",
     "backup:supabase": "bash scripts/supabase-pgdump.sh"
   },
   "dependencies": {

@@ -7,6 +7,7 @@
 import type { BeltKey } from "@/lib/howItWorksImages";
 
 export const GENERAL_RULES = [
+  "For a non–Royal Rumble battle royal, only battle royal points apply for that match (entry, eliminations, winner). The usual “on the card” and “winning your match” points for Raw, SmackDown, or a PLE do not stack on top — they are superseded so appearance is not counted twice.",
   "A standard match victory earns full points. If a victory occurs via disqualification (DQ) or any other disqualifying result, it is worth half points. A No Contest result only earns appearance points; no victory or title defense points are awarded.",
   "Additional main event points are awarded only if the match is not the PLE's featured (titled) match. Example: If the Men's Royal Rumble is the main event of the PLE, the winner receives only the standard event points, not extra for it being the main event.",
   "A successful title defense is worth an additional 4 points, regardless of the event or match placement. If the title is retained via disqualification, the bonus is reduced to 2 points (half points).",
@@ -55,10 +56,12 @@ export const BELT_DEFENSE_NEW_CHAMPION_POINTS: [string, number][] = [
 
 /**
  * Standard battle royals on Raw, SmackDown, or a PLE undercard — not the Royal Rumble premium live event.
+ * +1 appearance, +2 per elimination, +8 win (same as scoring engine).
  */
 export const SPECIAL_MATCH_BATTLE_ROYAL_POINTS: [string, number][] = [
-  ["Eliminating a BR Participant", 2],
-  ["Entering the Battle Royal", 1],
+  ["Winning the Battle Royal", 8],
+  ["Each elimination (per opponent removed)", 2],
+  ["Entering the Battle Royal (appearance)", 1],
 ];
 
 /** Raw and SmackDown base match-card scoring (Road to SummerSlam 2026 and Legacy). */
@@ -162,6 +165,6 @@ export const MINOR_PLE_BASE_POINTS: [string, number][] = [
 
 export const EVOLUTION_EXTRA_POINTS: [string, number][] = [
   ["Winning the Battle Royal", 8],
-  ["Eliminating a BR Participant", 2],
-  ["Entering the Battle Royal", 1],
+  ["Each elimination (per opponent removed)", 2],
+  ["Entering the Battle Royal (appearance)", 1],
 ];

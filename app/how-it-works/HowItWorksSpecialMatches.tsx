@@ -16,7 +16,8 @@ export function HowItWorksSpecialMatches({ variant }: Props) {
     <section style={{ marginBottom: 40 }}>
       <h2 className={styles.sectionTitle}>Special matches</h2>
       <p style={{ marginBottom: 16, color: "#555", textAlign: "center", maxWidth: 720, marginLeft: "auto", marginRight: "auto" }}>
-        Extra scoring for certain match types in addition to normal Raw / SmackDown or PLE match-card points.
+        For these match types, the special table is used <strong>instead of</strong> the usual Raw / SmackDown or PLE “on the
+        card” and “winning your match” points for that match (so you are not double-counted for appearing).
       </p>
 
       <h3 style={{ fontSize: "1.15rem", marginBottom: 8, fontWeight: 700, textAlign: "center" }}>

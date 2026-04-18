@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HowItWorksSpecialMatches } from "./HowItWorksSpecialMatches";
 
 type Props = {
   seasonName: string;
@@ -18,6 +19,7 @@ export function HowItWorksSeasonPlaceholder({ seasonName, windowHint }: Props) {
         schedule, and the <Link href="/how-it-works?tab=legacy">Legacy League</Link> tab shows the full year-round reference
         (all major PLE types, medium and minor PLEs, etc.).
       </p>
+      <HowItWorksSpecialMatches variant="rts" />
     </div>
   );
 }

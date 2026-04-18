@@ -4,8 +4,14 @@ type ConstantContactUpsertInput = {
   source: "signup" | "account_settings";
 };
 
+function normalizeBearerToken(raw: string): string {
+  const t = raw.trim();
+  if (t.toLowerCase().startsWith("bearer ")) return t.slice(7).trim();
+  return t;
+}
+
 function getConfig() {
-  const accessToken = process.env.CONSTANT_CONTACT_ACCESS_TOKEN?.trim() ?? "";
+  const accessToken = normalizeBearerToken(process.env.CONSTANT_CONTACT_ACCESS_TOKEN ?? "");
   const listId = process.env.CONSTANT_CONTACT_LIST_ID?.trim() ?? "";
   const apiBase = process.env.CONSTANT_CONTACT_API_BASE?.trim() || "https://api.cc.email/v3";
   return { accessToken, listId, apiBase };
