@@ -273,7 +273,8 @@ export default async function FantasyHomePage() {
         <h2>My Leagues</h2>
         {leagues.length === 0 ? (
           <p style={{ margin: "8px 0 16px", color: "var(--color-text-muted)" }}>
-            You&apos;re not in any leagues yet. Create one or ask a friend for a league code or invite link.
+            You&apos;re not in any leagues yet. Use <strong>Join a league</strong> for public Quick Join (or a private code), or
+            create your own private league below.
           </p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
@@ -306,9 +307,9 @@ export default async function FantasyHomePage() {
             ))}
           </ul>
         )}
-        <p style={{ marginTop: 16, marginBottom: 0 }}>
+        <p style={{ marginTop: 16, marginBottom: 0, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <Link
-            href="/leagues/new"
+            href="/leagues/join"
             style={{
               display: "inline-block",
               padding: "10px 20px",
@@ -320,10 +321,23 @@ export default async function FantasyHomePage() {
               fontSize: 14,
             }}
           >
-            Create a Private League
-          </Link>
-          <Link href="/leagues/join" className="app-link" style={{ marginLeft: 12 }}>
             Join a league
+          </Link>
+          <Link
+            href="/leagues/new"
+            style={{
+              display: "inline-block",
+              padding: "10px 20px",
+              background: "transparent",
+              color: "var(--color-blue)",
+              textDecoration: "none",
+              borderRadius: "var(--radius)",
+              fontWeight: 600,
+              fontSize: 14,
+              border: "2px solid var(--color-blue)",
+            }}
+          >
+            Create a private league
           </Link>
         </p>
       </div>

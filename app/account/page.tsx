@@ -13,9 +13,9 @@ export const metadata = {
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ suspended?: string }>;
+  searchParams: Promise<{ suspended?: string; required?: string }>;
 }) {
-  const { suspended } = await searchParams;
+  const { suspended, required } = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -27,6 +27,8 @@ export default async function AccountPage({
     !(profile?.display_name ?? "").trim() ||
     !profile?.accepted_terms_at ||
     !profile?.accepted_privacy_at;
+  const needsTimezone = !(profile?.timezone ?? "").trim();
+  const needsRequiredProfile = needsRequiredAccount || needsTimezone;
 
   return (
     <main
@@ -60,7 +62,7 @@ export default async function AccountPage({
           mistake.
         </p>
       ) : null}
-      {needsRequiredAccount ? (
+      {needsRequiredProfile ? (
         <p
           style={{
             color: "#92400e",
@@ -71,16 +73,25 @@ export default async function AccountPage({
             marginBottom: 16,
           }}
         >
-          Complete required account fields to continue: display name and Terms/Privacy acceptance.
+          {required === "1" ? (
+            <>
+              <strong>Finish your profile to continue.</strong>{" "}
+            </>
+          ) : null}
+          {needsRequiredAccount
+            ? "Complete display name and accept the Terms and Privacy Policy. "
+            : null}
+          {needsTimezone ? (
+            <>
+              <strong>Timezone is required</strong> — choose your region below and click <strong>Save changes</strong>
+              (used for draft times and weekly windows).
+            </>
+          ) : null}
         </p>
       ) : null}
       <p style={{ color: "#555", marginBottom: 24 }}>
         Your display name is shown in the header and will be used in leagues. Your email is not shared with other users.
       </p>
-      <AccountAvatarField
-        initialAvatarUrl={profile?.avatar_url ?? null}
-        displayNameForInitial={profile?.display_name ?? ""}
-      />
       <AccountForm
         userId={user.id}
         initialDisplayName={profile?.display_name ?? ""}
@@ -92,6 +103,10 @@ export default async function AccountPage({
         initialAcceptedTermsAt={profile?.accepted_terms_at ?? null}
         initialAcceptedPrivacyAt={profile?.accepted_privacy_at ?? null}
         email={user.email ?? ""}
+      />
+      <AccountAvatarField
+        initialAvatarUrl={profile?.avatar_url ?? null}
+        displayNameForInitial={profile?.display_name ?? ""}
       />
     </main>
   );

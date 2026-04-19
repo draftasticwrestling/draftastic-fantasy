@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useId, useState } from "react";
 import HeroSignupCountdown from "@/app/components/HeroSignupCountdown";
-import { CONSTANT_CONTACT_SIGNUP_URL } from "@/lib/constantContact";
 import { DRAFTASTIC_SCREENSHOTS } from "@/lib/draftasticScreenshots";
 import { siteLogoHref } from "@/lib/siteLogo";
 
@@ -41,19 +40,31 @@ export default function FantasyHubHero() {
             better than your friends.
           </p>
           <div className="hub-hero-urgency">
-            <p>Sign up by the end of WrestleMania to get your exclusive ACCESS CODE.</p>
-            <p>Don&apos;t miss out. Limited spots available for the Road to SummerSlam.</p>
+            <p>Sign up by the end of WrestleMania with our exclusive ACCESS CODE:</p>
+            <p
+              style={{
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                letterSpacing: "0.06em",
+                fontWeight: 800,
+                color: "#4ade80",
+                fontSize: "1.05em",
+              }}
+            >
+              MANIA-42-VEGAS
+            </p>
+            <p>
+              Don&apos;t miss out. Limited spots available for the Road to SummerSlam! Private and Public leagues
+              available.
+            </p>
           </div>
           <HeroSignupCountdown />
           <div className="hub-hero-actions">
-            <a
-              href={CONSTANT_CONTACT_SIGNUP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hub-hero-btn hub-hero-btn-primary"
-            >
-              Join the Beta
-            </a>
+            <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
+              Create a League
+            </Link>
+            <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
+              Join a League
+            </Link>
             <Link href="/how-it-works" className="hub-hero-btn hub-hero-btn-outline">
               How It Works
             </Link>
@@ -188,16 +199,14 @@ export default function FantasyHubHero() {
             <h2 id="hub-expand-final">Don&apos;t join late. You&apos;ll regret it.</h2>
             <p>Leagues are forming. Drafts are coming. And once the season starts, you&apos;re chasing everyone else.</p>
             <p>Get in now. Build your roster. Be the one everyone&apos;s trying to beat.</p>
-            <p className="hub-hero-expand-cta-block">
-              <a
-                href={CONSTANT_CONTACT_SIGNUP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hub-hero-btn hub-hero-btn-primary"
-              >
-                Claim Your Spot
-              </a>
-            </p>
+            <div className="hub-hero-expand-cta-block hub-hero-actions">
+              <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
+                Create a League
+              </Link>
+              <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
+                Join a League
+              </Link>
+            </div>
           </section>
 
           <p className="hub-hero-expand-tagline">Draft smart. Watch closer. Win louder.</p>

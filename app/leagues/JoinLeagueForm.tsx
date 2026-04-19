@@ -143,7 +143,8 @@ export function JoinLeagueForm({ token, initialCode = "" }: Props) {
       <div style={{ padding: 14, border: "1px solid #ddd", borderRadius: 8, background: "#fafafa" }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Join a Public League</div>
         <p style={{ margin: "0 0 10px 0", color: "#555", fontSize: 14 }}>
-          Quick Join auto-assigns you to the oldest open public league.
+          Quick Join adds you to the oldest public league that still has room. If every public league is full or none exist
+          yet, we create a new public league and make you the GM so others can Quick Join in.
         </p>
         <button
           type="button"

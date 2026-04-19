@@ -280,7 +280,10 @@ export default function Nav() {
       ]
     : [];
 
-  const showLowerBar = user && leagues.length > 0;
+  /** Full league strip (switcher, sections, join/create). */
+  const showLeagueLowerBar = Boolean(user && leagues.length > 0 && currentLeagueSlug);
+  /** Signed in but not in any league yet: always show join + create (desktop and mobile layout). */
+  const showNoLeagueLowerBar = Boolean(user && leagues.length === 0);
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
@@ -481,7 +484,50 @@ export default function Nav() {
         )}
       </header>
 
-      {showLowerBar && currentLeagueSlug && (
+      {showNoLeagueLowerBar && (
+        <div
+          className="nav-lower-bar"
+          onMouseLeave={handleLowerBarLeave}
+          onMouseEnter={handleLowerBarEnter}
+        >
+          <nav className="nav-primary-wrap" aria-label="Fantasy">
+            <ul className="nav-primary-list">
+              <li>
+                <span className="nav-secondary-label" style={{ paddingLeft: 0 }}>
+                  You&apos;re not in a league yet
+                </span>
+              </li>
+              <li className="nav-primary-item-create-league">
+                <div className="nav-primary-create-join-group" role="group" aria-label="League actions">
+                  <Link
+                    href="/leagues/join"
+                    className={`nav-primary-link-join ${pathname === "/leagues/join" ? "is-active" : ""}`}
+                  >
+                    Join a League
+                  </Link>
+                  <Link
+                    href="/leagues/new"
+                    className={`nav-primary-link nav-primary-link-create ${pathname === "/leagues/new" ? "is-active" : ""}`}
+                  >
+                    +Create a League
+                  </Link>
+                </div>
+              </li>
+            </ul>
+          </nav>
+          <nav className="nav-secondary-wrap" aria-label="Get started">
+            <ul className="nav-secondary-list">
+              <li>
+                <span className="nav-secondary-context">
+                  Quick Join adds you to a public league, or we open a new one for you as GM if every public league is full.
+                </span>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      )}
+
+      {showLeagueLowerBar && (
         <div
           className="nav-lower-bar"
           onMouseLeave={handleLowerBarLeave}
@@ -701,7 +747,7 @@ export default function Nav() {
                     </li>
                   );
                 })}
-              {!(hoverPrimary ?? activePrimary) && showLowerBar && (
+              {!(hoverPrimary ?? activePrimary) && showLeagueLowerBar && (
                 <li>
                   <span className="nav-secondary-context">League</span>
                 </li>

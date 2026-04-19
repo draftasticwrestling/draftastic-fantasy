@@ -48,7 +48,7 @@ export async function middleware(request: NextRequest) {
         if (user) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("display_name, accepted_terms_at, accepted_privacy_at, is_suspended, suspended_until")
+            .select("display_name, accepted_terms_at, accepted_privacy_at, timezone, is_suspended, suspended_until")
             .eq("id", user.id)
             .maybeSingle();
           const suspendedUntilRaw =
@@ -64,8 +64,12 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(to);
           }
           const displayName = (profile?.display_name ?? "").trim();
+          const timezone = ((profile as { timezone?: string | null } | null)?.timezone ?? "").trim();
           const hasRequired =
-            displayName.length > 0 && Boolean(profile?.accepted_terms_at) && Boolean(profile?.accepted_privacy_at);
+            displayName.length > 0 &&
+            Boolean(profile?.accepted_terms_at) &&
+            Boolean(profile?.accepted_privacy_at) &&
+            timezone.length > 0;
           if (!hasRequired) {
             const to = new URL("/account", request.url);
             to.searchParams.set("required", "1");

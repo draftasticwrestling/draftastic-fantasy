@@ -1,25 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-/* Common IANA timezones for the dropdown. */
-const TIMEZONE_OPTIONS = [
-  { value: "", label: "Select your timezone" },
-  { value: "America/New_York", label: "Eastern (New York)" },
-  { value: "America/Chicago", label: "Central (Chicago)" },
-  { value: "America/Denver", label: "Mountain (Denver)" },
-  { value: "America/Los_Angeles", label: "Pacific (Los Angeles)" },
-  { value: "America/Phoenix", label: "Arizona (no DST)" },
-  { value: "America/Anchorage", label: "Alaska" },
-  { value: "Pacific/Honolulu", label: "Hawaii" },
-  { value: "Europe/London", label: "London" },
-  { value: "Europe/Paris", label: "Central European (Paris)" },
-  { value: "Europe/Berlin", label: "Central European (Berlin)" },
-  { value: "Asia/Tokyo", label: "Tokyo" },
-  { value: "Australia/Sydney", label: "Sydney" },
-  { value: "UTC", label: "UTC" },
-];
+import { PROFILE_TIMEZONE_OPTIONS } from "@/lib/profileTimezone";
 
 type Props = {
   userId: string;
@@ -57,12 +40,29 @@ export function AccountForm({
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const needsRequiredAcceptance = !initialAcceptedTermsAt || !initialAcceptedPrivacyAt;
 
+  useEffect(() => {
+    if (initialTimezone.trim()) return;
+    try {
+      const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (detected && PROFILE_TIMEZONE_OPTIONS.some((o) => o.value === detected)) {
+        setTimezone(detected);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [initialTimezone]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
     if (needsRequiredAcceptance && !acceptedTermsChecked) {
       setMessage({ type: "err", text: "You must accept the Terms and Privacy Policy to continue." });
+      setLoading(false);
+      return;
+    }
+    if (!timezone.trim()) {
+      setMessage({ type: "err", text: "Select your timezone (required)." });
       setLoading(false);
       return;
     }
@@ -73,7 +73,7 @@ export function AccountForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           display_name: displayName.trim() || null,
-          timezone: timezone.trim() || null,
+          timezone: timezone.trim(),
           notify_trade_proposals: notifyTradeProposals,
           notify_draft_reminder: notifyDraftReminder,
           notify_weekly_results: notifyWeeklyResults,
@@ -137,22 +137,27 @@ export function AccountForm({
 
         <div>
           <label htmlFor="account-timezone" style={labelStyle}>
-            Timezone
+            Timezone <span style={{ color: "#b91c1c" }} aria-hidden>*</span>
           </label>
           <select
             id="account-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
             style={inputStyle}
+            required
+            aria-required="true"
           >
-            {TIMEZONE_OPTIONS.map((opt) => (
-              <option key={opt.value || "empty"} value={opt.value}>
+            <option value="" disabled>
+              Select your timezone
+            </option>
+            {PROFILE_TIMEZONE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
             ))}
           </select>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: "#666" }}>
-            Used for draft times and weekly matchup windows.
+            Required. Used for draft times and weekly matchup windows.
           </p>
         </div>
 

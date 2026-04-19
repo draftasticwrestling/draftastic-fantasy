@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isProfileManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import { syncMarketingOptInToConstantContact } from "@/lib/constantContactSync";
 import { validateProfileDisplayName } from "@/lib/profileDisplayName";
+import { validateProfileTimezone } from "@/lib/profileTimezone";
 
 /**
  * PATCH /api/account/profile — update current user's profile (display_name, etc.)
@@ -21,6 +22,13 @@ export async function PATCH(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     let shouldSyncMarketing = false;
 
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("timezone")
+      .eq("id", user.id)
+      .maybeSingle();
+    const currentTz = ((existingProfile as { timezone?: string | null } | null)?.timezone ?? "").trim();
+
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
@@ -35,8 +43,11 @@ export async function PATCH(request: Request) {
       updates.display_name = checked.value;
     }
     if ("timezone" in body) {
-      updates.timezone =
-        typeof body.timezone === "string" ? body.timezone.trim() || null : null;
+      const tzCheck = validateProfileTimezone(typeof body.timezone === "string" ? body.timezone : null);
+      if (!tzCheck.ok) {
+        return NextResponse.json({ error: tzCheck.error }, { status: 400 });
+      }
+      updates.timezone = tzCheck.value;
     }
     if (typeof body.notify_trade_proposals === "boolean") {
       updates.notify_trade_proposals = body.notify_trade_proposals;
@@ -79,6 +90,15 @@ export async function PATCH(request: Request) {
           );
         }
       }
+    }
+
+    const effectiveTimezone =
+      updates.timezone !== undefined ? String(updates.timezone ?? "").trim() : currentTz;
+    if (!effectiveTimezone) {
+      return NextResponse.json(
+        { error: "Timezone is required. Choose your timezone and save, then you can update other profile fields." },
+        { status: 400 }
+      );
     }
 
     let { error } = await supabase

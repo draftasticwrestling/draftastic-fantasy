@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const DEADLINE_ISO = "2026-04-19T19:00:00-07:00";
+/** Next local midnight (00:00:00) — i.e. end of “today” for the user’s device clock. */
+function localMidnightTonightMs(fromMs: number): number {
+  const d = new Date(fromMs);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0).getTime();
+}
 
 type ClockParts = { days: number; hours: number; minutes: number; seconds: number; expired: boolean };
 
 function computeParts(nowMs: number): ClockParts {
-  const targetMs = Date.parse(DEADLINE_ISO);
+  const targetMs = localMidnightTonightMs(nowMs);
   const diff = targetMs - nowMs;
   if (!Number.isFinite(diff) || diff <= 0) {
     return { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true };

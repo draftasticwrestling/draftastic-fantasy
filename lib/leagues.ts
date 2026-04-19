@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getRosterRulesForLeagueId, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
-import { getDefaultStartEndForSeason } from "@/lib/leagueSeasons";
+import { getDefaultStartEndForSeason, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { eventPointsForRosterStint, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import {
@@ -729,8 +729,33 @@ export async function quickJoinOldestPublicLeague(): Promise<{
   const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
   if (result.ok && result.league_slug) {
     await syncPublicLeagueStatusBySlug(result.league_slug);
+    return result;
   }
-  return result;
+
+  const errMsg = (result.error ?? "").trim();
+  const noOpenPublic =
+    /no open public leagues/i.test(errMsg) ||
+    errMsg === "No open public leagues available right now.";
+  if (!noOpenPublic) {
+    return { ok: false, error: errMsg || "Join failed" };
+  }
+
+  const created = await createLeague({
+    name: "Public League",
+    season_slug: STANDARD_USER_CREATE_SEASON_SLUG,
+    league_type: "season_overall",
+    visibility_type: "public",
+  });
+  if (created.error) return { ok: false, error: created.error };
+  if (!created.league?.slug) return { ok: false, error: "Failed to provision a public league." };
+
+  await syncPublicLeagueStatusBySlug(created.league.slug);
+  return {
+    ok: true,
+    league_slug: created.league.slug,
+    message:
+      "No open public leagues had a spot, so we started a new public league for you — you are the GM. Invite friends or wait for Quick Joiners.",
+  };
 }
 
 export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> {

@@ -1,6 +1,7 @@
 /**
  * Same destination as the main nav "Fantasy" pill: sign-in when logged out,
- * current/last league when logged in, or create league when logged in with no leagues.
+ * current/last league when logged in, or `/fantasy` when logged in with no leagues
+ * (hub to join or create — not only create).
  */
 
 export type FantasyLeagueItem = {
@@ -33,5 +34,5 @@ export function computeFantasyHomeHref(args: {
 
   if (!user) return "/auth/sign-in";
   if (currentLeagueSlug) return `/leagues/${currentLeagueSlug}`;
-  return "/leagues/new";
+  return "/fantasy";
 }
