@@ -38,6 +38,7 @@ export async function GET(_request: Request, context: RouteContext) {
     effectiveStartYmd: effectiveStart,
     endDateYmd: endRaw,
     todayYmd,
+    seasonSlug: (league as { season_slug?: string | null }).season_slug ?? null,
   });
 
   return NextResponse.json(payload);

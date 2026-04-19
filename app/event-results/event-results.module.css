@@ -79,6 +79,37 @@
   text-decoration: underline;
 }
 
+@media (max-width: 640px) {
+  .heroNav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    max-width: 360px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .heroNav a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(198, 160, 79, 0.1);
+    border: 1px solid rgba(198, 160, 79, 0.35);
+  }
+
+  .heroNav a:hover {
+    text-decoration: none;
+    background: rgba(198, 160, 79, 0.18);
+  }
+
+  .heroNavSep {
+    display: none;
+  }
+}
+
 .heroNavSep {
   color: #666;
   user-select: none;
@@ -155,6 +186,14 @@
   background: rgba(198, 160, 79, 0.22);
   border-color: #c6a04f;
   color: #f0e6d2;
+}
+
+@media (max-width: 640px) {
+  .filterPill {
+    min-height: 44px;
+    padding: 8px 18px;
+    font-size: 14px;
+  }
 }
 
 .filterHint {

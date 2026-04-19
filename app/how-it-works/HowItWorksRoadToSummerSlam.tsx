@@ -170,7 +170,9 @@ export function HowItWorksRoadToSummerSlam() {
           <p>A successful title defense is worth an additional 4 points (2 if via DQ). An initial title win earns an additional 5 points.</p>
         </div>
 
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 8 }}>Minor PLEs</h3>
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 8 }}>
+          Minor PLEs <span style={{ fontWeight: 400, fontSize: "0.95rem" }}>(SNME = Saturday Night&apos;s Main Event)</span>
+        </h3>
         <div className={styles.pleDarkBox}>
           <div className={styles.minorPleGrid}>
             <div className={styles.minorPleCard}>
@@ -194,7 +196,9 @@ export function HowItWorksRoadToSummerSlam() {
                   <span className={styles.pointRowPoints}>{pts}</span>
                 </div>
               ))}
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 8 }}>Two SNMEs this season — same points each.</p>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 8 }}>
+                Two Saturday Night&apos;s Main Event cards this season (league nav: SNME 1 / SNME 2) — same point table each.
+              </p>
             </div>
             <div className={styles.minorPleCard}>
               <HowItWorksEventLogo eventKey="clash-in-paris" placeholderText="Clash in Italy" className={styles.eventCardLogo} />

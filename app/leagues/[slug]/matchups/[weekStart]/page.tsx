@@ -106,7 +106,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
         <div style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
           Week runs Monday–Sunday. Event points + weekly win (+15) and belt (+5/+4) bonuses.
           {(league.league_type === "head_to_head" || league.league_type === "combo" || league.league_type == null) &&
-            " Weekly title-hold (belt) points are included once that Sunday has ended in PST."}
+            " Weekly title-hold (belt) points are included once that Sunday has ended in PT (Los Angeles time)."}
         </div>
       </div>
 

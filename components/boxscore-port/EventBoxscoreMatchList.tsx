@@ -47,7 +47,7 @@ export default function EventBoxscoreMatchList({
 }: Props) {
   const sorted = getSortedMatchesForEvent(event);
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+    <section className="event-results-match-list">
       {sorted.map((match, matchIndex) => {
         const order = typeof match?.order === "number" ? match.order : matchIndex + 1;
         const fantasyPointsBySlug = fantasyPointsBySlugByOrder[order] ?? {};
@@ -55,7 +55,7 @@ export default function EventBoxscoreMatchList({
           <div
             key={`${order}-${matchIndex}`}
             id={`match-${matchIndex + 1}`}
-            style={{ scrollMarginTop: 88 }}
+            className="event-results-match-anchor"
           >
             <MatchCard
               match={match}

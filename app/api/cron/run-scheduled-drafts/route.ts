@@ -44,7 +44,7 @@ export async function GET(request: Request) {
 
   const { data: leagues } = await admin
     .from("leagues")
-    .select("id, draft_date, draft_time, draft_type, draft_status, draft_order_method")
+    .select("id, draft_date, draft_time, draft_type, draft_status, draft_order_method, visibility_type, max_teams")
     .eq("draft_type", "autopick")
     .eq("draft_status", "not_started");
 
@@ -56,6 +56,22 @@ export async function GET(request: Request) {
   const orderErrors: string[] = [];
 
   for (const league of leagues) {
+    if ((league as { visibility_type?: string | null }).visibility_type === "public") {
+      const { count: memberCount } = await admin
+        .from("league_members")
+        .select("*", { count: "exact", head: true })
+        .eq("league_id", league.id);
+      const teams = memberCount ?? 0;
+      if (teams < 3) {
+        await admin.from("leagues").update({ public_status: "awaiting_minimum" }).eq("id", league.id);
+        continue;
+      }
+      const cap = (league as { max_teams?: number | null }).max_teams ?? 6;
+      await admin
+        .from("leagues")
+        .update({ public_status: teams >= cap ? "full" : "open" })
+        .eq("id", league.id);
+    }
     const scheduledMs = getScheduledDraftTimeMs(league);
     let inOneHourWindow = false;
     if (scheduledMs != null) {
@@ -94,6 +110,14 @@ export async function GET(request: Request) {
   let ran = 0;
   const errors: string[] = [];
   for (const { id } of due) {
+    const { data: leagueMeta } = await admin
+      .from("leagues")
+      .select("visibility_type")
+      .eq("id", id)
+      .maybeSingle();
+    if ((leagueMeta as { visibility_type?: string | null } | null)?.visibility_type === "public") {
+      await admin.from("leagues").update({ public_status: "active" }).eq("id", id);
+    }
     const result = await runFullAutopickDraftAtScheduledTime(id);
     if (result.didRun) ran += 1;
     if (result.error) errors.push(`${id}: ${result.error}`);

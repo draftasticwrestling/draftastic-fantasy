@@ -59,6 +59,40 @@ async function submitWithBroadcast(
   return insertBoxscoreEventAction(prev, formData);
 }
 
+function buildBroadcastPreview(localValue: string): { local: string; pt: string; utc: string } | null {
+  if (!localValue) return null;
+  const d = new Date(localValue);
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    local: d.toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }),
+    pt: d.toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/Los_Angeles",
+      timeZoneName: "short",
+    }),
+    utc: d.toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "UTC",
+      timeZoneName: "short",
+    }),
+  };
+}
+
 export function AddBoxscoreEventForm({
   wrestlers,
   initialTagTeamData,
@@ -71,7 +105,9 @@ export function AddBoxscoreEventForm({
   const [state, formAction] = useActionState(submitWithBroadcast, null);
   const [status, setStatus] = useState("upcoming");
   const [eventDate, setEventDate] = useState("");
+  const [broadcastLocal, setBroadcastLocal] = useState("");
   const [matches, setMatches] = useState<Record<string, unknown>[]>([]);
+  const broadcastPreview = buildBroadcastPreview(broadcastLocal);
 
   return (
     <form action={formAction} style={{ maxWidth: 720 }}>
@@ -198,7 +234,21 @@ export function AddBoxscoreEventForm({
         <label style={labelStyle} htmlFor="broadcast_local">
           Broadcast start (optional, your local timezone)
         </label>
-        <input id="broadcast_local" name="broadcast_local" type="datetime-local" style={{ ...fieldStyle, maxWidth: 280 }} />
+        <input
+          id="broadcast_local"
+          name="broadcast_local"
+          type="datetime-local"
+          value={broadcastLocal}
+          onChange={(e) => setBroadcastLocal(e.target.value)}
+          style={{ ...fieldStyle, maxWidth: 280 }}
+        />
+        {broadcastPreview ? (
+          <div style={{ marginTop: 8, fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.45 }}>
+            <div><strong style={{ color: "var(--color-text)" }}>Entered local:</strong> {broadcastPreview.local}</div>
+            <div><strong style={{ color: "var(--color-text)" }}>Los Angeles (PT):</strong> {broadcastPreview.pt}</div>
+            <div><strong style={{ color: "var(--color-text)" }}>Stored UTC:</strong> {broadcastPreview.utc}</div>
+          </div>
+        ) : null}
       </div>
 
       <div style={{ marginBottom: 18 }}>

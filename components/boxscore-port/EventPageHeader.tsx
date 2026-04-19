@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useCallback, useLayoutEffect, useRef } from "react";
 import { EventLogoOrText } from "./EventLogoOrText";
 
 const gold = "#C6A04F";
@@ -18,8 +18,6 @@ export type EventPageHeaderProps = {
   recap: string | null;
   statusIsCompleted: boolean;
   isLive: boolean;
-  /** Same event on prowrestlingboxscore.com (see buildProWrestlingBoxscoreEventUrl). */
-  boxscoreHref: string;
 };
 
 export function EventPageHeader({
@@ -34,7 +32,6 @@ export function EventPageHeader({
   recap,
   statusIsCompleted,
   isLive,
-  boxscoreHref,
 }: EventPageHeaderProps) {
   const hasPreview = !!(preview && String(preview).trim());
   const hasRecap = !!(recap && String(recap).trim());
@@ -44,6 +41,32 @@ export function EventPageHeader({
   const [previewRecapView, setPreviewRecapView] = useState<"preview" | "recap">(() =>
     statusIsCompleted ? "recap" : "preview"
   );
+  /** `innerWidth` is more reliable than `matchMedia` alone in some desktop setups; inline display avoids CSS fights. */
+  const [viewportNarrow, setViewportNarrow] = useState(false);
+  const [longFormOpen, setLongFormOpen] = useState(true);
+  const prevNarrowRef = useRef<boolean | null>(null);
+  const toggleLongForm = useCallback(() => {
+    setLongFormOpen((o) => !o);
+  }, []);
+
+  useLayoutEffect(() => {
+    const sync = () => {
+      const narrow = typeof window !== "undefined" && window.innerWidth <= 639;
+      setViewportNarrow(narrow);
+      if (prevNarrowRef.current === null) {
+        prevNarrowRef.current = narrow;
+        setLongFormOpen(!narrow);
+        return;
+      }
+      if (prevNarrowRef.current !== narrow) {
+        prevNarrowRef.current = narrow;
+        setLongFormOpen(!narrow);
+      }
+    };
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+  }, []);
 
   const pillBase = {
     padding: "8px 16px",
@@ -55,213 +78,143 @@ export function EventPageHeader({
   };
 
   return (
-    <div style={{ marginBottom: 8 }}>
-      <p style={{ marginBottom: 16 }}>
-        <Link href="/event-results" style={{ color: gold }}>
+    <div className="event-page-header">
+      <nav className="event-page-header__crumbs" aria-label="Event results navigation">
+        <Link href="/event-results" className="event-page-header__crumbLink">
           ← Event Results
         </Link>
-        {" · "}
-        <Link href="/" style={{ color: gold }}>
-          Home
-        </Link>
-        {" · "}
-        <a href={boxscoreHref} target="_blank" rel="noopener noreferrer" style={{ color: gold }}>
-          Boxscore
-        </a>
-      </p>
+      </nav>
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          marginTop: 8,
-          marginBottom: 8,
-        }}
-      >
+      <div className="event-page-header__brandCol">
         <EventLogoOrText
           name={eventName}
           eventId={eventId}
+          className="event-page-header__logo"
           style={{
             display: "inline-block",
             verticalAlign: "middle",
-            maxHeight: 48,
-            maxWidth: 96,
             height: "auto",
             width: "auto",
             objectFit: "contain",
           }}
           textStyle={{ fontSize: 18 }}
         />
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginTop: 8,
-            flexWrap: "wrap",
-            justifyContent: "center",
-          }}
-        >
-          <span style={{ color: "#fff", fontWeight: 600, fontSize: 20 }}>{eventName}</span>
-          {isLive ? (
-            <span
-              style={{
-                background: "#27ae60",
-                color: "white",
-                fontWeight: 700,
-                borderRadius: 4,
-                padding: "2px 10px",
-                fontSize: 14,
-              }}
-            >
-              LIVE
-            </span>
-          ) : null}
+        <div className="event-page-header__nameRow">
+          <span className="event-page-header__eventName">{eventName}</span>
+          {isLive ? <span className="event-page-header__liveBadge">LIVE</span> : null}
         </div>
-        <h1
-          style={{
-            color: "#fff",
-            fontSize: 26,
-            fontWeight: 800,
-            marginTop: 8,
-            marginBottom: 4,
-            textAlign: "center",
-            lineHeight: 1.2,
-          }}
-        >
-          {h1Text}
-        </h1>
-        <p
-          style={{
-            color: "#ccc",
-            fontSize: 14,
-            maxWidth: 700,
-            textAlign: "center",
-            marginTop: 4,
-            marginBottom: 0,
-          }}
-        >
-          {metaLine}
-        </p>
-        <p
-          style={{
-            marginTop: 12,
-            marginBottom: 0,
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: "8px 16px",
-            fontSize: 14,
-          }}
-        >
-          <Link href="/event-results?show=raw" style={{ color: gold, textDecoration: "none", fontWeight: 600 }}>
+        <h1 className="event-page-header__title">{h1Text}</h1>
+        <p className="event-page-header__metaLine">{metaLine}</p>
+        <nav className="event-page-header__jump" aria-label="Results by show">
+          <Link href="/event-results?show=raw" className="event-page-header__jumpLink">
             Raw results
           </Link>
-          <Link href="/event-results?show=smackdown" style={{ color: gold, textDecoration: "none", fontWeight: 600 }}>
+          <Link href="/event-results?show=smackdown" className="event-page-header__jumpLink">
             SmackDown results
           </Link>
-          <Link href="/event-results?show=ple" style={{ color: gold, textDecoration: "none", fontWeight: 600 }}>
+          <Link href="/event-results?show=ple" className="event-page-header__jumpLink">
             PLE results
           </Link>
-          <Link href="/wrestlers" style={{ color: gold, textDecoration: "none", fontWeight: 600 }}>
-            Roster
-          </Link>
-          <a
-            href="https://prowrestlingboxscore.com/championships"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: gold, textDecoration: "none", fontWeight: 600 }}
-          >
-            Championships
-          </a>
-        </p>
-        <div
-          style={{
-            color: gold,
-            marginTop: 8,
-            fontSize: 18,
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: 12,
-            alignItems: "center",
-          }}
-        >
+        </nav>
+        <div className="event-page-header__when">
           <span>
             <strong>{formattedDateLong}</strong>
             {location ? ` — ${location}` : ""}
           </span>
           {broadcastFormatted ? (
-            <span style={{ fontSize: 14, color: "#ddd", fontWeight: 600 }}>
-              Event Time: <span style={{ color: gold, fontWeight: 700 }}>{broadcastFormatted}</span>
+            <span className="event-page-header__broadcast">
+              Event Time: <span className="event-page-header__broadcastTime">{broadcastFormatted}</span>
             </span>
           ) : null}
         </div>
       </div>
 
       {showSection && (
-        <div style={{ marginTop: 16, marginBottom: 16 }}>
-          {showBothPills && (
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                justifyContent: "center",
-                marginBottom: 12,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setPreviewRecapView("preview")}
+        <div className="event-page-header__longform-wrap" style={{ marginTop: 16, marginBottom: 16 }}>
+          <button
+            type="button"
+            className="event-page-header__longform-toggle"
+            style={{ display: viewportNarrow ? "flex" : "none" }}
+            aria-expanded={longFormOpen}
+            onClick={toggleLongForm}
+          >
+            {longFormOpen
+              ? "Hide preview & recap"
+              : showBothPills
+                ? "Show event preview & recap"
+                : hasPreview
+                  ? "Show event preview"
+                  : "Show event recap"}
+          </button>
+          <div
+            className={`event-page-header__longform${longFormOpen ? " event-page-header__longform--open" : ""}`}
+            style={
+              viewportNarrow && !longFormOpen
+                ? { display: "none" }
+                : { display: "block", marginTop: viewportNarrow && longFormOpen ? 10 : 0 }
+            }
+          >
+            {showBothPills && (
+              <div
                 style={{
-                  ...pillBase,
-                  background: previewRecapView === "preview" ? gold : "transparent",
-                  color: previewRecapView === "preview" ? "#232323" : gold,
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  marginBottom: 12,
                 }}
               >
-                Event Preview
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewRecapView("recap")}
+                <button
+                  type="button"
+                  onClick={() => setPreviewRecapView("preview")}
+                  style={{
+                    ...pillBase,
+                    background: previewRecapView === "preview" ? gold : "transparent",
+                    color: previewRecapView === "preview" ? "#232323" : gold,
+                  }}
+                >
+                  Event Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewRecapView("recap")}
+                  style={{
+                    ...pillBase,
+                    background: previewRecapView === "recap" ? gold : "transparent",
+                    color: previewRecapView === "recap" ? "#232323" : gold,
+                  }}
+                >
+                  Event Recap
+                </button>
+              </div>
+            )}
+            {(previewRecapView === "preview" || !hasRecap) && hasPreview && (
+              <div
                 style={{
-                  ...pillBase,
-                  background: previewRecapView === "recap" ? gold : "transparent",
-                  color: previewRecapView === "recap" ? "#232323" : gold,
+                  padding: 16,
+                  background: "#232323",
+                  borderRadius: 8,
+                  border: "1px solid rgba(198, 160, 79, 0.27)",
                 }}
               >
-                Event Recap
-              </button>
-            </div>
-          )}
-          {(previewRecapView === "preview" || !hasRecap) && hasPreview && (
-            <div
-              style={{
-                padding: 16,
-                background: "#232323",
-                borderRadius: 8,
-                border: "1px solid rgba(198, 160, 79, 0.27)",
-              }}
-            >
-              <div style={{ color: gold, fontWeight: 700, marginBottom: 8 }}>Event Preview</div>
-              <div style={{ color: "#fff", fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{preview}</div>
-            </div>
-          )}
-          {(previewRecapView === "recap" || !hasPreview) && hasRecap && (
-            <div
-              style={{
-                padding: 16,
-                background: "#1c1c1c",
-                borderRadius: 8,
-                border: "1px solid rgba(198, 160, 79, 0.4)",
-              }}
-            >
-              <div style={{ color: gold, fontWeight: 700, marginBottom: 8 }}>Event Recap</div>
-              <div style={{ color: "#fff", fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{recap}</div>
-            </div>
-          )}
+                <div style={{ color: gold, fontWeight: 700, marginBottom: 8 }}>Event Preview</div>
+                <div style={{ color: "#fff", fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{preview}</div>
+              </div>
+            )}
+            {(previewRecapView === "recap" || !hasPreview) && hasRecap && (
+              <div
+                style={{
+                  padding: 16,
+                  background: "#1c1c1c",
+                  borderRadius: 8,
+                  border: "1px solid rgba(198, 160, 79, 0.4)",
+                }}
+              >
+                <div style={{ color: gold, fontWeight: 700, marginBottom: 8 }}>Event Recap</div>
+                <div style={{ color: "#fff", fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{recap}</div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

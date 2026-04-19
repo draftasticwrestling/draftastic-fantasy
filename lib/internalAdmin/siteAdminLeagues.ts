@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
 
 const LEAGUE_LIST_SELECT =
-  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at";
+  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at, visibility_type, public_status";
 
 export type SiteAdminLeagueSummary = {
   id: string;
@@ -19,6 +19,10 @@ export type SiteAdminLeagueSummary = {
   max_teams: number | null;
   draft_status: string | null;
   created_at: string;
+  /** `public` | `private`; null treated as private for legacy rows */
+  visibility_type: string | null;
+  public_status: string | null;
+  member_count: number;
   commissioner_display_name: string | null;
 };
 
@@ -55,6 +59,21 @@ async function commissionerNamesByIds(
   return map;
 }
 
+async function memberCountsByLeagueId(
+  admin: SupabaseClient,
+  leagueIds: string[]
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (leagueIds.length === 0) return out;
+  const { data, error } = await admin.from("league_members").select("league_id").in("league_id", leagueIds);
+  if (error || !data) return out;
+  for (const row of data as { league_id: string }[]) {
+    const id = row.league_id;
+    out.set(id, (out.get(id) ?? 0) + 1);
+  }
+  return out;
+}
+
 /**
  * Search leagues by slug or name (substring, case-insensitive). Empty query returns recent leagues.
  */
@@ -71,33 +90,99 @@ export async function siteAdminSearchLeagues(
   }
 
   const { data, error } = await qb;
-  if (error) return { rows: [], error: error.message };
-  const leagues = (data ?? []) as Omit<SiteAdminLeagueSummary, "commissioner_display_name">[];
+  if (error) {
+    const isMissingCol =
+      error.code === "42703" ||
+      /column.*visibility_type|public_status/i.test(error.message ?? "") ||
+      /schema cache/i.test(error.message ?? "");
+    if (!isMissingCol) return { rows: [], error: error.message };
+    let qb2 = admin
+      .from("leagues")
+      .select(
+        "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at"
+      )
+      .order("created_at", { ascending: false })
+      .limit(40);
+    if (q.length > 0) {
+      const safe = escapeIlikePattern(q);
+      qb2 = qb2.or(`slug.ilike.%${safe}%,name.ilike.%${safe}%`);
+    }
+    const { data: data2, error: err2 } = await qb2;
+    if (err2) return { rows: [], error: err2.message };
+    const leagues2 = (data2 ?? []) as Omit<
+      SiteAdminLeagueSummary,
+      "commissioner_display_name" | "visibility_type" | "public_status" | "member_count"
+    >[];
+    const names2 = await commissionerNamesByIds(
+      admin,
+      leagues2.map((l) => l.commissioner_id)
+    );
+    const counts2 = await memberCountsByLeagueId(
+      admin,
+      leagues2.map((l) => l.id)
+    );
+    const rows: SiteAdminLeagueSummary[] = leagues2.map((l) => ({
+      ...l,
+      visibility_type: "private",
+      public_status: null,
+      member_count: counts2.get(l.id) ?? 0,
+      commissioner_display_name: names2.get(l.commissioner_id) ?? null,
+    }));
+    return { rows };
+  }
+  const leagues = (data ?? []) as Omit<SiteAdminLeagueSummary, "commissioner_display_name" | "member_count">[];
   const names = await commissionerNamesByIds(
     admin,
     leagues.map((l) => l.commissioner_id)
   );
+  const counts = await memberCountsByLeagueId(
+    admin,
+    leagues.map((l) => l.id)
+  );
   const rows: SiteAdminLeagueSummary[] = leagues.map((l) => ({
     ...l,
+    member_count: counts.get(l.id) ?? 0,
     commissioner_display_name: names.get(l.commissioner_id) ?? null,
   }));
   return { rows };
 }
 
+const LEAGUE_DETAIL_SELECT_LEGACY =
+  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at";
+
 export async function siteAdminGetLeagueBySlug(
   admin: SupabaseClient,
   slug: string
 ): Promise<{ detail: SiteAdminLeagueDetail | null; error?: string }> {
-  const { data: league, error: leagueErr } = await admin
-    .from("leagues")
-    .select(LEAGUE_LIST_SELECT)
-    .eq("slug", slug)
-    .maybeSingle();
+  let leagueRes = await admin.from("leagues").select(LEAGUE_LIST_SELECT).eq("slug", slug).maybeSingle();
+  let league = leagueRes.data;
+  let leagueErr = leagueRes.error;
+
+  if (leagueErr) {
+    const isMissingCol =
+      leagueErr.code === "42703" ||
+      /column.*visibility_type|public_status/i.test(leagueErr.message ?? "") ||
+      /schema cache/i.test(leagueErr.message ?? "");
+    if (!isMissingCol) return { detail: null, error: leagueErr.message };
+    const retry = await admin.from("leagues").select(LEAGUE_DETAIL_SELECT_LEGACY).eq("slug", slug).maybeSingle();
+    league = retry.data as typeof league;
+    leagueErr = retry.error;
+    if (league && !leagueErr) {
+      league = {
+        ...league,
+        visibility_type: "private",
+        public_status: null,
+      } as typeof league;
+    }
+  }
 
   if (leagueErr) return { detail: null, error: leagueErr.message };
   if (!league) return { detail: null };
 
-  const L = league as Omit<SiteAdminLeagueSummary, "commissioner_display_name">;
+  const L = league as Omit<SiteAdminLeagueSummary, "commissioner_display_name" | "member_count"> & {
+    visibility_type?: string | null;
+    public_status?: string | null;
+  };
   const commMap = await commissionerNamesByIds(admin, [L.commissioner_id]);
   const commissioner_display_name = commMap.get(L.commissioner_id) ?? null;
 
@@ -141,9 +226,18 @@ export async function siteAdminGetLeagueBySlug(
     active_roster_count: activeByUser.get(m.user_id) ?? 0,
   }));
 
+  const visibility_type = L.visibility_type ?? "private";
+  const public_status = L.public_status ?? null;
+
   return {
     detail: {
-      league: { ...L, commissioner_display_name },
+      league: {
+        ...L,
+        visibility_type,
+        public_status,
+        member_count: memberRows.length,
+        commissioner_display_name,
+      },
       members: membersOut,
     },
   };

@@ -16,11 +16,7 @@ import {
 } from "@/lib/boxscore/eventShowHeader";
 import { buildWrestlerMap } from "@/lib/boxscore/normalizeWrestlerForCard";
 import { formatSlug } from "@/lib/event-results/displayStrings";
-import {
-  buildEventResultsSlug,
-  buildProWrestlingBoxscoreEventUrl,
-  getEventForResultsRoute,
-} from "@/lib/event-results/eventResultsRoute";
+import { buildEventResultsSlug, getEventForResultsRoute } from "@/lib/event-results/eventResultsRoute";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { isWrestlerWinner } from "@/lib/event-results/winnerUtils";
 import type { ScoredEvent } from "@/lib/scoring/types";
@@ -634,17 +630,7 @@ export default async function EventResultsPage({
   const titleShowLine = buildTitleShow(event);
 
   return (
-    <main
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: 24,
-        maxWidth: 1200,
-        margin: "0 auto",
-        background: "#181511",
-        minHeight: "100vh",
-        color: "#e8e8e8",
-      }}
-    >
+    <main className="event-results-detail">
       <Suspense fallback={null}>
         <EventResultsMatchScroll />
       </Suspense>
@@ -660,7 +646,6 @@ export default async function EventResultsPage({
         recap={evExtras.recap ?? null}
         statusIsCompleted={(event.status || "") === "completed"}
         isLive={event.status === "live"}
-        boxscoreHref={buildProWrestlingBoxscoreEventUrl(eventId, event.id)}
       />
 
       {isKOTRPLE && (

@@ -17,11 +17,6 @@ export function InviteSuccessModal({ show, leagueId, leagueName, joinCode, onClo
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
-  const [showEmailForm, setShowEmailForm] = useState(false);
-  const [toEmail, setToEmail] = useState("");
-  const [message, setMessage] = useState("");
-  const [emailSending, setEmailSending] = useState(false);
-  const [emailResult, setEmailResult] = useState<{ ok?: boolean; error?: string } | null>(null);
   /** Filled from invite API when page didn’t pass join_code (e.g. older cache). */
   const [joinCodeFromInvite, setJoinCodeFromInvite] = useState<string | null>(null);
 
@@ -72,38 +67,6 @@ export function InviteSuccessModal({ show, leagueId, leagueName, joinCode, onClo
     }
   }, [displayJoinCode]);
 
-  const handleSendEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteUrl || !toEmail.trim()) return;
-    setEmailSending(true);
-    setEmailResult(null);
-    try {
-      const res = await fetch("/api/leagues/invite/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          league_id: leagueId,
-          invite_url: inviteUrl,
-          league_name: leagueName,
-          to_email: toEmail.trim(),
-          message: message.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setEmailResult({ ok: true });
-        setToEmail("");
-        setMessage("");
-      } else {
-        setEmailResult({ error: data.error ?? "Failed to send" });
-      }
-    } catch {
-      setEmailResult({ error: "Failed to send" });
-    } finally {
-      setEmailSending(false);
-    }
-  };
-
   if (!show) return null;
 
   return (
@@ -124,7 +87,9 @@ export function InviteSuccessModal({ show, leagueId, leagueName, joinCode, onClo
         <h2 id="invite-success-title" className="invite-success-title">
           Congrats, you created a league!
         </h2>
-        <p className="invite-success-subtitle">Now invite friends.</p>
+        <p className="invite-success-subtitle">
+          Now invite friends to join <strong>{leagueName}</strong>.
+        </p>
 
         {displayJoinCode ? (
           <div style={{ marginBottom: 20, textAlign: "left" }}>
@@ -173,46 +138,12 @@ export function InviteSuccessModal({ show, leagueId, leagueName, joinCode, onClo
           <button
             type="button"
             className="invite-success-btn invite-success-btn-primary"
-            onClick={() => setShowEmailForm((v) => !v)}
-          >
-            Invite via email
-          </button>
-          <button
-            type="button"
-            className="invite-success-btn invite-success-btn-secondary"
             onClick={handleCopy}
             disabled={!inviteUrl || loading}
           >
             {loading ? "Generating link…" : copied ? "Copied!" : "Copy invite link"}
           </button>
         </div>
-
-        {showEmailForm && inviteUrl && (
-          <form onSubmit={handleSendEmail} className="invite-success-email-form">
-            <label htmlFor="invite-modal-email">Email address</label>
-            <input
-              id="invite-modal-email"
-              type="email"
-              required
-              value={toEmail}
-              onChange={(e) => setToEmail(e.target.value)}
-              placeholder="friend@example.com"
-            />
-            <label htmlFor="invite-modal-message">Optional message</label>
-            <textarea
-              id="invite-modal-message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Add a personal note…"
-              rows={2}
-            />
-            {emailResult?.ok && <p className="invite-success-email-ok">Invite sent!</p>}
-            {emailResult?.error && <p className="invite-success-email-err">{emailResult.error}</p>}
-            <button type="submit" disabled={emailSending} className="invite-success-btn invite-success-btn-primary">
-              {emailSending ? "Sending…" : "Send invite email"}
-            </button>
-          </form>
-        )}
       </div>
     </div>
   );

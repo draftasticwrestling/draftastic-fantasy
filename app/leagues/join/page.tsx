@@ -7,7 +7,7 @@ type Props = { searchParams: Promise<{ token?: string; code?: string }> };
 
 export const metadata = {
   title: "Join a league — Draftastic Fantasy",
-  description: "Join a league with an invite link or league code",
+  description: "Join a public league with Quick Join or enter a private league code",
 };
 
 export default async function JoinLeaguePage({ searchParams }: Props) {
@@ -50,7 +50,7 @@ export default async function JoinLeaguePage({ searchParams }: Props) {
       ) : (
         <>
           <p style={{ color: "#555", marginBottom: 24 }}>
-            Enter the league code from your GM, or open an invite link they sent you.
+            Quick Join a public league, or join a private league with the code your GM provided.
           </p>
           <JoinLeagueForm initialCode={code ?? ""} />
         </>

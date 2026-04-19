@@ -118,7 +118,7 @@ export default function PointsPage() {
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Belt points</h2>
         <h3 style={{ fontSize: "1.15rem", marginBottom: 8, fontWeight: 700 }}>Weekly belt points</h3>
         <p style={{ color: "#555", marginBottom: 16 }}>
-          Points are dispersed weekly, end of day Sunday PST. Weeks are Monday through Sunday; the holder is
+          Points are dispersed weekly at 11:59 PM PT (Los Angeles time) on Sunday. Weeks are Monday through Sunday; the holder is
           credited after that Sunday fully ends in Pacific time so late US shows can change a title before the
           week locks.
         </p>
@@ -282,11 +282,12 @@ export default function PointsPage() {
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Minor premium live event points</h2>
         <p style={{ marginBottom: 16 }}>
-          Same base values for: Saturday Night’s Main Event, Backlash, Clash in Paris, WrestlePalooza. Evolution also includes Battle Royal points below.
+          Same base values for: Saturday Night&apos;s Main Event (SNME), Backlash, Clash in Italy, Clash in Paris,
+          WrestlePalooza. Evolution also includes Battle Royal points below.
         </p>
         <div className="points-grid">
           <EventTable
-            title="Saturday Night's Main Event / Backlash / Clash in Paris / WrestlePalooza"
+            title="Saturday Night's Main Event (SNME) / Backlash / Clash in Italy / Clash in Paris / WrestlePalooza"
             logoUrl={EVENT_LOGO_URLS.backlash}
             rows={[
               ["Winning the main event", 12],

@@ -9,10 +9,17 @@ import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/profiles";
 import { siteLogoHref } from "@/lib/siteLogo";
 import { computeFantasyHomeHref, getLeagueSlugFromPath } from "@/lib/fantasyHomeHref";
+import { pleDefaultHref, pleHrefForEntry, pleNavEntriesForSeasonSlug, type PleNavEntry } from "@/lib/pleLeagueMenu";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
-type LeagueItem = { slug: string; name: string; role: "commissioner" | "owner"; league_type?: string | null };
+type LeagueItem = {
+  slug: string;
+  name: string;
+  role: "commissioner" | "owner";
+  league_type?: string | null;
+  season_slug?: string | null;
+};
 
 /** Grouped admin menu: portal vs internal tools vs demos (flat list for mobile order). */
 const ADMIN_MENU_SECTIONS: readonly {
@@ -46,7 +53,6 @@ function getActivePrimary(pathname: string, slug: string): string | null {
   if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info") return "my-team";
   if (rest === "") return "league";
   if (rest === "wrestlers" || rest === "league-leaders" || rest === "stat-corrections") return "wrestlers";
-  if (rest === "injury-report") return "league";
   if (rest === "matchups") return "matchups";
   if (rest === "ple") return "ple";
   if (rest === "draft" || rest === "draft-history" || rest === "draft-settings") return "draft";
@@ -224,6 +230,17 @@ export default function Nav() {
       : "#";
   const fantasyHref = computeFantasyHomeHref({ user, pathname, leagues, lastVisitedSlug });
 
+  const pleNavItems: PleNavEntry[] = currentLeagueSlug
+    ? pleNavEntriesForSeasonSlug(currentLeague?.season_slug ?? null)
+    : [];
+  const pleBarHref = currentLeagueSlug ? pleDefaultHref(currentLeagueSlug, currentLeague?.season_slug ?? null) : "#";
+
+  function pleEntryIsActive(entry: PleNavEntry): boolean {
+    if (!currentLeagueSlug) return false;
+    const href = pleHrefForEntry(currentLeagueSlug, entry);
+    return pathname === href || pathname === `${href}/`;
+  }
+
   const myTeamSub = currentLeagueSlug
     ? [
         { href: rosterHref, label: "Roster" },
@@ -237,7 +254,6 @@ export default function Nav() {
         { href: `/leagues/${currentLeagueSlug}`, label: "League" },
         { href: `/leagues/${currentLeagueSlug}/standings`, label: "Standings" },
         { href: `/leagues/${currentLeagueSlug}/roster-changes`, label: "Transactions" },
-        { href: `/leagues/${currentLeagueSlug}/injury-report`, label: "Injury Report" },
         { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
       ]
     : [];
@@ -561,12 +577,12 @@ export default function Nav() {
                   </Link>
                 </li>
               )}
-              <li>
+              <li onMouseEnter={(e) => handlePrimaryEnter("ple", e)}>
                 <Link
-                  href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/ple/wrestlemania` : "#"}
+                  href={pleBarHref}
                   className={`nav-primary-link ${activePrimary === "ple" ? "is-active" : ""}`}
                 >
-                  PLE
+                  PLEs
                 </Link>
               </li>
               <li onMouseEnter={(e) => handlePrimaryEnter("draft", e)}>
@@ -661,16 +677,19 @@ export default function Nav() {
                   <span className="nav-secondary-context">Matchups</span>
                 </li>
               )}
-              {(hoverPrimary ?? activePrimary) === "ple" && currentLeagueSlug && (
-                <li>
-                  <Link
-                    href={`/leagues/${currentLeagueSlug}/ple/wrestlemania`}
-                    className={`nav-secondary-link ${pathname.includes("/ple/wrestlemania") ? "is-active" : ""}`}
-                  >
-                    WrestleMania
-                  </Link>
-                </li>
-              )}
+              {(hoverPrimary ?? activePrimary) === "ple" &&
+                currentLeagueSlug &&
+                pleNavItems.map((entry) => {
+                  const href = pleHrefForEntry(currentLeagueSlug, entry);
+                  const active = pleEntryIsActive(entry);
+                  return (
+                    <li key={entry.kind === "wrestlemania" ? "ple-wm" : `ple-${entry.pathKey}`}>
+                      <Link href={href} className={`nav-secondary-link ${active ? "is-active" : ""}`}>
+                        {entry.label}
+                      </Link>
+                    </li>
+                  );
+                })}
               {(hoverPrimary ?? activePrimary) === "wrestlers" &&
                 wrestlersSub.map(({ href, label }) => {
                   const isActive = pathname === href || pathname.startsWith(href + "/");

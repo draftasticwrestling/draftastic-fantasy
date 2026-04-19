@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import { pleDefaultHref } from "@/lib/pleLeagueMenu";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { getTradeProposalsForLeague, getLeagueRosterActivity, processTradeTimerDeadlines } from "@/lib/leagueOwner";
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
@@ -258,7 +259,12 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             <h2 className="lm-card-title">Quick Links</h2>
             <ul className="lm-quick-links">
               <li><Link href="/how-it-works"><span className="lm-quick-link-icon">☰</span> Rules</Link></li>
-              <li><Link href={`/leagues/${slug}/ple/wrestlemania`}><span className="lm-quick-link-icon">🏟</span> WrestleMania</Link></li>
+              <li>
+                <Link href={pleDefaultHref(slug, league.season_slug ?? null)}>
+                  <span className="lm-quick-link-icon">🏟</span>{" "}
+                  {(league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE"}
+                </Link>
+              </li>
               <li><Link href={`/leagues/${slug}/draft`}><span className="lm-quick-link-icon">⚙</span> Draft</Link></li>
               <li><Link href={`/leagues/${slug}/wrestlers/league-leaders`}><span className="lm-quick-link-icon">👤</span> Wrestlers</Link></li>
               <li><Link href="/"><span className="lm-quick-link-icon">⌂</span> Home</Link></li>
@@ -275,7 +281,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               <span className="lm-subnav-sep">|</span>
               <Link href={`/leagues/${slug}/standings`}>Standings</Link>
               <span className="lm-subnav-sep">|</span>
-              <Link href={`/leagues/${slug}/ple/wrestlemania`}>Next PLE</Link>
+              <Link href={pleDefaultHref(slug, league.season_slug ?? null)}>
+                {(league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE"}
+              </Link>
               <span className="lm-subnav-sep">|</span>
               <Link href={`/leagues/${slug}/draft`}>Draft</Link>
             </nav>

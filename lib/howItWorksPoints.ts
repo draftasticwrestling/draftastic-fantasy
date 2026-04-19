@@ -163,6 +163,31 @@ export const MINOR_PLE_BASE_POINTS: [string, number][] = [
   ["Being on the card (non–main event)", 3],
 ];
 
+/**
+ * Per-roster-wrestler appearance floor for the league RTS PLE “anticipated points” grid
+ * (non–main-event on-card row in How it Works / same tables as live scoring).
+ */
+export function rtsPleAnticipatedAppearanceFloorPts(plePathKey: string): number {
+  const minorCard =
+    MINOR_PLE_BASE_POINTS.find(([label]) => label.includes("Being on the card"))?.[1] ?? 3;
+  const nocCard = NOC_POINTS.find(([label]) => label.includes("Being on the card"))?.[1] ?? 5;
+  const summerslamCard =
+    SUMMERSLAM_POINTS.find(([label]) => label.includes("Being on the card"))?.[1] ?? 10;
+  switch (plePathKey) {
+    case "backlash":
+    case "snme-1":
+    case "snme-2":
+    case "clash-in-italy":
+      return minorCard;
+    case "night-of-champions":
+      return nocCard;
+    case "summerslam":
+      return summerslamCard;
+    default:
+      return minorCard;
+  }
+}
+
 export const EVOLUTION_EXTRA_POINTS: [string, number][] = [
   ["Winning the Battle Royal", 8],
   ["Each elimination (per opponent removed)", 2],

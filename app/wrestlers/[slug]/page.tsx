@@ -993,7 +993,7 @@ export default async function WrestlerProfilePage({
             Title Reigns
           </h3>
           <p style={{ margin: "0 0 10px 0", fontSize: 12, color: "#9aa0a6", lineHeight: 1.45 }}>
-            When this reign overlaps a scored belt week, we list week-ending Sundays (PST close) that count toward
+            When this reign overlaps a scored belt week, we list week-ending Sundays (PT close, Los Angeles time) that count toward
             fantasy belt hold points (same rules as the rest of the app), starting from{" "}
             {formatBeltWeekEndLabel(FIRST_WEEKLY_BELT_WEEK_END_SUNDAY)} through completed weeks in the selected period.
           </p>

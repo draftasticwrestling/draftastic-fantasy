@@ -9,6 +9,7 @@ import {
   isPLE,
 } from "@/lib/scoring/parsers/eventClassifier.js";
 import { isRoadToSummerSlam2026WithSummerslamFinale } from "@/lib/beltRts2026JulyDeferral";
+import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
 
 export type SeasonPhaseId =
   | "road-to-summerslam"
@@ -68,6 +69,13 @@ export type PleFinaleBeltSub = {
   seasonEndBeltHold?: boolean;
 };
 
+/** Road to SummerSlam weekly title-hold: credit after last PLE in the segment, else after SmackDown, before the next Raw. */
+export type WeeklyBeltLockSub = {
+  variant: "ple" | "smackdown";
+  nextRawDate: string;
+  completed: boolean;
+};
+
 export type TimelineStep = {
   index: number;
   id: string;
@@ -83,6 +91,8 @@ export type TimelineStep = {
   monthEndBelt?: MonthEndBeltSub;
   /** Present when this PLE is the final night of the arc (WM / SS / SummerSlam). */
   pleFinaleBelt?: PleFinaleBeltSub;
+  /** Weekly title-hold lock for leagues that use weekly belt scoring (e.g. Road to SummerSlam). */
+  weeklyBeltLock?: WeeklyBeltLockSub;
 };
 
 export type LeagueSeasonTimelinePayload = {
@@ -116,6 +126,51 @@ export function seasonPhaseFromYmd(ymd: string): SeasonPhaseInfo {
 
 function compareYmd(a: string, b: string): number {
   return a.localeCompare(b);
+}
+
+type MainTrackRow = {
+  row: RawEventRow;
+  kind: "weekly" | "ple";
+  isFinale: boolean;
+  pleEventType?: string;
+};
+
+/**
+ * For each Raw on the timeline, weekly belt credit attaches to the last PLE since the prior Raw,
+ * or the last SmackDown if there was no PLE in that span.
+ */
+function weeklyBeltLockMarkersByTrackIndex(
+  mainTrackRows: MainTrackRow[],
+  todayYmd: string,
+  enabled: boolean
+): Map<number, WeeklyBeltLockSub> {
+  const out = new Map<number, WeeklyBeltLockSub>();
+  if (!enabled || mainTrackRows.length === 0) return out;
+  let lastSd = -1;
+  let lastPle = -1;
+  for (let i = 0; i < mainTrackRows.length; i++) {
+    const { row, kind } = mainTrackRows[i]!;
+    const t = classifyEventType(row.name ?? "", row.id);
+    if (kind === "ple") {
+      lastPle = i;
+    } else if (t === EVENT_TYPES.SMACKDOWN) {
+      lastSd = i;
+    }
+    if (t === EVENT_TYPES.RAW) {
+      const rawDate = row.date!.slice(0, 10);
+      const attrib = lastPle >= 0 ? lastPle : lastSd;
+      if (attrib >= 0) {
+        out.set(attrib, {
+          variant: lastPle >= 0 ? "ple" : "smackdown",
+          nextRawDate: rawDate,
+          completed: compareYmd(todayYmd, rawDate) > 0,
+        });
+      }
+      lastSd = -1;
+      lastPle = -1;
+    }
+  }
+  return out;
 }
 
 const MONTH_NAMES = [
@@ -157,8 +212,10 @@ export function buildLeagueSeasonTimeline(params: {
   effectiveStartYmd: string;
   endDateYmd: string | null;
   todayYmd: string;
+  /** When this league uses weekly belt scoring, timeline shows weekly locks instead of calendar month-end belt rows. */
+  seasonSlug?: string | null;
 }): LeagueSeasonTimelinePayload {
-  const { events, effectiveStartYmd, endDateYmd, todayYmd } = params;
+  const { events, effectiveStartYmd, endDateYmd, todayYmd, seasonSlug } = params;
   const windowStart = effectiveStartYmd;
   const windowEnd = endDateYmd && /^\d{4}-\d{2}-\d{2}$/.test(endDateYmd) ? endDateYmd : "2099-12-31";
 
@@ -185,13 +242,7 @@ export function buildLeagueSeasonTimeline(params: {
     return compareYmd(da, db);
   });
 
-  const mainTrackRows: {
-    row: RawEventRow;
-    kind: "weekly" | "ple";
-    isFinale: boolean;
-    /** Set for PLE rows — used for finale belt-factor milestones. */
-    pleEventType?: string;
-  }[] = [];
+  const mainTrackRows: MainTrackRow[] = [];
 
   for (const row of sorted) {
     const t = classifyEventType(row.name ?? "", row.id);
@@ -208,6 +259,11 @@ export function buildLeagueSeasonTimeline(params: {
     }
   }
 
+  /** Match belt strip to the arc shown in the title (May–Jul = Road to SummerSlam), not only DB `season_slug`. */
+  const useWeeklyBeltTimeline =
+    leagueUsesWeeklyPstBeltHold(seasonSlug ?? null) || seasonPhase.id === "road-to-summerslam";
+  const weeklyBeltByIndex = weeklyBeltLockMarkersByTrackIndex(mainTrackRows, todayYmd, useWeeklyBeltTimeline);
+
   const steps: Omit<TimelineStep, "isNext">[] = [];
   let eventOrdinal = 0;
 
@@ -220,7 +276,7 @@ export function buildLeagueSeasonTimeline(params: {
       currDate.slice(0, 7) !== mainTrackRows[i + 1]!.row.date!.slice(0, 7);
 
     let monthEndBelt: MonthEndBeltSub | undefined;
-    if (isLastEventOfMonth) {
+    if (!useWeeklyBeltTimeline && isLastEventOfMonth) {
       const creditStarts = firstDayOfFollowingMonth(currDate);
       monthEndBelt = {
         creditDate: creditStarts,
@@ -273,6 +329,7 @@ export function buildLeagueSeasonTimeline(params: {
       isFinale,
       monthEndBelt,
       pleFinaleBelt,
+      weeklyBeltLock: weeklyBeltByIndex.get(i),
     });
   }
 

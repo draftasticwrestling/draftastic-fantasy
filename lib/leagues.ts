@@ -17,6 +17,7 @@ import {
   beltScoringLastWeekEndSundayInclusive,
   firstEligibleWeekEndSundayForLeagueStart,
   getCompletedWeekEndSundaysForBeltScoring,
+  weekEndSundayContaining,
 } from "@/lib/beltWeeklyHold";
 import {
   compareStintsForEventTieBreak,
@@ -55,6 +56,9 @@ export type League = {
   draft_time?: string | null;
   league_type?: string | null;
   max_teams?: number | null;
+  visibility_type?: "private" | "public" | null;
+  public_status?: "open" | "full" | "awaiting_minimum" | "active" | null;
+  public_sequence?: number | null;
   auto_reactivate?: boolean | null;
   draft_style?: "snake" | "linear";
   draft_type?: DraftType | null;
@@ -143,13 +147,14 @@ export async function createLeague(params: {
   end_date?: string | null;
   league_type?: string | null;
   max_teams?: number | null;
+  visibility_type?: "private" | "public" | null;
 }): Promise<{ league?: League; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const name = params.name?.trim();
-  if (!name) return { error: "League name is required" };
+  const requestedName = params.name?.trim();
+  if (!requestedName) return { error: "League name is required" };
 
   const seasonSlug = params.season_slug?.trim();
   if (!seasonSlug) return { error: "Select a season." };
@@ -163,7 +168,12 @@ export async function createLeague(params: {
   const window = getDefaultStartEndForSeason(seasonSlug, year);
   if (!window) return { error: "Invalid season." };
 
-  const baseSlug = slugify(name);
+  const visibilityType: "private" | "public" = params.visibility_type === "public" ? "public" : "private";
+  const maxTeamsRequested =
+    params.max_teams != null && Number.isFinite(Number(params.max_teams))
+      ? Math.min(16, Math.max(3, Math.floor(Number(params.max_teams))))
+      : null;
+  const max_teams = visibilityType === "public" ? 6 : maxTeamsRequested;
   const admin = getAdminClient();
   if (!admin) {
     return {
@@ -171,23 +181,41 @@ export async function createLeague(params: {
         "Server configuration: SUPABASE_SERVICE_ROLE_KEY is not set. Add it in Netlify → Site settings → Environment variables (from Supabase Dashboard → Settings → API → service_role).",
     };
   }
+  const public_status =
+    visibilityType === "public"
+      ? "awaiting_minimum"
+      : null;
+  let publicSequenceUsed: number | null = null;
+  let name = requestedName;
+  const baseSlugPrivate = slugify(name);
   const { data: existing } = await admin.from("leagues").select("slug");
   const existingSlugs = new Set((existing ?? []).map((r) => r.slug));
-  const slug = makeSlugUnique(baseSlug, existingSlugs);
 
   const draft_date = null;
   const league_type = params.league_type?.trim() || null;
-  const max_teams =
-    params.max_teams != null && Number.isFinite(Number(params.max_teams))
-      ? Math.min(16, Math.max(3, Math.floor(Number(params.max_teams))))
-      : null;
 
   const leagueSelect =
-    "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, join_code, created_at";
+    "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, created_at";
 
   let league: League | null = null;
   let createError: string | undefined;
   for (let attempt = 0; attempt < 30; attempt++) {
+    let slug = baseSlugPrivate;
+    if (visibilityType === "public") {
+      const { data: seqRows } = await admin
+        .from("leagues")
+        .select("public_sequence")
+        .eq("visibility_type", "public")
+        .not("public_sequence", "is", null)
+        .order("public_sequence", { ascending: false })
+        .limit(1);
+      const maxSeq = Number((seqRows?.[0] as { public_sequence?: number } | undefined)?.public_sequence ?? 0);
+      publicSequenceUsed = Number.isFinite(maxSeq) ? maxSeq + 1 : 1;
+      name = `R2Summer ${publicSequenceUsed}`;
+      slug = slugify(name);
+    } else {
+      slug = makeSlugUnique(baseSlugPrivate, existingSlugs);
+    }
     const join_code = generateJoinCode();
     const result = await admin
       .from("leagues")
@@ -205,6 +233,9 @@ export async function createLeague(params: {
         draft_order_method: "random_one_hour_before",
         league_type,
         max_teams,
+        visibility_type: visibilityType,
+        public_status,
+        public_sequence: publicSequenceUsed,
         join_code,
       })
       .select(leagueSelect)
@@ -216,7 +247,7 @@ export async function createLeague(params: {
     }
     const msg = result.error?.message ?? "";
     const code = (result.error as { code?: string })?.code;
-    if (code === "23505" && msg.includes("join_code")) {
+    if (code === "23505" && (msg.includes("join_code") || msg.includes("public_sequence") || msg.includes("slug"))) {
       continue;
     }
     createError = msg || "Failed to create league";
@@ -245,7 +276,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
   if (!user) return null;
 
   const fullSelect =
-    "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
+    "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
   let result = await supabase
     .from("leagues")
     .select(fullSelect)
@@ -260,7 +291,7 @@ export async function getLeagueBySlug(slug: string): Promise<(League & { role: "
   if (isColumnError) {
     const minimalResult = await supabase
       .from("leagues")
-      .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, created_at")
+      .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, visibility_type, public_status, public_sequence, created_at")
       .eq("slug", slug)
       .maybeSingle();
     if (minimalResult.data) {
@@ -314,7 +345,7 @@ export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
   const leagueIds = members.map((m) => m.league_id);
   const { data: leagues, error: leagueError } = await supabase
     .from("leagues")
-    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, league_type, created_at")
+    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, league_type, visibility_type, public_status, public_sequence, created_at")
     .in("id", leagueIds);
 
   if (leagueError || !leagues?.length) return [];
@@ -661,6 +692,9 @@ export async function joinLeagueWithToken(token: string): Promise<{
 
   if (error) return { ok: false, error: error.message };
   const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
+  if (result.ok && result.league_slug) {
+    await syncPublicLeagueStatusBySlug(result.league_slug);
+  }
   return result;
 }
 
@@ -677,7 +711,59 @@ export async function joinLeagueWithCode(code: string): Promise<{
 
   if (error) return { ok: false, error: error.message };
   const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
+  if (result.ok && result.league_slug) {
+    await syncPublicLeagueStatusBySlug(result.league_slug);
+  }
   return result;
+}
+
+export async function quickJoinOldestPublicLeague(): Promise<{
+  ok: boolean;
+  league_slug?: string;
+  error?: string;
+  message?: string;
+}> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("join_oldest_public_league");
+  if (error) return { ok: false, error: error.message };
+  const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
+  if (result.ok && result.league_slug) {
+    await syncPublicLeagueStatusBySlug(result.league_slug);
+  }
+  return result;
+}
+
+export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> {
+  const admin = getAdminClient();
+  if (!admin || !slug) return;
+  const { data: league } = await admin
+    .from("leagues")
+    .select("id, visibility_type, max_teams, draft_status")
+    .eq("slug", slug)
+    .maybeSingle();
+  const row = league as {
+    id?: string;
+    visibility_type?: string | null;
+    max_teams?: number | null;
+    draft_status?: string | null;
+  } | null;
+  if (!row?.id || row.visibility_type !== "public") return;
+  const { count } = await admin
+    .from("league_members")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", row.id);
+  const memberCount = count ?? 0;
+  const cap = row.max_teams ?? 6;
+  const draftStatus = String(row.draft_status ?? "not_started");
+  const status =
+    draftStatus === "in_progress" || draftStatus === "ready_for_review" || draftStatus === "completed"
+      ? "active"
+      : memberCount >= cap
+        ? "full"
+        : memberCount >= 3
+          ? "open"
+          : "awaiting_minimum";
+  await admin.from("leagues").update({ public_status: status }).eq("id", row.id);
 }
 
 // --- Commissioner manual rosters (league_rosters) ---
@@ -1239,7 +1325,7 @@ export async function getLeagueScoring(
     }
   }
 
-  // Title-hold belt points: weekly PST (Road to SummerSlam) or legacy calendar month-ends.
+  // Title-hold belt points: weekly PST (Road to SummerSlam; lock after PLE or Sunday) or legacy calendar month-ends.
   try {
     const [histResult, changesResult] = await Promise.all([
       supabase
@@ -1271,21 +1357,36 @@ export async function getLeagueScoring(
     if (useWeeklyBelt) {
       const beltFirstWeekEnd = firstEligibleWeekEndSundayForLeagueStart(start);
       const lastWeekCap = beltScoringLastWeekEndSundayInclusive(leagueEndYmd || undefined);
-      const weekEnds = getCompletedWeekEndSundaysForBeltScoring(beltFirstWeekEnd, lastWeekCap, Date.now());
-      for (const weekEnd of weekEnds) {
-        const beltBySlug = computeWeeklyBeltHoldPointsForWeekEndSunday(reigns, weekEnd, beltFirstWeekEnd);
+      const beltLockEvents = eventsForBeltReignInference.map((e) => ({
+        id: String((e as { id?: string }).id ?? ""),
+        name: (e as { name?: string | null }).name ?? null,
+        date: (e as { date?: string | null }).date ?? null,
+      }));
+      const weekEnds = getCompletedWeekEndSundaysForBeltScoring(beltFirstWeekEnd, lastWeekCap, Date.now(), {
+        leagueStartYmd: start,
+        leagueEndYmd: leagueEndYmd || "2099-12-31",
+        events: beltLockEvents,
+      });
+      for (const lockYmd of weekEnds) {
+        const weekEndSun = weekEndSundayContaining(lockYmd);
+        const beltBySlug = computeWeeklyBeltHoldPointsForWeekEndSunday(
+          reigns,
+          lockYmd,
+          beltFirstWeekEnd,
+          weekEndSun
+        );
         for (const stint of stints) {
           if (
             !rosterStintActiveForWeeklyBeltHold({
               stint,
-              weekEndYmd: weekEnd,
+              weekEndYmd: lockYmd,
               useBroadcastStart: useBroadcastForMonthlyBelt,
             })
           ) {
             continue;
           }
           const name = wrestlerDisplayNames[stint.wrestler_id];
-          const pts = sumMonthlyBeltPointsForStint(beltBySlug, stint.wrestler_id, name, weekEnd);
+          const pts = sumMonthlyBeltPointsForStint(beltBySlug, stint.wrestler_id, name, lockYmd);
           if (pts <= 0) continue;
           pointsByOwner[stint.user_id] = (pointsByOwner[stint.user_id] ?? 0) + pts;
           if (!pointsByOwnerByWrestler[stint.user_id]) pointsByOwnerByWrestler[stint.user_id] = {};

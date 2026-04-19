@@ -13,6 +13,8 @@ export async function GET() {
     name: l.name,
     role: l.role,
     league_type: (l as { league_type?: string | null }).league_type ?? null,
+    season_slug: (l as { season_slug?: string | null }).season_slug ?? null,
+    visibility_type: (l as { visibility_type?: string | null }).visibility_type ?? "private",
   }));
   return NextResponse.json({ leagues: payload });
 }

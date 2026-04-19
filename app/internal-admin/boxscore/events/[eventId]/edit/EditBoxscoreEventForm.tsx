@@ -38,6 +38,40 @@ function isoToDatetimeLocalValue(iso: string | null | undefined): string {
   return `${y}-${mo}-${day}T${h}:${min}`;
 }
 
+function buildBroadcastPreview(localValue: string): { local: string; pt: string; utc: string } | null {
+  if (!localValue) return null;
+  const d = new Date(localValue);
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    local: d.toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }),
+    pt: d.toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/Los_Angeles",
+      timeZoneName: "short",
+    }),
+    utc: d.toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "UTC",
+      timeZoneName: "short",
+    }),
+  };
+}
+
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
@@ -96,6 +130,7 @@ export function EditBoxscoreEventForm({
 }) {
   const [state, formAction] = useActionState(submitUpdateWithBroadcast, null);
   const [status, setStatus] = useState(() => initialStatus(event));
+  const [broadcastLocal, setBroadcastLocal] = useState(() => isoToDatetimeLocalValue(event.broadcast_start_ts));
   const [eventDate, setEventDate] = useState(() => {
     const d = event.date?.trim() ?? "";
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
@@ -136,6 +171,7 @@ export function EditBoxscoreEventForm({
     name: event.name,
     date: event.date,
   });
+  const broadcastPreview = buildBroadcastPreview(broadcastLocal);
 
   return (
     <form action={formAction} style={{ maxWidth: 720 }}>
@@ -297,9 +333,17 @@ export function EditBoxscoreEventForm({
           id="broadcast_local"
           name="broadcast_local"
           type="datetime-local"
+          value={broadcastLocal}
+          onChange={(e) => setBroadcastLocal(e.target.value)}
           style={{ ...fieldStyle, maxWidth: 280 }}
-          defaultValue={isoToDatetimeLocalValue(event.broadcast_start_ts)}
         />
+        {broadcastPreview ? (
+          <div style={{ marginTop: 8, fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.45 }}>
+            <div><strong style={{ color: "var(--color-text)" }}>Entered local:</strong> {broadcastPreview.local}</div>
+            <div><strong style={{ color: "var(--color-text)" }}>Los Angeles (PT):</strong> {broadcastPreview.pt}</div>
+            <div><strong style={{ color: "var(--color-text)" }}>Stored UTC:</strong> {broadcastPreview.utc}</div>
+          </div>
+        ) : null}
       </div>
 
       <div style={{ marginBottom: 18 }}>

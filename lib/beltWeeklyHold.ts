@@ -1,4 +1,9 @@
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
+import { classifyEventType, isPLE } from "@/lib/scoring/parsers/eventClassifier.js";
+
+function compareYmd(a: string, b: string): number {
+  return a.localeCompare(b);
+}
 
 /** Must match `RTS_2026_LEAGUE_END_DATE` in beltRts2026JulyDeferral (kept here to avoid import cycles). */
 const RTS_2026_LEAGUE_END_DATE = "2026-08-02";
@@ -68,19 +73,76 @@ export function beltScoringLastWeekEndSundayInclusive(leagueEndYmd: string | nul
   return sun;
 }
 
+export type WeeklyBeltLockScoringOpts = {
+  leagueStartYmd: string;
+  leagueEndYmd: string;
+  events: Array<{ name: string | null; date: string | null; id: string }>;
+};
+
 /**
- * Completed week-ending Sundays from `firstWeekEndSunday` through cap (inclusive), in order.
- * Stops at the first week whose Sunday has not yet ended in PST (belt not yet locked).
+ * For a Monday–Sunday scoring week, title-hold “lock” date: last PLE in that week if any,
+ * otherwise Sunday (after SmackDown, before the next Raw).
+ */
+export function weeklyBeltLockYmdForWeek(
+  weekStartMonday: string,
+  weekEndSunday: string,
+  events: Array<{ name: string | null; date: string | null; id: string }> | undefined
+): string {
+  if (!events?.length) return weekEndSunday;
+  let maxPle: string | null = null;
+  for (const e of events) {
+    const d = (e.date ?? "").toString().slice(0, 10);
+    if (!d || d < weekStartMonday || d > weekEndSunday) continue;
+    const t = classifyEventType(e.name ?? "", e.id);
+    if (isPLE(t) && (!maxPle || compareYmd(d, maxPle) > 0)) maxPle = d;
+  }
+  return maxPle ?? weekEndSunday;
+}
+
+/** Sunday at the end of the Mon–Sun week that contains `ymd`. */
+export function weekEndSundayContaining(ymd: string): string {
+  return getSundayOfWeek(getMondayOfWeek(ymd));
+}
+
+/**
+ * Completed weekly belt lock dates (each Mon–Sun week one credit), in order.
+ * With `opts`, lock is the last PLE date in that week if any, else that week’s Sunday.
+ * Without `opts`, legacy behavior: every Sunday from `firstWeekEndSunday` stepping by 7 days.
  */
 export function getCompletedWeekEndSundaysForBeltScoring(
   firstWeekEndSunday: string,
   lastWeekEndSundayCap: string | undefined,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  opts?: WeeklyBeltLockScoringOpts | null
 ): string[] {
   const out: string[] = [];
-  const cap = lastWeekEndSundayCap ? lastWeekEndSundayOnOrBefore(lastWeekEndSundayCap) : "9999-12-31";
+  const capSunday = lastWeekEndSundayCap ? lastWeekEndSundayOnOrBefore(lastWeekEndSundayCap) : "9999-12-31";
+
+  if (opts?.events?.length && opts.leagueStartYmd && opts.leagueEndYmd) {
+    const leagueEnd = opts.leagueEndYmd.slice(0, 10);
+    const firstMonday = getMondayOfWeek(firstWeekEndSunday);
+    let weekStart = firstMonday;
+    while (compareYmd(weekStart, leagueEnd) <= 0) {
+      const weekEnd = getSundayOfWeek(weekStart);
+      if (compareYmd(weekEnd, firstWeekEndSunday) < 0) {
+        weekStart = addDaysYmdUtc(weekStart, 7);
+        continue;
+      }
+      if (compareYmd(weekEnd, capSunday) > 0) break;
+      const lockYmd = weeklyBeltLockYmdForWeek(weekStart, weekEnd, opts.events);
+      if (compareYmd(lockYmd, capSunday) > 0) {
+        weekStart = addDaysYmdUtc(weekStart, 7);
+        continue;
+      }
+      if (!isPastEndOfDayPst(lockYmd, nowMs)) break;
+      out.push(lockYmd);
+      weekStart = addDaysYmdUtc(weekStart, 7);
+    }
+    return out;
+  }
+
   let cur = firstWeekEndSunday;
-  while (cur && cur <= cap) {
+  while (cur && compareYmd(cur, capSunday) <= 0) {
     if (!isPastEndOfDayPst(cur, nowMs)) break;
     out.push(cur);
     cur = addDaysYmdUtc(cur, 7);

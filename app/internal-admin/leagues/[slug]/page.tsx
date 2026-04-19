@@ -116,8 +116,29 @@ export default async function InternalAdminLeagueDetailPage({
       </p>
 
       <h1 style={{ fontSize: "1.35rem", margin: "0 0 8px" }}>{league.name}</h1>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontFamily: "monospace", fontSize: 14 }}>
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 8, fontFamily: "monospace", fontSize: 14 }}>
         /{league.slug} · id {league.id}
+      </p>
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
+        <strong style={{ color: "var(--color-text)" }}>
+          {String(league.visibility_type ?? "").toLowerCase() === "public" ? "Public" : "Private"}
+        </strong>
+        {league.public_status ? (
+          <>
+            {" "}
+            · status <span style={{ fontFamily: "monospace" }}>{league.public_status}</span>
+          </>
+        ) : null}
+        {" "}
+        ·{" "}
+        <strong style={{ color: "var(--color-text)" }}>{league.member_count}</strong>{" "}
+        {league.member_count === 1 ? "owner" : "owners"}
+        {league.max_teams != null ? (
+          <>
+            {" "}
+            (cap {league.max_teams})
+          </>
+        ) : null}
       </p>
       {review === "approved" ? (
         <p

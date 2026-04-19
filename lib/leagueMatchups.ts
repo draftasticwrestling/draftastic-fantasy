@@ -19,6 +19,7 @@ import {
 import {
   beltScoringLastWeekEndSundayInclusive,
   firstEligibleWeekEndSundayForLeagueStart,
+  weeklyBeltLockYmdForWeek,
 } from "@/lib/beltWeeklyHold";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
@@ -276,7 +277,8 @@ const BELT_RETAIN_POINTS = 4;
 /**
  * All weekly matchups for a league. Winner = most event points that week (tie = no winner).
  * Draftastic Championship: first week winner gets +5; same holder next week +4 retain; new winner +5.
- * Road to SummerSlam: weekly PST title-hold points each Mon–Sun week (lock end of day Sunday PST).
+ * Road to SummerSlam: weekly PST title-hold each Mon–Sun week — lock end of day PT on the week’s last PLE if one
+ * airs that week, otherwise end of Sunday after SmackDown (before the next Raw).
  * Other seasons: legacy full-tier points on each calendar month-end that falls in the matchup week.
  */
 export async function getLeagueWeeklyMatchups(
@@ -317,6 +319,8 @@ export async function getLeagueWeeklyMatchups(
   let firstEligibleWeekEndSunday = "9999-12-31";
   let firstEligibleMonthEnd = "9999-12-31";
   let useBroadcastForMonthlyBelt = false;
+  /** Populated when belt reign inference runs; used for weekly lock dates (RTS). */
+  let beltEventsForWeeklyLock: Array<{ name: string | null; date: string | null; id: string }> = [];
 
   if (includeMonthlyBeltInMatchup) {
     if (useWeeklyBelt) {
@@ -363,6 +367,7 @@ export async function getLeagueWeeklyMatchups(
     const changesReigns = inferReignsFromChampionshipChanges(changesRows);
     const inferredReigns = inferReignsFromEvents(eventsInRange);
     reigns = mergeReigns(tableReigns ?? [], [...inferredReigns, ...changesReigns]) as typeof reigns;
+    beltEventsForWeeklyLock = eventsInRange as Array<{ name: string | null; date: string | null; id: string }>;
   }
 
   const weeks = getWeeksInRange(start, end);
@@ -382,22 +387,24 @@ export async function getLeagueWeeklyMatchups(
     if (includeMonthlyBeltInMatchup && reigns.length > 0) {
       if (useWeeklyBelt) {
         const lastBeltWeekEnd = beltScoringLastWeekEndSundayInclusive(end);
+        const beltLockYmd = weeklyBeltLockYmdForWeek(weekStart, weekEnd, beltEventsForWeeklyLock);
         const inLeagueBeltWindow =
           weekEnd >= firstEligibleWeekEndSunday &&
           (!lastBeltWeekEnd || weekEnd <= lastBeltWeekEnd) &&
-          isPastEndOfDayPst(weekEnd);
+          isPastEndOfDayPst(beltLockYmd);
 
         if (inLeagueBeltWindow) {
           const beltBySlug = computeWeeklyBeltHoldPointsForWeekEndSunday(
             reigns,
-            weekEnd,
-            firstEligibleWeekEndSunday
+            beltLockYmd,
+            firstEligibleWeekEndSunday,
+            weekEnd
           );
           for (const s of stints) {
             if (
               !rosterStintActiveForWeeklyBeltHold({
                 stint: s,
-                weekEndYmd: weekEnd,
+                weekEndYmd: beltLockYmd,
                 useBroadcastStart: useBroadcastForMonthlyBelt,
               })
             ) {
@@ -407,7 +414,7 @@ export async function getLeagueWeeklyMatchups(
               beltBySlug,
               s.wrestler_id,
               monthlyBeltNameByWrestler[s.wrestler_id],
-              weekEnd
+              beltLockYmd
             );
             if (pts > 0) {
               pointsByUserId[s.user_id] =
@@ -562,17 +569,7 @@ export async function getMonthlyBeltBySlugForWeek(
   const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug);
   const today = new Date().toISOString().slice(0, 10);
 
-  if (useWeeklyBelt) {
-    const firstEligibleWeekEndSunday = firstEligibleWeekEndSundayForLeagueStart(start);
-    const lastBeltWeekEnd = beltScoringLastWeekEndSundayInclusive(end);
-    if (
-      weekEndSunday < firstEligibleWeekEndSunday ||
-      (lastBeltWeekEnd && weekEndSunday > lastBeltWeekEnd) ||
-      !isPastEndOfDayPst(weekEndSunday)
-    ) {
-      return {};
-    }
-  } else {
+  if (!useWeeklyBelt) {
     const monthEndInWeek = getMonthEndInWeek(weekStartMonday, weekEndSunday);
     const firstEligibleMonthEnd = firstLegacyCalendarMonthEndEligibleForLeagueStart(start);
     if (
@@ -618,10 +615,22 @@ export async function getMonthlyBeltBySlugForWeek(
   if (!reigns.length) return {};
 
   if (useWeeklyBelt) {
+    const firstEligibleWeekEndSunday = firstEligibleWeekEndSundayForLeagueStart(start);
+    const lastBeltWeekEnd = beltScoringLastWeekEndSundayInclusive(end);
+    const evRows = (eventsInRange ?? []) as Array<{ name: string | null; date: string | null; id: string }>;
+    const beltLockYmd = weeklyBeltLockYmdForWeek(weekStartMonday, weekEndSunday, evRows);
+    if (
+      weekEndSunday < firstEligibleWeekEndSunday ||
+      (lastBeltWeekEnd && weekEndSunday > lastBeltWeekEnd) ||
+      !isPastEndOfDayPst(beltLockYmd)
+    ) {
+      return {};
+    }
     return computeWeeklyBeltHoldPointsForWeekEndSunday(
       reigns,
-      weekEndSunday,
-      firstEligibleWeekEndSundayForLeagueStart(start)
+      beltLockYmd,
+      firstEligibleWeekEndSunday,
+      weekEndSunday
     );
   }
   const monthEndInWeek = getMonthEndInWeek(weekStartMonday, weekEndSunday);

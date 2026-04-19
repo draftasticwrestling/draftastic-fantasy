@@ -130,6 +130,9 @@ export function AccountForm({
             maxLength={100}
             style={inputStyle}
           />
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#666" }}>
+            Display names are moderated and must follow community standards.
+          </p>
         </div>
 
         <div>

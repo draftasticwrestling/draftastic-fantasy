@@ -76,7 +76,7 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
         <ol className={styles.trackList}>
           {steps.map((step, i) => {
             const last = i === steps.length - 1;
-            const { monthEndBelt, pleFinaleBelt } = step;
+            const { monthEndBelt, pleFinaleBelt, weeklyBeltLock } = step;
             return (
               <li key={step.id} className={styles.trackItem}>
                 <div className={styles.trackCol}>
@@ -108,8 +108,21 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
                     )}
                     {step.name} {formatShortDate(step.date)}
                   </span>
-                  {(monthEndBelt || pleFinaleBelt) && (
+                  {(monthEndBelt || pleFinaleBelt || weeklyBeltLock) && (
                     <div className={styles.beltSubwrap}>
+                      {weeklyBeltLock && (
+                        <div
+                          className={styles.beltSubline}
+                          title="Weekly title-holder points (Road to SummerSlam)"
+                        >
+                          <span className={styles.beltSubBadge}>Belt</span>
+                          <span className={styles.beltSubText}>
+                            {weeklyBeltLock.variant === "ple"
+                              ? `Weekly title hold · after this PLE, before Raw (${formatShortDate(weeklyBeltLock.nextRawDate)})`
+                              : `Weekly title hold · after SmackDown, before Raw (${formatShortDate(weeklyBeltLock.nextRawDate)})`}
+                          </span>
+                        </div>
+                      )}
                       {monthEndBelt && (
                         <div
                           className={styles.beltSubline}

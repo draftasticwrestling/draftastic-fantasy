@@ -35,17 +35,55 @@ export default function MatchCardTabsSection({
   /** When true (match page hero layout), no top border — tabs sit in their own card */
   standalone = false,
 }) {
-  const [cardViewInner, setCardViewInner] = React.useState(() => (hasSummary ? 'summary' : null));
+  const [cardViewInner, setCardViewInner] = React.useState('summary');
   const isControlled = cardViewControlled !== undefined && typeof setCardViewControlled === 'function';
   const cardView = isControlled ? cardViewControlled : cardViewInner;
   const setCardView = isControlled ? setCardViewControlled : setCardViewInner;
+
+  /** See EventPageHeader: `innerWidth` + breakpoint-crossing only (matchMedia alone mis-fired on desktop in QA). */
+  const [viewportNarrow, setViewportNarrow] = React.useState(false);
+  const [mobileLongOpen, setMobileLongOpen] = React.useState(true);
+  const prevNarrowRef = React.useRef(null);
+  const toggleMobileLong = React.useCallback(() => {
+    setMobileLongOpen((o) => !o);
+  }, []);
+
+  React.useLayoutEffect(() => {
+    const sync = () => {
+      const narrow = typeof window !== "undefined" && window.innerWidth <= 639;
+      setViewportNarrow(narrow);
+      if (prevNarrowRef.current === null) {
+        prevNarrowRef.current = narrow;
+        setMobileLongOpen(!narrow);
+        return;
+      }
+      if (prevNarrowRef.current !== narrow) {
+        prevNarrowRef.current = narrow;
+        setMobileLongOpen(!narrow);
+      }
+    };
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+  }, []);
 
   const toProfile =
     wrestlerTo ||
     ((slug) => `/wrestlers/${encodeURIComponent(String(slug ?? '').trim())}`);
 
+  const showStatsTab = match?.matchType !== 'Promo';
+  const expandLabel =
+    match?.matchType === 'Promo'
+      ? 'Show segment recap'
+      : showStatsTab
+        ? 'Show match summary & statistics'
+        : 'Show match summary';
+
+  const detailsOpen = !viewportNarrow || mobileLongOpen;
+
   return (
     <div
+      className={`match-card-tabs${detailsOpen ? ' match-card-tabs--open' : ''}`}
       onClick={(e) => e.stopPropagation()}
       style={
         standalone
@@ -53,23 +91,40 @@ export default function MatchCardTabsSection({
           : { marginTop: 12, paddingTop: 12, borderTop: '1px solid #444', width: '100%' }
       }
     >
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 8 }}>
-        <button type="button" onClick={() => setCardView('summary')} style={cardView === 'summary' ? pillActive : pillBase}>
-          Summary
-        </button>
-        {match?.matchType !== 'Promo' && (
-          <button
-            type="button"
-            onClick={() => setCardView('statistics')}
-            title="Last 5 matches: Win / Draw / Loss"
-            style={cardView === 'statistics' ? pillActive : pillBase}
-          >
-            Statistics
+      <button
+        type="button"
+        className="match-card-tabs__mobile-toggle"
+        style={{ display: viewportNarrow ? "flex" : "none" }}
+        aria-expanded={detailsOpen}
+        onClick={toggleMobileLong}
+      >
+        {detailsOpen ? 'Hide details' : expandLabel}
+      </button>
+      <div
+        className="match-card-tabs__collapsible"
+        style={
+          !detailsOpen
+            ? { display: "none" }
+            : { display: "block", marginTop: viewportNarrow ? 8 : 0 }
+        }
+      >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 8 }}>
+          <button type="button" onClick={() => setCardView('summary')} style={cardView === 'summary' ? pillActive : pillBase}>
+            Summary
           </button>
-        )}
-      </div>
-      {cardView != null && (cardView !== 'statistics' || !events || !shouldShowLastFiveStats(match)) && (
-        <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12, minHeight: 48, width: '100%' }}>
+          {showStatsTab && (
+            <button
+              type="button"
+              onClick={() => setCardView('statistics')}
+              title="Last 5 matches: Win / Draw / Loss"
+              style={cardView === 'statistics' ? pillActive : pillBase}
+            >
+              Statistics
+            </button>
+          )}
+        </div>
+        {cardView != null && (
+          <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12, minHeight: 48, width: '100%' }}>
           {cardView === 'summary' && (
             <div>
               <div style={{ color: '#C6A04F', fontWeight: 600, fontSize: 12, marginBottom: 4 }}>
@@ -127,11 +182,16 @@ export default function MatchCardTabsSection({
                 </div>
               ) : statisticsExtraHint ? (
                 <div style={{ color: '#aaa', fontSize: 13, lineHeight: 1.5 }}>{statisticsExtraHint}</div>
-              ) : null}
+              ) : (
+                <div style={{ color: '#888', fontSize: 13, lineHeight: 1.5 }}>
+                  Win / draw / loss boxes for the last five matches are shown next to each competitor on this card.
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

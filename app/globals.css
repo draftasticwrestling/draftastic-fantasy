@@ -266,6 +266,520 @@ body > .site-footer {
   text-decoration: underline;
 }
 
+@media (max-width: 640px) {
+  .event-list-bar {
+    padding: 6px var(--page-padding-x-mobile, 16px);
+    gap: 8px;
+  }
+
+  .event-list-bar-inner {
+    gap: 10px;
+  }
+
+  .event-list-bar-item {
+    min-width: 78px;
+    max-width: 104px;
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  .event-list-bar-logo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .event-list-bar-more {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+}
+
+/* --- Per-event results (/event-results/[id]) --- */
+.event-results-detail {
+  font-family: system-ui, sans-serif;
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: #181511;
+  min-height: 100vh;
+  color: #e8e8e8;
+}
+
+@media (max-width: 640px) {
+  .event-results-detail {
+    padding: 16px 14px 28px;
+  }
+}
+
+.event-results-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.event-results-match-anchor {
+  scroll-margin-top: 88px;
+}
+
+@media (max-width: 640px) {
+  .event-results-match-list {
+    gap: 20px;
+  }
+
+  .event-results-match-anchor {
+    scroll-margin-top: 72px;
+  }
+}
+
+/* --- Event results page header (shared EventPageHeader) --- */
+.event-page-header {
+  --event-header-gold: #c6a04f;
+  margin-bottom: 8px;
+}
+
+.event-page-header__crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+
+.event-page-header__crumbLink {
+  color: var(--event-header-gold);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.event-page-header__crumbLink:hover {
+  text-decoration: underline;
+}
+
+.event-page-header__crumbSep {
+  color: rgba(255, 255, 255, 0.35);
+  user-select: none;
+}
+
+.event-page-header__brandCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.event-page-header__logo {
+  max-height: 48px;
+  max-width: 96px;
+}
+
+.event-page-header__nameRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.event-page-header__eventName {
+  color: #fff;
+  font-weight: 600;
+  font-size: 20px;
+}
+
+.event-page-header__liveBadge {
+  background: #27ae60;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 14px;
+}
+
+.event-page-header__title {
+  color: #fff;
+  font-size: clamp(1.2rem, 2.8vw + 0.65rem, 1.625rem);
+  font-weight: 800;
+  margin: 8px 0 4px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.event-page-header__metaLine {
+  color: #ccc;
+  font-size: 14px;
+  max-width: 700px;
+  text-align: center;
+  margin: 4px 0 0;
+}
+
+.event-page-header__jump {
+  margin: 12px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  font-size: 14px;
+  width: 100%;
+}
+
+.event-page-header__jumpLink {
+  color: var(--event-header-gold);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.event-page-header__jumpLink:hover {
+  text-decoration: underline;
+}
+
+/* Preview / recap: narrow toggle styling only — show/hide is controlled inline (EventPageHeader). */
+.event-page-header__longform-toggle {
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid rgba(198, 160, 79, 0.45);
+  background: rgba(198, 160, 79, 0.1);
+  color: #c6a04f;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.event-page-header__longform-toggle:active {
+  background: rgba(198, 160, 79, 0.2);
+}
+
+.event-page-header__when {
+  color: var(--event-header-gold);
+  margin-top: 8px;
+  font-size: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+}
+
+.event-page-header__broadcast {
+  font-size: 14px;
+  color: #ddd;
+  font-weight: 600;
+}
+
+.event-page-header__broadcastTime {
+  color: var(--event-header-gold);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .event-page-header__crumbs {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 12px;
+  }
+
+  .event-page-header__crumbSep {
+    display: none;
+  }
+
+  .event-page-header__crumbLink {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
+    margin: 0 -12px;
+    border-radius: 8px;
+  }
+
+  .event-page-header__crumbLink:active {
+    background: rgba(198, 160, 79, 0.12);
+  }
+
+  .event-page-header__logo {
+    max-height: 40px;
+    max-width: 88px;
+  }
+
+  .event-page-header__eventName {
+    font-size: 18px;
+  }
+
+  .event-page-header__metaLine {
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 0 4px;
+  }
+
+  .event-page-header__title {
+    font-size: clamp(1.1rem, 5.2vw, 1.85rem);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+
+  .event-page-header__jump {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 12px;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0 2px;
+  }
+
+  .event-page-header__jumpLink {
+    display: inline;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: 0;
+    font-size: 12px;
+    line-height: 1.2;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+  }
+
+  .event-page-header__jumpLink:hover,
+  .event-page-header__jumpLink:active {
+    text-decoration: underline;
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .event-page-header__when {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    font-size: 16px;
+    margin-top: 10px;
+  }
+
+  .event-page-header__broadcast {
+    font-size: 13px;
+  }
+}
+
+/* --- Boxscore match cards (components/boxscore-port/MatchCard.jsx) --- */
+.match-card {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* Summary / statistics: toggle styling only — panel visibility is inline (MatchCardTabsSection). */
+.match-card-tabs__mobile-toggle {
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 14px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 2px solid #c6a04f;
+  background: rgba(198, 160, 79, 0.08);
+  color: #c6a04f;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.match-card-tabs__mobile-toggle:active {
+  background: rgba(198, 160, 79, 0.16);
+}
+
+/* Down-arrow above winning side: shown only on narrow viewports (center horizontal arrows hidden there). */
+.match-card__winner-arrow-mobile {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .match-card {
+    padding: 14px 11px 16px !important;
+  }
+
+  .match-card__top-label {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+    line-height: 1.35;
+    padding: 0 4px;
+  }
+
+  .match-card__multi-side-row {
+    flex-wrap: wrap !important;
+    gap: 12px 10px !important;
+    row-gap: 16px !important;
+    justify-content: center !important;
+  }
+
+  .match-card__multi-side-col {
+    min-width: 0 !important;
+    flex: 1 1 108px !important;
+    max-width: min(100%, 168px);
+    box-sizing: border-box;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .match-card__promo-dense-col {
+    flex: 1 1 96px !important;
+    max-width: min(100%, 150px);
+  }
+
+  .match-card__promo-dense-row {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 10px !important;
+  }
+
+  .match-card__promo-avatar-row {
+    max-width: 100%;
+    justify-content: center !important;
+  }
+
+  .match-card__promo-participant-cell {
+    max-width: 100% !important;
+    min-width: 0;
+  }
+
+  .match-card__participant-name,
+  .match-card__participant-name-block a {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+  }
+
+  .match-card__participant-name-block {
+    max-width: 100%;
+    padding: 0 2px;
+  }
+
+  .match-card__avatar-64,
+  .match-card__avatar-64 img {
+    width: 52px !important;
+    height: 52px !important;
+    max-width: 52px !important;
+    max-height: 52px !important;
+  }
+
+  .match-card__avatar-54,
+  .match-card__avatar-54 img {
+    width: 48px !important;
+    height: 48px !important;
+    max-width: 48px !important;
+    max-height: 48px !important;
+  }
+
+  .match-card__avatar-48,
+  .match-card__avatar-48 img {
+    width: 42px !important;
+    height: 42px !important;
+    max-width: 42px !important;
+    max-height: 42px !important;
+  }
+
+  .match-card__tag-avatars a > div {
+    max-width: 48px !important;
+    max-height: 48px !important;
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  .match-card__tag-avatars img {
+    width: 48px !important;
+    height: 48px !important;
+    max-width: 48px !important;
+    max-height: 48px !important;
+  }
+
+  .match-card__two-side-row {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px 8px;
+    align-items: flex-start;
+  }
+
+  .match-card__two-side-arrow {
+    display: none !important;
+  }
+
+  .match-card__two-side-center {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    order: -1;
+  }
+
+  .match-card__two-side-col {
+    flex: 1 1 calc(50% - 12px) !important;
+    min-width: 0 !important;
+    max-width: calc(50% - 4px);
+  }
+
+  .match-card__two-side-footer-row {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 12px;
+  }
+
+  .match-card__two-side-footer-spacer,
+  .match-card__two-side-footer-gap {
+    display: none !important;
+  }
+
+  .match-card__two-side-footer-row .match-card__two-side-col {
+    flex: 1 1 calc(50% - 10px) !important;
+    max-width: calc(50% - 4px);
+  }
+
+  .match-card__winner-arrow-mobile {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 6px;
+  }
+
+  .match-card__winner-arrow-mobile svg {
+    display: block;
+  }
+
+  .match-card__battle-royal-layout {
+    gap: 12px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .match-card__battle-royal-others {
+    display: none !important;
+  }
+
+  .match-card__battle-royal-winner img {
+    width: 72px !important;
+    height: 72px !important;
+    max-width: 72px !important;
+    max-height: 72px !important;
+    border-width: 4px !important;
+  }
+
+  .match-card__battle-royal-winner a > div {
+    font-size: 16px !important;
+    margin-top: 8px !important;
+  }
+}
+
 /* Sticky nav wrapper: event bar scrolls away, this sticks to top */
 .nav-sticky-wrap {
   position: sticky;

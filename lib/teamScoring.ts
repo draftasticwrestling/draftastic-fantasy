@@ -28,6 +28,7 @@ import {
   beltScoringLastWeekEndSundayInclusive,
   firstEligibleWeekEndSundayForLeagueStart,
   getCompletedWeekEndSundaysForBeltScoring,
+  weekEndSundayContaining,
 } from "@/lib/beltWeeklyHold";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
@@ -369,31 +370,49 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     if (useWeeklyBelt) {
       const beltFirstWeekEnd = firstEligibleWeekEndSundayForLeagueStart(leagueStart);
       const lastWeekCap = beltScoringLastWeekEndSundayInclusive(leagueEndYmd || undefined);
-      const weekEnds = getCompletedWeekEndSundaysForBeltScoring(beltFirstWeekEnd, lastWeekCap, Date.now());
-      for (const weekEnd of weekEnds) {
-        const beltBySlug = computeWeeklyBeltHoldPointsForWeekEndSunday(reigns, weekEnd, beltFirstWeekEnd);
-        const eventName = `Weekly belt hold (${beltHoldLedgerLabel(weekEnd)} PST week close)`;
+      const beltLockEvents = eventsForBeltReignInference.map((e) => ({
+        id: String((e as { id?: string }).id ?? ""),
+        name: (e as { name?: string | null }).name ?? null,
+        date: (e as { date?: string | null }).date ?? null,
+      }));
+      const weekEnds = getCompletedWeekEndSundaysForBeltScoring(beltFirstWeekEnd, lastWeekCap, Date.now(), {
+        leagueStartYmd: leagueStart,
+        leagueEndYmd: leagueEndYmd || "2099-12-31",
+        events: beltLockEvents,
+      });
+      for (const lockYmd of weekEnds) {
+        const weekEndSun = weekEndSundayContaining(lockYmd);
+        const beltBySlug = computeWeeklyBeltHoldPointsForWeekEndSunday(
+          reigns,
+          lockYmd,
+          beltFirstWeekEnd,
+          weekEndSun
+        );
+        const eventName =
+          lockYmd === weekEndSun
+            ? `Weekly belt hold (${beltHoldLedgerLabel(lockYmd)} PT week close, Los Angeles time)`
+            : `Weekly belt hold (${beltHoldLedgerLabel(lockYmd)} PT lock after last PLE this week; week ends ${beltHoldLedgerLabel(weekEndSun)})`;
         for (const pick of teamStints) {
           if (
             !rosterStintActiveForWeeklyBeltHold({
               stint: pick,
-              weekEndYmd: weekEnd,
+              weekEndYmd: lockYmd,
               useBroadcastStart: useBroadcastForMonthlyBelt,
             })
           ) {
             continue;
           }
           const name = wrestlerNameById[pick.wrestler_id];
-          const pts = sumMonthlyBeltPointsForStint(beltBySlug, pick.wrestler_id, name, weekEnd);
+          const pts = sumMonthlyBeltPointsForStint(beltBySlug, pick.wrestler_id, name, lockYmd);
           if (pts <= 0) continue;
           const wrestlerId = pick.wrestler_id;
           if (!totalsByWrestler[wrestlerId]) totalsByWrestler[wrestlerId] = emptyPoints();
           const beltContrib: TeamWrestlerPoints = { total: pts, rsPoints: 0, plePoints: 0, beltPoints: pts };
           addPoints(totalsByWrestler[wrestlerId]!, beltContrib);
           ledgerRows.push({
-            eventId: `weekly-belt-hold-${weekEnd}-${wrestlerId}`,
+            eventId: `weekly-belt-hold-${lockYmd}-${wrestlerId}`,
             eventName,
-            eventDate: weekEnd,
+            eventDate: lockYmd,
             wrestlerId,
             points: pts,
             rsPoints: 0,

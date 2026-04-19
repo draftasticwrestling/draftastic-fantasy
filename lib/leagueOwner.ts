@@ -60,6 +60,43 @@ async function insertLeagueActivityRow(userClient: SupabaseClient, row: LeagueAc
 
 export type UpcomingEvent = { id: string; name: string; date: string; eventType: string };
 
+async function getInEventLockMessage(supabase: SupabaseClient): Promise<string | null> {
+  const minDate = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { data: events, error } = await supabase
+    .from("events")
+    .select("name, status, date, broadcast_start_ts")
+    .in("status", ["live", "upcoming"])
+    .gte("date", minDate)
+    .order("date", { ascending: true })
+    .limit(8);
+  if (error || !events?.length) return null;
+
+  const nowMs = Date.now();
+  const rows = (events ?? []) as Array<{
+    name?: string | null;
+    status?: string | null;
+    date?: string | null;
+    broadcast_start_ts?: string | null;
+  }>;
+
+  const live = rows.find((e) => String(e.status ?? "").toLowerCase() === "live");
+  if (live) {
+    return `Roster and lineup changes are locked while ${live.name ?? "the live event"} is in progress.`;
+  }
+
+  const startedUpcoming = rows.find((e) => {
+    if (String(e.status ?? "").toLowerCase() !== "upcoming") return false;
+    if (!e.broadcast_start_ts) return false;
+    const startMs = Date.parse(String(e.broadcast_start_ts));
+    return Number.isFinite(startMs) && startMs <= nowMs;
+  });
+  if (startedUpcoming) {
+    return `Roster and lineup changes are locked while ${startedUpcoming.name ?? "the current event"} is in progress.`;
+  }
+
+  return null;
+}
+
 /** Next upcoming event (date >= today), optionally prefer SmackDown. */
 export async function getNextUpcomingEvent(
   options?: { preferSmackDown?: boolean }
@@ -124,6 +161,8 @@ export async function setLineupForEvent(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.id !== userId) return { error: "Not authenticated." };
+  const eventLock = await getInEventLockMessage(supabase);
+  if (eventLock) return { error: eventLock };
 
   const rulesForLineup = await getRosterRulesForLeagueId(supabase, leagueId);
   const activePer = getActivePerEvent(rulesForLineup?.rosterSize ?? 0);
@@ -1627,6 +1666,8 @@ export async function dropWrestlerImmediate(
     .eq("user_id", user.id)
     .maybeSingle();
   if (!member) return { error: "You are not in this league." };
+  const eventLock = await getInEventLockMessage(supabase);
+  if (eventLock) return { error: eventLock };
 
   const wid = wrestlerId.trim();
   const tradeLock = await assertWrestlerNotTradeLocked(leagueId, user.id, wid);
@@ -1698,6 +1739,8 @@ export async function addFreeAgentImmediate(
     .eq("user_id", user.id)
     .maybeSingle();
   if (!member) return { error: "You are not in this league." };
+  const eventLock = await getInEventLockMessage(supabase);
+  if (eventLock) return { error: eventLock };
 
   const widToAdd = wrestlerId.trim();
   const widToDrop = dropWrestlerId?.trim() || null;

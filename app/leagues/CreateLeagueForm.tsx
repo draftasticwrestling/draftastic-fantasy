@@ -65,6 +65,7 @@ export function CreateLeagueForm({
   const [state, formAction] = useActionState(createLeagueAction, null);
   const [teamCount, setTeamCount] = useState<number>(4);
   const [leagueType, setLeagueType] = useState<string>("season_overall");
+  const [visibilityType, setVisibilityType] = useState<"private" | "public">("private");
   /** When true, admin sees the same fields/rules as a normal user (and submits enforce_standard_create_rules). */
   const [standardUserPreview, setStandardUserPreview] = useState(false);
 
@@ -173,33 +174,75 @@ export function CreateLeagueForm({
       </div>
 
       <div className="form-group">
-        <label htmlFor="league-name">League name *</label>
+        <label>League Visibility *</label>
+        <div className="create-league-type-grid" style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            className={`create-league-type-option ${visibilityType === "private" ? "selected" : ""}`}
+            onClick={() => setVisibilityType("private")}
+            aria-pressed={visibilityType === "private"}
+          >
+            <strong>Private League</strong>
+            <span className="create-league-type-desc">Invite-only with code or invite link from your GM.</span>
+          </button>
+          <button
+            type="button"
+            className={`create-league-type-option ${visibilityType === "public" ? "selected" : ""}`}
+            onClick={() => setVisibilityType("public")}
+            aria-pressed={visibilityType === "public"}
+          >
+            <strong>Public League</strong>
+            <span className="create-league-type-desc">You become commissioner. League auto-fills up to 6 teams.</span>
+          </button>
+        </div>
+        <input type="hidden" name="visibility_type" value={visibilityType} />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="league-name">{visibilityType === "public" ? "League name" : "League name *"}</label>
         <input
           id="league-name"
           name="name"
           type="text"
-          required
-          placeholder="My 2026 League"
+          required={visibilityType !== "public"}
+          placeholder={visibilityType === "public" ? "Auto-generated for public leagues" : "My 2026 League"}
           maxLength={120}
+          disabled={visibilityType === "public"}
         />
+        {visibilityType === "public" ? (
+          <p className="form-note" style={{ marginTop: 8 }}>
+            Public leagues use a standard generated name (for example, R2Summer 12).
+          </p>
+        ) : null}
       </div>
 
       <div className="form-group">
         <label>Number of Teams *</label>
-        <div className={`create-league-teams-row${adminFullMode ? " create-league-teams-row--admin" : ""}`}>
-          {teamCountOptions.map((n) => (
-            <button
-              key={n}
-              type="button"
-              className={`create-league-teams-option ${teamCount === n ? "selected" : ""}`}
-              onClick={() => handleTeamClick(n)}
-              aria-pressed={teamCount === n}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-        <input type="hidden" name="team_count" value={teamCount} />
+        {visibilityType === "public" ? (
+          <>
+            <p className="form-note" style={{ marginTop: 0, marginBottom: 0 }}>
+              Public leagues always start with 6 team spots and close at 6/6.
+            </p>
+            <input type="hidden" name="team_count" value={6} />
+          </>
+        ) : (
+          <>
+            <div className={`create-league-teams-row${adminFullMode ? " create-league-teams-row--admin" : ""}`}>
+              {teamCountOptions.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`create-league-teams-option ${teamCount === n ? "selected" : ""}`}
+                  onClick={() => handleTeamClick(n)}
+                  aria-pressed={teamCount === n}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <input type="hidden" name="team_count" value={teamCount} />
+          </>
+        )}
       </div>
 
       <div className="form-group">

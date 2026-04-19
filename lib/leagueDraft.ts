@@ -898,12 +898,17 @@ export async function generateDraftOrderForScheduledDraft(leagueId: string): Pro
 
   const { data: league, error: leagueErr } = await admin
     .from("leagues")
-    .select("id, draft_style, draft_type, current_draft_run_id, season_slug, start_date, draft_date, created_at")
+    .select("id, draft_style, draft_type, current_draft_run_id, season_slug, start_date, draft_date, created_at, visibility_type")
     .eq("id", leagueId)
     .maybeSingle();
   if (leagueErr || !league) return { error: "League not found." };
 
   const memberIds = await getLeagueMemberUserIdsForAdmin(leagueId);
+  const isPublic = (league as { visibility_type?: string | null }).visibility_type === "public";
+  if (isPublic && memberIds.length < 3) {
+    await admin.from("leagues").update({ public_status: "awaiting_minimum" }).eq("id", leagueId);
+    return { error: "Public leagues need at least 3 teams before draft order can be generated." };
+  }
   const rules = getRosterRulesForLeague(
     memberIds.length,
     (league as { season_slug?: string | null }).season_slug ?? null
@@ -1044,7 +1049,7 @@ export async function startDraft(leagueId: string): Promise<{ error?: string }> 
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, commissioner_id, draft_current_pick")
+    .select("id, commissioner_id, draft_current_pick, visibility_type")
     .eq("id", leagueId)
     .single();
   if (!league || league.commissioner_id !== user.id) {
@@ -1056,13 +1061,25 @@ export async function startDraft(leagueId: string): Promise<{ error?: string }> 
     .select("*", { count: "exact", head: true })
     .eq("league_id", leagueId);
   if (!count || count === 0) return { error: "No draft order. Generate draft order first." };
+  if ((league as { visibility_type?: string | null }).visibility_type === "public") {
+    const members = await getLeagueMembers(leagueId);
+    if (members.length < 3) return { error: "Public leagues must have at least 3 teams before draft can start." };
+  }
 
   const admin = getAdminClient();
-  const updatePayload = {
+  const updatePayload: {
+    draft_status: "in_progress";
+    draft_current_pick: number;
+    draft_current_pick_started_at: string;
+    public_status?: "active";
+  } = {
     draft_status: "in_progress",
     draft_current_pick: 1,
     draft_current_pick_started_at: new Date().toISOString(),
   };
+  if ((league as { visibility_type?: string | null }).visibility_type === "public") {
+    updatePayload.public_status = "active";
+  }
   const { error: updateError } = admin
     ? await admin.from("leagues").update(updatePayload).eq("id", leagueId)
     : await supabase.from("leagues").update(updatePayload).eq("id", leagueId);
@@ -2448,7 +2465,7 @@ export async function runFullAutopickDraftAtScheduledTime(
   if (!admin) return { didRun: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
   const { data: league } = await admin
     .from("leagues")
-    .select("id, draft_date, draft_time, draft_type, draft_status")
+    .select("id, draft_date, draft_time, draft_type, draft_status, visibility_type")
     .eq("id", leagueId)
     .single();
   if (!league) return { didRun: false };
@@ -2456,6 +2473,13 @@ export async function runFullAutopickDraftAtScheduledTime(
   const draftType = (league as { draft_type?: string }).draft_type ?? null;
   const draftStatus = (league as { draft_status?: string }).draft_status ?? "not_started";
   if (draftType !== "autopick" || draftStatus !== "not_started") return { didRun: false };
+  if ((league as { visibility_type?: string | null }).visibility_type === "public") {
+    const memberIds = await getLeagueMemberUserIdsForAdmin(leagueId);
+    if (memberIds.length < 3) {
+      await admin.from("leagues").update({ public_status: "awaiting_minimum" }).eq("id", leagueId);
+      return { didRun: false, error: "Public leagues need at least 3 teams before draft can start." };
+    }
+  }
 
   const scheduledMs = getScheduledDraftTimeMs(league as { draft_date?: string | null; draft_time?: string | null });
   const dueByTime = scheduledMs != null && Date.now() >= scheduledMs;
@@ -2470,11 +2494,20 @@ export async function runFullAutopickDraftAtScheduledTime(
     if (order.length === 0) return { didRun: false, error: "Could not build draft order." };
   }
 
-  const { error: updateErr } = await admin.from("leagues").update({
+  const draftStartPayload: {
+    draft_status: "in_progress";
+    draft_current_pick: number;
+    draft_current_pick_started_at: string;
+    public_status?: "active";
+  } = {
     draft_status: "in_progress",
     draft_current_pick: 1,
     draft_current_pick_started_at: new Date().toISOString(),
-  }).eq("id", leagueId);
+  };
+  if ((league as { visibility_type?: string | null }).visibility_type === "public") {
+    draftStartPayload.public_status = "active";
+  }
+  const { error: updateErr } = await admin.from("leagues").update(draftStartPayload).eq("id", leagueId);
   if (updateErr) return { didRun: false, error: updateErr.message };
 
   while (true) {

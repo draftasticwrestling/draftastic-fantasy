@@ -39,9 +39,10 @@ export function HowItWorksTitlePoints() {
 
       <h3 className={styles.beltPointsSubheading}>Weekly belt points</h3>
       <p className={styles.sectionSubtitle}>
-        Points are dispersed weekly, end of day Sunday PST. Weeks are Monday through Sunday; the cutoff uses
-        Pacific time so a title can still change during a late US show before the week locks (including for
-        leagues with managers outside the US).
+        For <strong>Road to SummerSlam</strong> leagues, title-holder points lock at <strong>11:59 PM PT</strong> (Los Angeles
+        time) at the end of each TV week: after <strong>SmackDown</strong> and before the next <strong>Raw</strong> when there is
+        no PLE that week, or after the last <strong>PLE</strong> in that Monday–Sunday window and before the next Raw when a PLE
+        airs that week. The cutoff uses Pacific time so late shows still count before the lock.
       </p>
       <div className={styles.titlePointsGrid}>
         <div className={styles.titlePointsThMens}>Men&apos;s Division</div>

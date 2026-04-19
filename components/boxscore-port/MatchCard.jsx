@@ -235,9 +235,9 @@ function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4, compact = fa
         marginTop,
         textAlign: 'center',
         lineHeight: 1.25,
-        maxWidth: compact ? 56 : 160,
+        maxWidth: compact ? 120 : 160,
       }}
-      title={compact ? tip : undefined}
+      title={tip}
     >
       <div
         style={{
@@ -249,13 +249,13 @@ function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4, compact = fa
       >
         {totalLabel}
       </div>
-      {!compact && breakdown.length > 0 && (
+      {breakdown.length > 0 && (
         <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
           {breakdown.map((line, i) => (
             <div
               key={i}
               style={{
-                fontSize: 9,
+                fontSize: compact ? 8 : 9,
                 color: '#fff',
                 fontStyle: 'italic',
                 fontWeight: 400,
@@ -300,6 +300,7 @@ function TagTeamPartnerNamesAndFantasyGrid({
     <div style={{ width: '100%', maxWidth: 440, ...style }}>
       {showAvatars ? (
         <div
+          className="match-card__tag-avatars"
           style={{
             display: 'flex',
             flexDirection: 'row',
@@ -424,7 +425,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
   const [expandedSlug, setExpandedSlug] = React.useState(null);
   const [showRumbleDetails, setShowRumbleDetails] = React.useState(false);
   const hasSummary = !!(match?.summary || (match?.matchType === 'Promo' && match?.notes));
-  const [cardView, setCardView] = React.useState(() => (hasSummary ? 'summary' : null));
+  const [cardView, setCardView] = React.useState('summary');
   const summaryContent = match?.matchType === 'Promo' ? (match?.notes || '') : (match?.summary || '');
 
   const showStatsLastFive = useMemo(
@@ -1263,6 +1264,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
 
   return (
     <div
+      className="match-card"
       onClick={(e) => {
         if (isClickable && eventResultsPath && navigationIndex != null) {
           e.preventDefault();
@@ -1308,16 +1310,19 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
       )}
       
       {topLabel && (
-        <div style={{
-          color: '#C6A04F',
-          fontWeight: 700,
-          fontSize: 15,
-          marginBottom: 8,
-          textAlign: 'center',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}>
+        <div
+          className="match-card__top-label"
+          style={{
+            color: '#C6A04F',
+            fontWeight: 700,
+            fontSize: 15,
+            marginBottom: 8,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {topLabel}
         </div>
       )}
@@ -1689,7 +1694,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
           };
           
           return (
-            <div style={{
+            <div className="match-card__battle-royal-layout" style={{
               display: 'flex',
               flexDirection: 'row',
               alignItems: 'center',
@@ -1700,10 +1705,10 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
               width: '100%',
               overflow: 'hidden',
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="match-card__battle-royal-others" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 {renderGrid(left)}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 120 }}>
+              <div className="match-card__battle-royal-winner" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 120 }}>
                 <Link to={wrestlerTo(match.winner)} onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textDecoration: 'none' }}>
                   <Image
                     src={wrestlerMap[match.winner]?.image_url || '/images/placeholder.png'}
@@ -1731,7 +1736,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                   <FantasyPtsLine slug={match.winner} fantasyPointsBySlug={fantasyPointsBySlug} marginTop={6} />
                 </Link>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="match-card__battle-royal-others" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 {renderGrid(right)}
               </div>
             </div>
@@ -2512,7 +2517,10 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
               </>
             )}
           </div>
-          <div style={{ display: 'flex', flexDirection: match.matchType === 'Promo' && teamStrings.length > 7 ? 'column' : 'row', alignItems: 'flex-start', justifyContent: 'center', gap: match.matchType === 'Promo' && teamStrings.length > 7 ? 8 : 32, width: '100%' }}>
+          <div
+            className="match-card__multi-side-row"
+            style={{ display: 'flex', flexDirection: match.matchType === 'Promo' && teamStrings.length > 7 ? 'column' : 'row', alignItems: 'flex-start', justifyContent: 'center', gap: match.matchType === 'Promo' && teamStrings.length > 7 ? 8 : 32, width: '100%' }}
+          >
             {match.matchType === 'Promo' && teamStrings.length > 7 ? (
               (() => {
                 const half = Math.ceil(teamStrings.length / 2);
@@ -2521,7 +2529,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                 const renderPromoParticipant = (teamStr, sideIdx) => {
                   const { teamName, slugs } = parseTeamString(teamStr, wrestlerMap);
                   return (
-                    <div key={sideIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: slugs.length > 1 ? 100 : 90 }}>
+                    <div key={sideIdx} className="match-card__multi-side-col match-card__promo-dense-col" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: slugs.length > 1 ? 100 : 90 }}>
                       {teamName ? (
                         <div style={{ fontWeight: 700, color: '#C6A04F', fontSize: 11, textAlign: 'center', marginBottom: 6, maxWidth: 120, lineHeight: 1.2 }}>
                           {teamName}
@@ -2544,18 +2552,34 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                         />
                       ) : (
                         <>
-                          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <div className="match-card__promo-avatar-row" style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
                             {slugs.map((slug, i) => (
-                              <div key={slug || i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: 92 }}>
+                              <div key={slug || i} className="match-card__promo-participant-cell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: 92 }}>
                                 <Link to={wrestlerTo(slug)} onClick={e => e.stopPropagation()} style={{ display: 'block', lineHeight: 0 }}>
-                                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 * 0.6, color: '#7da2c1' }}>
+                                  <div
+                                    className="match-card__avatar-48"
+                                    style={{
+                                      width: 48,
+                                      height: 48,
+                                      borderRadius: '50%',
+                                      background: '#444',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: 48 * 0.6,
+                                      color: '#7da2c1',
+                                      overflow: 'hidden',
+                                      boxShadow:
+                                        winnerIndex === sideIdx && winnerIndex >= 0 ? '0 0 0 2px #C6A04F' : 'none',
+                                    }}
+                                  >
                                     {wrestlerMap[slug]?.image_url
                                       ? <Image src={wrestlerMap[slug].image_url} alt={wrestlerMap[slug].name} width={48} height={48} sizes="48px" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
                                       : <span role="img" aria-label="wrestler">&#128100;</span>
                                     }
                                   </div>
                                 </Link>
-                                <Link to={wrestlerTo(slug)} onClick={e => e.stopPropagation()} style={{ fontWeight: 600, color: '#fff', fontSize: 11, textAlign: 'center', marginTop: 6, textDecoration: 'none', lineHeight: 1.15 }}>
+                                <Link to={wrestlerTo(slug)} onClick={e => e.stopPropagation()} className="match-card__participant-name" style={{ fontWeight: 600, color: '#fff', fontSize: 11, textAlign: 'center', marginTop: 6, textDecoration: 'none', lineHeight: 1.15 }}>
                                   {wrestlerMap[slug]?.name || slug}
                                 </Link>
                               </div>
@@ -2569,10 +2593,10 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                 };
                 return (
                   <>
-                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 16, width: '100%', marginBottom: 8 }}>
+                    <div className="match-card__promo-dense-row" style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 16, width: '100%', marginBottom: 8 }}>
                       {row1.map((teamStr, i) => renderPromoParticipant(teamStr, i))}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 16, width: '100%' }}>
+                    <div className="match-card__promo-dense-row" style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 16, width: '100%' }}>
                       {row2.map((teamStr, i) => renderPromoParticipant(teamStr, half + i))}
                     </div>
                   </>
@@ -2590,7 +2614,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                 return teamStrings.map((teamStr, sideIdx) => {
                 const { teamName, slugs } = parseTeamString(teamStr, wrestlerMap);
                 return (
-                  <div key={sideIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 120 }}>
+                  <div key={sideIdx} className="match-card__multi-side-col" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 120 }}>
                     {slugs.length > 1 ? (
                       <>
                         {syncMultiSideTagHeader ? (
@@ -2638,11 +2662,28 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', marginBottom: 6 }}>
                           {winnerIndex === sideIdx ? triangleDown : <span style={{ display: 'inline-block', width: 16, height: 8 }} />}
                         </div>
-                        <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 8 }}>
+                        <div className="match-card__promo-avatar-row" style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 8 }}>
                           {slugs.map((slug, i) => (
                             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                               <Link to={wrestlerTo(slug)} onClick={e => e.stopPropagation()} style={{ display: 'block', lineHeight: 0 }}>
-                                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 * 0.6, color: '#7da2c1', overflow: 'hidden', cursor: 'pointer' }}>
+                                <div
+                                  className="match-card__avatar-64"
+                                  style={{
+                                    width: 64,
+                                    height: 64,
+                                    borderRadius: '50%',
+                                    background: '#444',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: 64 * 0.6,
+                                    color: '#7da2c1',
+                                    overflow: 'hidden',
+                                    cursor: 'pointer',
+                                    boxShadow:
+                                      winnerIndex === sideIdx && winnerIndex >= 0 ? '0 0 0 2px #C6A04F' : 'none',
+                                  }}
+                                >
                                   {wrestlerMap[slug]?.image_url
                                     ? <Image src={wrestlerMap[slug].image_url} alt={wrestlerMap[slug].name} width={64} height={64} sizes="64px" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }} />
                                     : <span role="img" aria-label="wrestler">&#128100;</span>
@@ -2657,7 +2698,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                             </div>
                           ))}
                         </div>
-                        <span style={{ fontWeight: 700, color: winnerIndex === sideIdx ? '#C6A04F' : '#fff', fontSize: 18, textAlign: 'center', marginBottom: 2 }}>
+                        <span className="match-card__participant-name-block" style={{ fontWeight: 700, color: winnerIndex === sideIdx ? '#C6A04F' : '#fff', fontSize: 18, textAlign: 'center', marginBottom: 2 }}>
                           {teamName ? (
                             <>
                               <div style={{ fontSize: 20, fontWeight: 800, color: winnerIndex === sideIdx ? '#C6A04F' : '#fff' }}>{teamName}</div>
@@ -2732,13 +2773,20 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
           function renderTwoSideVisual(sideIdx, parsed) {
             const { teamName, slugs } = parsed;
             const won = sideIdx === 0 ? winnerIndex === 0 : winnerIndex === 1;
+            const sideColClass =
+              `match-card__two-side-col${won ? ' match-card__two-side-col--winner' : ' match-card__two-side-col--loser'}`;
             return (
-              <div style={{ flex: 0.7, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 90 }}>
+              <div className={sideColClass} style={{ flex: 0.7, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 90 }}>
                 {syncTagTopHeader ? (
                   <div style={{ minHeight: 40, marginBottom: 8, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
                     {slugs.length > 1 && teamName ? (
                       <div style={{ fontSize: 18, fontWeight: 800, color: won ? '#C6A04F' : '#fff', textAlign: 'center', lineHeight: 1.2 }}>{teamName}</div>
                     ) : null}
+                  </div>
+                ) : null}
+                {won ? (
+                  <div className="match-card__winner-arrow-mobile" aria-hidden="true">
+                    {triangleDown}
                   </div>
                 ) : null}
                 {slugs.length > 1 ? (
@@ -2758,10 +2806,25 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                   />
                 ) : (
                   <>
-                    <div style={{ display: 'flex', gap: 2, justifyContent: 'center', marginBottom: 6 }}>
+                    <div className="match-card__promo-avatar-row" style={{ display: 'flex', gap: 2, justifyContent: 'center', marginBottom: 6 }}>
                       {slugs.map((slug, i) => (
                         <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <div style={{ width: 54, height: 54, borderRadius: '50%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 54 * 0.6, color: '#7da2c1' }}>
+                          <div
+                            className="match-card__avatar-54"
+                            style={{
+                              width: 54,
+                              height: 54,
+                              borderRadius: '50%',
+                              background: '#444',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 54 * 0.6,
+                              color: '#7da2c1',
+                              overflow: 'hidden',
+                              boxShadow: won ? '0 0 0 2px #C6A04F' : 'none',
+                            }}
+                          >
                             {wrestlerMap[slug]?.image_url
                               ? (
                                 <Link to={wrestlerTo(slug)} onClick={e => e.stopPropagation()} style={{ display: 'block', lineHeight: 0 }}>
@@ -2781,7 +2844,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                         </div>
                       ))}
                     </div>
-                    <span style={{ fontWeight: 700, color: won ? '#C6A04F' : '#fff', fontSize: 16, textAlign: 'center', marginBottom: 2 }}>
+                    <span className="match-card__participant-name-block" style={{ fontWeight: 700, color: won ? '#C6A04F' : '#fff', fontSize: 16, textAlign: 'center', marginBottom: 2 }}>
                       {teamName ? (
                         <>
                           <div style={{ fontSize: 18, fontWeight: 800, color: won ? '#C6A04F' : '#fff' }}>{teamName}</div>
@@ -2815,7 +2878,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
             const sideExpandedSlug = slugs.includes(expandedSlug) ? expandedSlug : null;
             const expandedWrestler = sideExpandedSlug ? wrestlerMap[sideExpandedSlug] : null;
             return (
-              <div style={{ flex: 0.7, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 90 }}>
+              <div className="match-card__two-side-col" style={{ flex: 0.7, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 90 }}>
                 {cardView === 'statistics' && showStatsLastFive && slugs.map((slug) => {
                   const d = statsParticipantData.find((x) => x.slug === slug);
                   if (!d) return null;
@@ -2869,12 +2932,12 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
 
           return (
         <>
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+        <div className="match-card__two-side-row" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%' }}>
           {renderTwoSideVisual(0, leftParsed)}
-          <div style={arrowColStyle}>
+          <div className="match-card__two-side-arrow" style={arrowColStyle}>
             {winnerIndex === 0 ? triangleRight : <span style={{ display: 'inline-block', width: 14, height: 18, opacity: 0 }} />}
           </div>
-          <div style={{ flex: 1.2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 120, margin: 0, padding: 0, alignSelf: 'stretch' }}>
+          <div className="match-card__two-side-center" style={{ flex: 1.2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 120, margin: 0, padding: 0, alignSelf: 'stretch' }}>
             {match.matchType === 'Promo' ? (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
@@ -2921,16 +2984,16 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
               </>
             )}
           </div>
-          <div style={arrowColStyle}>
+          <div className="match-card__two-side-arrow" style={arrowColStyle}>
             {winnerIndex === 1 ? triangleLeft : <span style={{ display: 'inline-block', width: 14, height: 18, opacity: 0 }} />}
           </div>
           {renderTwoSideVisual(1, rightParsed)}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%', marginTop: 2 }}>
+        <div className="match-card__two-side-footer-row" style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%', marginTop: 2 }}>
           {renderTwoSideFooter(0, leftParsed)}
-          <div style={{ width: 24, flexShrink: 0 }} />
-          <div style={{ flex: 1.2, minWidth: 120 }} />
-          <div style={{ width: 24, flexShrink: 0 }} />
+          <div className="match-card__two-side-footer-spacer" style={{ width: 24, flexShrink: 0 }} />
+          <div className="match-card__two-side-footer-gap" style={{ flex: 1.2, minWidth: 120 }} />
+          <div className="match-card__two-side-footer-spacer" style={{ width: 24, flexShrink: 0 }} />
           {renderTwoSideFooter(1, rightParsed)}
         </div>
         </>

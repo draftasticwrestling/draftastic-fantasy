@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isProfileManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import { syncMarketingOptInToConstantContact } from "@/lib/constantContactSync";
+import { validateProfileDisplayName } from "@/lib/profileDisplayName";
 
 /**
  * PATCH /api/account/profile — update current user's profile (display_name, etc.)
@@ -25,8 +26,13 @@ export async function PATCH(request: Request) {
     };
 
     if ("display_name" in body) {
-      updates.display_name =
-        typeof body.display_name === "string" ? body.display_name.trim() || null : null;
+      const checked = validateProfileDisplayName(
+        typeof body.display_name === "string" ? body.display_name : null
+      );
+      if (!checked.ok) {
+        return NextResponse.json({ error: checked.error }, { status: 400 });
+      }
+      updates.display_name = checked.value;
     }
     if ("timezone" in body) {
       updates.timezone =

@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getLeaguesForUser } from "@/lib/leagues";
 
 export const metadata = {
-  title: "Private Leagues — Draftastic Fantasy",
-  description: "MVL Private Leagues — create or join leagues, draft for the season only",
+  title: "Leagues — Draftastic Fantasy",
+  description: "Create private or public leagues, then draft for the season",
 };
 
 export default async function LeaguesPage() {
@@ -33,10 +33,25 @@ export default async function LeaguesPage() {
           ← Home
         </Link>
       </p>
-      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Private Leagues</h1>
+      <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Leagues</h1>
       <p style={{ color: "#555", marginBottom: 24 }}>
-        MVL leagues: create a league, invite friends, and draft for the defined season only (no long-term contracts).
+        Create private leagues for friends or public leagues that auto-fill with Quick Join.
       </p>
+
+      <div
+        style={{
+          marginBottom: 16,
+          padding: 12,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "#f8fafc",
+          color: "#374151",
+          fontSize: 14,
+        }}
+      >
+        Public leagues are now live. Existing private leagues cannot be converted in place; create a new public
+        league if you want open enrollment.
+      </div>
 
       <p style={{ marginBottom: 16 }}>
         <Link
@@ -51,7 +66,22 @@ export default async function LeaguesPage() {
             fontWeight: 600,
           }}
         >
-          Create a Private League
+          Create a League
+        </Link>
+        <Link
+          href="/leagues/join"
+          style={{
+            display: "inline-block",
+            marginLeft: 10,
+            padding: "10px 20px",
+            background: "#111827",
+            color: "#fff",
+            textDecoration: "none",
+            borderRadius: 8,
+            fontWeight: 600,
+          }}
+        >
+          Quick Join
         </Link>
       </p>
 
@@ -98,6 +128,9 @@ export default async function LeaguesPage() {
               </Link>
               <span style={{ marginLeft: 8, fontSize: 14, color: "#666" }}>
                 {league.role === "commissioner" ? "(GM)" : ""}
+              </span>
+              <span style={{ marginLeft: 8, fontSize: 12, color: "#6b7280" }}>
+                [{(league.visibility_type ?? "private") === "public" ? "Public" : "Private"}]
               </span>
               {(league.start_date || league.end_date) && (
                 <div style={{ fontSize: 14, color: "#666", marginTop: 4 }}>

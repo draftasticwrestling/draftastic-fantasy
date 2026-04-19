@@ -34,6 +34,8 @@ export async function createLeagueAction(
   const season_slug = (formData.get("season_slug") as string)?.trim() ?? "";
   const team_count = Math.floor(Number(formData.get("team_count")));
   const league_type = (formData.get("league_type") as string)?.trim() ?? "";
+  const visibility_type_raw = (formData.get("visibility_type") as string)?.trim().toLowerCase() ?? "private";
+  const visibility_type = visibility_type_raw === "public" ? "public" : "private";
   const accessCode = (formData.get("access_code") as string)?.trim() ?? "";
 
   if (enforceStandardRules) {
@@ -42,7 +44,7 @@ export async function createLeagueAction(
     }
   }
 
-  if (!name) {
+  if (visibility_type === "private" && !name) {
     return { error: "Enter a league name." };
   }
   if (!season_slug) {
@@ -104,10 +106,11 @@ export async function createLeagueAction(
   }
 
   const { league, error } = await createLeague({
-    name,
+    name: visibility_type === "public" ? "Public League" : name,
     season_slug,
     max_teams: team_count,
     league_type,
+    visibility_type,
   });
   if (error) return { error };
   if (!league) return { error: "Failed to create league." };
