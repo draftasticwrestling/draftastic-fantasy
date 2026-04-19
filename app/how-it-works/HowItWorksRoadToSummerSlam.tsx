@@ -35,11 +35,7 @@ export function HowItWorksRoadToSummerSlam() {
             <strong>Combo League (H2H + Total Season Points)</strong> — <em>Coming soon.</em>
           </li>
           <li>
-            <strong>Legacy</strong> — Long-term contracts and year-round scoring across all show types. See the{" "}
-            <Link href="/how-it-works?tab=legacy" className="app-link">
-              Legacy League
-            </Link>{" "}
-            tab.
+            <strong>Legacy</strong> — Long-term contracts and dynasty play. Coming soon.
           </li>
         </ul>
       </section>

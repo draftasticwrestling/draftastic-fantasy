@@ -9,11 +9,13 @@ import {
   compareStintsForEventTieBreak,
   rosterStintActiveForEvent,
   rosterStintActiveForMonthEndBelt,
+  rosterStintActiveForWeeklyBeltHold,
 } from "@/lib/scoring/rosterStintEventWindow";
 import {
   BELT_REIGN_INFERENCE_EVENTS_FROM,
   computeEndOfMonthBeltPointsForSingleMonth,
-  firstMonthEndOnOrAfter,
+  computeWeeklyBeltHoldPointsForWeekEndSunday,
+  firstLegacyCalendarMonthEndEligibleForLeagueStart,
   getCompletedMonthEndsForBeltScoring,
   inferReignsFromEvents,
   mergeReigns,
@@ -23,12 +25,16 @@ import {
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
 import {
-  beltScoringLastMonthEndInclusive,
-  isRoadToSummerSlam2026WithSummerslamFinale,
-  RTS_2026_LEAGUE_END_DATE,
-  transformRts2026BeltMonthEnds,
-} from "@/lib/beltRts2026JulyDeferral";
+  beltScoringLastWeekEndSundayInclusive,
+  firstEligibleWeekEndSundayForLeagueStart,
+  getCompletedWeekEndSundaysForBeltScoring,
+} from "@/lib/beltWeeklyHold";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import {
+  beltScoringLastMonthEndInclusive,
+  shouldSkipJulyMonthEndBeltForRts2026,
+} from "@/lib/beltRts2026JulyDeferral";
 
 export type TeamScoreLedgerRow = {
   eventId: string;
@@ -71,17 +77,16 @@ const ZERO_POINTS: TeamWrestlerPoints = { total: 0, rsPoints: 0, plePoints: 0, b
 // We apply a -1 day offset for stint window comparisons so points attribute to the intended event day.
 const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
 
-/** Last calendar day (UTC) of the month containing YYYY-MM-DD. */
-function utcLastDayOfMonthContaining(ymd: string): string {
-  const d = new Date(ymd.slice(0, 10) + "T12:00:00.000Z");
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-}
-
-/** e.g. 2026-03-31 → "March" (UTC). */
-function calendarMonthNameFromMonthEnd(monthEndYmd: string): string {
-  const [y, m] = monthEndYmd.slice(0, 10).split("-").map(Number);
-  if (!y || !m) return monthEndYmd;
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "long", timeZone: "UTC" });
+/** Week-ending Sunday YYYY-MM-DD → short label for ledger (civil date). */
+function beltHoldLedgerLabel(weekEndSundayYmd: string): string {
+  const d = new Date(weekEndSundayYmd + "T12:00:00.000Z");
+  return d.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 function addPoints(target: TeamWrestlerPoints, src: TeamWrestlerPoints) {
@@ -130,7 +135,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date, created_at")
+    .select("id, start_date, end_date, draft_date, created_at, season_slug")
     .eq("id", leagueId)
     .single();
   if (!league) {
@@ -332,7 +337,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     }
   }
 
-  // End-of-month title-holder points: ledger rows dated last day of month, e.g. "Monthly Belt Points for March".
+  // Title-hold belt points: weekly PST (RTS) or legacy month-end rows on the calendar month-end date.
   try {
     const [histResult, changesResult] = await Promise.all([
       supabase
@@ -358,51 +363,89 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     const inferredReigns = inferReignsFromEvents(eventsForBeltReignInference);
     const changesReigns = inferReignsFromChampionshipChanges(changesRows);
     const reigns = mergeReigns(histRows ?? [], [...inferredReigns, ...changesReigns]);
-    const beltFirstMonth = firstMonthEndOnOrAfter(leagueStart);
-    const lastMonthCap = beltScoringLastMonthEndInclusive(leagueEndYmd || undefined);
-    const today = new Date().toISOString().slice(0, 10);
-    let monthEnds = getCompletedMonthEndsForBeltScoring(beltFirstMonth, lastMonthCap);
-    if (isRoadToSummerSlam2026WithSummerslamFinale(leagueEndYmd)) {
-      monthEnds = transformRts2026BeltMonthEnds(monthEnds, leagueEndYmd);
-    }
-    for (const monthEnd of monthEnds) {
-      if (monthEnd >= today) continue;
-      const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(reigns, monthEnd, beltFirstMonth);
-      const eventName =
-        monthEnd === RTS_2026_LEAGUE_END_DATE && isRoadToSummerSlam2026WithSummerslamFinale(leagueEndYmd)
-          ? "Season-end belt hold (after SummerSlam Night 2)"
-          : `Monthly Belt Points for ${calendarMonthNameFromMonthEnd(monthEnd)}`;
-      for (const pick of teamStints) {
-        if (
-          !rosterStintActiveForMonthEndBelt({
-            stint: pick,
-            monthEndYmd: monthEnd,
-            useBroadcastStart: useBroadcastForMonthlyBelt,
-          })
-        ) {
-          continue;
+    const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
+    const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug);
+
+    if (useWeeklyBelt) {
+      const beltFirstWeekEnd = firstEligibleWeekEndSundayForLeagueStart(leagueStart);
+      const lastWeekCap = beltScoringLastWeekEndSundayInclusive(leagueEndYmd || undefined);
+      const weekEnds = getCompletedWeekEndSundaysForBeltScoring(beltFirstWeekEnd, lastWeekCap, Date.now());
+      for (const weekEnd of weekEnds) {
+        const beltBySlug = computeWeeklyBeltHoldPointsForWeekEndSunday(reigns, weekEnd, beltFirstWeekEnd);
+        const eventName = `Weekly belt hold (${beltHoldLedgerLabel(weekEnd)} PST week close)`;
+        for (const pick of teamStints) {
+          if (
+            !rosterStintActiveForWeeklyBeltHold({
+              stint: pick,
+              weekEndYmd: weekEnd,
+              useBroadcastStart: useBroadcastForMonthlyBelt,
+            })
+          ) {
+            continue;
+          }
+          const name = wrestlerNameById[pick.wrestler_id];
+          const pts = sumMonthlyBeltPointsForStint(beltBySlug, pick.wrestler_id, name, weekEnd);
+          if (pts <= 0) continue;
+          const wrestlerId = pick.wrestler_id;
+          if (!totalsByWrestler[wrestlerId]) totalsByWrestler[wrestlerId] = emptyPoints();
+          const beltContrib: TeamWrestlerPoints = { total: pts, rsPoints: 0, plePoints: 0, beltPoints: pts };
+          addPoints(totalsByWrestler[wrestlerId]!, beltContrib);
+          ledgerRows.push({
+            eventId: `weekly-belt-hold-${weekEnd}-${wrestlerId}`,
+            eventName,
+            eventDate: weekEnd,
+            wrestlerId,
+            points: pts,
+            rsPoints: 0,
+            plePoints: 0,
+            beltPoints: pts,
+            details: [],
+          });
+          const stintKey = `${pick.wrestler_id}::${pick.acquired_at}::${pick.released_at ?? ""}`;
+          if (!stintPoints.has(stintKey)) stintPoints.set(stintKey, emptyPoints());
+          addPoints(stintPoints.get(stintKey)!, beltContrib);
         }
-        const name = wrestlerNameById[pick.wrestler_id];
-        const pts = sumMonthlyBeltPointsForStint(beltBySlug, pick.wrestler_id, name, monthEnd);
-        if (pts <= 0) continue;
-        const wrestlerId = pick.wrestler_id;
-        if (!totalsByWrestler[wrestlerId]) totalsByWrestler[wrestlerId] = emptyPoints();
-        const beltContrib: TeamWrestlerPoints = { total: pts, rsPoints: 0, plePoints: 0, beltPoints: pts };
-        addPoints(totalsByWrestler[wrestlerId]!, beltContrib);
-        ledgerRows.push({
-          eventId: `monthly-belt-${monthEnd}-${wrestlerId}`,
-          eventName,
-          eventDate: monthEnd,
-          wrestlerId,
-          points: pts,
-          rsPoints: 0,
-          plePoints: 0,
-          beltPoints: pts,
-          details: [],
-        });
-        const stintKey = `${pick.wrestler_id}::${pick.acquired_at}::${pick.released_at ?? ""}`;
-        if (!stintPoints.has(stintKey)) stintPoints.set(stintKey, emptyPoints());
-        addPoints(stintPoints.get(stintKey)!, beltContrib);
+      }
+    } else {
+      const firstM = firstLegacyCalendarMonthEndEligibleForLeagueStart(leagueStart);
+      const lastM = beltScoringLastMonthEndInclusive(leagueEndYmd || undefined);
+      const monthEnds = getCompletedMonthEndsForBeltScoring(firstM, lastM, Date.now());
+      for (const monthEnd of monthEnds) {
+        if (shouldSkipJulyMonthEndBeltForRts2026(monthEnd, leagueEndYmd)) continue;
+        const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(reigns, monthEnd, firstM);
+        const eventName = `Title hold (month-end ${beltHoldLedgerLabel(monthEnd)})`;
+        for (const pick of teamStints) {
+          if (
+            !rosterStintActiveForMonthEndBelt({
+              stint: pick,
+              monthEndYmd: monthEnd,
+              useBroadcastStart: useBroadcastForMonthlyBelt,
+            })
+          ) {
+            continue;
+          }
+          const name = wrestlerNameById[pick.wrestler_id];
+          const pts = sumMonthlyBeltPointsForStint(beltBySlug, pick.wrestler_id, name, monthEnd);
+          if (pts <= 0) continue;
+          const wrestlerId = pick.wrestler_id;
+          if (!totalsByWrestler[wrestlerId]) totalsByWrestler[wrestlerId] = emptyPoints();
+          const beltContrib: TeamWrestlerPoints = { total: pts, rsPoints: 0, plePoints: 0, beltPoints: pts };
+          addPoints(totalsByWrestler[wrestlerId]!, beltContrib);
+          ledgerRows.push({
+            eventId: `monthly-belt-hold-${monthEnd}-${wrestlerId}`,
+            eventName,
+            eventDate: monthEnd,
+            wrestlerId,
+            points: pts,
+            rsPoints: 0,
+            plePoints: 0,
+            beltPoints: pts,
+            details: [],
+          });
+          const stintKey = `${pick.wrestler_id}::${pick.acquired_at}::${pick.released_at ?? ""}`;
+          if (!stintPoints.has(stintKey)) stintPoints.set(stintKey, emptyPoints());
+          addPoints(stintPoints.get(stintKey)!, beltContrib);
+        }
       }
     }
   } catch {

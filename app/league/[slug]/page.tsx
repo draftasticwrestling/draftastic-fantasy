@@ -9,8 +9,7 @@ import RosterDisplay from "./RosterDisplay";
 import DiscoverySection from "./DiscoverySection";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
-  computeEndOfMonthBeltPoints,
-  FIRST_END_OF_MONTH_POINTS_DATE,
+  computeHybridPublicBeltHoldBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   mergeReigns,
@@ -95,7 +94,7 @@ export default async function TeamPage({
   const inferredReigns = inferReignsFromEvents(events ?? []);
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
-  const endOfMonthBeltBySlug = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
+  const endOfMonthBeltBySlug = computeHybridPublicBeltHoldBySlug(reigns);
 
   const wrestlerMap: Record<string, { brand: string | null; image_url: string | null; dob: string | null }> = {};
   if (wrestlers) {

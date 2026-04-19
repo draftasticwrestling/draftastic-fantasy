@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
-  computeEndOfMonthBeltPoints,
+  computeHybridPublicBeltHoldBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   mergeReigns,
@@ -11,8 +11,11 @@ import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 /** Events window for League Leaders “all-time” scoring (matches league-leaders page). */
 export const LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM = "2020-01-01";
 export const LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT = 10000;
-/** First month-end for monthly title-hold points in the all-time column (matches league-leaders page). */
-export const LEAGUE_LEADERS_ALL_TIME_FIRST_MONTH_END = "2025-01-31";
+/** First week-ending Sunday for weekly title-hold points in the all-time column (matches league-leaders page). */
+export const LEAGUE_LEADERS_ALL_TIME_FIRST_WEEK_END_SUNDAY = "2026-04-26";
+
+/** @deprecated Use `LEAGUE_LEADERS_ALL_TIME_FIRST_WEEK_END_SUNDAY`. */
+export const LEAGUE_LEADERS_ALL_TIME_FIRST_MONTH_END = LEAGUE_LEADERS_ALL_TIME_FIRST_WEEK_END_SUNDAY;
 
 export type LeagueLeadersAllTimeScoringBundle = {
   pointsAllTimeBySlug: ReturnType<typeof aggregateWrestlerPoints>;
@@ -23,7 +26,7 @@ type EventRow = { id: string; name: string; date: string; matches?: object[] };
 
 /**
  * Same data as the league-leaders page non-cache path: all-time event aggregate + reign merge +
- * end-of-month belt map from Jan 2025 month-end onward.
+ * weekly belt hold map from Jan 2025 week-ends onward.
  */
 export async function loadLeagueLeadersAllTimeScoringBundle(
   db: Pick<SupabaseClient, "from">
@@ -43,7 +46,7 @@ export async function loadLeagueLeadersAllTimeScoringBundle(
   const inferredReigns = inferReignsFromEvents(eventsAll);
   const reigns = mergeReigns(tableReigns, inferredReigns);
   const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll);
-  const endOfMonthBeltPointsAllTime = computeEndOfMonthBeltPoints(reigns, LEAGUE_LEADERS_ALL_TIME_FIRST_MONTH_END);
+  const endOfMonthBeltPointsAllTime = computeHybridPublicBeltHoldBySlug(reigns);
   return { pointsAllTimeBySlug, endOfMonthBeltPointsAllTime };
 }
 

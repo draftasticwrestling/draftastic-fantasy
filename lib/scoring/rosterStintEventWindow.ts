@@ -1,3 +1,4 @@
+import { endOfCivilDayPstMs } from "@/lib/pstCivilTime";
 import { normalizeWrestlerName } from "./parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "./personaResolution.js";
 
@@ -198,6 +199,28 @@ export function rosterStintActiveForMonthEndBelt(params: {
   if (!Number.isFinite(eventMs)) return false;
   return rosterStintActiveForEvent({
     eventDate: monthEndYmd,
+    eventMs,
+    useBroadcastStart,
+    broadcastStartMs: useBroadcastStart ? eventMs : undefined,
+    stint,
+    rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+  });
+}
+
+/**
+ * True if this stint should receive weekly title-hold points for the week ending `weekEndYmd` (Sunday).
+ * Uses end of that civil day in America/Los_Angeles so roster windows align with PST belt lock.
+ */
+export function rosterStintActiveForWeeklyBeltHold(params: {
+  stint: RosterStintWindowInput;
+  weekEndYmd: string;
+  useBroadcastStart: boolean;
+}): boolean {
+  const { stint, weekEndYmd, useBroadcastStart } = params;
+  const eventMs = endOfCivilDayPstMs(weekEndYmd);
+  if (!Number.isFinite(eventMs)) return false;
+  return rosterStintActiveForEvent({
+    eventDate: weekEndYmd,
     eventMs,
     useBroadcastStart,
     broadcastStartMs: useBroadcastStart ? eventMs : undefined,

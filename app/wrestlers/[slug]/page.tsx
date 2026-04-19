@@ -19,20 +19,31 @@ import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
 import type { ScoredEvent } from "@/lib/scoring/types";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
+  beltScoringLastWeekEndSundayInclusive,
+  FIRST_WEEKLY_BELT_WEEK_END_SUNDAY,
+  firstEligibleWeekEndSundayForLeagueStart,
+} from "@/lib/beltWeeklyHold";
+import {
+  beltScoringLastMonthEndInclusive,
+} from "@/lib/beltRts2026JulyDeferral";
+import {
   computeEndOfMonthBeltPoints,
-  FIRST_END_OF_MONTH_POINTS_DATE,
-  firstMonthEndOnOrAfter,
+  computeHybridBeltHoldBySlugForCalendarYear,
+  computeHybridPublicBeltHoldBySlug,
+  computeWeeklyBeltHoldPointsAccumulated,
+  firstLegacyCalendarMonthEndEligibleForLeagueStart,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
 import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormalize";
 import type { ChampionshipReignRow } from "@/lib/championshipTitleHistory";
 import {
   buildWrestlerProfileReignLines,
   collectWrestlerChampionshipHistoryForProfile,
-  formatMonthEndLabel,
+  formatBeltWeekEndLabel,
   formatProfileTitleHistoryTail,
   parseWrestlerAccomplishmentsColumn,
 } from "@/lib/wrestlerProfileChampionships";
@@ -87,13 +98,6 @@ function filterEventsByPeriod(
   if (period === "2026") return events.filter((e) => e.date && e.date >= "2026-01-01" && e.date <= "2026-12-31");
   if (period === "sinceStart") return leagueStartDate ? events.filter((e) => e.date && e.date >= leagueStartDate) : [];
   return events;
-}
-
-function getFirstMonthEndForPeriod(period: PointsPeriod, leagueStartDate: string | null): string {
-  if (period === "sinceStart" && leagueStartDate) return firstMonthEndOnOrAfter(leagueStartDate);
-  if (period === "2025") return "2025-01-31";
-  if (period === "2026") return "2026-01-31";
-  return FIRST_END_OF_MONTH_POINTS_DATE;
 }
 
 function getPeriodLabel(period: PointsPeriod): string {
@@ -259,9 +263,6 @@ export default async function WrestlerProfilePage({
     (a, b) => (a.date ?? "").localeCompare(b.date ?? "")
   );
   const events = filterEventsByPeriod(allEvents, currentPeriod, leagueStartDate);
-  const firstMonthEnd = getFirstMonthEndForPeriod(currentPeriod, leagueStartDate);
-  // Monthly belt points and title reigns display always from Jan 2025 so all profiles show/count Jan 2025 onward
-  const firstMonthEndForBelt = FIRST_END_OF_MONTH_POINTS_DATE;
 
   const wrestlerSlugsForTagTeams = [...new Set([slug, wrestler.id].map((s) => String(s).trim()).filter(Boolean))];
   const tagTeamMembersQuery =
@@ -312,7 +313,29 @@ export default async function WrestlerProfilePage({
   const matchStatsBySlug = aggregateWrestlerMatchStats(
     (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
   );
-  const endOfMonthBySlug = computeEndOfMonthBeltPoints(reigns, firstMonthEndForBelt);
+  const useWeeklyLeagueBelt =
+    currentPeriod === "sinceStart" && league != null && leagueUsesWeeklyPstBeltHold(league.season_slug);
+  const endOfMonthBySlug =
+    currentPeriod === "allTime"
+      ? computeHybridPublicBeltHoldBySlug(reigns)
+      : currentPeriod === "2025"
+        ? computeHybridBeltHoldBySlugForCalendarYear(reigns, 2025)
+        : currentPeriod === "2026"
+          ? computeHybridBeltHoldBySlugForCalendarYear(reigns, 2026)
+          : currentPeriod === "sinceStart" && leagueStartDate && league
+            ? useWeeklyLeagueBelt
+              ? computeWeeklyBeltHoldPointsAccumulated(
+                  reigns,
+                  firstEligibleWeekEndSundayForLeagueStart(leagueStartDate),
+                  beltScoringLastWeekEndSundayInclusive(league.end_date ?? undefined)
+                )
+              : computeEndOfMonthBeltPoints(
+                  reigns,
+                  firstLegacyCalendarMonthEndEligibleForLeagueStart(leagueStartDate),
+                  beltScoringLastMonthEndInclusive(league.end_date),
+                  Date.now()
+                )
+            : computeHybridPublicBeltHoldBySlug(reigns);
   const nameKey = wrestler.name ? normalizeWrestlerName(wrestler.name) : "";
   const wrestlerHistoryRows = collectWrestlerChampionshipHistoryForProfile(tableReigns, {
     urlSlug: slug,
@@ -320,11 +343,29 @@ export default async function WrestlerProfilePage({
     wrestlerName: wrestler.name,
     tagTeamIds,
   });
-  const profileTitleLines = buildWrestlerProfileReignLines(wrestlerHistoryRows, {
-    firstMonthEnd: firstMonthEndForBelt,
-    wrestlerId: wrestler.id,
-    urlSlug: slug,
-  });
+  const profileBeltOpts =
+    currentPeriod === "sinceStart" && leagueStartDate && league
+      ? useWeeklyLeagueBelt
+        ? {
+            variant: "weekly_league" as const,
+            firstWeekEndSunday: firstEligibleWeekEndSundayForLeagueStart(leagueStartDate),
+            lastWeekEndSundayCapYmd: league.end_date ?? undefined,
+            wrestlerId: wrestler.id,
+            urlSlug: slug,
+          }
+        : {
+            variant: "legacy_league" as const,
+            firstEligibleMonthEnd: firstLegacyCalendarMonthEndEligibleForLeagueStart(leagueStartDate),
+            lastMonthEndCapYmd: beltScoringLastMonthEndInclusive(league.end_date),
+            wrestlerId: wrestler.id,
+            urlSlug: slug,
+          }
+      : {
+          variant: "public_period" as const,
+          wrestlerId: wrestler.id,
+          urlSlug: slug,
+        };
+  const profileTitleLines = buildWrestlerProfileReignLines(wrestlerHistoryRows, profileBeltOpts);
   const accomplishmentLines = parseWrestlerAccomplishmentsColumn(wrestler.accomplishments);
   const extraBelt = getMonthlyBeltForWrestler(
     endOfMonthBySlug,
@@ -952,9 +993,9 @@ export default async function WrestlerProfilePage({
             Title Reigns
           </h3>
           <p style={{ margin: "0 0 10px 0", fontSize: 12, color: "#9aa0a6", lineHeight: 1.45 }}>
-            When this reign overlaps a scored month-end, we list the months that count toward fantasy belt hold points
-            (same rules as the rest of the app), starting from {formatMonthEndLabel(FIRST_END_OF_MONTH_POINTS_DATE)}{" "}
-            through the last completed calendar month.
+            When this reign overlaps a scored belt week, we list week-ending Sundays (PST close) that count toward
+            fantasy belt hold points (same rules as the rest of the app), starting from{" "}
+            {formatBeltWeekEndLabel(FIRST_WEEKLY_BELT_WEEK_END_SUNDAY)} through completed weeks in the selected period.
           </p>
           {profileTitleLines.length === 0 ? (
             <p style={{ margin: 0, fontSize: 14, color: "#9aa0a6" }}>No title reigns on record for this wrestler.</p>
@@ -975,7 +1016,7 @@ export default async function WrestlerProfilePage({
                   <span style={{ color: "#e8eaed" }}> — {formatProfileTitleHistoryTail(line)}</span>
                   {line.beltMonthEndsFormatted.length > 0 && (
                     <div style={{ marginTop: 4, fontSize: 12, color: "#b0b8c4", lineHeight: 1.4 }}>
-                      <span style={{ color: "#8f9a9e" }}>Belt points months: </span>
+                      <span style={{ color: "#8f9a9e" }}>Belt hold weeks: </span>
                       {line.beltMonthEndsFormatted.join(", ")}
                     </div>
                   )}

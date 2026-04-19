@@ -11,7 +11,7 @@ export function isRoadToSummerSlam2026WithSummerslamFinale(leagueEndYmd: string 
 }
 
 /**
- * Inclusive cap on calendar month-ends for belt scoring (`computeEndOfMonthBeltPoints`, ledger loops).
+ * Inclusive cap on calendar month-ends for legacy title-hold belt scoring (`computeEndOfMonthBeltPoints`).
  * RTS 2026 uses the real league end (2026-08-02) so 2026-08-31 is excluded; otherwise last day of month containing league end.
  */
 export function beltScoringLastMonthEndInclusive(leagueEndYmd: string | null | undefined): string | undefined {
@@ -60,7 +60,6 @@ export function adjustRts2026LeagueAggregateBeltPoints(
   if (!isRoadToSummerSlam2026WithSummerslamFinale(leagueEndYmd)) return aggregateBySlug;
 
   const out: Record<string, number> = { ...aggregateBySlug };
-  // Only subtract July once that month-end is in `computeEndOfMonthBeltPoints` (avoids negative totals mid-season).
   if (todayYmd > RTS_2026_JULY_MONTH_END) {
     const julyPts = computeEndOfMonthBeltPointsForSingleMonth(
       reigns,
@@ -84,5 +83,6 @@ export function adjustRts2026LeagueAggregateBeltPoints(
       out[k] = (out[k] ?? 0) + v;
     }
   }
+
   return out;
 }

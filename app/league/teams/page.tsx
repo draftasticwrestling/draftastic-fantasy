@@ -4,8 +4,7 @@ import { LEAGUE_MEMBERS, EXAMPLE_LEAGUE } from "@/lib/league";
 import { getRosterForMember } from "@/lib/rosters";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
-  computeEndOfMonthBeltPoints,
-  FIRST_END_OF_MONTH_POINTS_DATE,
+  computeHybridPublicBeltHoldBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   mergeReigns,
@@ -58,7 +57,7 @@ export default async function LeagueTeamsPage() {
   const inferredReigns = inferReignsFromEvents(events ?? []);
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
-  const endOfMonthBeltBySlug = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
+  const endOfMonthBeltBySlug = computeHybridPublicBeltHoldBySlug(reigns);
 
   const ownerTotals: Record<string, number> = {};
   LEAGUE_MEMBERS.forEach((member, idx) => {

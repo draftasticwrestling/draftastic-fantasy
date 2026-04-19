@@ -11,7 +11,7 @@ import {
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getTradeProposalsForLeague, getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
 import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
 import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
@@ -23,7 +23,8 @@ import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/agg
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
-  firstMonthEndOnOrAfter,
+  computeWeeklyBeltHoldPointsAccumulated,
+  firstLegacyCalendarMonthEndEligibleForLeagueStart,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
@@ -50,6 +51,10 @@ import {
   adjustRts2026LeagueAggregateBeltPoints,
   beltScoringLastMonthEndInclusive,
 } from "@/lib/beltRts2026JulyDeferral";
+import {
+  beltScoringLastWeekEndSundayInclusive,
+  firstEligibleWeekEndSundayForLeagueStart,
+} from "@/lib/beltWeeklyHold";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
@@ -191,25 +196,29 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     );
     const inferredReigns = inferReignsFromEvents(eventsAll ?? []);
     const reigns = mergeReigns(tableReigns, [...inferredReigns, ...changesReigns]) as ChampionshipReign[];
-    const firstEligibleMonthEnd = firstMonthEndOnOrAfter(startDate);
     const pointsBySlugSinceStart = aggregateWrestlerPoints(eventsSinceStart ?? []);
     const pointsBySlugAllTime = aggregateWrestlerPoints(eventsAll ?? []);
     const matchStatsBySlugSinceStart = aggregateWrestlerMatchStats(eventsSinceStart ?? []);
     const matchStatsBySlugAllTime = aggregateWrestlerMatchStats(eventsAll ?? []);
     const todayYmd = new Date().toISOString().slice(0, 10);
     const beltLastMonthEnd = beltScoringLastMonthEndInclusive(league.end_date);
-    let endOfMonthBeltPoints = computeEndOfMonthBeltPoints(
-      reigns,
-      firstEligibleMonthEnd,
-      beltLastMonthEnd
-    );
-    endOfMonthBeltPoints = adjustRts2026LeagueAggregateBeltPoints(
-      endOfMonthBeltPoints,
-      reigns,
-      firstEligibleMonthEnd,
-      league.end_date,
-      todayYmd
-    );
+    const isRtsWeekly = leagueUsesWeeklyPstBeltHold(league.season_slug);
+    let endOfMonthBeltPoints: Record<string, number>;
+    if (isRtsWeekly) {
+      const firstW = firstEligibleWeekEndSundayForLeagueStart(startDate);
+      const lastW = beltScoringLastWeekEndSundayInclusive(league.end_date);
+      endOfMonthBeltPoints = computeWeeklyBeltHoldPointsAccumulated(reigns, firstW, lastW);
+    } else {
+      const firstM = firstLegacyCalendarMonthEndEligibleForLeagueStart(startDate);
+      endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, firstM, beltLastMonthEnd);
+      endOfMonthBeltPoints = adjustRts2026LeagueAggregateBeltPoints(
+        endOfMonthBeltPoints,
+        reigns,
+        firstM,
+        league.end_date,
+        todayYmd
+      );
+    }
     const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
     rosterTableRows = fullWrestlers.map((w: { id: string; name: string | null; gender: string | null; brand: string | null; image_url?: string | null; dob?: string | null; Status?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null }) => {
       const slugKey = w.id;

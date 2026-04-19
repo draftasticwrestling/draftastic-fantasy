@@ -5,8 +5,7 @@ import WrestlerList from "./WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
-  computeEndOfMonthBeltPoints,
-  FIRST_END_OF_MONTH_POINTS_DATE,
+  computeHybridPublicBeltHoldBySlug,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
@@ -72,7 +71,7 @@ export default async function WrestlersPage() {
   const matchStatsBySlug = aggregateWrestlerMatchStats(
     eventsForAgg as Parameters<typeof aggregateWrestlerMatchStats>[0]
   );
-  const endOfMonthBeltPoints = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
+  const endOfMonthBeltPoints = computeHybridPublicBeltHoldBySlug(reigns);
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
   const wrestlers = wrestlersFromDb;

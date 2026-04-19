@@ -37,9 +37,11 @@ export function HowItWorksTitlePoints() {
     <section style={{ marginBottom: 40 }}>
       <h2 className={styles.sectionTitle}>Belt Points</h2>
 
-      <h3 className={styles.beltPointsSubheading}>Monthly belt points</h3>
+      <h3 className={styles.beltPointsSubheading}>Weekly belt points</h3>
       <p className={styles.sectionSubtitle}>
-        Awarded to whoever holds the belt at the end of the last day of each month.
+        Points are dispersed weekly, end of day Sunday PST. Weeks are Monday through Sunday; the cutoff uses
+        Pacific time so a title can still change during a late US show before the week locks (including for
+        leagues with managers outside the US).
       </p>
       <div className={styles.titlePointsGrid}>
         <div className={styles.titlePointsThMens}>Men&apos;s Division</div>

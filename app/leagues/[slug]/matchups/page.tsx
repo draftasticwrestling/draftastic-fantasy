@@ -9,7 +9,6 @@ import {
   getWeeksInRange,
   getCurrentWeekStart,
   getSundayOfWeek,
-  getMonthEndInWeek,
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
 } from "@/lib/leagueMatchups";
@@ -106,7 +105,7 @@ function RosterCell({
   const ptsLabel =
     pts > 0
       ? monthlyPts > 0
-        ? `+${eventPts} + ${monthlyPts} monthly`
+        ? `+${eventPts} + ${monthlyPts} belt`
         : `+${pts}`
       : null;
   const nameNode = wrestlerId && leagueSlug ? (
@@ -183,7 +182,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   let wrestlerNames: Record<string, string> = {};
   let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
   let monthlyBeltBySlug: Record<string, number> = {};
-  let monthEndForMonthlyBelt: string | null = null;
+  let beltWeekEndSunday: string | null = null;
   if (selectedWeekStart) {
     const [pts, wr, weekRosters, monthlyBelt] = await Promise.all([
       getPointsByOwnerByWrestlerForWeek(league.id, selectedWeekStart),
@@ -193,7 +192,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     ]);
     pointsByOwnerByWrestler = pts;
     monthlyBeltBySlug = monthlyBelt;
-    monthEndForMonthlyBelt = getMonthEndInWeek(selectedWeekStart, getSundayOfWeek(selectedWeekStart));
+    beltWeekEndSunday = getSundayOfWeek(selectedWeekStart);
     wrestlerNames = Object.fromEntries(
       ((wr.data ?? []) as { id: string; name: string | null }[]).map((w) => [w.id, w.name ?? w.id])
     );
@@ -303,15 +302,14 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
               const byWrestler = pointsByOwnerByWrestler[t.userId] ?? {};
               return entries.map((e, i): ScoreboardRosterRow => {
                 const eventPts = byWrestler[e.wrestler_id] ?? 0;
-                const monthlyPts =
-                  monthEndForMonthlyBelt
-                    ? sumMonthlyBeltPointsForStint(
-                        monthlyBeltBySlug,
-                        e.wrestler_id,
-                        wrestlerNames[e.wrestler_id],
-                        monthEndForMonthlyBelt
-                      )
-                    : 0;
+                const monthlyPts = beltWeekEndSunday
+                  ? sumMonthlyBeltPointsForStint(
+                      monthlyBeltBySlug,
+                      e.wrestler_id,
+                      wrestlerNames[e.wrestler_id],
+                      beltWeekEndSunday
+                    )
+                  : 0;
                 return {
                   wrestlerId: e.wrestler_id,
                   name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,

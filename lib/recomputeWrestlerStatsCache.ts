@@ -2,7 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
-import { computeEndOfMonthBeltPoints, getMonthlyBeltForWrestler } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import {
+  computeHybridBeltHoldBySlugForCalendarYear,
+  computeHybridPublicBeltHoldBySlug,
+  getMonthlyBeltForWrestler,
+} from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 
 type EventRow = { id: string; name: string; date: string; matches?: object[] | undefined };
@@ -11,9 +15,9 @@ type ChampionshipReign = Record<string, unknown>;
 
 const ALL_TIME_FROM = "2025-01-01";
 const SEASONS = [
-  { key: "all_time", from: "2025-01-01", to: null as string | null, beltFrom: "2025-01-31", beltTo: null as string | null },
-  { key: "2025", from: "2025-01-01", to: "2025-12-31", beltFrom: "2025-01-31", beltTo: "2025-12-31" },
-  { key: "2026", from: "2026-01-01", to: null as string | null, beltFrom: "2026-01-31", beltTo: null as string | null },
+  { key: "all_time", from: "2025-01-01", to: null as string | null },
+  { key: "2025", from: "2025-01-01", to: "2025-12-31" },
+  { key: "2026", from: "2026-01-01", to: null as string | null },
 ] as const;
 
 function inRange(date: string, from: string, to: string | null): boolean {
@@ -53,7 +57,12 @@ export async function recomputeWrestlerStatsCache(supabase: SupabaseClient) {
     const seasonEvents = eventsAll.filter((e) => inRange(e.date, season.from, season.to));
     const pointsBySlug = aggregateWrestlerPoints(seasonEvents);
     const statsBySlug = aggregateWrestlerMatchStats(seasonEvents);
-    const beltBySlug = computeEndOfMonthBeltPoints(reigns, season.beltFrom, season.beltTo ?? undefined);
+    const beltBySlug =
+      season.key === "all_time"
+        ? computeHybridPublicBeltHoldBySlug(reigns)
+        : season.key === "2025"
+          ? computeHybridBeltHoldBySlugForCalendarYear(reigns, 2025)
+          : computeHybridBeltHoldBySlugForCalendarYear(reigns, 2026);
 
     for (const w of wrestlers) {
       const slugKey = w.id;

@@ -412,6 +412,20 @@ export default function Nav() {
             <Link href="/how-it-works" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               How It Works
             </Link>
+            <Link
+              href="/leagues/join"
+              className={`nav-mobile-panel-outline-cta${pathname === "/leagues/join" ? " is-active" : ""}`}
+              onClick={closeMobileMenu}
+            >
+              Join a League
+            </Link>
+            <Link
+              href="/leagues/new"
+              className={`nav-mobile-panel-cta${pathname === "/leagues/new" ? " is-active" : ""}`}
+              onClick={closeMobileMenu}
+            >
+              Create a League
+            </Link>
             {isSiteAdmin
               ? ADMIN_MENU_SECTIONS.map((section) => (
                   <div key={section.title}>

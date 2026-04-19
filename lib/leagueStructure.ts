@@ -15,6 +15,11 @@ export const MAX_LEAGUE_TEAMS_BETA = 6;
 /** Season slug from `lib/leagueSeasons` — only this season uses RTS beta roster caps for 3–6 teams. */
 export const ROAD_TO_SUMMERSLAM_SEASON_SLUG = "road-to-summerslam";
 
+/** Weekly PST title-hold belt (Mon–Sun week, lock end of day Sunday PST) applies only to Road to SummerSlam leagues. */
+export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefined): boolean {
+  return seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+}
+
 export type RosterRules = {
   rosterSize: number;
   minFemale: number;

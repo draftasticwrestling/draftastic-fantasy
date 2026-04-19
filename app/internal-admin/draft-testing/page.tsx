@@ -2,7 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
-  computeEndOfMonthBeltPoints,
+  computeHybridBeltHoldBySlugForCalendarYear,
+  computeHybridPublicBeltHoldBySlug,
   getCurrentChampionsBySlug,
   inferReignsFromEvents,
   mergeReigns,
@@ -175,9 +176,9 @@ export default async function DraftTestingPage() {
   const inferredReigns = inferReignsFromEvents(eventsAll ?? []);
   const reigns = mergeReigns(tableReigns, inferredReigns) as typeof tableReigns;
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
-  const endOfMonthBeltPointsAll = computeEndOfMonthBeltPoints(reigns, "2020-01-31");
-  const endOfMonthBeltPoints2025 = computeEndOfMonthBeltPoints(reigns, "2025-01-31", "2025-12-31");
-  const endOfMonthBeltPoints2026 = computeEndOfMonthBeltPoints(reigns, "2026-01-31");
+  const endOfMonthBeltPointsAll = computeHybridPublicBeltHoldBySlug(reigns);
+  const endOfMonthBeltPoints2025 = computeHybridBeltHoldBySlugForCalendarYear(reigns, 2025);
+  const endOfMonthBeltPoints2026 = computeHybridBeltHoldBySlugForCalendarYear(reigns, 2026);
 
   const normalizedRows = (wrestlersRows ?? []).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r as Record<string, unknown>) }));
   // Use isDraftableWrestlerForDraftTesting so injured wrestlers appear in the table with injury badge

@@ -113,32 +113,34 @@ export default function PointsPage() {
         </table>
       </section>
 
-      {/* Belt points — monthly + defense / new champion */}
+      {/* Belt points — weekly hold + defense / new champion */}
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Belt points</h2>
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 8, fontWeight: 700 }}>Monthly belt points</h3>
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 8, fontWeight: 700 }}>Weekly belt points</h3>
         <p style={{ color: "#555", marginBottom: 16 }}>
-          Awarded to whoever holds the belt at the end of the last day of each month. Points apply after that month ends (e.g. March holders are credited once we are into April).
+          Points are dispersed weekly, end of day Sunday PST. Weeks are Monday through Sunday; the holder is
+          credited after that Sunday fully ends in Pacific time so late US shows can change a title before the
+          week locks.
         </p>
         <div className="points-grid">
           <EventTable
             title="Men's Division"
             rows={[
-              ["Undisputed WWE Champion", 12],
-              ["Heavy Weight Champion", 12],
-              ["Intercontinental Champion", 8],
-              ["US Champion", 8],
-              ["Tag Team Champion (per member)", 4],
+              ["Undisputed WWE Champion", 3],
+              ["Heavy Weight Champion", 3],
+              ["Intercontinental Champion", 2],
+              ["US Champion", 2],
+              ["Tag Team Champion (per member)", 1],
             ]}
           />
           <EventTable
             title="Women's Division"
             rows={[
-              ["WWE Women's Champion", 12],
-              ["Women's World Champion", 12],
-              ["Intercontinental Champion", 8],
-              ["US Champion", 8],
-              ["Tag Team Champion (per member)", 4],
+              ["WWE Women's Champion", 3],
+              ["Women's World Champion", 3],
+              ["Intercontinental Champion", 2],
+              ["US Champion", 2],
+              ["Tag Team Champion (per member)", 1],
             ]}
           />
         </div>

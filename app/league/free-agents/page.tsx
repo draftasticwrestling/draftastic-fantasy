@@ -5,8 +5,7 @@ import type { WrestlerRow } from "../../wrestlers/WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
-  computeEndOfMonthBeltPoints,
-  FIRST_END_OF_MONTH_POINTS_DATE,
+  computeHybridPublicBeltHoldBySlug,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
   inferReignsFromEvents,
@@ -80,7 +79,7 @@ export default async function LeagueFreeAgentsPage() {
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
   const pointsBySlug = aggregateWrestlerPoints(events ?? []);
   const matchStatsBySlug = aggregateWrestlerMatchStats(events ?? []);
-  const endOfMonthBeltBySlug = computeEndOfMonthBeltPoints(reigns, FIRST_END_OF_MONTH_POINTS_DATE);
+  const endOfMonthBeltBySlug = computeHybridPublicBeltHoldBySlug(reigns);
 
   const assignedIds = new Set(
     (assignments ?? []).map((r: { wrestler_id: string }) => r.wrestler_id.toLowerCase())

@@ -2,7 +2,11 @@ import { titleToChampionshipSlug } from "@/lib/championshipPathSlug";
 import type { ChampionshipReignRow } from "@/lib/championshipTitleHistory";
 import { displayChampionshipDate, reignDetailsFromRow } from "@/lib/championshipTitleHistory";
 import { getPwbsDisplayTitleForSlug, getPwbsReignGroupKey } from "@/lib/pwbsChampionshipSlug.js";
-import { getFantasyBeltMonthEndsForReign } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import {
+  getFantasyBeltMonthEndsForReign,
+  getFantasyBeltScoringDatesForReignPublicDisplay,
+  getFantasyBeltWeekEndsForReign,
+} from "@/lib/scoring/endOfMonthBeltPoints.js";
 
 export type WrestlerProfileReignLine = {
   displayTitle: string;
@@ -14,23 +18,42 @@ export type WrestlerProfileReignLine = {
   eventLost: string | null;
   /** Stable key for list rendering (Supabase row id or synthetic). */
   rowKey: string;
-  /** Month labels (e.g. "January 2025") when this reign earns fantasy end-of-month belt hold credit. */
+  /** Labels for week-ending Sundays when this reign earns fantasy weekly belt hold credit. */
   beltMonthEndsFormatted: string[];
 };
 
-/** "January 2025" from a month-end YYYY-MM-DD (last day of month). */
-export function formatMonthEndLabel(monthEndYmd: string): string {
-  const [y, m] = monthEndYmd.split("-");
-  if (!y || !m) return monthEndYmd;
-  const month = new Date(Number(y), Number(m) - 1, 1).toLocaleString("en-US", { month: "long" });
-  return `${month} ${y}`;
+/** Short label for a week-ending Sunday YYYY-MM-DD (civil UTC date string). */
+export function formatBeltWeekEndLabel(weekEndYmd: string): string {
+  const d = new Date(weekEndYmd.slice(0, 10) + "T12:00:00.000Z");
+  return d.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
-export type BuildWrestlerProfileReignLinesBeltOpts = {
-  firstMonthEnd: string;
-  wrestlerId: string;
-  urlSlug: string;
-};
+export type BuildWrestlerProfileReignLinesBeltOpts =
+  | {
+      variant: "weekly_league";
+      firstWeekEndSunday: string;
+      lastWeekEndSundayCapYmd?: string;
+      wrestlerId: string;
+      urlSlug: string;
+    }
+  | {
+      variant: "legacy_league";
+      firstEligibleMonthEnd: string;
+      lastMonthEndCapYmd?: string;
+      wrestlerId: string;
+      urlSlug: string;
+    }
+  | {
+      variant: "public_period";
+      wrestlerId: string;
+      urlSlug: string;
+    };
 
 /** Same parsing as Pro Wrestling Boxscore `WrestlerProfile.jsx` (wrestlers.accomplishments column). */
 export function parseWrestlerAccomplishmentsColumn(raw: string | null | undefined): string[] {
@@ -142,7 +165,7 @@ function displayTitleForReign(r: ChampionshipReignRow): string {
 
 /**
  * One line per championship_history reign for this wrestler (newest first).
- * When `beltOpts` is set, each line includes fantasy end-of-month belt months (same rules as monthly belt scoring).
+ * When `beltOpts` is set, each line includes fantasy weekly belt hold weeks (same rules as league belt scoring).
  */
 export function buildWrestlerProfileReignLines(
   reigns: ChampionshipReignRow[],
@@ -162,9 +185,25 @@ export function buildWrestlerProfileReignLines(
         : `${routeSlugForReign(r)}-${won}-${lostYmd ?? "present"}`;
     const rawBeltEnds =
       beltOpts != null
-        ? getFantasyBeltMonthEndsForReign(r, beltOpts.firstMonthEnd, beltOpts.wrestlerId, beltOpts.urlSlug)
+        ? beltOpts.variant === "public_period"
+          ? getFantasyBeltScoringDatesForReignPublicDisplay(r, beltOpts.wrestlerId, beltOpts.urlSlug)
+          : beltOpts.variant === "weekly_league"
+            ? getFantasyBeltWeekEndsForReign(
+                r,
+                beltOpts.firstWeekEndSunday,
+                beltOpts.wrestlerId,
+                beltOpts.urlSlug,
+                beltOpts.lastWeekEndSundayCapYmd
+              )
+            : getFantasyBeltMonthEndsForReign(
+                r,
+                beltOpts.firstEligibleMonthEnd,
+                beltOpts.wrestlerId,
+                beltOpts.urlSlug,
+                beltOpts.lastMonthEndCapYmd
+              )
         : [];
-    const beltMonthEndsFormatted = rawBeltEnds.map(formatMonthEndLabel);
+    const beltMonthEndsFormatted = rawBeltEnds.map(formatBeltWeekEndLabel);
     lines.push({
       displayTitle: displayTitleForReign(r),
       routeSlug: routeSlugForReign(r),
