@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { siteLogoHref } from "@/lib/siteLogo";
 
 type Nudge = {
   key: string;
@@ -63,42 +64,27 @@ export default function LoginNudges() {
       role="dialog"
       aria-modal="true"
       aria-label={current.title}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        display: "grid",
-        placeItems: "center",
-        zIndex: 1400,
-        padding: 16,
-      }}
+      className="login-nudge-overlay"
     >
-      <div
-        style={{
-          width: "min(520px, 100%)",
-          background: "var(--color-bg, #fff)",
-          border: "1px solid var(--color-border, #e5e7eb)",
-          borderRadius: 12,
-          padding: 18,
-          boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
-        }}
-      >
-        <h2 style={{ margin: "0 0 10px", fontSize: "1.15rem" }}>{current.title}</h2>
-        <p style={{ margin: "0 0 14px", color: "var(--color-text-muted, #4b5563)", lineHeight: 1.45 }}>
-          {current.body}
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
-          <button type="button" className="app-btn" onClick={dismiss}>
+      <div className="login-nudge-card">
+        <div className="login-nudge-header">
+          <img src={siteLogoHref()} alt="" className="login-nudge-logo" />
+          <p className="login-nudge-kicker">Draftastic reminder</p>
+        </div>
+        <h2 className="login-nudge-title">{current.title}</h2>
+        <p className="login-nudge-body">{current.body}</p>
+        <div className="login-nudge-actions">
+          <button type="button" className="login-nudge-dismiss" onClick={dismiss}>
             Dismiss
           </button>
-          {current.secondaryCta ? (
-            <Link href={current.secondaryCta.href} className="app-btn" onClick={dismiss}>
-              {current.secondaryCta.label}
+          {current.primaryCta ? (
+            <Link href={current.primaryCta.href} className="hub-hero-btn hub-hero-btn-primary" onClick={dismiss}>
+              {current.primaryCta.label}
             </Link>
           ) : null}
-          {current.primaryCta ? (
-            <Link href={current.primaryCta.href} className="app-btn-primary" onClick={dismiss}>
-              {current.primaryCta.label}
+          {current.secondaryCta ? (
+            <Link href={current.secondaryCta.href} className="hub-hero-btn hub-hero-btn-outline" onClick={dismiss}>
+              {current.secondaryCta.label}
             </Link>
           ) : null}
         </div>

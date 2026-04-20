@@ -34,7 +34,8 @@ function flattenTeamSlugsInParsedList(slugs: string[]): string[] {
   const seen = new Set<string>();
   for (const s of slugs) {
     const team = getTagTeamMemberSlugs(s);
-    if (team?.length) {
+    const isSingleMemberAlias = Boolean(team?.includes(s));
+    if (team?.length && !isSingleMemberAlias) {
       for (const m of team) {
         if (!seen.has(m)) {
           seen.add(m);
@@ -61,7 +62,8 @@ function memberSlugsFromChampionRow(c: ChampionCardRow): string[] | null {
     (normSlug && getTagTeamMemberSlugs(normSlug)) ||
     (name && getTagTeamMemberSlugs(normalizeWrestlerName(name)));
 
-  if (fromMap && fromMap.length >= 2) return [...fromMap];
+  const fromMapIsSingleMemberAlias = Boolean(normSlug && fromMap?.includes(normSlug));
+  if (fromMap && fromMap.length >= 2 && !fromMapIsSingleMemberAlias) return [...fromMap];
 
   const parsed =
     parseTagTeamChampionToMemberSlugs(name) ||
@@ -231,7 +233,8 @@ export function collapseTagTeamChampionsForCard(
       normalizeWrestlerName(String(c.champion || ""));
     if (!slug) continue;
     const teamExpand = getTagTeamMemberSlugs(slug);
-    if (teamExpand && teamExpand.length >= 2) continue;
+    const isSingleMemberAlias = Boolean(teamExpand?.includes(slug));
+    if (teamExpand && teamExpand.length >= 2 && !isSingleMemberAlias) continue;
     if (seenSingle.has(slug)) continue;
     seenSingle.add(slug);
     const w = lookup.wrestlerBySlug.get(slug) ?? lookup.wrestlerByNameKey.get(slug);
