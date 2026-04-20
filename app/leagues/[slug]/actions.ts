@@ -7,6 +7,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import type { DraftOrderMethod } from "@/lib/leagues";
 import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster } from "@/lib/leagues";
 import { assertWrestlerNotTradeLocked } from "@/lib/leagueOwner";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 
 export type AddRosterState = { error?: string };
 
@@ -170,11 +171,24 @@ export async function updateBasicSettingsAction(
   const name = (formData.get("league_name") as string)?.trim();
   if (!name || name.length > 120) return { error: "League name is required (max 120 characters)." };
 
+  const isSiteAdmin = await getIsSiteAdmin();
+  const isPublicLeague = String(league.visibility_type ?? "").toLowerCase() === "public";
+  const allowedMinTeams = 3;
+  const allowedMaxTeams = isSiteAdmin ? 16 : 6;
+
   const maxTeamsRaw = formData.get("max_teams");
-  const max_teams =
+  let max_teams =
     maxTeamsRaw != null && Number.isFinite(Number(maxTeamsRaw))
-      ? Math.min(16, Math.max(3, Math.floor(Number(maxTeamsRaw))))
+      ? Math.floor(Number(maxTeamsRaw))
       : null;
+
+  if (isPublicLeague) {
+    max_teams = 6;
+  } else if (max_teams != null) {
+    if (max_teams < allowedMinTeams || max_teams > allowedMaxTeams) {
+      return { error: `Choose between ${allowedMinTeams} and ${allowedMaxTeams} teams.` };
+    }
+  }
 
   if (league.league_type === "head_to_head" && max_teams != null && max_teams < 4) {
     return { error: "Head-to-Head leagues require at least 4 factions." };

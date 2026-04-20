@@ -8,6 +8,7 @@ import {
   adminAddUserToLeagueAction,
   adminApproveDraftReviewAction,
   adminArchiveLeagueAction,
+  adminBulkMoveMembersAction,
   adminDeleteLeagueAction,
   adminMoveUserToLeagueAction,
   adminRemoveRosterEntryAction,
@@ -352,6 +353,29 @@ export default async function InternalAdminLeagueDetailPage({
             </p>
             <button type="submit" className="admin-article-submit" style={{ width: "fit-content" }}>
               Move member to another league
+            </button>
+          </form>
+
+          <form action={adminBulkMoveMembersAction} style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: 12, display: "grid", gap: 8, maxWidth: 620 }}>
+            <input type="hidden" name="sourceLeagueId" value={league.id} />
+            <input type="hidden" name="sourceLeagueSlug" value={league.slug} />
+            <label>
+              <div style={{ marginBottom: 4 }}>Bulk move target league slug</div>
+              <input className="admin-article-input" name="targetLeagueSlug" required placeholder="r2summer-2" />
+            </label>
+            <label>
+              <div style={{ marginBottom: 4 }}>Max members to move (1-32)</div>
+              <input className="admin-article-input" name="maxMoves" type="number" min={1} max={32} defaultValue={6} />
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" name="includeCommissioner" />
+              <span>Include commissioner in bulk move</span>
+            </label>
+            <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 13 }}>
+              Safeguards: respects target league cap, avoids duplicates, and won&apos;t orphan commissioner.
+            </p>
+            <button type="submit" className="admin-article-submit" style={{ width: "fit-content" }}>
+              Bulk move members
             </button>
           </form>
         </div>

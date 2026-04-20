@@ -5,6 +5,7 @@ import EventListBar from "./EventListBar";
 import Nav from "./Nav";
 import PageLayout from "./PageLayout";
 import EmailSignupPrompt from "./EmailSignupPrompt";
+import LoginNudges from "./LoginNudges";
 import type { RecentEvent } from "@/lib/eventsRecent";
 
 type RootShellProps = {
@@ -27,6 +28,7 @@ export default function RootShell({ children, recentEvents }: RootShellProps) {
       <div className="site-main">
         <PageLayout>{children}</PageLayout>
       </div>
+      <LoginNudges />
       <footer className="site-footer">
         <p className="site-footer-copy">© 2026 Draftastic Wrestling. All rights reserved.</p>
         <p className="site-footer-disclaimer">

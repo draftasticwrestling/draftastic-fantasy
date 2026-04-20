@@ -24,6 +24,24 @@ export function beltScoringLastMonthEndInclusive(leagueEndYmd: string | null | u
 }
 
 /**
+ * For legacy month-end belt mode, short seasons that end before the calendar month-end
+ * should still get a final snapshot on the league end date (e.g. WrestleMania Night 2).
+ * Returns that snapshot date when needed; otherwise null.
+ */
+export function legacySeasonEndBeltSnapshotYmd(
+  leagueEndYmd: string | null | undefined
+): string | null {
+  if (!leagueEndYmd) return null;
+  const d = leagueEndYmd.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  const dt = new Date(d + "T12:00:00.000Z");
+  const monthEnd = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 0))
+    .toISOString()
+    .slice(0, 10);
+  return d < monthEnd ? d : null;
+}
+
+/**
  * Replace July month-end with the season-finale snapshot (Aug 2): who holds titles after SummerSlam Night 2,
  * not who held them on 7/31.
  */

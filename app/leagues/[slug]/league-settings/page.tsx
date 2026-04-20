@@ -6,6 +6,7 @@ import { DraftSettingsSection } from "./DraftSettingsSection";
 import { LeagueTypeSection } from "./LeagueTypeSection";
 import { RemoveOwnerSection } from "./RemoveOwnerSection";
 import { DeleteLeagueSection } from "./DeleteLeagueSection";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 
 export const metadata = {
   title: "League Settings — Draftastic Fantasy",
@@ -24,6 +25,10 @@ export default async function LeagueSettingsPage({
   if (!league) notFound();
 
   const isCommissioner = league.role === "commissioner";
+  const isSiteAdmin = isCommissioner ? await getIsSiteAdmin() : false;
+  const teamCountOptions = !isSiteAdmin
+    ? [3, 4, 5, 6]
+    : [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
   const members = isCommissioner ? await getLeagueMembers(league.id) : [];
 
   const draftType = league.draft_type ?? (league.draft_style as "snake" | "linear" | undefined) ?? "autopick";
@@ -59,6 +64,8 @@ export default async function LeagueSettingsPage({
             leagueName={league.name}
             maxTeams={maxTeams}
             autoReactivate={autoReactivate}
+            visibilityType={league.visibility_type}
+            teamCountOptions={teamCountOptions}
           />
           <LeagueTypeSection leagueSlug={slug} leagueType={leagueType} />
           <DraftSettingsSection leagueSlug={slug} draftType={draftType} />

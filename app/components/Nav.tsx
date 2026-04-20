@@ -32,7 +32,10 @@ const ADMIN_MENU_SECTIONS: readonly {
   },
   {
     title: "Tools",
-    links: [{ href: "/internal-admin/draft-testing", label: "Draft testing" }],
+    links: [
+      { href: "/internal-admin/nudges", label: "Login nudges" },
+      { href: "/internal-admin/draft-testing", label: "Draft testing" },
+    ],
   },
   {
     title: "Demos",

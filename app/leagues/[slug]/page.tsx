@@ -20,6 +20,8 @@ import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import { factionDisplayName, truncateFactionDisplay } from "@/lib/factionName";
 import { getLeagueEventDayViewerSection } from "@/lib/league/getLeagueEventDayViewerSection";
 import { LeagueEventDayRosterCard } from "./LeagueEventDayRosterCard";
+import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
+import SeasonCompletePlacementModal from "./SeasonCompletePlacementModal";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -192,6 +194,18 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       ? tradeProposals.filter((p) => p.status === "pending" && p.to_user_id === currentUser.id)
       : [];
 
+    const seasonEndYmd = (league.end_date ?? "").slice(0, 10);
+    const seasonComplete = Boolean(seasonEndYmd && isPastEndOfDayPst(seasonEndYmd));
+    const currentPlacement = currentUser
+      ? Math.max(1, membersByPoints.findIndex((m) => m.user_id === currentUser.id) + 1)
+      : 0;
+    const showSeasonCompleteModal = Boolean(
+      currentUser &&
+        seasonComplete &&
+        currentPlacement > 0 &&
+        membersByPoints.length > 0
+    );
+
     const eventDaySection =
       currentUserMember && currentUser
         ? await getLeagueEventDayViewerSection(supabase, league, currentUser.id, rosters, wrestlersResult)
@@ -200,6 +214,14 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     return (
     <>
     <main className="lm-dashboard">
+      {showSeasonCompleteModal ? (
+        <SeasonCompletePlacementModal
+          leagueSlug={slug}
+          seasonEndYmd={seasonEndYmd}
+          placement={currentPlacement}
+          totalMembers={membersByPoints.length}
+        />
+      ) : null}
       <Link href="/leagues" className="lm-dashboard-back">← My leagues</Link>
 
       <div className="lm-layout">

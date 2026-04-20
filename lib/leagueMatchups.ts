@@ -23,8 +23,10 @@ import {
 } from "@/lib/beltWeeklyHold";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import {
   isRoadToSummerSlam2026WithSummerslamFinale,
+  legacySeasonEndBeltSnapshotYmd,
   RTS_2026_LEAGUE_END_DATE,
   shouldSkipJulyMonthEndBeltForRts2026,
 } from "@/lib/beltRts2026JulyDeferral";
@@ -567,16 +569,22 @@ export async function getMonthlyBeltBySlugForWeek(
   const end = league.end_date ?? "";
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
   const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug);
-  const today = new Date().toISOString().slice(0, 10);
-
   if (!useWeeklyBelt) {
     const monthEndInWeek = getMonthEndInWeek(weekStartMonday, weekEndSunday);
+    const seasonEndSnapshot = legacySeasonEndBeltSnapshotYmd(end);
+    const seasonEndInWeek =
+      seasonEndSnapshot &&
+      seasonEndSnapshot >= weekStartMonday &&
+      seasonEndSnapshot <= weekEndSunday
+        ? seasonEndSnapshot
+        : null;
+    const beltLockInWeek = monthEndInWeek ?? seasonEndInWeek;
     const firstEligibleMonthEnd = firstLegacyCalendarMonthEndEligibleForLeagueStart(start);
     if (
-      !monthEndInWeek ||
-      monthEndInWeek < firstEligibleMonthEnd ||
-      monthEndInWeek >= today ||
-      shouldSkipJulyMonthEndBeltForRts2026(monthEndInWeek, end)
+      !beltLockInWeek ||
+      beltLockInWeek < firstEligibleMonthEnd ||
+      !isPastEndOfDayPst(beltLockInWeek) ||
+      shouldSkipJulyMonthEndBeltForRts2026(beltLockInWeek, end)
     ) {
       return {};
     }
@@ -634,11 +642,28 @@ export async function getMonthlyBeltBySlugForWeek(
     );
   }
   const monthEndInWeek = getMonthEndInWeek(weekStartMonday, weekEndSunday);
-  return computeEndOfMonthBeltPointsForSingleMonth(
+  const seasonEndSnapshot = legacySeasonEndBeltSnapshotYmd(end);
+  const beltLockYmd =
+    monthEndInWeek ??
+    (seasonEndSnapshot &&
+    seasonEndSnapshot >= weekStartMonday &&
+    seasonEndSnapshot <= weekEndSunday
+      ? seasonEndSnapshot
+      : null);
+  if (!beltLockYmd) return {};
+  const bySlug = computeEndOfMonthBeltPointsForSingleMonth(
     reigns,
-    monthEndInWeek!,
+    beltLockYmd,
     firstLegacyCalendarMonthEndEligibleForLeagueStart(start)
   );
+  if (seasonEndSnapshot && beltLockYmd === seasonEndSnapshot) {
+    const currentBySlug = await getCurrentChampionsMonthlyBeltBySlug(supabase);
+    for (const [slug, pts] of Object.entries(currentBySlug)) {
+      if (!Number.isFinite(pts) || pts <= 0) continue;
+      bySlug[slug] = Math.max(bySlug[slug] ?? 0, pts);
+    }
+  }
+  return bySlug;
 }
 
 /** Total bonus points per owner (weekly win +15 and belt +5/+4) for standings. */

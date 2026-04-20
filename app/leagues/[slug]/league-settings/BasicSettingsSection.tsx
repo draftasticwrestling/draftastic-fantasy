@@ -4,18 +4,19 @@ import { useEffect, useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { updateBasicSettingsFormAction } from "../actions";
 
-const TEAM_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const;
-
 type Props = {
   leagueSlug: string;
   leagueName: string;
   maxTeams: number | null | undefined;
   autoReactivate: boolean | null | undefined;
+  visibilityType?: string | null | undefined;
+  teamCountOptions: number[];
 };
 
 export function BasicSettingsSection(props: Props) {
-  const { leagueSlug, leagueName, maxTeams, autoReactivate } = props;
+  const { leagueSlug, leagueName, maxTeams, autoReactivate, visibilityType, teamCountOptions } = props;
   const effectiveMaxTeams = maxTeams ?? 6;
+  const isPublicLeague = String(visibilityType ?? "").toLowerCase() === "public";
   const router = useRouter();
   const [state, formAction] = useActionState(updateBasicSettingsFormAction, null as { error?: string } | null);
 
@@ -52,17 +53,26 @@ export function BasicSettingsSection(props: Props) {
           <label htmlFor="max_teams" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
             Number of Teams
           </label>
-          <select
-            id="max_teams"
-            name="max_teams"
-            className="app-input"
-            defaultValue={String(effectiveMaxTeams)}
-            style={{ minWidth: 80 }}
-          >
-            {TEAM_COUNTS.map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
+          {isPublicLeague ? (
+            <>
+              <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
+                Public leagues always use 6 team spots.
+              </p>
+              <input type="hidden" id="max_teams" name="max_teams" value="6" />
+            </>
+          ) : (
+            <select
+              id="max_teams"
+              name="max_teams"
+              className="app-input"
+              defaultValue={String(effectiveMaxTeams)}
+              style={{ minWidth: 80 }}
+            >
+              {teamCountOptions.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          )}
         </div>
         <div style={{ marginBottom: 24 }}>
           <label htmlFor="auto_reactivate" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>

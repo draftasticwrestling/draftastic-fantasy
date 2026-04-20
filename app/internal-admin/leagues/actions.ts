@@ -345,6 +345,81 @@ export async function adminMoveUserToLeagueAction(formData: FormData): Promise<v
   return leagueRedirect(sourceLeagueSlug, `User moved to ${targetLeagueSlug}.`);
 }
 
+export async function adminBulkMoveMembersAction(formData: FormData): Promise<void> {
+  await requireSiteAdmin();
+  const admin = getAdminClient();
+  const sourceLeagueId = String(formData.get("sourceLeagueId") ?? "").trim();
+  const sourceLeagueSlug = String(formData.get("sourceLeagueSlug") ?? "").trim();
+  const targetLeagueSlug = String(formData.get("targetLeagueSlug") ?? "").trim();
+  const includeCommissioner = String(formData.get("includeCommissioner") ?? "") === "on";
+  const maxMovesRaw = Number.parseInt(String(formData.get("maxMoves") ?? "0"), 10);
+  const maxMoves = Number.isFinite(maxMovesRaw) && maxMovesRaw > 0 ? Math.min(32, maxMovesRaw) : 32;
+  if (!admin || !sourceLeagueId || !sourceLeagueSlug || !targetLeagueSlug) return;
+
+  const { data: targetLeague, error: targetErr } = await admin
+    .from("leagues")
+    .select("id, slug, max_teams")
+    .eq("slug", targetLeagueSlug)
+    .maybeSingle();
+  if (targetErr || !targetLeague) return leagueRedirect(sourceLeagueSlug, undefined, "Target league not found.");
+  const targetLeagueId = (targetLeague as { id: string }).id;
+  if (targetLeagueId === sourceLeagueId) return leagueRedirect(sourceLeagueSlug, undefined, "Source and target leagues are the same.");
+
+  const { data: sourceMembers, error: sourceErr } = await admin
+    .from("league_members")
+    .select("user_id, role, joined_at")
+    .eq("league_id", sourceLeagueId)
+    .order("joined_at", { ascending: true });
+  if (sourceErr) return leagueRedirect(sourceLeagueSlug, undefined, sourceErr.message);
+  const members = (sourceMembers ?? []) as { user_id: string; role: string; joined_at: string }[];
+  if (members.length === 0) return leagueRedirect(sourceLeagueSlug, undefined, "Source league has no members.");
+
+  const moveCandidates = members.filter((m) => includeCommissioner || m.role !== "commissioner");
+  if (moveCandidates.length === 0) {
+    return leagueRedirect(sourceLeagueSlug, undefined, "No eligible members to move (commissioner excluded).");
+  }
+
+  const { count: targetCount } = await admin
+    .from("league_members")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", targetLeagueId);
+  const cap = Number((targetLeague as { max_teams?: number | null }).max_teams ?? 0);
+  const available = cap > 0 ? Math.max(0, cap - (targetCount ?? 0)) : moveCandidates.length;
+  if (available <= 0) return leagueRedirect(sourceLeagueSlug, undefined, "Target league has no open spots.");
+
+  const planned = moveCandidates.slice(0, Math.min(available, maxMoves));
+  let moved = 0;
+  for (const member of planned) {
+    const commissionerCheck = await ensureCommissionerAfterRemoval(admin, sourceLeagueId, member.user_id);
+    if (!commissionerCheck.ok) continue;
+
+    const ins = await admin
+      .from("league_members")
+      .insert({ league_id: targetLeagueId, user_id: member.user_id, role: "owner", joined_at: new Date().toISOString() });
+    if (ins.error) continue;
+
+    await admin
+      .from("league_rosters")
+      .update({ released_at: new Date().toISOString().slice(0, 10) })
+      .eq("league_id", sourceLeagueId)
+      .eq("user_id", member.user_id)
+      .is("released_at", null);
+    await admin.from("league_draft_preferences").delete().eq("league_id", sourceLeagueId).eq("user_id", member.user_id);
+    await admin.from("league_members").delete().eq("league_id", sourceLeagueId).eq("user_id", member.user_id);
+    moved += 1;
+  }
+
+  if (moved === 0) return leagueRedirect(sourceLeagueSlug, undefined, "No members were moved.");
+  revalidatePath(`/internal-admin/leagues/${encodeURIComponent(sourceLeagueSlug)}`);
+  revalidatePath(`/internal-admin/leagues/${encodeURIComponent(targetLeagueSlug)}`);
+  revalidatePath(`/leagues/${encodeURIComponent(sourceLeagueSlug)}`);
+  revalidatePath(`/leagues/${encodeURIComponent(targetLeagueSlug)}`);
+  return leagueRedirect(
+    sourceLeagueSlug,
+    `Moved ${moved} member${moved === 1 ? "" : "s"} to ${targetLeagueSlug}.`
+  );
+}
+
 export async function adminDeleteLeagueAction(formData: FormData): Promise<void> {
   await requireSiteAdmin();
   const admin = getAdminClient();

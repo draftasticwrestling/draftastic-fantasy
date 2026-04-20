@@ -27,6 +27,7 @@ import {
 } from "@/lib/scoring/rosterStintEventWindow";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import { validateFactionNameForSave } from "@/lib/factionName";
 import { validateManagerCatchphraseForSave } from "@/lib/managerCatchphrase";
 import { validateFactionEmojiForSave } from "@/lib/factionEmoji";
@@ -38,8 +39,10 @@ import {
 import { generateJoinCode, INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode";
 import {
   beltScoringLastMonthEndInclusive,
+  legacySeasonEndBeltSnapshotYmd,
   shouldSkipJulyMonthEndBeltForRts2026,
 } from "@/lib/beltRts2026JulyDeferral";
+import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 
 export type DraftType = "offline" | "linear" | "snake" | "autopick";
 export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
@@ -152,6 +155,12 @@ export async function createLeague(params: {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_site_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+  const isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
 
   const requestedName = params.name?.trim();
   if (!requestedName) return { error: "League name is required" };
@@ -169,9 +178,10 @@ export async function createLeague(params: {
   if (!window) return { error: "Invalid season." };
 
   const visibilityType: "private" | "public" = params.visibility_type === "public" ? "public" : "private";
+  const maxTeamsCapForUser = isSiteAdmin ? 16 : 6;
   const maxTeamsRequested =
     params.max_teams != null && Number.isFinite(Number(params.max_teams))
-      ? Math.min(16, Math.max(3, Math.floor(Number(params.max_teams))))
+      ? Math.min(maxTeamsCapForUser, Math.max(3, Math.floor(Number(params.max_teams))))
       : null;
   const max_teams = visibilityType === "public" ? 6 : maxTeamsRequested;
   const admin = getAdminClient();
@@ -1441,9 +1451,29 @@ export async function getLeagueScoring(
       const firstM = firstLegacyCalendarMonthEndEligibleForLeagueStart(start);
       const lastM = beltScoringLastMonthEndInclusive(leagueEndYmd || undefined);
       const monthEnds = getCompletedMonthEndsForBeltScoring(firstM, lastM, Date.now());
+      const seasonEndSnapshot = legacySeasonEndBeltSnapshotYmd(leagueEndYmd || undefined);
+      if (
+        seasonEndSnapshot &&
+        seasonEndSnapshot >= firstM &&
+        isPastEndOfDayPst(seasonEndSnapshot) &&
+        !monthEnds.includes(seasonEndSnapshot)
+      ) {
+        monthEnds.push(seasonEndSnapshot);
+        monthEnds.sort((a, b) => a.localeCompare(b));
+      }
+      const currentChampionsSnapshotBySlug =
+        seasonEndSnapshot && monthEnds.includes(seasonEndSnapshot)
+          ? await getCurrentChampionsMonthlyBeltBySlug(supabase)
+          : null;
       for (const monthEnd of monthEnds) {
         if (shouldSkipJulyMonthEndBeltForRts2026(monthEnd, leagueEndYmd)) continue;
         const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(reigns, monthEnd, firstM);
+        if (seasonEndSnapshot && monthEnd === seasonEndSnapshot && currentChampionsSnapshotBySlug) {
+          for (const [slug, pts] of Object.entries(currentChampionsSnapshotBySlug)) {
+            if (!Number.isFinite(pts) || pts <= 0) continue;
+            beltBySlug[slug] = Math.max(beltBySlug[slug] ?? 0, pts);
+          }
+        }
         for (const stint of stints) {
           if (
             !rosterStintActiveForMonthEndBelt({

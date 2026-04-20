@@ -29,6 +29,14 @@ export default function InternalAdminHomePage() {
           </Link>
         </li>
         <li>
+          <Link href="/internal-admin/nudges" className={styles.cardLink}>
+            <span className={styles.cardTitle}>Login nudges</span>
+            <span className={styles.cardDesc}>
+              Configure post-login popup reminders for user onboarding and in-season prompts.
+            </span>
+          </Link>
+        </li>
+        <li>
           <Link href="/internal-admin/events" className={styles.cardLink}>
             <span className={styles.cardTitle}>Events</span>
             <span className={styles.cardDesc}>Inspect boxscore events and raw matches JSON (read-only).</span>

@@ -32,10 +32,13 @@ import {
 } from "@/lib/beltWeeklyHold";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import {
   beltScoringLastMonthEndInclusive,
+  legacySeasonEndBeltSnapshotYmd,
   shouldSkipJulyMonthEndBeltForRts2026,
 } from "@/lib/beltRts2026JulyDeferral";
+import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 
 export type TeamScoreLedgerRow = {
   eventId: string;
@@ -429,9 +432,29 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       const firstM = firstLegacyCalendarMonthEndEligibleForLeagueStart(leagueStart);
       const lastM = beltScoringLastMonthEndInclusive(leagueEndYmd || undefined);
       const monthEnds = getCompletedMonthEndsForBeltScoring(firstM, lastM, Date.now());
+      const seasonEndSnapshot = legacySeasonEndBeltSnapshotYmd(leagueEndYmd || undefined);
+      if (
+        seasonEndSnapshot &&
+        seasonEndSnapshot >= firstM &&
+        isPastEndOfDayPst(seasonEndSnapshot) &&
+        !monthEnds.includes(seasonEndSnapshot)
+      ) {
+        monthEnds.push(seasonEndSnapshot);
+        monthEnds.sort((a, b) => a.localeCompare(b));
+      }
+      const currentChampionsSnapshotBySlug =
+        seasonEndSnapshot && monthEnds.includes(seasonEndSnapshot)
+          ? await getCurrentChampionsMonthlyBeltBySlug(supabase)
+          : null;
       for (const monthEnd of monthEnds) {
         if (shouldSkipJulyMonthEndBeltForRts2026(monthEnd, leagueEndYmd)) continue;
         const beltBySlug = computeEndOfMonthBeltPointsForSingleMonth(reigns, monthEnd, firstM);
+        if (seasonEndSnapshot && monthEnd === seasonEndSnapshot && currentChampionsSnapshotBySlug) {
+          for (const [slug, pts] of Object.entries(currentChampionsSnapshotBySlug)) {
+            if (!Number.isFinite(pts) || pts <= 0) continue;
+            beltBySlug[slug] = Math.max(beltBySlug[slug] ?? 0, pts);
+          }
+        }
         const eventName = `Title hold (month-end ${beltHoldLedgerLabel(monthEnd)})`;
         for (const pick of teamStints) {
           if (
