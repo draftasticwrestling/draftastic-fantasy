@@ -343,10 +343,28 @@ export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
   if (meError || !members?.length) return [];
 
   const leagueIds = members.map((m) => m.league_id);
-  const { data: leagues, error: leagueError } = await supabase
+  const leagueResWithArchive = await supabase
     .from("leagues")
-    .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, league_type, visibility_type, public_status, public_sequence, created_at")
-    .in("id", leagueIds);
+    .select(
+      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, league_type, visibility_type, public_status, public_sequence, created_at"
+    )
+    .in("id", leagueIds)
+    .eq("is_archived", false);
+  let leagues = leagueResWithArchive.data;
+  let leagueError = leagueResWithArchive.error;
+  if (
+    leagueError &&
+    (leagueError.code === "42703" || /is_archived|column/i.test(leagueError.message ?? ""))
+  ) {
+    const fallback = await supabase
+      .from("leagues")
+      .select(
+        "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_style, draft_status, draft_current_pick, league_type, visibility_type, public_status, public_sequence, created_at"
+      )
+      .in("id", leagueIds);
+    leagues = fallback.data;
+    leagueError = fallback.error;
+  }
 
   if (leagueError || !leagues?.length) return [];
 

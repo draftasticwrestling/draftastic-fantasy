@@ -78,7 +78,12 @@ export default async function InternalAdminUserModerationPage({
           <div>Created: {detail.created_at ? detail.created_at.slice(0, 10) : "—"}</div>
           <div>Last sign-in: {detail.last_sign_in_at ? detail.last_sign_in_at.slice(0, 10) : "—"}</div>
           <div>Leagues: {detail.memberships.length}</div>
+          <div>Draft preferences saved: {detail.draft_pref_count > 0 ? `Yes (${detail.draft_pref_count})` : "No"}</div>
           <div>Timezone: {detail.timezone ?? "—"}</div>
+          <div>Marketing opt-in: {detail.marketing_opt_in ? "Yes" : "No"}</div>
+          <div>
+            Marketing opt-in date: {detail.marketing_opt_in_at ? detail.marketing_opt_in_at.slice(0, 10) : "—"}
+          </div>
           <div>Terms accepted: {detail.accepted_terms_at ? detail.accepted_terms_at.slice(0, 10) : "No"}</div>
           <div>Privacy accepted: {detail.accepted_privacy_at ? detail.accepted_privacy_at.slice(0, 10) : "No"}</div>
         </div>

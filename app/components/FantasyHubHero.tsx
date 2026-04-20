@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useId, useState } from "react";
-import HeroSignupCountdown from "@/app/components/HeroSignupCountdown";
 import { DRAFTASTIC_SCREENSHOTS } from "@/lib/draftasticScreenshots";
 import { siteLogoHref } from "@/lib/siteLogo";
 
@@ -40,7 +39,7 @@ export default function FantasyHubHero() {
             better than your friends.
           </p>
           <div className="hub-hero-urgency">
-            <p>Sign up by the end of WrestleMania with our exclusive ACCESS CODE:</p>
+            <p>Public Leagues now available. ACCESS CODE:</p>
             <p
               style={{
                 fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
@@ -53,11 +52,9 @@ export default function FantasyHubHero() {
               MANIA-42-VEGAS
             </p>
             <p>
-              Don&apos;t miss out. Limited spots available for the Road to SummerSlam! Private and Public leagues
-              available.
+              Create or Join a League by April 30th. And don&apos;t forget to set your draft preferences!
             </p>
           </div>
-          <HeroSignupCountdown />
           <div className="hub-hero-actions">
             <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
               Create a League

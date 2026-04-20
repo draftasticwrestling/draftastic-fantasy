@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
 
 const LEAGUE_LIST_SELECT =
-  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at, visibility_type, public_status";
+  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at, visibility_type, public_status, is_archived, archived_at";
 
 export type SiteAdminLeagueSummary = {
   id: string;
@@ -22,6 +22,8 @@ export type SiteAdminLeagueSummary = {
   /** `public` | `private`; null treated as private for legacy rows */
   visibility_type: string | null;
   public_status: string | null;
+  is_archived: boolean | null;
+  archived_at: string | null;
   member_count: number;
   commissioner_display_name: string | null;
 };
@@ -33,6 +35,7 @@ export type SiteAdminLeagueMember = {
   team_name: string | null;
   display_name: string | null;
   active_roster_count: number;
+  has_draft_preferences: boolean;
 };
 
 export type SiteAdminLeagueDetail = {
@@ -93,7 +96,7 @@ export async function siteAdminSearchLeagues(
   if (error) {
     const isMissingCol =
       error.code === "42703" ||
-      /column.*visibility_type|public_status/i.test(error.message ?? "") ||
+      /column.*visibility_type|public_status|is_archived|archived_at/i.test(error.message ?? "") ||
       /schema cache/i.test(error.message ?? "");
     if (!isMissingCol) return { rows: [], error: error.message };
     let qb2 = admin
@@ -111,7 +114,7 @@ export async function siteAdminSearchLeagues(
     if (err2) return { rows: [], error: err2.message };
     const leagues2 = (data2 ?? []) as Omit<
       SiteAdminLeagueSummary,
-      "commissioner_display_name" | "visibility_type" | "public_status" | "member_count"
+      "commissioner_display_name" | "visibility_type" | "public_status" | "is_archived" | "archived_at" | "member_count"
     >[];
     const names2 = await commissionerNamesByIds(
       admin,
@@ -125,6 +128,8 @@ export async function siteAdminSearchLeagues(
       ...l,
       visibility_type: "private",
       public_status: null,
+      is_archived: false,
+      archived_at: null,
       member_count: counts2.get(l.id) ?? 0,
       commissioner_display_name: names2.get(l.commissioner_id) ?? null,
     }));
@@ -161,7 +166,7 @@ export async function siteAdminGetLeagueBySlug(
   if (leagueErr) {
     const isMissingCol =
       leagueErr.code === "42703" ||
-      /column.*visibility_type|public_status/i.test(leagueErr.message ?? "") ||
+      /column.*visibility_type|public_status|is_archived|archived_at/i.test(leagueErr.message ?? "") ||
       /schema cache/i.test(leagueErr.message ?? "");
     if (!isMissingCol) return { detail: null, error: leagueErr.message };
     const retry = await admin.from("leagues").select(LEAGUE_DETAIL_SELECT_LEGACY).eq("slug", slug).maybeSingle();
@@ -172,6 +177,8 @@ export async function siteAdminGetLeagueBySlug(
         ...league,
         visibility_type: "private",
         public_status: null,
+        is_archived: false,
+        archived_at: null,
       } as typeof league;
     }
   }
@@ -182,6 +189,8 @@ export async function siteAdminGetLeagueBySlug(
   const L = league as Omit<SiteAdminLeagueSummary, "commissioner_display_name" | "member_count"> & {
     visibility_type?: string | null;
     public_status?: string | null;
+    is_archived?: boolean | null;
+    archived_at?: string | null;
   };
   const commMap = await commissionerNamesByIds(admin, [L.commissioner_id]);
   const commissioner_display_name = commMap.get(L.commissioner_id) ?? null;
@@ -208,6 +217,11 @@ export async function siteAdminGetLeagueBySlug(
     .from("league_rosters")
     .select("user_id, released_at")
     .eq("league_id", L.id);
+  const { data: prefRows } = await admin
+    .from("league_draft_preferences")
+    .select("user_id")
+    .eq("league_id", L.id);
+  const prefUsers = new Set(((prefRows ?? []) as { user_id: string }[]).map((r) => r.user_id));
 
   const activeByUser = new Map<string, number>();
   if (!rosterErr && rosterRows) {
@@ -224,10 +238,13 @@ export async function siteAdminGetLeagueBySlug(
     team_name: m.team_name ?? null,
     display_name: profMap.get(m.user_id) ?? null,
     active_roster_count: activeByUser.get(m.user_id) ?? 0,
+    has_draft_preferences: prefUsers.has(m.user_id),
   }));
 
   const visibility_type = L.visibility_type ?? "private";
   const public_status = L.public_status ?? null;
+  const is_archived = Boolean(L.is_archived ?? false);
+  const archived_at = L.archived_at ?? null;
 
   return {
     detail: {
@@ -235,6 +252,8 @@ export async function siteAdminGetLeagueBySlug(
         ...L,
         visibility_type,
         public_status,
+        is_archived,
+        archived_at,
         member_count: memberRows.length,
         commissioner_display_name,
       },

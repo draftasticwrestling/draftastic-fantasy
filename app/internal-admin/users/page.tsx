@@ -116,6 +116,8 @@ export default async function InternalAdminUsersPage({
                   <th style={{ padding: "10px 8px" }}>Display name</th>
                   <th style={{ padding: "10px 8px" }}>Email</th>
                   <th style={{ padding: "10px 8px" }}>Leagues</th>
+                  <th style={{ padding: "10px 8px" }}>Draft prefs</th>
+                  <th style={{ padding: "10px 8px" }}>Marketing opt-in</th>
                   <th style={{ padding: "10px 8px" }}>User id</th>
                   <th style={{ padding: "10px 8px" }}>Site admin</th>
                   <th style={{ padding: "10px 8px" }}>Created</th>
@@ -137,6 +139,8 @@ export default async function InternalAdminUsersPage({
                       </Link>
                     </td>
                     <td style={{ padding: "10px 8px" }}>{row.league_count}</td>
+                    <td style={{ padding: "10px 8px" }}>{row.draft_pref_count > 0 ? `Yes (${row.draft_pref_count})` : "—"}</td>
+                    <td style={{ padding: "10px 8px" }}>{row.marketing_opt_in ? "Yes" : "No"}</td>
                     <td
                       style={{
                         padding: "10px 8px",
