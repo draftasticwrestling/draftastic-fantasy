@@ -49,7 +49,9 @@ export function normalizeChampionshipHistoryRow(raw: Record<string, unknown>): C
         ? String(raw.champion_id)
         : raw.champion_slug != null
           ? String(raw.champion_slug)
-          : null,
+          : raw.champion != null && String(raw.champion).trim() !== ""
+            ? String(raw.champion)
+            : null,
     champion: raw.champion != null ? String(raw.champion) : null,
     champion_name:
       raw.champion_name != null

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 
 export type Profile = {
   id: string;
@@ -73,8 +74,7 @@ export async function updateProfile(
     marketing_opt_in_source?: string | null;
   }
 ): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || user.id !== userId) {
     return { error: "Unauthorized" };
   }

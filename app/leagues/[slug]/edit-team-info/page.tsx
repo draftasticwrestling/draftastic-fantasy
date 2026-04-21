@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { EditTeamNameForm } from "../team/EditTeamNameForm";
 import { EditManagerCatchphraseForm } from "../team/EditManagerCatchphraseForm";
 import { LeagueManagerAvatarField } from "../team/LeagueManagerAvatarField";
@@ -31,9 +32,7 @@ export default async function EditTeamInfoPage({
   if (!league) notFound();
 
   const members = await getLeagueMembers(league.id);
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getServerAuth();
   if (!user) notFound();
 
   const member = members.find((m) => m.user_id === user.id);

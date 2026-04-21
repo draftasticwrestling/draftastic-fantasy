@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode";
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "Draftastic Fantasy <onboarding@resend.dev>";
@@ -11,8 +11,7 @@ const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "Draftastic Fantasy <onboard
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await getServerAuth();
     if (!user?.email) {
       return NextResponse.json({ error: "Sign in to send an invite." }, { status: 401 });
     }

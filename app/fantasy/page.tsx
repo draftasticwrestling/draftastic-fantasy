@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeaguesForUser } from "@/lib/leagues";
 import { getHubHomeHref } from "@/lib/hubHomeHref";
 import { siteLogoHref } from "@/lib/siteLogo";
@@ -13,8 +13,7 @@ export const metadata = {
 };
 
 export default async function FantasyHomePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   const hubHomeHref = await getHubHomeHref();
 
   if (!user) {

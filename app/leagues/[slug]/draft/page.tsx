@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
@@ -89,6 +89,8 @@ export default async function LeagueDraftPage({ params }: Props) {
   try {
     league = await getLeagueBySlug(slug);
     if (!league) notFound();
+
+    const { supabase: serverSupabase } = await getServerAuth();
 
     const autopickDisabled = process.env.DISABLE_AUTOPICK_DRAFT === "1" || process.env.DISABLE_AUTOPICK_DRAFT === "true";
     // Only run when a draft is live — avoids admin round-trips on every poll/refresh for not_started/completed.
@@ -194,9 +196,8 @@ export default async function LeagueDraftPage({ params }: Props) {
           }
         }
         if (!rawRows.length) {
-          const supabase = await createClient();
           for (const cols of SELECTS) {
-            const result = await supabase.from("wrestlers").select(cols).order("name", { ascending: true });
+            const result = await serverSupabase.from("wrestlers").select(cols).order("name", { ascending: true });
             rawRows = ((result.data ?? []) as unknown) as Record<string, unknown>[];
             diagnostic.userRawCount = rawRows.length;
             diagnostic.userError = result.error?.message ?? null;
@@ -222,15 +223,14 @@ export default async function LeagueDraftPage({ params }: Props) {
             pointsAllTimeBySlug: {},
           })
         : (async () => {
-            const supabase = await createClient();
             const start = getEffectiveLeagueStartDate(league);
             const ALL_TIME_FROM = "2020-01-01";
             const ALL_TIME_LIMIT = 10000;
             const [sinceStart, events2025, events2026, eventsAll] = await Promise.all([
-              supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", start).order("date", { ascending: true }),
-              supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
-              supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2026-01-01").order("date", { ascending: true }),
-              supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", ALL_TIME_FROM).order("date", { ascending: true }).limit(ALL_TIME_LIMIT),
+              serverSupabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", start).order("date", { ascending: true }),
+              serverSupabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
+              serverSupabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2026-01-01").order("date", { ascending: true }),
+              serverSupabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", ALL_TIME_FROM).order("date", { ascending: true }).limit(ALL_TIME_LIMIT),
             ]);
             const cast = (d: unknown[]) => d as { id: string; name: string; date: string; matches?: object[] }[];
             return {
@@ -264,8 +264,7 @@ export default async function LeagueDraftPage({ params }: Props) {
       .filter((w) => !draftedIds.has(w.id))
       .map((w) => ({ id: w.id, name: w.name }));
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user } = await getServerAuth();
     userDraftPrefs = user ? await getDraftPreferences(league.id, user.id) : null;
     isCommissioner = league.role === "commissioner";
     isCurrentPicker =

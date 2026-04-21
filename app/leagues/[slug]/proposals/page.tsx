@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import {
   getTradeProposalsForLeague,
@@ -91,8 +91,7 @@ export default async function ProposalsPage({ params }: Props) {
 
   await processTradeTimerDeadlines();
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
 
   const members = await getLeagueMembers(league.id);
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));

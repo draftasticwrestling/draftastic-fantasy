@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getRosterRulesForLeague, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
@@ -104,16 +104,14 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
     await processTradeTimerDeadlines();
 
-    const supabase = await createClient();
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    const { supabase, user: currentUser } = await getServerAuth();
 
     const [membersData, rostersData, wrestlersData, pointsByOwner] = await Promise.all([
       getLeagueMembers(league.id),
       getRostersForLeague(league.id),
       (async () => {
-        const supabaseInner = await createClient();
         // Column is "Status" (capital S) in DB; avoid .or("status...")
-        const result = await supabaseInner
+        const result = await supabase
           .from("wrestlers")
           .select("id, name, gender, image_url")
           .order("name", { ascending: true });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getRostersForLeagueForWeek } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
@@ -147,8 +147,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   const leagueStart = (league.draft_date || league.start_date) ?? "";
   const leagueEnd = league.end_date ?? "";
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   const [members, matchups] = await Promise.all([
     getLeagueMembers(league.id),
     getLeagueWeeklyMatchups(league.id),
@@ -184,12 +183,22 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   let monthlyBeltBySlug: Record<string, number> = {};
   let beltWeekEndSunday: string | null = null;
   if (selectedWeekStart) {
-    const [pts, wr, weekRosters, monthlyBelt] = await Promise.all([
+    const [pts, weekRosters, monthlyBelt] = await Promise.all([
       getPointsByOwnerByWrestlerForWeek(league.id, selectedWeekStart),
-      supabase.from("wrestlers").select("id, name").order("name", { ascending: true }),
       getRostersForLeagueForWeek(league.id, selectedWeekStart),
       getMonthlyBeltBySlugForWeek(league.id, selectedWeekStart),
     ]);
+    const wrestlerIds = [
+      ...new Set(
+        Object.values(weekRosters)
+          .flat()
+          .map((e) => e.wrestler_id)
+      ),
+    ];
+    const wr =
+      wrestlerIds.length > 0
+        ? await supabase.from("wrestlers").select("id, name").in("id", wrestlerIds)
+        : { data: [] as { id: string; name: string | null }[] };
     pointsByOwnerByWrestler = pts;
     monthlyBeltBySlug = monthlyBelt;
     beltWeekEndSunday = getSundayOfWeek(selectedWeekStart);

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { DraftOrderMethod } from "@/lib/leagues";
 import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster } from "@/lib/leagues";
@@ -72,8 +72,7 @@ export async function updateDraftDateAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) {
     return { error: "Only the GM can set the draft date." };
   }
@@ -104,8 +103,7 @@ export async function updateDraftSettingsAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) {
     return { error: "Only the GM can change draft settings." };
   }
@@ -162,8 +160,7 @@ export async function updateBasicSettingsAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) {
     return { error: "Only the GM can change basic settings." };
   }
@@ -224,8 +221,7 @@ export async function updateManagerNoteAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) {
     return { error: "Only the GM can edit the GM note." };
   }
@@ -249,8 +245,7 @@ export async function updateLeagueTypeAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) {
     return { error: "Only the GM can change league type." };
   }
@@ -291,8 +286,7 @@ export async function removeMemberFromLeagueAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) {
     return { error: "Only the GM can remove a manager." };
   }
@@ -339,8 +333,7 @@ export async function deleteLeagueAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) {
     return { error: "Only the GM can delete the league." };
   }

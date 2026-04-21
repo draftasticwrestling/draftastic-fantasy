@@ -69,7 +69,7 @@ export default async function LeagueFreeAgentsPage() {
       .order("date", { ascending: true }),
     supabase
       .from("championship_history")
-      .select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
+      .select("champion_slug, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
   ]);
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug } from "@/lib/leagues";
 import {
   getLeagueDraftState,
@@ -35,8 +35,7 @@ export default async function DraftPreferencesPage({ params }: Props) {
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) notFound();
 
   const { data: member } = await supabase

@@ -1,7 +1,7 @@
 import { factionDisplayName } from "@/lib/factionName";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import {
   getTradeProposalsForLeague,
@@ -52,8 +52,7 @@ export default async function TransactionsPage({
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const supabase = await createClient();
-  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  const { supabase, user: currentUser } = await getServerAuth();
   if (!currentUser) notFound();
 
   const [members, tradeProposals, releaseProposals, faProposals, activity] = await Promise.all([

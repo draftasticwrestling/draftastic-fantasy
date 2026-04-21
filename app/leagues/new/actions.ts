@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { createLeague } from "@/lib/leagues";
 import {
   leagueCreationAccessIsConfigured,
@@ -80,8 +80,7 @@ export async function createLeagueAction(
     }
   }
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) {
     return {
       error: "You're not signed in. Sign out and sign in again, then try creating the league.",

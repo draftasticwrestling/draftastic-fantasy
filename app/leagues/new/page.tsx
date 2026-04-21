@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { leagueCreationAccessIsConfigured } from "@/lib/leagueCreationAccess";
 import { CreateLeagueForm } from "../CreateLeagueForm";
@@ -11,8 +11,7 @@ export const metadata = {
 };
 
 export default async function NewLeaguePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getServerAuth();
   if (!user) {
     redirect("/auth/sign-in?next=/leagues/new");
   }

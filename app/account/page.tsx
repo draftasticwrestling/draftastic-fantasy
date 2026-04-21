@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getProfile } from "@/lib/profiles";
 import { AccountAvatarField } from "./AccountAvatarField";
 import { AccountForm } from "./AccountForm";
@@ -16,8 +16,7 @@ export default async function AccountPage({
   searchParams: Promise<{ suspended?: string; required?: string }>;
 }) {
   const { suspended, required } = await searchParams;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) {
     redirect("/auth/sign-in?next=/account");
   }

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { getSiteAdminForApi } from "@/lib/auth/siteAdmin";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import {
   ARTICLE_IMAGES_BUCKET,
   extensionForImageMime,
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 
   const buf = Buffer.from(await file.arrayBuffer());
 
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const { error: upErr } = await supabase.storage
     .from(ARTICLE_IMAGES_BUCKET)
     .upload(objectName, buf, {

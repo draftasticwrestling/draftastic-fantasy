@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug } from "@/lib/leagues";
 import { addToWatchlist, getWatchlistWrestlerIds } from "@/lib/watchlist";
 import { removeFromWatchlistAction } from "@/app/wrestlers/watch/actions";
@@ -42,7 +42,7 @@ export default async function LeagueWatchlistPage({
   }
 
   const ids = await getWatchlistWrestlerIds();
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const { data: wrestlers } =
     ids.length > 0
       ? await supabase

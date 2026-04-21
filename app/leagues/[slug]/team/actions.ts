@@ -11,6 +11,7 @@ import {
   dropWrestlerImmediate,
   addFreeAgentImmediate,
 } from "@/lib/leagueOwner";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 
 export async function setLineupAction(
   leagueSlug: string,
@@ -20,8 +21,7 @@ export async function setLineupAction(
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const supabase = await (await import("@/lib/supabase/server")).createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getServerAuth();
   if (!user) return { error: "Not authenticated." };
   const result = await setLineupForEvent(league.id, user.id, eventId, wrestlerIds);
   if (result.error) return result;
@@ -39,8 +39,7 @@ export async function proposeTradeAction(
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const supabase = await (await import("@/lib/supabase/server")).createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getServerAuth();
   if (!user) return { error: "Not authenticated." };
   const result = await createTradeProposal(league.id, user.id, toUserId, giveWrestlerIds, receiveWrestlerIds);
   if (result.error) return result;
@@ -141,8 +140,7 @@ export async function updateFactionInfoAction(
   const { getLeagueBySlug, updateLeagueMemberFactionInfo } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const supabase = await (await import("@/lib/supabase/server")).createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getServerAuth();
   const result = await updateLeagueMemberFactionInfo(league.id, { teamName, factionEmoji: null });
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);
@@ -166,8 +164,7 @@ export async function updateLeagueManagerAvatarAction(
   revalidatePath(`/leagues/${leagueSlug}/edit-team-info`);
   revalidatePath(`/leagues/${leagueSlug}/standings`);
   revalidatePath(`/leagues/${leagueSlug}/team`);
-  const supabase = await (await import("@/lib/supabase/server")).createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getServerAuth();
   if (user) revalidatePath(`/leagues/${leagueSlug}/team/${user.id}`);
   return {};
 }
@@ -185,8 +182,7 @@ export async function updateLeagueCatchphraseAction(
   revalidatePath(`/leagues/${leagueSlug}/edit-team-info`);
   revalidatePath(`/leagues/${leagueSlug}/standings`);
   revalidatePath(`/leagues/${leagueSlug}/team`);
-  const supabase = await (await import("@/lib/supabase/server")).createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getServerAuth();
   if (user) revalidatePath(`/leagues/${leagueSlug}/team/${user.id}`);
   return {};
 }

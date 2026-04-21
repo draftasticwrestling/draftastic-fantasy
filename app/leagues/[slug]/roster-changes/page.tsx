@@ -1,7 +1,7 @@
 import { factionDisplayName } from "@/lib/factionName";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import {
   getTradeProposalsForLeague,
@@ -78,7 +78,7 @@ export default async function RosterChangesPage({
   ]);
 
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const { data: wrestlers } = await supabase.from("wrestlers").select("id, name");
   const wrestlerName: Record<string, string> = Object.fromEntries(
     (wrestlers ?? []).map((w: { id: string; name: string | null }) => [w.id, w.name ?? w.id])

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import {
   getLeagueBySlug,
   getLeagueMembers,
@@ -112,8 +112,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const supabase = await createClient();
-  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  const { supabase, user: currentUser } = await getServerAuth();
   if (!currentUser) notFound();
 
   const [members, rosters, pointsWithBonuses, teamScoringAudit] = await Promise.all([
@@ -148,8 +147,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const totalPoints = pointsWithBonuses[userId] ?? 0;
 
   const wrestlers =
-    (await supabase.from("wrestlers").select("id, name, image_url, gender").order("name", { ascending: true })).data ??
-    [];
+    (
+      await supabase
+        .from("wrestlers")
+        .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+        .order("name", { ascending: true })
+    ).data ?? [];
   const wrestlerNamesMap = Object.fromEntries(wrestlers.map((w) => [w.id, w.name ?? w.id]));
   const wrestlerImageUrl: Record<string, string | null> = Object.fromEntries(
     wrestlers.map((w) => [w.id, w.image_url ?? null])
@@ -167,10 +170,9 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const rosterIds = rosterEntries.map((e) => e.wrestler_id);
   let rosterTableRows: WrestlerRow[] = [];
   if (rosterIds.length > 0) {
-    const supabaseTable = await createClient();
+    const supabaseTable = supabase;
     const startDate = getEffectiveLeagueStartDate(league);
     const [
-      { data: fullWrestlersData },
       { data: eventsSinceStart },
       { data: eventsAll },
       { data: rawReigns },
@@ -178,10 +180,9 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       currentFromTable,
       currentFromChanges,
     ] = await Promise.all([
-      supabaseTable.from("wrestlers").select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"').in("id", rosterIds),
       supabaseTable.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", startDate).order("date", { ascending: true }),
       supabaseTable.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", ALL_TIME_EVENTS_FROM).order("date", { ascending: true }).limit(ALL_TIME_EVENTS_LIMIT),
-      supabaseTable.from("championship_history").select("champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
+      supabaseTable.from("championship_history").select("champion_slug, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
       supabaseTable
         .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
         .select("championship_type, champion, champion_slug, date")
@@ -189,7 +190,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       getCurrentChampionsFromChampionshipsTable(supabaseTable).catch((): Record<string, CurrentChampionFromChanges> => ({})),
       getCurrentChampionsFromChanges(supabaseTable).catch((): Record<string, CurrentChampionFromChanges> => ({})),
     ]);
-    const fullWrestlers = fullWrestlersData ?? [];
+    const fullWrestlers = wrestlers.filter((w) => rosterIds.includes(w.id));
     const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
     const changesReigns = inferReignsFromChampionshipChanges(
       changeRowsError ? [] : (rawChangeRows ?? [])

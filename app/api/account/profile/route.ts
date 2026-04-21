@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { isProfileManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import { syncMarketingOptInToConstantContact } from "@/lib/constantContactSync";
 import { validateProfileDisplayName } from "@/lib/profileDisplayName";
@@ -10,8 +10,7 @@ import { validateProfileTimezone } from "@/lib/profileTimezone";
  */
 export async function PATCH(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await getServerAuth();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

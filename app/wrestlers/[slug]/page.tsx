@@ -432,7 +432,7 @@ export default async function WrestlerProfilePage({
             if (titleName !== primaryCurrentTitle) return false;
             const champName = r.champion ?? r.champion_name ?? "";
             const raw =
-              r.champion_slug ?? r.champion_id ?? (champName ? normalizeWrestlerName(champName) : null);
+              r.champion_slug ?? r.champion_id ?? r.champion ?? (champName ? normalizeWrestlerName(champName) : null);
             if (!raw) return false;
             const won = (r.won_date ?? r.start_date)?.slice(0, 10) ?? "";
             const resolved = resolvePersonaToCanonical(raw, won) ?? raw;

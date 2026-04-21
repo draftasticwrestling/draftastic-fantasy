@@ -347,7 +347,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       supabase
         .from("championship_history")
         .select(
-          "champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date"
+          "champion_slug, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date"
         )
         .order("won_date", { ascending: true }),
       supabase

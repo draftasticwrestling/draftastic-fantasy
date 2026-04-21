@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
@@ -81,7 +81,7 @@ export default async function WrestlersFreeAgentsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const league = await getLeagueBySlug(slug);
   if (!league) {
     redirect("/leagues");

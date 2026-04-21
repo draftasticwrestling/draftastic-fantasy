@@ -1,15 +1,12 @@
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 
 /** For Route Handlers: same gate as requireSiteAdmin, but JSON errors instead of redirect. */
 export async function getSiteAdminForApi(): Promise<
   { ok: true; user: User } | { ok: false; status: number; error: string }
 > {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { ok: false, status: 401, error: "Unauthorized" };
   const { data: row, error } = await supabase
     .from("profiles")
@@ -23,10 +20,7 @@ export async function getSiteAdminForApi(): Promise<
 }
 
 export async function requireSiteAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) {
     redirect("/auth/sign-in?next=/internal-admin");
   }
@@ -42,10 +36,7 @@ export async function requireSiteAdmin() {
 }
 
 export async function getIsSiteAdmin(): Promise<boolean> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return false;
   const { data: row } = await supabase
     .from("profiles")

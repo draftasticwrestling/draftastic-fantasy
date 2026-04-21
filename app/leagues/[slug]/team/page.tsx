@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 
 export const dynamic = "force-dynamic";
@@ -33,8 +33,7 @@ export default async function TeamPage({
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) notFound();
 
   const members = await getLeagueMembers(league.id);

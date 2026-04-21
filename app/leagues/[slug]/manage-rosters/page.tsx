@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { isDraftableWrestler, normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
@@ -32,7 +32,7 @@ export default async function ManageRostersPage({
   const rosters = await getRostersForLeague(league.id);
   const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
 
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const { data: result } = await supabase
     .from("wrestlers")
     .select('id, name, gender, status, "Status", brand, classification, "Classification"')

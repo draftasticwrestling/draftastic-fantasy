@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { factionDisplayName } from "@/lib/factionName";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
@@ -16,8 +16,7 @@ export default async function TeamScoreboardPage({ params }: Props) {
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) notFound();
 
   const members = await getLeagueMembers(league.id);

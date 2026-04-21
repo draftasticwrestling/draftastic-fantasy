@@ -1,4 +1,6 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getRosterRulesForLeagueId, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
 import { getDefaultStartEndForSeason, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
@@ -152,8 +154,7 @@ export async function createLeague(params: {
   max_teams?: number | null;
   visibility_type?: "private" | "public" | null;
 }): Promise<{ league?: League; error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated" };
   const { data: profile } = await supabase
     .from("profiles")
@@ -279,70 +280,69 @@ export async function createLeague(params: {
 /**
  * Get a league by slug. Returns null if not found or user is not a member.
  * If draft columns are missing (migration not run), returns league with default draft fields.
+ * Wrapped in `cache()` so multiple callers in one RSC request share one auth + DB round-trip.
  */
-export async function getLeagueBySlug(slug: string): Promise<(League & { role: "commissioner" | "owner" }) | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+export const getLeagueBySlug = cache(
+  async (slug: string): Promise<(League & { role: "commissioner" | "owner" }) | null> => {
+    const { supabase, user } = await getServerAuth();
+    if (!user) return null;
 
-  const fullSelect =
-    "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
-  let result = await supabase
-    .from("leagues")
-    .select(fullSelect)
-    .eq("slug", slug)
-    .maybeSingle();
+    const fullSelect =
+      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
+    let result = await supabase.from("leagues").select(fullSelect).eq("slug", slug).maybeSingle();
 
-  let league = result.data;
-  const isColumnError =
-    result.error &&
-    (result.error.code === "42703" ||
-      /column|relation.*does not exist/i.test(result.error.message ?? ""));
-  if (isColumnError) {
-    const minimalResult = await supabase
-      .from("leagues")
-      .select("id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, visibility_type, public_status, public_sequence, created_at")
-      .eq("slug", slug)
-      .maybeSingle();
-    if (minimalResult.data) {
-      league = {
-        ...minimalResult.data,
-        draft_time: null,
-        draft_style: "snake",
-        draft_type: "autopick",
-        time_per_pick_seconds: 120,
-        draft_order_method: "random_one_hour_before",
-        draft_status: "not_started",
-        draft_current_pick: null,
-        auto_reactivate: false,
-        manager_note: null,
-        join_code: null,
-      } as typeof league;
-    } else {
-      league = minimalResult.data;
+    let league = result.data;
+    const isColumnError =
+      result.error &&
+      (result.error.code === "42703" ||
+        /column|relation.*does not exist/i.test(result.error.message ?? ""));
+    if (isColumnError) {
+      const minimalResult = await supabase
+        .from("leagues")
+        .select(
+          "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, visibility_type, public_status, public_sequence, created_at"
+        )
+        .eq("slug", slug)
+        .maybeSingle();
+      if (minimalResult.data) {
+        league = {
+          ...minimalResult.data,
+          draft_time: null,
+          draft_style: "snake",
+          draft_type: "autopick",
+          time_per_pick_seconds: 120,
+          draft_order_method: "random_one_hour_before",
+          draft_status: "not_started",
+          draft_current_pick: null,
+          auto_reactivate: false,
+          manager_note: null,
+          join_code: null,
+        } as typeof league;
+      } else {
+        league = minimalResult.data;
+      }
     }
+
+    if (result.error && !league) return null;
+    if (!league) return null;
+
+    const { data: member } = await supabase
+      .from("league_members")
+      .select("role")
+      .eq("league_id", league.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!member) return null;
+    return { ...league, role: member.role } as League & { role: "commissioner" | "owner" };
   }
-
-  if (result.error && !league) return null;
-  if (!league) return null;
-
-  const { data: member } = await supabase
-    .from("league_members")
-    .select("role")
-    .eq("league_id", league.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!member) return null;
-  return { ...league, role: member.role } as League & { role: "commissioner" | "owner" };
-}
+);
 
 /**
  * List leagues the current user is a member of.
  */
 export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return [];
 
   const { data: members, error: meError } = await supabase
@@ -387,9 +387,10 @@ export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
 
 /**
  * Get members of a league with display names. Caller must be a member.
+ * Cached per request so layouts + pages that both load members hit the DB once.
  */
-export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]> {
-  const supabase = await createClient();
+export const getLeagueMembers = cache(async (leagueId: string): Promise<LeagueMember[]> => {
+  const { supabase } = await getServerAuth();
   type Row = {
     id: string;
     league_id: string;
@@ -510,7 +511,7 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
       avatar_url: p?.avatar_url ?? null,
     };
   }) as LeagueMember[];
-}
+});
 
 /**
  * Get league member user_ids using service role. For use by cron/scheduled jobs (e.g. draft order at 1hr before).
@@ -539,8 +540,7 @@ export async function updateLeagueMemberFactionInfo(
   leagueId: string,
   payload: { teamName: string | null; factionEmoji: string | null }
 ): Promise<{ error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated" };
 
   const validatedName = validateFactionNameForSave(payload.teamName);
@@ -584,8 +584,7 @@ export async function updateLeagueMemberManagerAvatar(
   leagueId: string,
   managerAvatarUrl: string | null
 ): Promise<{ error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated" };
 
   const supabaseOrigin =
@@ -627,8 +626,7 @@ export async function updateLeagueMemberCatchphrase(
   leagueId: string,
   catchphrase: string | null
 ): Promise<{ error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated" };
 
   const validated = validateManagerCatchphraseForSave(catchphrase);
@@ -670,8 +668,7 @@ export async function createLeagueInvite(
   leagueId: string,
   expiresInDays: number = INVITE_LINK_EXPIRY_DAYS
 ): Promise<{ url: string; token: string; join_code?: string | null; error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { url: "", token: "", error: "Not authenticated" };
 
   const { data: league } = await supabase
@@ -713,7 +710,7 @@ export async function joinLeagueWithToken(token: string): Promise<{
   error?: string;
   message?: string;
 }> {
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const { data, error } = await supabase.rpc("join_league_with_token", {
     p_token: token.trim(),
   });
@@ -732,7 +729,7 @@ export async function joinLeagueWithCode(code: string): Promise<{
   error?: string;
   message?: string;
 }> {
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const { data, error } = await supabase.rpc("join_league_with_code", {
     p_code: code.trim(),
   });
@@ -751,7 +748,7 @@ export async function quickJoinOldestPublicLeague(): Promise<{
   error?: string;
   message?: string;
 }> {
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const { data, error } = await supabase.rpc("join_oldest_public_league");
   if (error) return { ok: false, error: error.message };
   const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
@@ -845,48 +842,46 @@ export type LeagueRosterStint = {
 
 /**
  * Get current roster entries for a league (released_at IS NULL), keyed by user_id.
+ * Cached per request when several modules load rosters for the same league.
  */
-export async function getRostersForLeague(
-  leagueId: string
-): Promise<Record<string, LeagueRosterEntry[]>> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: leagueRow } = await supabase
-    .from("leagues")
-    .select("draft_status")
-    .eq("id", leagueId)
-    .maybeSingle();
-  const draftStatus = (leagueRow as { draft_status?: string } | null)?.draft_status ?? "not_started";
-  if (draftStatus === "ready_for_review") {
-    let isSiteAdmin = false;
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_site_admin")
-        .eq("id", user.id)
-        .maybeSingle();
-      isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
+export const getRostersForLeague = cache(
+  async (leagueId: string): Promise<Record<string, LeagueRosterEntry[]>> => {
+    const { supabase, user } = await getServerAuth();
+    const { data: leagueRow } = await supabase
+      .from("leagues")
+      .select("draft_status")
+      .eq("id", leagueId)
+      .maybeSingle();
+    const draftStatus = (leagueRow as { draft_status?: string } | null)?.draft_status ?? "not_started";
+    if (draftStatus === "ready_for_review") {
+      let isSiteAdmin = false;
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_site_admin")
+          .eq("id", user.id)
+          .maybeSingle();
+        isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
+      }
+      if (!isSiteAdmin) return {};
     }
-    if (!isSiteAdmin) return {};
-  }
-  const { data, error } = await supabase
-    .from("league_rosters")
-    .select("user_id, wrestler_id, contract")
-    .eq("league_id", leagueId)
-    .is("released_at", null)
-    .order("created_at", { ascending: true });
+    const { data, error } = await supabase
+      .from("league_rosters")
+      .select("user_id, wrestler_id, contract")
+      .eq("league_id", leagueId)
+      .is("released_at", null)
+      .order("created_at", { ascending: true });
 
-  if (error) return {};
-  const rows = (data ?? []) as { user_id: string; wrestler_id: string; contract: string | null }[];
-  const byUser: Record<string, LeagueRosterEntry[]> = {};
-  for (const r of rows) {
-    if (!byUser[r.user_id]) byUser[r.user_id] = [];
-    byUser[r.user_id].push({ wrestler_id: r.wrestler_id, contract: r.contract });
+    if (error) return {};
+    const rows = (data ?? []) as { user_id: string; wrestler_id: string; contract: string | null }[];
+    const byUser: Record<string, LeagueRosterEntry[]> = {};
+    for (const r of rows) {
+      if (!byUser[r.user_id]) byUser[r.user_id] = [];
+      byUser[r.user_id].push({ wrestler_id: r.wrestler_id, contract: r.contract });
+    }
+    return byUser;
   }
-  return byUser;
-}
+);
 
 /**
  * Same as getRostersForLeague but uses service role so all teams' rosters are returned.
@@ -918,71 +913,72 @@ export async function getRostersForLeagueAdmin(
 
 /**
  * Get all roster stints for a league (active and released) for acquisition-window scoring.
+ * Cached per request — matchup code often reads stints several times for the same league.
  */
-export async function getRosterStintsForLeague(
-  leagueId: string
-): Promise<LeagueRosterStint[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("league_rosters")
-    .select(
-      "user_id, wrestler_id, contract, acquired_at, released_at, acquired_at_ts, released_at_ts"
-    )
-    .eq("league_id", leagueId)
-    .order("acquired_at", { ascending: true });
-
-  if (error) {
-    // Allow running before the timestamp migration is applied.
-    const isColumnError =
-      /column.*(acquired_at_ts|released_at_ts) does not exist/i.test(error.message ?? "") ||
-      /schema cache/i.test(error.message ?? "");
-    if (!isColumnError) return [];
-
-    const fallback = await supabase
+export const getRosterStintsForLeague = cache(
+  async (leagueId: string): Promise<LeagueRosterStint[]> => {
+    const { supabase } = await getServerAuth();
+    const { data, error } = await supabase
       .from("league_rosters")
-      .select("user_id, wrestler_id, contract, acquired_at, released_at")
+      .select(
+        "user_id, wrestler_id, contract, acquired_at, released_at, acquired_at_ts, released_at_ts"
+      )
       .eq("league_id", leagueId)
       .order("acquired_at", { ascending: true });
 
-    const fbRows = (fallback.data ?? []) as {
+    if (error) {
+      // Allow running before the timestamp migration is applied.
+      const isColumnError =
+        /column.*(acquired_at_ts|released_at_ts) does not exist/i.test(error.message ?? "") ||
+        /schema cache/i.test(error.message ?? "");
+      if (!isColumnError) return [];
+
+      const fallback = await supabase
+        .from("league_rosters")
+        .select("user_id, wrestler_id, contract, acquired_at, released_at")
+        .eq("league_id", leagueId)
+        .order("acquired_at", { ascending: true });
+
+      const fbRows = (fallback.data ?? []) as {
+        user_id: string;
+        wrestler_id: string;
+        contract: string | null;
+        acquired_at: string;
+        released_at: string | null;
+      }[];
+
+      return fbRows.map((r) => ({
+        user_id: r.user_id,
+        wrestler_id: r.wrestler_id,
+        contract: r.contract,
+        acquired_at: String(r.acquired_at ?? "").slice(0, 10),
+        released_at: r.released_at ? String(r.released_at).slice(0, 10) : null,
+        acquired_at_ts: null,
+        released_at_ts: null,
+      }));
+    }
+
+    const rows = (data ?? []) as {
       user_id: string;
       wrestler_id: string;
       contract: string | null;
       acquired_at: string;
       released_at: string | null;
+      acquired_at_ts?: string | null;
+      released_at_ts?: string | null;
     }[];
 
-    return fbRows.map((r) => ({
+    return rows.map((r) => ({
       user_id: r.user_id,
       wrestler_id: r.wrestler_id,
       contract: r.contract,
       acquired_at: String(r.acquired_at ?? "").slice(0, 10),
       released_at: r.released_at ? String(r.released_at).slice(0, 10) : null,
-      acquired_at_ts: null,
-      released_at_ts: null,
+      acquired_at_ts: r.acquired_at_ts ? String(r.acquired_at_ts) : null,
+      released_at_ts: r.released_at_ts ? String(r.released_at_ts) : null,
     }));
   }
-
-  const rows = (data ?? []) as {
-    user_id: string;
-    wrestler_id: string;
-    contract: string | null;
-    acquired_at: string;
-    released_at: string | null;
-    acquired_at_ts?: string | null;
-    released_at_ts?: string | null;
-  }[];
-
-  return rows.map((r) => ({
-    user_id: r.user_id,
-    wrestler_id: r.wrestler_id,
-    contract: r.contract,
-    acquired_at: String(r.acquired_at ?? "").slice(0, 10),
-    released_at: r.released_at ? String(r.released_at).slice(0, 10) : null,
-    acquired_at_ts: r.acquired_at_ts ? String(r.acquired_at_ts) : null,
-    released_at_ts: r.released_at_ts ? String(r.released_at_ts) : null,
-  }));
-}
+);
 
 /** Map wrestler id → display name for roster ↔ event slug matching (personas, broadcast names). */
 export async function getWrestlerDisplayNamesByIds(wrestlerIds: string[]): Promise<Record<string, string>> {
@@ -1010,31 +1006,37 @@ function getSundayOfWeek(weekStart: string): string {
  * Returns acquired_at and released_at on each entry for matchup display (add date / drop date).
  * Ordered by acquired_at per user.
  */
-export async function getRostersForLeagueForWeek(
-  leagueId: string,
-  weekStartMonday: string
-): Promise<Record<string, LeagueRosterEntry[]>> {
-  const weekEndSunday = getSundayOfWeek(weekStartMonday);
-  const stints = await getRosterStintsForLeague(leagueId);
-  const byUser: Record<string, LeagueRosterEntry[]> = {};
-  for (const s of stints) {
-    const acquired = s.acquired_at;
-    const released = s.released_at;
-    if (acquired > weekEndSunday) continue;
-    if (released != null && released < weekStartMonday) continue;
-    if (!byUser[s.user_id]) byUser[s.user_id] = [];
-    byUser[s.user_id].push({
-      wrestler_id: s.wrestler_id,
-      contract: s.contract,
-      acquired_at: acquired,
-      released_at: released ?? undefined,
-    });
+export const getRostersForLeagueForWeek = cache(
+  async (
+    leagueId: string,
+    weekStartMonday: string
+  ): Promise<Record<string, LeagueRosterEntry[]>> => {
+    const weekEndSunday = getSundayOfWeek(weekStartMonday);
+    const stints = await getRosterStintsForLeague(leagueId);
+    const byUser: Record<string, LeagueRosterEntry[]> = {};
+    for (const s of stints) {
+      const acquired = s.acquired_at;
+      const released = s.released_at;
+      if (acquired > weekEndSunday) continue;
+      if (released != null && released < weekStartMonday) continue;
+      if (!byUser[s.user_id]) byUser[s.user_id] = [];
+      byUser[s.user_id].push({
+        wrestler_id: s.wrestler_id,
+        contract: s.contract,
+        acquired_at: acquired,
+        released_at: released ?? undefined,
+      });
+    }
+    for (const arr of Object.values(byUser)) {
+      arr.sort(
+        (a, b) =>
+          (a.acquired_at ?? "").localeCompare(b.acquired_at ?? "") ||
+          a.wrestler_id.localeCompare(b.wrestler_id)
+      );
+    }
+    return byUser;
   }
-  for (const arr of Object.values(byUser)) {
-    arr.sort((a, b) => (a.acquired_at ?? "").localeCompare(b.acquired_at ?? "") || a.wrestler_id.localeCompare(b.wrestler_id));
-  }
-  return byUser;
-}
+);
 
 /** Normalize wrestler gender to F/M for roster rules. */
 function normalizeWrestlerGender(g: string | null | undefined): "F" | "M" | null {
@@ -1059,8 +1061,7 @@ export async function addWrestlerToRoster(
   useServiceRole?: boolean,
   acquiredAt?: string | null
 ): Promise<{ error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated" };
 
   const wid = String(wrestlerId).trim();
@@ -1159,8 +1160,7 @@ export async function removeWrestlerFromRoster(
   releasedAt?: string | null,
   useServiceRole?: boolean
 ): Promise<{ error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated" };
 
   const releasedDate =
@@ -1234,7 +1234,7 @@ export async function getLeagueScoring(
   pointsByOwner: Record<string, number>;
   pointsByOwnerByWrestler: Record<string, Record<string, number>>;
 }> {
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const { data: league } = await supabase
     .from("leagues")
     .select("id, start_date, end_date, draft_date, season_slug")
@@ -1384,7 +1384,7 @@ export async function getLeagueScoring(
       supabase
         .from("championship_history")
         .select(
-          "champion_slug, champion_id, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date"
+          "champion_slug, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date"
         )
         .order("won_date", { ascending: true }),
       supabase

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getSiteAdminForApi } from "@/lib/auth/siteAdmin";
 import { ARTICLE_IMAGES_BUCKET } from "@/lib/articleImages";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 
 export const runtime = "nodejs";
 
@@ -18,7 +18,7 @@ export async function GET() {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const userId = gate.user.id;
   const acc: { path: string; publicUrl: string; createdAt: string }[] = [];
 

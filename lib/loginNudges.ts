@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 
 export type LoginNudgeKey = "missing_draft_prefs" | "no_league_joined";
@@ -81,10 +81,7 @@ export async function getLoginNudgeConfigs(): Promise<Record<LoginNudgeKey, Logi
 }
 
 export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return [];
 
   const { data: memberships } = await supabase

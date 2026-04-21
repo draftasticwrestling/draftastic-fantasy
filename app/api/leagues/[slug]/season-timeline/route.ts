@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getEffectiveLeagueStartDate, getLeagueBySlug } from "@/lib/leagues";
 import { buildLeagueSeasonTimeline } from "@/lib/leagueSeasonTimeline";
 
@@ -20,7 +20,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const endRaw = league.end_date ? String(league.end_date).slice(0, 10) : null;
   const windowEnd = endRaw && /^\d{4}-\d{2}-\d{2}$/.test(endRaw) ? endRaw : "2099-12-31";
 
-  const supabase = await createClient();
+  const { supabase } = await getServerAuth();
   const { data: eventRows, error } = await supabase
     .from("events")
     .select("id, name, date, status")

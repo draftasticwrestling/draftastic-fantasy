@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { JoinLeagueForm } from "../JoinLeagueForm";
 
 type Props = { searchParams: Promise<{ token?: string; code?: string }> };
@@ -11,8 +11,7 @@ export const metadata = {
 };
 
 export default async function JoinLeaguePage({ searchParams }: Props) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getServerAuth();
   const { token, code } = await searchParams;
 
   if (!user) {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeaguesForUser } from "@/lib/leagues";
 
 export const metadata = {
@@ -9,8 +9,7 @@ export const metadata = {
 };
 
 export default async function LeaguesPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getServerAuth();
   if (!user) {
     redirect("/auth/sign-in?next=/leagues");
   }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import {
   generateDraftOrder,
   setDraftOrderFromRound1,
@@ -117,10 +117,7 @@ export async function runAutopickTickAction(
     return { didAutoPick: false };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { didAutoPick: false, error: "Sign in to run the draft." };
 
   const { data: member } = await supabase
@@ -165,8 +162,7 @@ export async function clearDraftOrderAction(leagueSlug: string): Promise<{ error
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) return { error: "Only the GM can clear the draft order." };
   const result = await clearDraftOrder(league.id);
   if (result.error) return result;
@@ -189,8 +185,7 @@ export async function restartDraftAction(leagueSlug: string): Promise<{ error?: 
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) return { error: "Only the GM can restart the draft." };
   const result = await restartDraft(league.id);
   if (result.error) return result;
@@ -204,8 +199,7 @@ export async function clearLastPickAction(leagueSlug: string): Promise<{ error?:
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) return { error: "Only the GM can clear a pick." };
   const result = await clearLastPick(league.id);
   if (result.error) return result;
@@ -240,8 +234,7 @@ export async function saveDraftPreferencesAction(
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated." };
   const { data: member } = await supabase
     .from("league_members")

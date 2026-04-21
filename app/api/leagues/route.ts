@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createLeague } from "@/lib/leagues";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import {
   consumeLeagueCreationAccessCode,
   leagueCreationAccessIsConfigured,
@@ -36,10 +36,7 @@ export async function POST(request: Request) {
         ? String((body as { access_code?: unknown }).access_code ?? "").trim()
         : "";
 
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { supabase, user } = await getServerAuth();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

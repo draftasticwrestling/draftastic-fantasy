@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeagueForWeek } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
@@ -40,16 +40,25 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const [members, matchups, rosters, pointsByOwnerByWrestler, monthlyBeltBySlug, wrestlersRows] = await Promise.all([
+  const { supabase, user } = await getServerAuth();
+  const [members, matchups, rosters, pointsByOwnerByWrestler, monthlyBeltBySlug] = await Promise.all([
     getLeagueMembers(league.id),
     getLeagueWeeklyMatchups(league.id),
     getRostersForLeagueForWeek(league.id, weekStartDecoded),
     getPointsByOwnerByWrestlerForWeek(league.id, weekStartDecoded),
     getMonthlyBeltBySlugForWeek(league.id, weekStartDecoded),
-    supabase.from("wrestlers").select("id, name").order("name", { ascending: true }),
   ]);
+  const wrestlerIds = [
+    ...new Set(
+      Object.values(rosters)
+        .flat()
+        .map((e) => e.wrestler_id)
+    ),
+  ];
+  const wrestlersRows =
+    wrestlerIds.length > 0
+      ? await supabase.from("wrestlers").select("id, name").in("id", wrestlerIds)
+      : { data: [] as { id: string; name: string | null }[] };
   const isMember = user && members.some((m) => m.user_id === user.id);
   if (!isMember) notFound();
   const matchup = matchups.find((m) => m.weekStart === weekStartDecoded);
