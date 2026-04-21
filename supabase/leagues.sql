@@ -63,6 +63,7 @@ as $$
 $$;
 
 -- Leagues: members can read; authenticated can create; commissioner can update/delete.
+drop policy if exists "League members can read league" on public.leagues;
 create policy "League members can read league"
   on public.leagues for select
   to authenticated
@@ -74,29 +75,37 @@ create policy "League members can read league"
   );
 
 -- Any authenticated user can create a league; app always sets commissioner_id to current user.
+drop policy if exists "Authenticated can create league" on public.leagues;
 create policy "Authenticated can create league"
   on public.leagues for insert
   to authenticated
   with check (true);
 
+drop policy if exists "Commissioner can update league" on public.leagues;
 create policy "Commissioner can update league"
   on public.leagues for update
   to authenticated
   using (commissioner_id = auth.uid())
   with check (commissioner_id = auth.uid());
 
+drop policy if exists "Commissioner can delete league" on public.leagues;
 create policy "Commissioner can delete league"
   on public.leagues for delete
   to authenticated
-  using (commissioner_id = auth.uid());
+  using (
+    commissioner_id = auth.uid()
+    and coalesce(visibility_type, 'private') <> 'public'
+  );
 
 -- League members: members of a league can read that league's members; commissioner can insert; user can delete own row (leave).
 -- (Use function to avoid RLS infinite recursion when policy queries same table.)
+drop policy if exists "League members can read members" on public.league_members;
 create policy "League members can read members"
   on public.league_members for select
   to authenticated
   using (public.current_user_is_league_member(league_id));
 
+drop policy if exists "Commissioner can add member" on public.league_members;
 create policy "Commissioner can add member"
   on public.league_members for insert
   to authenticated
@@ -107,17 +116,20 @@ create policy "Commissioner can add member"
     )
   );
 
+drop policy if exists "User can leave league" on public.league_members;
 create policy "User can leave league"
   on public.league_members for delete
   to authenticated
   using (user_id = auth.uid());
 
 -- Invites: members of the league can read invites for that league; commissioner can insert/delete. Join is via function.
+drop policy if exists "League members can read invites" on public.league_invites;
 create policy "League members can read invites"
   on public.league_invites for select
   to authenticated
   using (public.current_user_is_league_member(league_id));
 
+drop policy if exists "Commissioner can create invite" on public.league_invites;
 create policy "Commissioner can create invite"
   on public.league_invites for insert
   to authenticated
@@ -128,6 +140,7 @@ create policy "Commissioner can create invite"
     )
   );
 
+drop policy if exists "Commissioner can delete invite" on public.league_invites;
 create policy "Commissioner can delete invite"
   on public.league_invites for delete
   to authenticated

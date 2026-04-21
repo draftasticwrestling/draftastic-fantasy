@@ -332,6 +332,10 @@ export async function deleteLeagueAction(
 ): Promise<{ error?: string }> {
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
+  const isPublicLeague = String(league.visibility_type ?? "").toLowerCase() === "public";
+  if (isPublicLeague) {
+    return { error: "Public leagues cannot be deleted." };
+  }
 
   const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) {

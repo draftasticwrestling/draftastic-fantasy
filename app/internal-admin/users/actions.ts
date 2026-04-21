@@ -225,3 +225,107 @@ export async function updateLeagueMembershipTextAction(formData: FormData) {
 
   return ok(userId, "League text fields updated.");
 }
+
+export async function deleteUserAccountAction(formData: FormData) {
+  const { user } = await requireSiteAdmin();
+  const admin = getAdminClient();
+  if (!admin) return fail("unknown", "Server missing SUPABASE_SERVICE_ROLE_KEY.");
+
+  const userId = (formData.get("user_id") ?? "").toString().trim();
+  const reason = (formData.get("reason") ?? "").toString().trim();
+  const confirmText = (formData.get("confirm_text") ?? "").toString().trim();
+  const confirmUserId = (formData.get("confirm_user_id") ?? "").toString().trim();
+  if (!userId) return fail("unknown", "Missing user id.");
+  if (!reason) return fail(userId, "Reason is required for deleting a user.");
+  if (confirmText !== "DELETE") return fail(userId, "Type DELETE to confirm user deletion.");
+  if (confirmUserId !== userId) return fail(userId, "User id confirmation does not match.");
+  if (userId === user.id) return fail(userId, "You cannot delete your own account from admin tools.");
+
+  const { data: profile, error: profileErr } = await admin
+    .from("profiles")
+    .select("is_site_admin")
+    .eq("id", userId)
+    .maybeSingle();
+  if (profileErr) return fail(userId, profileErr.message);
+  if (Boolean(profile?.is_site_admin)) {
+    return fail(userId, "Site admin accounts cannot be deleted from this tool.");
+  }
+
+  const { count: membershipCount, error: memberErr } = await admin
+    .from("league_members")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (memberErr) return fail(userId, memberErr.message);
+  if ((membershipCount ?? 0) > 0) {
+    return fail(userId, "User is still in one or more leagues. Remove memberships before deleting.");
+  }
+
+  const { data: authUser, error: beforeErr } = await admin.auth.admin.getUserById(userId);
+  if (beforeErr) return fail(userId, beforeErr.message);
+  if (!authUser.user) return fail(userId, "User not found.");
+
+  const { error: delErr } = await admin.auth.admin.deleteUser(userId);
+  if (delErr) return fail(userId, delErr.message);
+
+  await writeAudit({
+    actorUserId: user.id,
+    targetUserId: userId,
+    action: "user_deleted",
+    reason,
+    before: {
+      email: authUser.user.email ?? null,
+      phone: authUser.user.phone ?? null,
+      created_at: authUser.user.created_at ?? null,
+    },
+    after: { deleted: true },
+  });
+
+  revalidatePath("/internal-admin/users");
+  redirect(`/internal-admin/users?ok=${encodeURIComponent("User account deleted.")}`);
+}
+
+export async function removeUserFromAllLeaguesAction(formData: FormData) {
+  const { user } = await requireSiteAdmin();
+  const admin = getAdminClient();
+  if (!admin) return fail("unknown", "Server missing SUPABASE_SERVICE_ROLE_KEY.");
+
+  const userId = (formData.get("user_id") ?? "").toString().trim();
+  const reason = (formData.get("reason") ?? "").toString().trim();
+  const confirmText = (formData.get("confirm_text") ?? "").toString().trim();
+  if (!userId) return fail("unknown", "Missing user id.");
+  if (!reason) return fail(userId, "Reason is required for bulk league removal.");
+  if (confirmText !== "REMOVE") return fail(userId, "Type REMOVE to confirm bulk league removal.");
+  if (userId === user.id) return fail(userId, "You cannot bulk-remove yourself from leagues from admin tools.");
+
+  const { data: commissionerMemberships, error: commissionerErr } = await admin
+    .from("league_members")
+    .select("league_id")
+    .eq("user_id", userId)
+    .eq("role", "commissioner");
+  if (commissionerErr) return fail(userId, commissionerErr.message);
+  if ((commissionerMemberships ?? []).length > 0) {
+    return fail(userId, "User is commissioner in one or more leagues. Transfer/delete those leagues first.");
+  }
+
+  const { data: beforeRows, error: beforeErr } = await admin
+    .from("league_members")
+    .select("league_id, role, joined_at")
+    .eq("user_id", userId);
+  if (beforeErr) return fail(userId, beforeErr.message);
+  const beforeCount = (beforeRows ?? []).length;
+  if (beforeCount === 0) return ok(userId, "User is not a member of any leagues.");
+
+  const { error: delErr } = await admin.from("league_members").delete().eq("user_id", userId);
+  if (delErr) return fail(userId, delErr.message);
+
+  await writeAudit({
+    actorUserId: user.id,
+    targetUserId: userId,
+    action: "user_removed_from_all_leagues",
+    reason,
+    before: { memberships: beforeRows ?? [] },
+    after: { memberships_removed_count: beforeCount },
+  });
+
+  return ok(userId, `Removed user from ${beforeCount} league${beforeCount === 1 ? "" : "s"}.`);
+}

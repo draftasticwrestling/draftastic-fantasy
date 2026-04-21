@@ -4,6 +4,8 @@ import { siteAdminGetUserDetail } from "@/lib/internalAdmin/siteAdminUsers";
 import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
 import {
   clearAvatarAction,
+  deleteUserAccountAction,
+  removeUserFromAllLeaguesAction,
   saveUserModerationAction,
   setSuspensionAction,
   updateLeagueMembershipTextAction,
@@ -225,6 +227,35 @@ export default async function InternalAdminUserModerationPage({
         )}
       </section>
 
+      <section
+        style={{
+          marginTop: 20,
+          padding: 16,
+          border: "1px solid #fed7aa",
+          borderRadius: 10,
+          background: "#fffaf0",
+        }}
+      >
+        <h2 style={{ marginTop: 0, color: "#9a3412" }}>Cleanup: remove from all leagues</h2>
+        <p style={{ color: "var(--color-text-muted)", marginTop: 0, maxWidth: 760 }}>
+          Quickly removes this user from every league membership row. Safeguard: commissioner memberships must be handled first.
+        </p>
+        <form action={removeUserFromAllLeaguesAction} style={{ display: "grid", gap: 10, maxWidth: 640 }}>
+          <input type="hidden" name="user_id" value={detail.id} />
+          <label>
+            <div style={{ marginBottom: 4 }}>Reason (required)</div>
+            <input className="admin-article-input" name="reason" required placeholder="Why this user should be removed from all leagues" />
+          </label>
+          <label>
+            <div style={{ marginBottom: 4 }}>Type REMOVE to confirm</div>
+            <input className="admin-article-input" name="confirm_text" required placeholder="REMOVE" />
+          </label>
+          <button className="admin-article-submit" type="submit" style={{ background: "#c2410c", borderColor: "#9a3412" }}>
+            Remove from all leagues
+          </button>
+        </form>
+      </section>
+
       <section style={{ marginTop: 20, padding: 16, border: "1px solid var(--color-border)", borderRadius: 10 }}>
         <h2 style={{ marginTop: 0 }}>Recent moderation audit</h2>
         {detail.audit.length === 0 ? (
@@ -251,6 +282,40 @@ export default async function InternalAdminUserModerationPage({
             </tbody>
           </table>
         )}
+      </section>
+
+      <section
+        style={{
+          marginTop: 20,
+          padding: 16,
+          border: "1px solid #fecaca",
+          borderRadius: 10,
+          background: "#fff7f7",
+        }}
+      >
+        <h2 style={{ marginTop: 0, color: "#991b1b" }}>Danger zone: delete account</h2>
+        <p style={{ color: "var(--color-text-muted)", marginTop: 0, maxWidth: 760 }}>
+          Deletes this Supabase Auth user. Safeguards: site-admin users cannot be deleted, you cannot delete yourself, and users
+          must be removed from all leagues first.
+        </p>
+        <form action={deleteUserAccountAction} style={{ display: "grid", gap: 10, maxWidth: 640 }}>
+          <input type="hidden" name="user_id" value={detail.id} />
+          <label>
+            <div style={{ marginBottom: 4 }}>Reason (required)</div>
+            <input className="admin-article-input" name="reason" required placeholder="Why this account should be deleted" />
+          </label>
+          <label>
+            <div style={{ marginBottom: 4 }}>Type DELETE to confirm</div>
+            <input className="admin-article-input" name="confirm_text" required placeholder="DELETE" />
+          </label>
+          <label>
+            <div style={{ marginBottom: 4 }}>Type full user id to confirm</div>
+            <input className="admin-article-input" name="confirm_user_id" required placeholder={detail.id} />
+          </label>
+          <button className="admin-article-submit" type="submit" style={{ background: "#b91c1c", borderColor: "#991b1b" }}>
+            Delete user account
+          </button>
+        </form>
       </section>
     </div>
   );

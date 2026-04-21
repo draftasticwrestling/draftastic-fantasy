@@ -78,9 +78,11 @@ export const metadata = {
 export default async function InternalAdminLeaguesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; view?: string }>;
 }) {
-  const { q = "" } = await searchParams;
+  const { q = "", view: viewRaw = "current" } = await searchParams;
+  const view: "current" | "archived" | "all" =
+    viewRaw === "archived" || viewRaw === "all" ? viewRaw : "current";
   const admin = getServiceRoleClient();
   if (!admin) {
     return (
@@ -95,8 +97,14 @@ export default async function InternalAdminLeaguesPage({
   }
 
   const { rows, error } = await siteAdminSearchLeagues(admin, q);
-  const publicRows = rows.filter(isPublicLeague);
-  const privateRows = rows.filter((r) => !isPublicLeague(r));
+  const filteredRows =
+    view === "archived"
+      ? rows.filter((r) => Boolean(r.is_archived))
+      : view === "current"
+        ? rows.filter((r) => !Boolean(r.is_archived))
+        : rows;
+  const publicRows = filteredRows.filter(isPublicLeague);
+  const privateRows = filteredRows.filter((r) => !isPublicLeague(r));
 
   return (
     <div style={{ maxWidth: 960 }}>
@@ -106,7 +114,8 @@ export default async function InternalAdminLeaguesPage({
         include every registered member; open a league for roster detail.
       </p>
 
-      <form method="get" action="/internal-admin/leagues" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
+      <form method="get" action="/internal-admin/leagues" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+        <input type="hidden" name="view" value={view} />
         <label style={{ flex: "1 1 220px", minWidth: 180 }}>
           <input
             type="search"
@@ -122,11 +131,38 @@ export default async function InternalAdminLeaguesPage({
           Search
         </button>
         {q ? (
-          <Link href="/internal-admin/leagues" className="app-link" style={{ alignSelf: "center", fontSize: 14 }}>
+          <Link
+            href={`/internal-admin/leagues?view=${encodeURIComponent(view)}`}
+            className="app-link"
+            style={{ alignSelf: "center", fontSize: 14 }}
+          >
             Clear
           </Link>
         ) : null}
       </form>
+      <div style={{ display: "flex", gap: 14, marginBottom: 24, fontSize: 14 }}>
+        <Link
+          href={`/internal-admin/leagues?${new URLSearchParams({ ...(q ? { q } : {}), view: "current" }).toString()}`}
+          className="app-link"
+          style={{ fontWeight: view === "current" ? 700 : 400 }}
+        >
+          Current leagues
+        </Link>
+        <Link
+          href={`/internal-admin/leagues?${new URLSearchParams({ ...(q ? { q } : {}), view: "archived" }).toString()}`}
+          className="app-link"
+          style={{ fontWeight: view === "archived" ? 700 : 400 }}
+        >
+          Archived leagues
+        </Link>
+        <Link
+          href={`/internal-admin/leagues?${new URLSearchParams({ ...(q ? { q } : {}), view: "all" }).toString()}`}
+          className="app-link"
+          style={{ fontWeight: view === "all" ? 700 : 400 }}
+        >
+          All leagues
+        </Link>
+      </div>
 
       {error ? (
         <p
@@ -143,7 +179,7 @@ export default async function InternalAdminLeaguesPage({
         </p>
       ) : null}
 
-      {rows.length === 0 ? (
+      {filteredRows.length === 0 ? (
         <p style={{ color: "var(--color-text-muted)" }}>{q ? "No leagues match that search." : "No leagues found."}</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>

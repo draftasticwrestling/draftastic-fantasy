@@ -86,12 +86,21 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
 
   const { data: memberships } = await supabase
     .from("league_members")
-    .select("league_id, leagues!inner(slug)")
+    .select("league_id, leagues!inner(slug, draft_status, is_archived)")
     .eq("user_id", user.id);
-  const leagueRows = (memberships ?? []) as Array<{ league_id: string; leagues?: { slug?: string | null } | null }>;
-  const leagueIds = leagueRows.map((r) => r.league_id);
+  const leagueRows = (memberships ?? []) as Array<{
+    league_id: string;
+    leagues?: { slug?: string | null; draft_status?: string | null; is_archived?: boolean | null } | null;
+  }>;
+  const eligibleLeagueRows = leagueRows.filter((row) => {
+    const isArchived = Boolean(row.leagues?.is_archived);
+    if (isArchived) return false;
+    const draftStatus = String(row.leagues?.draft_status ?? "not_started");
+    return draftStatus !== "completed" && draftStatus !== "ready_for_review";
+  });
+  const leagueIds = eligibleLeagueRows.map((r) => r.league_id);
   const slugByLeagueId = new Map<string, string>();
-  for (const row of leagueRows) {
+  for (const row of eligibleLeagueRows) {
     const slug = row.leagues?.slug;
     if (slug) slugByLeagueId.set(row.league_id, slug);
   }

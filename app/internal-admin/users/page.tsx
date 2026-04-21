@@ -15,9 +15,9 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 export default async function InternalAdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; ok?: string; err?: string }>;
 }) {
-  const { q = "", page: pageParam } = await searchParams;
+  const { q = "", page: pageParam, ok, err } = await searchParams;
   const page = parsePositiveInt(pageParam, 1);
   const admin = getServiceRoleClient();
 
@@ -75,6 +75,13 @@ export default async function InternalAdminUsersPage({
           </Link>
         ) : null}
       </form>
+
+      {ok ? (
+        <p style={{ color: "#166534", background: "#ecfdf3", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 12px" }}>{ok}</p>
+      ) : null}
+      {err ? (
+        <p style={{ color: "#b91c1c", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 12px" }}>{err}</p>
+      ) : null}
 
       {error ? (
         <p
