@@ -15,6 +15,18 @@ export async function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const isMarketingDomain = host.toLowerCase().includes(DRAFTASTIC_MARKETING_LANDING_DOMAIN);
   const path = request.nextUrl.pathname;
+  const authCode = request.nextUrl.searchParams.get("code");
+
+  // Some auth providers/callback configs can land on arbitrary routes with ?code=...
+  // Route those through /auth/callback so the code is exchanged and removed from the URL.
+  if (authCode && path !== "/auth/callback") {
+    const callbackUrl = request.nextUrl.clone();
+    callbackUrl.pathname = "/auth/callback";
+    if (!callbackUrl.searchParams.get("next")) {
+      callbackUrl.searchParams.set("next", `${path}${request.nextUrl.search}`);
+    }
+    return NextResponse.redirect(callbackUrl);
+  }
 
   if (isMarketingDomain) {
     const proto = request.headers.get("x-forwarded-proto");

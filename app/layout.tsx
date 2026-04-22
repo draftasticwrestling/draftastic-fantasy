@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import RootShell from "./components/RootShell";
 import { getRecentEvents } from "@/lib/eventsRecent";
@@ -10,6 +11,13 @@ export const metadata: Metadata = {
   description: "Event results, fantasy leagues, and pro wrestling coverage.",
 };
 
+/** Lets `env(safe-area-inset-*)` work on notched phones; helps bottom sheets stay on-screen */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -19,28 +27,24 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <head>
-        <script
-          async
+      <body>
+        <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
         />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', '${GA_MEASUREMENT_ID}');
-            `,
-          }}
-        />
-        <script
-          async
+        <Script id="gtag-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
+        <Script
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+          strategy="afterInteractive"
           crossOrigin="anonymous"
         />
-      </head>
-      <body>
         <RootShell recentEvents={recentEvents}>{children}</RootShell>
       </body>
     </html>

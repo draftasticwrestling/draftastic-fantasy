@@ -48,6 +48,49 @@ export async function updateChampionshipAction(
   return { success: "Championship updated." };
 }
 
+export async function createChampionshipAction(
+  _prev: ChampionshipActionState,
+  formData: FormData
+): Promise<ChampionshipActionState> {
+  const { user } = await requireSiteAdmin();
+  const admin = getAdminClient();
+  if (!admin) return { error: "Missing SUPABASE_SERVICE_ROLE_KEY." };
+
+  const titleName = norm(formData.get("title_name"));
+  if (!titleName) return { error: "Title name is required." };
+
+  const payload: Record<string, unknown> = {
+    title_name: titleName,
+    brand: norm(formData.get("brand")),
+    type: norm(formData.get("type")),
+    current_champion: norm(formData.get("current_champion")),
+    current_champion_slug: norm(formData.get("current_champion_slug")),
+    previous_champion: norm(formData.get("previous_champion")),
+    previous_champion_slug: norm(formData.get("previous_champion_slug")),
+    date_won: norm(formData.get("date_won")),
+    event_name: norm(formData.get("event_name")),
+    title_facts: norm(formData.get("title_facts")),
+  };
+
+  const { data, error } = await admin.from("championships").insert(payload).select("id").single();
+  if (error) return { error: error.message };
+
+  try {
+    await admin.from("admin_audit_log").insert({
+      actor_user_id: user.id,
+      action: "create",
+      entity_type: "championship",
+      entity_id: String(data?.id ?? ""),
+      payload_json: { title_name: titleName, brand: payload.brand ?? null, type: payload.type ?? null },
+    });
+  } catch {
+    // optional table
+  }
+
+  await revalidateChampionships();
+  return { success: "Championship created." };
+}
+
 export async function createChampionshipHistoryAction(
   _prev: ChampionshipActionState,
   formData: FormData
@@ -117,5 +160,52 @@ export async function deleteChampionshipHistoryAction(formData: FormData): Promi
   if (!id) return;
   await admin.from("championship_history").delete().eq("id", id);
   await revalidateChampionships();
+}
+
+export async function deleteChampionshipAction(
+  _prev: ChampionshipActionState,
+  formData: FormData
+): Promise<ChampionshipActionState> {
+  const { user } = await requireSiteAdmin();
+  const admin = getAdminClient();
+  if (!admin) return { error: "Missing SUPABASE_SERVICE_ROLE_KEY." };
+
+  const id = norm(formData.get("id"));
+  const reason = norm(formData.get("reason"));
+  const confirmText = norm(formData.get("confirm_text"));
+  if (!id) return { error: "Missing championship id." };
+  if (!reason) return { error: "Reason is required to delete a championship." };
+  if (confirmText !== "DELETE") return { error: "Type DELETE to confirm deleting the championship." };
+
+  const { data: row, error: rowErr } = await admin.from("championships").select("id,title_name").eq("id", id).maybeSingle();
+  if (rowErr) return { error: rowErr.message };
+  if (!row) return { error: "Championship not found." };
+
+  const { count: historyCount, error: historyErr } = await admin
+    .from("championship_history")
+    .select("*", { count: "exact", head: true })
+    .eq("championship_id", id);
+  if (historyErr) return { error: historyErr.message };
+  if ((historyCount ?? 0) > 0) {
+    return { error: "Cannot delete a championship that has title history rows. Remove history rows first." };
+  }
+
+  const { error: delErr } = await admin.from("championships").delete().eq("id", id);
+  if (delErr) return { error: delErr.message };
+
+  try {
+    await admin.from("admin_audit_log").insert({
+      actor_user_id: user.id,
+      action: "delete",
+      entity_type: "championship",
+      entity_id: id,
+      payload_json: { reason, title_name: row.title_name ?? null },
+    });
+  } catch {
+    // optional table
+  }
+
+  await revalidateChampionships();
+  return { success: "Championship deleted." };
 }
 

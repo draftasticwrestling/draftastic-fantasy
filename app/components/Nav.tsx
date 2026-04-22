@@ -21,6 +21,8 @@ type LeagueItem = {
   season_slug?: string | null;
 };
 
+type MobileLeagueSectionKey = "league" | "my-team" | "wrestlers" | "matchups" | "ple" | "draft" | "gm-tools";
+
 /** Grouped admin menu: portal vs internal tools vs demos (flat list for mobile order). */
 const ADMIN_MENU_SECTIONS: readonly {
   title: string;
@@ -46,7 +48,7 @@ const ADMIN_MENU_SECTIONS: readonly {
   },
 ] as const;
 
-function getActivePrimary(pathname: string, slug: string): string | null {
+function getActivePrimary(pathname: string, slug: string): MobileLeagueSectionKey | null {
   if (!slug) return null;
   const base = `/leagues/${slug}`;
   if (pathname === base || pathname === `${base}/`) return "league";
@@ -80,6 +82,7 @@ export default function Nav() {
   const secondaryWrapRef = useRef<HTMLElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileLeagueSection, setMobileLeagueSection] = useState<MobileLeagueSectionKey>("league");
   const [leaguePanelRect, setLeaguePanelRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const setHoverPrimaryStable = (value: typeof hoverPrimary) => {
@@ -175,6 +178,10 @@ export default function Nav() {
   const isCommissioner = currentLeague?.role === "commissioner";
   const isSiteAdmin = Boolean(profile?.is_site_admin);
   const activePrimary = currentLeagueSlug ? getActivePrimary(pathname, currentLeagueSlug) : null;
+
+  useEffect(() => {
+    if (activePrimary) setMobileLeagueSection(activePrimary);
+  }, [activePrimary]);
 
   useEffect(() => {
     return () => {
@@ -289,6 +296,41 @@ export default function Nav() {
   const showNoLeagueLowerBar = Boolean(user && leagues.length === 0);
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
+
+  const mobileLeagueSections: Array<{
+    key: MobileLeagueSectionKey;
+    label: string;
+    href: string;
+    links: Array<{ href: string; label: string }>;
+  }> = [
+    { key: "league", label: "League", href: currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "#", links: leagueSub },
+    { key: "my-team", label: "My Faction", href: myTeamSub[0]?.href ?? rosterHref, links: myTeamSub },
+    {
+      key: "wrestlers",
+      label: "Statistics",
+      href: wrestlersSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers/league-leaders` : "#"),
+      links: wrestlersSub,
+    },
+    {
+      key: "matchups",
+      label: "Matchups",
+      href: currentLeagueSlug ? `/leagues/${currentLeagueSlug}/matchups` : "#",
+      links: currentLeague?.league_type !== "season_overall" && currentLeagueSlug ? [{ href: `/leagues/${currentLeagueSlug}/matchups`, label: "Matchups" }] : [],
+    },
+    { key: "ple", label: "PLEs", href: pleBarHref, links: currentLeagueSlug ? pleNavItems.map((entry) => ({ href: pleHrefForEntry(currentLeagueSlug, entry), label: entry.label })) : [] },
+    { key: "draft", label: "Draft", href: draftSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/draft` : "#"), links: draftSub },
+    { key: "gm-tools", label: "GM Tools", href: gmSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/league-settings` : "#"), links: isCommissioner ? gmSub : [] },
+  ].filter((s) => s.links.length > 0) as Array<{
+    key: MobileLeagueSectionKey;
+    label: string;
+    href: string;
+    links: Array<{ href: string; label: string }>;
+  }>;
+
+  const mobileCurrentSection =
+    mobileLeagueSections.find((s) => s.key === mobileLeagueSection) ??
+    mobileLeagueSections[0] ??
+    null;
 
   if (pathname === "/coming-soon") return null;
 
@@ -536,7 +578,7 @@ export default function Nav() {
           onMouseLeave={handleLowerBarLeave}
           onMouseEnter={handleLowerBarEnter}
         >
-          <nav className="nav-primary-wrap" aria-label="League">
+          <nav className="nav-primary-wrap nav-league-desktop" aria-label="League">
             <ul className="nav-primary-list">
               <li>
                 <div className="nav-dropdown-wrap" ref={leagueSwitcherRef}>
@@ -671,7 +713,7 @@ export default function Nav() {
             </ul>
           </nav>
 
-          <nav className="nav-secondary-wrap" aria-label="Section" ref={secondaryWrapRef}>
+          <nav className="nav-secondary-wrap nav-league-desktop" aria-label="Section" ref={secondaryWrapRef}>
             <ul className="nav-secondary-list">
               {(hoverPrimary ?? activePrimary) === "my-team" &&
                 myTeamSub.map(({ href, label }) => {
@@ -757,6 +799,69 @@ export default function Nav() {
               )}
             </ul>
           </nav>
+
+          <div className="nav-league-mobile" aria-label="League navigation">
+            <div className="nav-league-mobile-row">
+              <label className="nav-league-mobile-label" htmlFor="mobile-league-switcher">
+                League
+              </label>
+              <select
+                id="mobile-league-switcher"
+                className="nav-league-mobile-select"
+                value={currentLeagueSlug ?? ""}
+                onChange={(e) => {
+                  const nextSlug = e.target.value;
+                  if (!nextSlug) return;
+                  try {
+                    localStorage.setItem(LAST_LEAGUE_KEY, nextSlug);
+                  } catch {
+                    /* ignore */
+                  }
+                  router.push(`/leagues/${nextSlug}`);
+                }}
+              >
+                {leagues.map((l) => (
+                  <option key={l.slug} value={l.slug}>
+                    {l.name}{l.role === "commissioner" ? " (GM)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="nav-league-mobile-row">
+              <label className="nav-league-mobile-label" htmlFor="mobile-league-section">
+                Section
+              </label>
+              <select
+                id="mobile-league-section"
+                className="nav-league-mobile-select"
+                value={mobileCurrentSection?.key ?? ""}
+                onChange={(e) => {
+                  const next = e.target.value as MobileLeagueSectionKey;
+                  setMobileLeagueSection(next);
+                }}
+              >
+                {mobileLeagueSections.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {mobileCurrentSection ? (
+              <div className="nav-league-mobile-links">
+                {mobileCurrentSection.links.map((link) => {
+                  const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+                  return (
+                    <Link key={link.href} href={link.href} className={`nav-league-mobile-link ${isActive ? "is-active" : ""}`}>
+                      {link.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
     </>

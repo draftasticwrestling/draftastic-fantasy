@@ -44,53 +44,47 @@ function SubmitButton() {
   );
 }
 
+function EventStatusButtons({ status, onChange }: { status: string; onChange: (next: "upcoming" | "completed" | "live") => void }) {
+  const buttonStyle = (isActive: boolean, isLive = false) =>
+    ({
+      padding: "8px 16px",
+      background: isActive ? (isLive ? "#16a34a" : "#3b82f6") : "#232323",
+      color: isActive ? "#fff" : "#bbb",
+      border: `1px solid ${isLive ? "#16a34a" : "#888"}`,
+      borderRadius: 4,
+      cursor: "pointer",
+      fontWeight: isActive ? 700 : 500,
+    }) as const;
+
+  return (
+    <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+      <button type="button" onClick={() => onChange("upcoming")} style={buttonStyle(status === "upcoming")}>
+        Upcoming Event
+      </button>
+      <button type="button" onClick={() => onChange("completed")} style={buttonStyle(status === "completed")}>
+        Completed Event
+      </button>
+      <button type="button" onClick={() => onChange("live")} style={buttonStyle(status === "live", true)}>
+        Live Event
+      </button>
+    </div>
+  );
+}
+
 async function submitWithBroadcast(
   prev: InsertBoxscoreEventState,
   formData: FormData
 ): Promise<InsertBoxscoreEventState> {
-  const local = formData.get("broadcast_local")?.toString().trim() ?? "";
-  if (local) {
-    const d = new Date(local);
+  const date = formData.get("date")?.toString().trim() ?? "";
+  const time = formData.get("broadcast_time")?.toString().trim() ?? "";
+  if (date && time) {
+    const d = new Date(`${date}T${time}:00`);
     if (!Number.isNaN(d.getTime())) {
       formData.set("broadcast_start_ts", d.toISOString());
     }
   }
-  formData.delete("broadcast_local");
+  formData.delete("broadcast_time");
   return insertBoxscoreEventAction(prev, formData);
-}
-
-function buildBroadcastPreview(localValue: string): { local: string; pt: string; utc: string } | null {
-  if (!localValue) return null;
-  const d = new Date(localValue);
-  if (Number.isNaN(d.getTime())) return null;
-  return {
-    local: d.toLocaleString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZoneName: "short",
-    }),
-    pt: d.toLocaleString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: "America/Los_Angeles",
-      timeZoneName: "short",
-    }),
-    utc: d.toLocaleString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: "UTC",
-      timeZoneName: "short",
-    }),
-  };
 }
 
 export function AddBoxscoreEventForm({
@@ -104,14 +98,15 @@ export function AddBoxscoreEventForm({
 }) {
   const [state, formAction] = useActionState(submitWithBroadcast, null);
   const [status, setStatus] = useState("upcoming");
+  const [eventType, setEventType] = useState("");
   const [eventDate, setEventDate] = useState("");
-  const [broadcastLocal, setBroadcastLocal] = useState("");
+  const [broadcastTime, setBroadcastTime] = useState("");
   const [matches, setMatches] = useState<Record<string, unknown>[]>([]);
-  const broadcastPreview = buildBroadcastPreview(broadcastLocal);
 
   return (
     <form action={formAction} style={{ maxWidth: 720 }}>
       <input type="hidden" name="status" value={status} />
+      <input type="hidden" name="name" value={eventType} readOnly />
       <input type="hidden" name="matches_json" value={JSON.stringify(matches)} readOnly onChange={() => {}} />
 
       {state?.error ? (
@@ -130,12 +125,24 @@ export function AddBoxscoreEventForm({
         </p>
       ) : null}
 
-      <div style={{ marginBottom: 18 }}>
-        <label style={labelStyle} htmlFor="name">
-          Event name
-        </label>
-        <input id="name" name="name" required style={fieldStyle} placeholder="e.g. RAW, SmackDown, WrestleMania night 1" />
-      </div>
+      <EventStatusButtons status={status} onChange={setStatus} />
+      {status === "live" ? (
+        <button
+          type="submit"
+          style={{
+            marginBottom: 24,
+            background: "#16a34a",
+            color: "#fff",
+            padding: "10px 24px",
+            border: "none",
+            borderRadius: 4,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          Save Event Details
+        </button>
+      ) : null}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 }}>
         <div>
@@ -162,10 +169,17 @@ export function AddBoxscoreEventForm({
 
       <div style={{ marginBottom: 18 }}>
         <label style={labelStyle} htmlFor="event_type">
-          Event type (optional)
+          Event type
         </label>
-        <select id="event_type" name="event_type" style={{ ...fieldStyle, maxWidth: 420 }}>
-          <option value="">— Not set —</option>
+        <select
+          id="event_type"
+          name="event_type"
+          required
+          value={eventType}
+          onChange={(e) => setEventType(e.target.value)}
+          style={{ ...fieldStyle, maxWidth: 420 }}
+        >
+          <option value="">— Select event type —</option>
           {mergedOptions.eventTypeLabels.map((t) => (
             <option key={t} value={t}>
               {t}
@@ -173,8 +187,7 @@ export function AddBoxscoreEventForm({
           ))}
         </select>
         <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "8px 0 0", maxWidth: 560 }}>
-          Catalog label for this show (RAW, SmackDown, PLE, etc.). Fantasy scoring still uses{" "}
-          <code style={{ fontSize: 11 }}>classifyEventType</code> from the event name. Add new labels in{" "}
+          This is the canonical show selector (RAW, SmackDown, or specific PLE). Add new labels in{" "}
           <Link href="/internal-admin/boxscore/options" className="app-link">
             Boxscore dropdown options
           </Link>
@@ -182,23 +195,23 @@ export function AddBoxscoreEventForm({
         </p>
       </div>
 
-      <fieldset style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", padding: 16, marginBottom: 18 }}>
-        <legend style={{ fontSize: 14, fontWeight: 600, padding: "0 8px" }}>Status</legend>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
-            <input type="radio" checked={status === "upcoming"} onChange={() => setStatus("upcoming")} />
-            Upcoming (empty card allowed)
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
-            <input type="radio" checked={status === "completed"} onChange={() => setStatus("completed")} />
-            Completed
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
-            <input type="radio" checked={status === "live"} onChange={() => setStatus("live")} />
-            Live
-          </label>
-        </div>
-      </fieldset>
+      <div style={{ marginBottom: 18 }}>
+        <label style={labelStyle} htmlFor="name">
+          Event name
+        </label>
+        <input
+          id="name"
+          required
+          readOnly
+          value={eventType}
+          style={fieldStyle}
+          placeholder="Select Event type above"
+          aria-describedby="event-name-help"
+        />
+        <p id="event-name-help" style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "8px 0 0", maxWidth: 560 }}>
+          Event name follows Event type to match PWBS workflow.
+        </p>
+      </div>
 
       <BoxscoreEventCardPanel
         wrestlers={wrestlers}
@@ -231,24 +244,17 @@ export function AddBoxscoreEventForm({
       </details>
 
       <div style={{ marginBottom: 18 }}>
-        <label style={labelStyle} htmlFor="broadcast_local">
-          Broadcast start (optional, your local timezone)
+        <label style={labelStyle} htmlFor="broadcast_time">
+          Event Time
         </label>
         <input
-          id="broadcast_local"
-          name="broadcast_local"
-          type="datetime-local"
-          value={broadcastLocal}
-          onChange={(e) => setBroadcastLocal(e.target.value)}
-          style={{ ...fieldStyle, maxWidth: 280 }}
+          id="broadcast_time"
+          name="broadcast_time"
+          type="time"
+          value={broadcastTime}
+          onChange={(e) => setBroadcastTime(e.target.value)}
+          style={{ ...fieldStyle, maxWidth: 220 }}
         />
-        {broadcastPreview ? (
-          <div style={{ marginTop: 8, fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.45 }}>
-            <div><strong style={{ color: "var(--color-text)" }}>Entered local:</strong> {broadcastPreview.local}</div>
-            <div><strong style={{ color: "var(--color-text)" }}>Los Angeles (PT):</strong> {broadcastPreview.pt}</div>
-            <div><strong style={{ color: "var(--color-text)" }}>Stored UTC:</strong> {broadcastPreview.utc}</div>
-          </div>
-        ) : null}
       </div>
 
       <div style={{ marginBottom: 18 }}>

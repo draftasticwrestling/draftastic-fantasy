@@ -74,19 +74,21 @@ export default function LoginNudges() {
         <h2 className="login-nudge-title">{current.title}</h2>
         <p className="login-nudge-body">{current.body}</p>
         <div className="login-nudge-actions">
+          <div className="login-nudge-cta-row">
+            {current.primaryCta ? (
+              <Link href={current.primaryCta.href} className="hub-hero-btn hub-hero-btn-primary" onClick={dismiss}>
+                {current.primaryCta.label}
+              </Link>
+            ) : null}
+            {current.secondaryCta ? (
+              <Link href={current.secondaryCta.href} className="hub-hero-btn hub-hero-btn-outline" onClick={dismiss}>
+                {current.secondaryCta.label}
+              </Link>
+            ) : null}
+          </div>
           <button type="button" className="login-nudge-dismiss" onClick={dismiss}>
             Dismiss
           </button>
-          {current.primaryCta ? (
-            <Link href={current.primaryCta.href} className="hub-hero-btn hub-hero-btn-primary" onClick={dismiss}>
-              {current.primaryCta.label}
-            </Link>
-          ) : null}
-          {current.secondaryCta ? (
-            <Link href={current.secondaryCta.href} className="hub-hero-btn hub-hero-btn-outline" onClick={dismiss}>
-              {current.secondaryCta.label}
-            </Link>
-          ) : null}
         </div>
       </div>
     </div>,

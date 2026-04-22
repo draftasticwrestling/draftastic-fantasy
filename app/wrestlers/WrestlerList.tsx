@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
@@ -585,6 +586,66 @@ export default function WrestlerList({
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>(
     defaultPointsPeriod ?? "sinceStart"
   );
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [isMobileFiltersUi, setIsMobileFiltersUi] = useState(false);
+  const [mobileViewport, setMobileViewport] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const apply = () => setIsMobileFiltersUi(window.innerWidth <= 900);
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileFiltersOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [mobileFiltersOpen]);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) {
+      setMobileViewport(null);
+      return;
+    }
+    const updateViewport = () => {
+      const vv = window.visualViewport;
+      if (vv) {
+        setMobileViewport({
+          left: vv.offsetLeft,
+          top: vv.offsetTop,
+          width: vv.width,
+          height: vv.height,
+        });
+        return;
+      }
+      setMobileViewport({
+        left: 0,
+        top: 0,
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    window.addEventListener("scroll", updateViewport, true);
+    window.visualViewport?.addEventListener("resize", updateViewport);
+    window.visualViewport?.addEventListener("scroll", updateViewport);
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      window.removeEventListener("scroll", updateViewport, true);
+      window.visualViewport?.removeEventListener("resize", updateViewport);
+      window.visualViewport?.removeEventListener("scroll", updateViewport);
+    };
+  }, [mobileFiltersOpen]);
 
   useEffect(() => {
     if (!isBoxscore) return;
@@ -666,11 +727,176 @@ export default function WrestlerList({
 
   const flatList = filteredAndSorted;
   const totalCount = wrestlers.length;
+  const viewportLeft = mobileViewport?.left ?? 0;
+  const viewportTop = mobileViewport?.top ?? 0;
+  const viewportWidth = mobileViewport?.width ?? 390;
+  const viewportHeight = mobileViewport?.height ?? 844;
+  const mobileInputStyle: React.CSSProperties = {
+    width: "100%",
+    border: "1px solid var(--color-border)",
+    borderRadius: 8,
+    padding: "8px 10px",
+    fontSize: 13,
+    boxSizing: "border-box",
+    minWidth: 0,
+  };
+
+  const mobileFiltersPortal =
+    isMobileFiltersUi && mobileFiltersOpen && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            role="presentation"
+            onClick={() => setMobileFiltersOpen(false)}
+            style={{
+              position: "fixed",
+              top: viewportTop,
+              left: viewportLeft,
+              width: viewportWidth,
+              height: viewportHeight,
+              margin: 0,
+              padding: 0,
+              zIndex: 2000,
+              overflow: "hidden",
+              background: "rgba(0,0,0,0.56)",
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Filters"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: "fixed",
+                top: viewportTop,
+                left: viewportLeft,
+                width: viewportWidth,
+                height: viewportHeight,
+                margin: 0,
+                padding: 0,
+                background: "var(--color-bg-card)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  flex: "1 1 auto",
+                  minHeight: 0,
+                  overflowX: "hidden",
+                  overflowY: "auto",
+                  padding: "10px",
+                  boxSizing: "border-box",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <h2 style={{ margin: 0, fontSize: 32/32 + "rem" }}>Filters</h2>
+                  <button type="button" onClick={() => setMobileFiltersOpen(false)} style={{ border: "1px solid var(--color-border)", borderRadius: 999, width: 30, height: 30, background: "transparent" }}>✕</button>
+                </div>
+
+                {!hideRosterFilter && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-muted)", marginBottom: 6 }}>Include:</div>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {ROSTER_CATEGORIES.map(({ value, label }) => (
+                        <label key={value} style={{ ...mobileInputStyle, display: "flex", alignItems: "center", gap: 8, minHeight: 36 }}>
+                          <input type="checkbox" checked={includedRosters.has(value)} onChange={() => toggleRoster(value)} />
+                          <span style={{ fontSize: 12 }}>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
+                      <button type="button" className="wrestler-list-reset" style={mobileInputStyle} onClick={selectAllRosters}>All</button>
+                      <button type="button" className="wrestler-list-reset" style={mobileInputStyle} onClick={clearAllRosters}>None</button>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-muted)", marginBottom: 6 }}>Gender:</div>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    <label style={{ ...mobileInputStyle, display: "flex", alignItems: "center", gap: 8, minHeight: 36 }}>
+                      <input type="checkbox" checked={includeMale} onChange={() => setIncludeMale((v) => !v)} />
+                      <span style={{ fontSize: 12 }}>Male</span>
+                    </label>
+                    <label style={{ ...mobileInputStyle, display: "flex", alignItems: "center", gap: 8, minHeight: 36 }}>
+                      <input type="checkbox" checked={includeFemale} onChange={() => setIncludeFemale((v) => !v)} />
+                      <span style={{ fontSize: 12 }}>Female</span>
+                    </label>
+                  </div>
+                  <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
+                    <button type="button" className="wrestler-list-reset" style={mobileInputStyle} onClick={selectAllGenders}>All</button>
+                    <button type="button" className="wrestler-list-reset" style={mobileInputStyle} onClick={clearAllGenders}>None</button>
+                  </div>
+                </div>
+
+                {hasPointsPeriodFilter && (
+                  <div style={{ marginBottom: 10 }}>
+                    <label htmlFor="wrestler-points-period-mobile" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--color-text-muted)", marginBottom: 6 }}>Period</label>
+                    <select id="wrestler-points-period-mobile" value={pointsPeriod} onChange={(e) => setPointsPeriod(e.target.value as PointsPeriod)} style={mobileInputStyle}>
+                      {POINTS_PERIOD_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div style={{ marginBottom: 10 }}>
+                  <label htmlFor="wrestler-search-mobile" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--color-text-muted)", marginBottom: 6 }}>Search</label>
+                  <input id="wrestler-search-mobile" type="search" placeholder="Wrestler name" value={search} onChange={(e) => setSearch(e.target.value)} style={mobileInputStyle} />
+                </div>
+
+                <button
+                  type="button"
+                  className="wrestler-list-reset"
+                  style={mobileInputStyle}
+                  onClick={() => {
+                    setSearch("");
+                    selectAllRosters();
+                    selectAllGenders();
+                  }}
+                >
+                  Reset filters
+                </button>
+              </div>
+
+              <div
+                style={{
+                  flex: "0 0 auto",
+                  position: "sticky",
+                  bottom: 0,
+                  padding: "8px 10px calc(8px + env(safe-area-inset-bottom, 0px))",
+                  borderTop: "1px solid var(--color-border)",
+                  background: "var(--color-bg-elevated)",
+                  boxSizing: "border-box",
+                }}
+              >
+                <button type="button" className="wrestler-list-mobile-filters-close" style={{ width: "100%", padding: "10px 12px", border: "none", borderRadius: 8, background: "var(--color-blue)", color: "#fff", fontSize: 14, fontWeight: 700 }} onClick={() => setMobileFiltersOpen(false)}>
+                  Apply filters
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
     <>
+      {isMobileFiltersUi && !isBoxscore && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={() => setMobileFiltersOpen(true)}
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid var(--color-border)", borderRadius: 8, background: "var(--color-bg-input)", fontWeight: 700 }}
+          >
+            Filters
+          </button>
+        </div>
+      )}
       {/* Toolbar: Roster checkboxes (optional), Period, Search, Reset */}
-      <div className={`wrestler-list-toolbar${isBoxscore ? " wrestler-list-toolbar--boxscore" : ""}`}>
+      <div className={`wrestler-list-toolbar${isBoxscore ? " wrestler-list-toolbar--boxscore" : ""}`} style={isMobileFiltersUi && !isBoxscore ? { display: "none" } : undefined}>
         {!hideRosterFilter && (
           <div className="wrestler-list-roster-filters">
             <span className="wrestler-list-roster-label">Include:</span>
@@ -771,6 +997,7 @@ export default function WrestlerList({
           Reset filters
         </button>
       </div>
+      {mobileFiltersPortal}
 
       {isBoxscore && (
         <div className="wrestlers-boxscore-sort-row" role="group" aria-label="Sort roster">

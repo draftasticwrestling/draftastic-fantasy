@@ -225,7 +225,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       <div className="lm-layout">
         {/* Left sidebar: My Faction + Quick Links */}
         <aside className="lm-sidebar">
-          <div className="lm-card">
+          <div className="lm-card lm-card--my-faction">
             <h2 className="lm-card-title">My Faction</h2>
             {currentUser && currentUserMember ? (
               <MyFactionAvatarEditor
@@ -275,7 +275,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               </Link>
             )}
           </div>
-          <div className="lm-card">
+          <div className="lm-card lm-card--quick-links">
             <h2 className="lm-card-title">Quick Links</h2>
             <ul className="lm-quick-links">
               <li><Link href="/how-it-works"><span className="lm-quick-link-icon">☰</span> Rules</Link></li>

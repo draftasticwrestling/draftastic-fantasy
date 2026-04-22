@@ -13,6 +13,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 
 export type InsertBoxscoreEventState = { error?: string } | null;
 export type UpdateBoxscoreEventState = { error?: string } | null;
+export type DeleteBoxscoreEventState = { error?: string } | null;
 
 function parseMatchesJson(raw: string): { ok: true; matches: unknown[] } | { ok: false; error: string } {
   const trimmed = raw.trim();
@@ -77,7 +78,7 @@ export async function insertBoxscoreEventAction(
     return { error: "Server is not configured with SUPABASE_SERVICE_ROLE_KEY." };
   }
 
-  const name = (formData.get("name") ?? "").toString().trim();
+  const submittedName = (formData.get("name") ?? "").toString().trim();
   const dateRaw = (formData.get("date") ?? "").toString().trim();
   const location = (formData.get("location") ?? "").toString().trim();
   const preview = (formData.get("preview") ?? "").toString().trim();
@@ -89,7 +90,9 @@ export async function insertBoxscoreEventAction(
   const swType = (formData.get("special_winner_type") ?? "None").toString().trim();
   const swName = (formData.get("special_winner_name") ?? "").toString().trim();
   const eventType = (formData.get("event_type") ?? "").toString().trim();
+  const name = eventType || submittedName;
 
+  if (!eventType) return { error: "Event type is required." };
   if (!name) return { error: "Event name is required." };
   const date = normalizeEventDateInput(dateRaw);
   if (!date) return { error: "Enter a valid date (YYYY-MM-DD)." };
@@ -184,7 +187,7 @@ export async function updateBoxscoreEventAction(
   if (exErr) return { error: exErr.message };
   if (!existingRow) return { error: "Event not found." };
 
-  const name = (formData.get("name") ?? "").toString().trim();
+  const submittedName = (formData.get("name") ?? "").toString().trim();
   const dateRaw = (formData.get("date") ?? "").toString().trim();
   const location = (formData.get("location") ?? "").toString().trim();
   const preview = (formData.get("preview") ?? "").toString().trim();
@@ -195,7 +198,9 @@ export async function updateBoxscoreEventAction(
   const swType = (formData.get("special_winner_type") ?? "None").toString().trim();
   const swName = (formData.get("special_winner_name") ?? "").toString().trim();
   const eventType = (formData.get("event_type") ?? "").toString().trim();
+  const name = eventType || submittedName;
 
+  if (!eventType) return { error: "Event type is required." };
   if (!name) return { error: "Event name is required." };
   const date = normalizeEventDateInput(dateRaw);
   if (!date) return { error: "Enter a valid date (YYYY-MM-DD)." };
@@ -273,4 +278,61 @@ export async function updateBoxscoreEventAction(
   revalidatePath(`/internal-admin/boxscore/events/${encodeURIComponent(eventId)}/edit`);
 
   redirect(`/internal-admin/boxscore/events/${editPathSegment}/edit?saved=1`);
+}
+
+export async function deleteBoxscoreEventAction(
+  _prev: DeleteBoxscoreEventState,
+  formData: FormData
+): Promise<DeleteBoxscoreEventState> {
+  const { user } = await requireSiteAdmin();
+  const admin = getAdminClient();
+  if (!admin) {
+    return { error: "Server is not configured with SUPABASE_SERVICE_ROLE_KEY." };
+  }
+
+  const eventId = (formData.get("event_id") ?? "").toString().trim();
+  const reason = (formData.get("reason") ?? "").toString().trim();
+  const confirmText = (formData.get("confirm_text") ?? "").toString().trim();
+  if (!eventId) return { error: "Missing event id." };
+  if (!reason) return { error: "Reason is required to delete an event." };
+  if (confirmText !== "DELETE") return { error: "Type DELETE to confirm event deletion." };
+
+  const { data: row, error: rowErr } = await admin
+    .from("events")
+    .select("id, name, date, status")
+    .eq("id", eventId)
+    .maybeSingle();
+  if (rowErr) return { error: rowErr.message };
+  if (!row) return { error: "Event not found." };
+  if (String(row.status ?? "").toLowerCase() === "live") {
+    return { error: "Live events cannot be deleted. Mark the event as completed or upcoming first." };
+  }
+
+  const { error: delErr } = await admin.from("events").delete().eq("id", eventId);
+  if (delErr) return { error: delErr.message };
+
+  try {
+    await admin.from("admin_audit_log").insert({
+      actor_user_id: user.id,
+      action: "delete",
+      entity_type: "boxscore_event",
+      entity_id: eventId,
+      payload_json: {
+        reason,
+        name: row.name ?? null,
+        date: row.date ?? null,
+        status: row.status ?? null,
+      },
+    });
+  } catch {
+    // optional table
+  }
+
+  revalidatePath("/event-results");
+  revalidatePath(`/event-results/${encodeURIComponent(eventId)}`);
+  revalidatePath("/internal-admin/events");
+  revalidatePath(`/internal-admin/events/${encodeURIComponent(eventId)}`);
+  revalidatePath("/internal-admin/boxscore/events");
+
+  redirect(`/internal-admin/boxscore/events?ok=${encodeURIComponent(`Deleted event ${eventId}.`)}`);
 }

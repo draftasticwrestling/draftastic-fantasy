@@ -2,7 +2,9 @@
 
 import { useActionState, useMemo, useState, type CSSProperties } from "react";
 import {
+  createChampionshipAction,
   createChampionshipHistoryAction,
+  deleteChampionshipAction,
   deleteChampionshipHistoryAction,
   updateChampionshipAction,
   updateChampionshipHistoryAction,
@@ -53,6 +55,8 @@ export function ChampionshipsManager({
   );
 
   const [champState, champAction, champPending] = useActionState(updateChampionshipAction, defaultState);
+  const [createChampState, createChampAction, createChampPending] = useActionState(createChampionshipAction, defaultState);
+  const [deleteChampState, deleteChampAction, deleteChampPending] = useActionState(deleteChampionshipAction, defaultState);
   const [createHistoryState, createHistoryAction, createPending] = useActionState(createChampionshipHistoryAction, defaultState);
   const [updateHistoryState, updateHistoryAction, updatePending] = useActionState(updateChampionshipHistoryAction, defaultState);
   const [editingHistoryId, setEditingHistoryId] = useState<string>("");
@@ -87,6 +91,31 @@ export function ChampionshipsManager({
       </aside>
 
       <section style={{ display: "grid", gap: 16 }}>
+        <form action={createChampAction} style={cardStyle}>
+          <h2 style={h2Style}>Create championship</h2>
+          <GridFields
+            fields={[
+              { label: "Title name", name: "title_name", value: "" },
+              { label: "Brand", name: "brand", value: "" },
+              { label: "Type", name: "type", value: "" },
+              { label: "Current champion", name: "current_champion", value: "" },
+              { label: "Current champion slug", name: "current_champion_slug", value: "" },
+              { label: "Previous champion", name: "previous_champion", value: "" },
+              { label: "Previous champion slug", name: "previous_champion_slug", value: "" },
+              { label: "Date won", name: "date_won", value: "", type: "date" },
+              { label: "Event won", name: "event_name", value: "" },
+              { label: "Title facts (JSON or text)", name: "title_facts", value: "", full: true },
+            ]}
+          />
+          <div style={footerStyle}>
+            <button className="btn-primary" type="submit" disabled={createChampPending}>
+              {createChampPending ? "Creating..." : "Create championship"}
+            </button>
+            {createChampState?.error ? <span style={{ color: "var(--color-red)" }}>{createChampState.error}</span> : null}
+            {createChampState?.success ? <span style={{ color: "var(--color-green)" }}>{createChampState.success}</span> : null}
+          </div>
+        </form>
+
         {selected ? (
           <form action={champAction} style={cardStyle}>
             <h2 style={h2Style}>Current champion</h2>
@@ -111,6 +140,38 @@ export function ChampionshipsManager({
               </button>
               {champState?.error ? <span style={{ color: "var(--color-red)" }}>{champState.error}</span> : null}
               {champState?.success ? <span style={{ color: "var(--color-green)" }}>{champState.success}</span> : null}
+            </div>
+          </form>
+        ) : null}
+
+        {selected ? (
+          <form action={deleteChampAction} style={{ ...cardStyle, borderColor: "#fecaca", background: "#fff7f7" }}>
+            <h2 style={{ ...h2Style, color: "#991b1b" }}>Delete championship</h2>
+            <input type="hidden" name="id" value={selected.id} />
+            <p style={{ marginTop: 0, color: "var(--color-text-muted)", maxWidth: 760 }}>
+              Only deletes the championship row itself. Safeguard: this is blocked while title history rows exist for this championship.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+              <label style={{ gridColumn: "1 / span 2" }}>
+                Reason (required)
+                <input name="reason" required style={inputStyle} />
+              </label>
+              <label>
+                Type DELETE
+                <input name="confirm_text" required placeholder="DELETE" style={inputStyle} />
+              </label>
+            </div>
+            <div style={footerStyle}>
+              <button
+                className="btn-secondary"
+                type="submit"
+                disabled={deleteChampPending}
+                style={{ background: "#b91c1c", borderColor: "#991b1b", color: "#fff" }}
+              >
+                {deleteChampPending ? "Deleting..." : "Delete championship"}
+              </button>
+              {deleteChampState?.error ? <span style={{ color: "var(--color-red)" }}>{deleteChampState.error}</span> : null}
+              {deleteChampState?.success ? <span style={{ color: "var(--color-green)" }}>{deleteChampState.success}</span> : null}
             </div>
           </form>
         ) : null}
