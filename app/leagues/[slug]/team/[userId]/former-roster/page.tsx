@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
@@ -57,15 +56,8 @@ export default async function TeamFormerRosterPage({ params }: Props) {
     : { data: [] as Array<{ id: string; name: string | null }> };
   const wrestlerNamesMap = Object.fromEntries((wrestlers ?? []).map((w) => [w.id, w.name ?? w.id]));
 
-  const teamHref = `/leagues/${slug}/team/${encodeURIComponent(userId)}`;
-
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 720, margin: "0 auto" }}>
-      <p style={{ marginBottom: 16 }}>
-        <Link href={teamHref} style={{ color: "#1a73e8", textDecoration: "none" }}>
-          ← Back to {teamLabel}
-        </Link>
-      </p>
       <h1 style={{ margin: "0 0 8px", fontSize: "1.5rem" }}>Full log — Former {teamLabel}</h1>
       <p style={{ margin: "0 0 20px", fontSize: 14, color: "#666" }}>
         Every past roster stint for this faction, including adds and drops with no fantasy points during the stay.

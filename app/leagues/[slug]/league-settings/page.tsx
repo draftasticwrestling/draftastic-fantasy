@@ -45,10 +45,10 @@ export default async function LeagueSettingsPage({
   const autoReactivate = league.auto_reactivate ?? false;
 
   return (
-    <main className="app-page" style={{ maxWidth: 720, margin: "0 auto" }}>
-      <p style={{ marginBottom: 24 }}>
+    <main className="app-page" style={{ maxWidth: 720, margin: "0 auto", paddingTop: 10 }}>
+      <p style={{ marginBottom: 14 }}>
         <Link href={`/leagues/${slug}`} className="app-link" style={{ fontWeight: 600 }}>
-          ← {league.name}
+          ← League
         </Link>
       </p>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>League Settings</h1>

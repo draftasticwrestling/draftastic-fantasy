@@ -357,13 +357,50 @@ export default async function WrestlersFreeAgentsPage({
 
   return (
     <main className="app-page" style={{ maxWidth: 1200, margin: "0 auto" }}>
-      <p style={{ marginBottom: 16 }}>
-        <Link href={`/leagues/${slug}`} className="app-link" style={{ fontWeight: 600 }}>
-          ← {league.name}
+      <nav
+        aria-label="Wrestlers view"
+        style={{
+          display: "inline-flex",
+          border: "1px solid var(--color-border)",
+          borderRadius: 8,
+          overflow: "hidden",
+          marginBottom: 12,
+        }}
+      >
+        <Link
+          href={`/leagues/${slug}/wrestlers/league-leaders`}
+          style={{
+            padding: "8px 12px",
+            textDecoration: "none",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            color: "var(--color-text)",
+            background: "var(--color-bg-surface)",
+          }}
+        >
+          League Leaders
         </Link>
-      </p>
+        <Link
+          href={`/leagues/${slug}/wrestlers/free-agents`}
+          style={{
+            padding: "8px 12px",
+            textDecoration: "none",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            color: "#fff",
+            background: "#111",
+            borderLeft: "1px solid var(--color-border)",
+          }}
+        >
+          Free Agents
+        </Link>
+      </nav>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Free Agents</h1>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 16, fontSize: 13 }}>
         Wrestlers not on any faction in this league. Same table and filters as League Leaders; add them from your faction page (Roster) or during the draft.
       </p>
       <WrestlerMatchStatsDisclaimer style={{ marginBottom: 24 }} />
@@ -388,6 +425,7 @@ export default async function WrestlersFreeAgentsPage({
           defaultPointsPeriod="allTime"
           leagueSlug={slug}
           wrestlerProfileFrom="free-agents"
+          enableViewToggle
         />
       )}
     </main>

@@ -338,11 +338,6 @@ export default async function LeagueDraftPage({ params }: Props) {
     const wideDraftLayout = showDraftRoom && !isAutopickRunning;
     return (
     <main className="app-page" style={{ maxWidth: wideDraftLayout ? 1100 : 720, margin: "0 auto", padding: showDraftRoom ? "2rem 1rem" : undefined, fontSize: 16, lineHeight: 1.5 }}>
-      <p style={{ marginBottom: 24 }}>
-        <Link href={`/leagues/${slug}`} className="app-link">
-          ← {league.name}
-        </Link>
-      </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem", color: "var(--color-text)" }}>Draft</h1>
 
       <section

@@ -55,6 +55,7 @@ function getActivePrimary(pathname: string, slug: string): MobileLeagueSectionKe
   if (!pathname.startsWith(`${base}/`)) return null;
   const rest = pathname.slice(base.length + 1).split("/")[0];
   if (rest === "standings" || rest === "roster-changes") return "league";
+  if (rest === "faction") return "my-team";
   if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info") return "my-team";
   if (rest === "") return "league";
   if (rest === "wrestlers" || rest === "league-leaders" || rest === "stat-corrections") return "wrestlers";
@@ -63,6 +64,28 @@ function getActivePrimary(pathname: string, slug: string): MobileLeagueSectionKe
   if (rest === "draft" || rest === "draft-history" || rest === "draft-settings") return "draft";
   if (rest === "notify-league" || rest === "manage-rosters" || rest === "league-settings" || rest === "pending-trades") return "gm-tools";
   return null;
+}
+
+type FantasyMobileTabKey = "league" | "faction" | "wrestlers" | "draft";
+
+function getFantasyMobilePrimaryTab(pathname: string, slug: string): FantasyMobileTabKey | null {
+  if (!slug) return null;
+  const base = `/leagues/${slug}`;
+  if (pathname === base || pathname === `${base}/`) return "league";
+  if (!pathname.startsWith(`${base}/`)) return null;
+
+  const after = pathname.slice(base.length + 1);
+  const head = after.split("/")[0] ?? "";
+
+  if (head === "faction") return "faction";
+  if (head === "team") return "faction";
+  if (head === "transactions" || head === "team-log" || head === "watchlist" || head === "edit-team-info") return "faction";
+
+  if (head === "wrestlers" || head === "league-leaders" || head === "stat-corrections") return "wrestlers";
+
+  if (head === "draft" || head === "draft-history" || head === "draft-settings") return "draft";
+
+  return "league";
 }
 
 export default function Nav() {
@@ -82,7 +105,6 @@ export default function Nav() {
   const secondaryWrapRef = useRef<HTMLElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mobileLeagueSection, setMobileLeagueSection] = useState<MobileLeagueSectionKey>("league");
   const [leaguePanelRect, setLeaguePanelRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const setHoverPrimaryStable = (value: typeof hoverPrimary) => {
@@ -180,10 +202,6 @@ export default function Nav() {
   const activePrimary = currentLeagueSlug ? getActivePrimary(pathname, currentLeagueSlug) : null;
 
   useEffect(() => {
-    if (activePrimary) setMobileLeagueSection(activePrimary);
-  }, [activePrimary]);
-
-  useEffect(() => {
     return () => {
       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     };
@@ -233,11 +251,13 @@ export default function Nav() {
     router.refresh();
   };
 
-  const rosterHref = user?.id && currentLeagueSlug
-    ? `/leagues/${currentLeagueSlug}/team/${encodeURIComponent(user.id)}`
-    : currentLeagueSlug
-      ? `/leagues/${currentLeagueSlug}/team`
-      : "#";
+  const rosterHref = currentLeagueSlug ? `/leagues/${currentLeagueSlug}/faction` : "#";
+  const desktopMyFactionHref =
+    currentLeagueSlug && user?.id
+      ? `/leagues/${currentLeagueSlug}/team/${encodeURIComponent(user.id)}`
+      : currentLeagueSlug
+        ? `/leagues/${currentLeagueSlug}/team`
+        : "#";
   const fantasyHref = computeFantasyHomeHref({ user, pathname, leagues, lastVisitedSlug });
 
   const pleNavItems: PleNavEntry[] = currentLeagueSlug
@@ -253,7 +273,14 @@ export default function Nav() {
 
   const myTeamSub = currentLeagueSlug
     ? [
-        { href: rosterHref, label: "Roster" },
+        ...(user?.id
+          ? [
+              {
+                href: `/leagues/${currentLeagueSlug}/team/${encodeURIComponent(user.id)}`,
+                label: "My Faction",
+              },
+            ]
+          : [{ href: `/leagues/${currentLeagueSlug}/team`, label: "My Faction" }]),
         { href: `/leagues/${currentLeagueSlug}/transactions`, label: "Faction Log" },
         { href: `/leagues/${currentLeagueSlug}/watchlist`, label: "Watchlist" },
         { href: `/leagues/${currentLeagueSlug}/edit-team-info`, label: "Edit Faction Info" },
@@ -290,47 +317,18 @@ export default function Nav() {
       ]
     : [];
 
-  /** Full league strip (switcher, sections, join/create). */
-  const showLeagueLowerBar = Boolean(user && leagues.length > 0 && currentLeagueSlug);
-  /** Signed in but not in any league yet: always show join + create (desktop and mobile layout). */
-  const showNoLeagueLowerBar = Boolean(user && leagues.length === 0);
+  /**
+   * Full league strip (switcher, sections, join/create) should only appear
+   * inside fantasy/league routes, not on top-level marketing/site pages.
+   */
+  const isFantasyRoute = pathname.startsWith("/leagues") || pathname.startsWith("/league");
+  const showLeagueLowerBar = Boolean(user && leagues.length > 0 && currentLeagueSlug && isFantasyRoute);
+  /** Signed in but not in any league yet: show join + create inside fantasy flows only. */
+  const showNoLeagueLowerBar = Boolean(user && leagues.length === 0 && isFantasyRoute);
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
-  const mobileLeagueSections: Array<{
-    key: MobileLeagueSectionKey;
-    label: string;
-    href: string;
-    links: Array<{ href: string; label: string }>;
-  }> = [
-    { key: "league", label: "League", href: currentLeagueSlug ? `/leagues/${currentLeagueSlug}` : "#", links: leagueSub },
-    { key: "my-team", label: "My Faction", href: myTeamSub[0]?.href ?? rosterHref, links: myTeamSub },
-    {
-      key: "wrestlers",
-      label: "Statistics",
-      href: wrestlersSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers/league-leaders` : "#"),
-      links: wrestlersSub,
-    },
-    {
-      key: "matchups",
-      label: "Matchups",
-      href: currentLeagueSlug ? `/leagues/${currentLeagueSlug}/matchups` : "#",
-      links: currentLeague?.league_type !== "season_overall" && currentLeagueSlug ? [{ href: `/leagues/${currentLeagueSlug}/matchups`, label: "Matchups" }] : [],
-    },
-    { key: "ple", label: "PLEs", href: pleBarHref, links: currentLeagueSlug ? pleNavItems.map((entry) => ({ href: pleHrefForEntry(currentLeagueSlug, entry), label: entry.label })) : [] },
-    { key: "draft", label: "Draft", href: draftSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/draft` : "#"), links: draftSub },
-    { key: "gm-tools", label: "GM Tools", href: gmSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/league-settings` : "#"), links: isCommissioner ? gmSub : [] },
-  ].filter((s) => s.links.length > 0) as Array<{
-    key: MobileLeagueSectionKey;
-    label: string;
-    href: string;
-    links: Array<{ href: string; label: string }>;
-  }>;
-
-  const mobileCurrentSection =
-    mobileLeagueSections.find((s) => s.key === mobileLeagueSection) ??
-    mobileLeagueSections[0] ??
-    null;
+  const fantasyMobileTab = currentLeagueSlug ? getFantasyMobilePrimaryTab(pathname, currentLeagueSlug) : null;
 
   if (pathname === "/coming-soon") return null;
 
@@ -644,7 +642,7 @@ export default function Nav() {
               </li>
               <li onMouseEnter={(e) => handlePrimaryEnter("my-team", e)}>
                 <Link
-                  href={myTeamSub[0]?.href ?? rosterHref}
+                  href={desktopMyFactionHref}
                   className={`nav-primary-link ${activePrimary === "my-team" ? "is-active" : ""}`}
                 >
                   My Faction
@@ -807,7 +805,7 @@ export default function Nav() {
               </label>
               <select
                 id="mobile-league-switcher"
-                className="nav-league-mobile-select"
+                className="nav-league-mobile-select nav-league-mobile-select-on-dark"
                 value={currentLeagueSlug ?? ""}
                 onChange={(e) => {
                   const nextSlug = e.target.value;
@@ -828,39 +826,35 @@ export default function Nav() {
               </select>
             </div>
 
-            <div className="nav-league-mobile-row">
-              <label className="nav-league-mobile-label" htmlFor="mobile-league-section">
-                Section
-              </label>
-              <select
-                id="mobile-league-section"
-                className="nav-league-mobile-select"
-                value={mobileCurrentSection?.key ?? ""}
-                onChange={(e) => {
-                  const next = e.target.value as MobileLeagueSectionKey;
-                  setMobileLeagueSection(next);
-                }}
-              >
-                {mobileLeagueSections.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {mobileCurrentSection ? (
-              <div className="nav-league-mobile-links">
-                {mobileCurrentSection.links.map((link) => {
-                  const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
-                  return (
-                    <Link key={link.href} href={link.href} className={`nav-league-mobile-link ${isActive ? "is-active" : ""}`}>
-                      {link.label}
-                    </Link>
-                  );
-                })}
-              </div>
+            {currentLeagueSlug && user?.id ? (
+              <nav className="nav-fantasy-mobile-tabs" aria-label="Fantasy sections">
+                <Link
+                  href={`/leagues/${currentLeagueSlug}`}
+                  className={`nav-fantasy-mobile-tab ${fantasyMobileTab === "league" ? "is-active" : ""}`}
+                >
+                  League
+                </Link>
+                <Link
+                  href={`/leagues/${currentLeagueSlug}/faction`}
+                  className={`nav-fantasy-mobile-tab ${fantasyMobileTab === "faction" ? "is-active" : ""}`}
+                >
+                  Faction
+                </Link>
+                <Link
+                  href={`/leagues/${currentLeagueSlug}/wrestlers/league-leaders`}
+                  className={`nav-fantasy-mobile-tab ${fantasyMobileTab === "wrestlers" ? "is-active" : ""}`}
+                >
+                  Wrestlers
+                </Link>
+                <Link
+                  href={`/leagues/${currentLeagueSlug}/draft`}
+                  className={`nav-fantasy-mobile-tab ${fantasyMobileTab === "draft" ? "is-active" : ""}`}
+                >
+                  Draft
+                </Link>
+              </nav>
             ) : null}
+
           </div>
         </div>
       )}

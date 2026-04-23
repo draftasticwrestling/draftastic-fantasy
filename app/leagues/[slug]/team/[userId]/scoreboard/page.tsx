@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
@@ -37,11 +36,6 @@ export default async function TeamScoreboardPage({ params }: Props) {
 
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <p style={{ marginBottom: 16 }}>
-        <Link href={`/leagues/${slug}/team/${encodeURIComponent(userId)}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
-          ← Back to {teamLabel}
-        </Link>
-      </p>
       <h1 style={{ margin: "0 0 8px", fontSize: "1.6rem" }}>Faction Scoreboard</h1>
       <p style={{ margin: "0 0 18px", color: "#4b5563" }}>
         {teamLabel} total: <strong>{audit.teamTotal} pts</strong>

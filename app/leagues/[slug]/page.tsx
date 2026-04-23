@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
-import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
+import {
+  getPointsByOwnerForLeagueWithBonuses,
+} from "@/lib/leagueMatchups";
 import { getRosterRulesForLeague, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import { pleDefaultHref } from "@/lib/pleLeagueMenu";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
@@ -11,6 +13,7 @@ import { getTradeProposalsForLeague, getLeagueRosterActivity, processTradeTimerD
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 import { LeagueStandingsTable } from "./LeagueStandingsTable";
+import { LeagueHomeMobileLeagueView } from "./LeagueHomeMobileLeagueView";
 import { TradeProposalRespond } from "./team/TradeProposalRespond";
 import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
 import { ManagerAvatar } from "@/app/components/ManagerAvatar";
@@ -133,6 +136,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const membersByPoints = [...members].sort(
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
     );
+    const seasonSubtitle =
+      (league.season_slug && (getSeasonBySlug(league.season_slug)?.name ?? league.season_slug)) || null;
 
     let tradeProposals: Awaited<ReturnType<typeof getTradeProposalsForLeague>> = [];
     let rosterActivity: Awaited<ReturnType<typeof getLeagueRosterActivity>> = [];
@@ -211,7 +216,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
     return (
     <>
-    <main className="lm-dashboard">
+    <main className="lm-dashboard lm-league-home">
       {showSeasonCompleteModal ? (
         <SeasonCompletePlacementModal
           leagueSlug={slug}
@@ -220,8 +225,20 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           totalMembers={membersByPoints.length}
         />
       ) : null}
-      <Link href="/leagues" className="lm-dashboard-back">← My leagues</Link>
+      <Link href="/leagues" className="lm-dashboard-back lm-league-home-back">← My leagues</Link>
 
+      <LeagueHomeMobileLeagueView
+        leagueSlug={slug}
+        leagueName={league.name}
+        seasonSubtitle={seasonSubtitle}
+        seasonSlug={league.season_slug ?? null}
+        isCommissioner={isCommissioner}
+        members={membersByPoints}
+        pointsByUserId={pointsByUserId}
+        currentUserId={currentUser?.id ?? null}
+      />
+
+      <div className="lm-league-page-desktop">
       <div className="lm-layout">
         {/* Left sidebar: My Faction + Quick Links */}
         <aside className="lm-sidebar">
@@ -587,6 +604,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           )}
           <SeasonTimelineRail leagueSlug={slug} />
         </aside>
+      </div>
       </div>
     </main>
     </>

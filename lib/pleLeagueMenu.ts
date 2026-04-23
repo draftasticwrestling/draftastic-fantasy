@@ -44,7 +44,18 @@ export function pleHrefForEntry(leagueSlug: string, entry: PleNavEntry): string 
 export function pleDefaultHref(leagueSlug: string, seasonSlug: string | null | undefined): string {
   const items = pleNavEntriesForSeasonSlug(seasonSlug);
   if (items.length === 0) return `/leagues/${encodeURIComponent(leagueSlug)}`;
-  return pleHrefForEntry(leagueSlug, items[0]!);
+  if (seasonSlug !== ROAD_TO_SUMMERSLAM_SEASON_SLUG) {
+    return pleHrefForEntry(leagueSlug, items[0]!);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const rtsItems = items.filter((e): e is { kind: "rts"; pathKey: string; label: string } => e.kind === "rts");
+  const nextUpcoming = rtsItems.find((entry) => {
+    const dates = rtsPleDatesForPathKey(entry.pathKey);
+    const lastDate = dates[dates.length - 1] ?? "";
+    return lastDate >= today;
+  });
+  return pleHrefForEntry(leagueSlug, nextUpcoming ?? rtsItems[rtsItems.length - 1] ?? items[0]!);
 }
 
 export function isRtsPlePathKey(key: string): key is RtsPlePathKey {

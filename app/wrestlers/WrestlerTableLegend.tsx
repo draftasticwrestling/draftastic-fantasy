@@ -33,7 +33,7 @@ const CARD_LEGEND_ITEMS: { abbr: string; full: string }[] = [
 ];
 
 const glossaryTitleStyle: React.CSSProperties = {
-  fontSize: 13,
+  fontSize: 12,
   fontWeight: 700,
   textTransform: "uppercase" as const,
   letterSpacing: "0.05em",
@@ -43,12 +43,12 @@ const glossaryTitleStyle: React.CSSProperties = {
 
 const glossaryGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
-  gap: "6px 24px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "4px 14px",
   margin: 0,
   padding: 0,
   listStyle: "none",
-  fontSize: 12,
+  fontSize: 11,
   color: "var(--color-text-muted, #555)",
   lineHeight: 1.6,
 };
@@ -60,8 +60,8 @@ const glossaryItemStyle: React.CSSProperties = {
 };
 
 const glossarySectionStyle: React.CSSProperties = {
-  marginTop: 24,
-  padding: "14px 18px",
+  marginTop: 16,
+  padding: "10px 12px",
   background: "var(--color-bg-elevated, #f8f9fa)",
   borderRadius: 8,
   border: "1px solid var(--color-border, #e9ecef)",
@@ -75,7 +75,7 @@ export function WrestlerTableLegend() {
       <ul style={glossaryGridStyle}>
         {TABLE_LEGEND_ITEMS.map(({ abbr, full }) => (
           <li key={abbr} style={glossaryItemStyle}>
-            <strong style={{ color: "var(--color-text, #1a1a1a)", fontWeight: 600 }}>{abbr}:</strong>
+            <strong style={{ color: "var(--color-text, #1a1a1a)", fontWeight: 600, whiteSpace: "nowrap" }}>{abbr}:</strong>
             <span>{full}</span>
           </li>
         ))}
@@ -89,7 +89,7 @@ export function WrestlerCardLegend() {
   return (
     <section style={glossarySectionStyle} aria-label="Glossary">
       <h3 style={glossaryTitleStyle}>Glossary</h3>
-      <ul style={{ ...glossaryGridStyle, gridTemplateColumns: "repeat(2, 1fr)" }}>
+      <ul style={{ ...glossaryGridStyle, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
         {CARD_LEGEND_ITEMS.map(({ abbr, full }) => (
           <li key={abbr} style={glossaryItemStyle}>
             <strong style={{ color: "var(--color-text, #1a1a1a)", fontWeight: 600 }}>{abbr}:</strong>

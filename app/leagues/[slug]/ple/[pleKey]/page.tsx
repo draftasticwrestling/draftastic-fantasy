@@ -7,6 +7,8 @@ import { factionDisplayName } from "@/lib/factionName";
 import { ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import {
   isRtsPlePathKey,
+  pleHrefForEntry,
+  pleNavEntriesForSeasonSlug,
   rtsPleDatesForPathKey,
   rtsPleDisplayTitle,
 } from "@/lib/pleLeagueMenu";
@@ -15,6 +17,7 @@ import { fetchPleEventsOnDates, matchesFromEventRow, type PleEventRow } from "@/
 import { formatPleDate } from "@/lib/pleUpcoming";
 import type { UpcomingMatch } from "@/lib/pleUpcoming";
 import styles from "../wrestlemania/PleWrestlemania.module.css";
+import { PlePicker } from "../PlePicker";
 
 type Props = { params: Promise<{ slug: string; pleKey: string }> };
 
@@ -110,12 +113,18 @@ export default async function PleRtsSlotPage({ params }: Props) {
       : dates.map((d) => formatPleDate(d)).join(" · ");
   const locationLine =
     eventRows.map((e) => e.location?.trim()).filter(Boolean).join(" · ") || "Location TBD";
+  const pleOptions = pleNavEntriesForSeasonSlug(seasonSlug).map((entry) => ({
+    href: pleHrefForEntry(slug, entry),
+    label: entry.label,
+  }));
+  const currentHref = `/leagues/${encodeURIComponent(slug)}/ple/${encodeURIComponent(pleKey)}`;
 
   return (
     <main className={styles.plePage}>
       <Link href={`/leagues/${slug}`} className={styles.backLink}>
-        ← {league.name}
+        ← League
       </Link>
+      <PlePicker valueHref={currentHref} options={pleOptions} label="PLE" />
 
       <section className={styles.pleHero} aria-label="Event header">
         <p className={styles.pleEventLabel}>Premium Live Event</p>

@@ -713,6 +713,83 @@ export function getMatchupsForWeek(
   return out;
 }
 
+export type MatchupWlt = { w: number; l: number; t: number };
+
+/**
+ * Win–loss–tie per manager from weekly H2H / triple-threat pairings, using each week’s event points only
+ * (same as matchup scoreboard scores before weekly win/belt bonuses).
+ * Counts only completed weeks (`weekEnd` &lt; today, UTC YYYY-MM-DD). `season_overall` returns zeros.
+ */
+export function computeMatchupWltByUserId(
+  leagueType: string | null | undefined,
+  memberUserIds: string[],
+  weeklyResults: WeeklyMatchupResult[],
+): Record<string, MatchupWlt> {
+  const out: Record<string, MatchupWlt> = {};
+  for (const id of memberUserIds) {
+    out[id] = { w: 0, l: 0, t: 0 };
+  }
+  if (leagueType === "season_overall" || memberUserIds.length < 2) {
+    return out;
+  }
+
+  const n = memberUserIds.length;
+  const today = new Date().toISOString().slice(0, 10);
+
+  for (const week of weeklyResults) {
+    if (week.weekEnd >= today) continue;
+
+    const matchups = getMatchupsForWeek(memberUserIds, n);
+    for (const mu of matchups) {
+      if (mu.type === "h2h") {
+        const [a, b] = mu.userIds;
+        const pa = week.pointsByUserId[a] ?? 0;
+        const pb = week.pointsByUserId[b] ?? 0;
+        if (pa > pb) {
+          out[a].w++;
+          out[b].l++;
+        } else if (pb > pa) {
+          out[b].w++;
+          out[a].l++;
+        } else {
+          out[a].t++;
+          out[b].t++;
+        }
+        continue;
+      }
+      const pts = [mu.userIds[0]!, mu.userIds[1]!, mu.userIds[2]!].map((id) => ({
+        id,
+        p: week.pointsByUserId[id] ?? 0,
+      }));
+      pts.sort((a, b) => b.p - a.p);
+      const p0 = pts[0]!.p;
+      const p1 = pts[1]!.p;
+      const p2 = pts[2]!.p;
+      const x = pts[0]!.id;
+      const y = pts[1]!.id;
+      const z = pts[2]!.id;
+      if (p0 > p1 && p1 > p2) {
+        out[x].w++;
+        out[y].l++;
+        out[z].l++;
+      } else if (p0 > p1 && p1 === p2) {
+        out[x].w++;
+        out[y].l++;
+        out[z].l++;
+      } else if (p0 === p1 && p1 > p2) {
+        out[x].t++;
+        out[y].t++;
+        out[z].l++;
+      } else {
+        out[x].t++;
+        out[y].t++;
+        out[z].t++;
+      }
+    }
+  }
+  return out;
+}
+
 /** Week containing today (Monday YYYY-MM-DD) or null if before league start / after end. */
 export function getCurrentWeekStart(leagueStart: string, leagueEnd: string): string | null {
   const today = new Date().toISOString().slice(0, 10);

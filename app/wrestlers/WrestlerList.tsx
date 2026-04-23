@@ -8,7 +8,20 @@ import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 import { WrestlerTableLegend } from "./WrestlerTableLegend";
 import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
 import { getNationalityFlagDisplay } from "@/lib/nationalityFlag";
-import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
+import { wrestlerRosterFromBrand, type WrestlerRosterBucket } from "@/lib/wrestlerRosterFromBrand";
+
+/** Mobile list view: short roster labels (Raw / SD) per product request. */
+function mobileListRosterAbbrev(bucket: WrestlerRosterBucket): string {
+  if (bucket === "Raw") return "Raw";
+  if (bucket === "SmackDown") return "SD";
+  if (bucket === "NXT") return "NXT";
+  if (bucket === "AAA") return "AAA";
+  if (bucket === "Unassigned") return "—";
+  if (bucket === "Celebrity Guests") return "Celeb";
+  if (bucket === "Front Office") return "FO";
+  if (bucket === "Alumni") return "Alum";
+  return bucket;
+}
 
 export type WrestlerRow = {
   id: string;
@@ -461,6 +474,11 @@ const POINTS_PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
   { value: "2026", label: "2026" },
   { value: "allTime", label: "All-time" },
 ];
+const MOBILE_POINTS_PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
+  { value: "allTime", label: "All-time" },
+  { value: "2025", label: "2025" },
+  { value: "2026", label: "2026" },
+];
 
 /** Sort controls for Boxscore-style grid (subset of table columns). */
 const BOXSORT_OPTIONS: { value: SortColumn; label: string }[] = [
@@ -495,6 +513,8 @@ type WrestlerListProps = {
    * `default` — full sortable stats table (league pages, etc.).
    */
   variant?: "default" | "boxscore";
+  /** Shows a simple table/cards toggle above non-boxscore wrestler views. */
+  enableViewToggle?: boolean;
 };
 
 function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | "team" | null): string {
@@ -573,6 +593,7 @@ export default function WrestlerList({
   rosterByWrestler,
   hideRosterFilter = false,
   variant = "default",
+  enableViewToggle = false,
 }: WrestlerListProps) {
   const isBoxscore = variant === "boxscore";
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
@@ -589,6 +610,7 @@ export default function WrestlerList({
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [isMobileFiltersUi, setIsMobileFiltersUi] = useState(false);
   const [mobileViewport, setMobileViewport] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [displayMode, setDisplayMode] = useState<"table" | "cards">("cards");
 
   useEffect(() => {
     const apply = () => setIsMobileFiltersUi(window.innerWidth <= 900);
@@ -654,6 +676,12 @@ export default function WrestlerList({
       setSortDir("asc");
     }
   }, [isBoxscore, sortColumn]);
+
+  const mobileViewToggleEnabled = enableViewToggle && isMobileFiltersUi;
+  const showCards =
+    !isBoxscore && (mobileViewToggleEnabled ? displayMode === "cards" : isMobileFiltersUi);
+  const showTable =
+    !isBoxscore && (mobileViewToggleEnabled ? displayMode === "table" : !isMobileFiltersUi);
 
   const hasPointsPeriodFilter =
     wrestlers.length > 0 &&
@@ -830,17 +858,6 @@ export default function WrestlerList({
                     <button type="button" className="wrestler-list-reset" style={mobileInputStyle} onClick={clearAllGenders}>None</button>
                   </div>
                 </div>
-
-                {hasPointsPeriodFilter && (
-                  <div style={{ marginBottom: 10 }}>
-                    <label htmlFor="wrestler-points-period-mobile" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--color-text-muted)", marginBottom: 6 }}>Period</label>
-                    <select id="wrestler-points-period-mobile" value={pointsPeriod} onChange={(e) => setPointsPeriod(e.target.value as PointsPeriod)} style={mobileInputStyle}>
-                      {POINTS_PERIOD_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
 
                 <div style={{ marginBottom: 10 }}>
                   <label htmlFor="wrestler-search-mobile" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--color-text-muted)", marginBottom: 6 }}>Search</label>
@@ -1036,15 +1053,91 @@ export default function WrestlerList({
       )}
 
       {!isBoxscore && (
+        <>
+          {mobileViewToggleEnabled && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <div
+                role="group"
+                aria-label="Wrestlers view mode"
+                style={{
+                  display: "inline-flex",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setDisplayMode("table")}
+                  style={{
+                    border: "none",
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    cursor: "pointer",
+                    background: displayMode === "table" ? "#111" : "var(--color-bg-surface)",
+                    color: displayMode === "table" ? "#fff" : "var(--color-text)",
+                  }}
+                  aria-pressed={displayMode === "table"}
+                >
+                  List View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDisplayMode("cards")}
+                  style={{
+                    border: "none",
+                    borderLeft: "1px solid var(--color-border)",
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    cursor: "pointer",
+                    background: displayMode === "cards" ? "#111" : "var(--color-bg-surface)",
+                    color: displayMode === "cards" ? "#fff" : "var(--color-text)",
+                  }}
+                  aria-pressed={displayMode === "cards"}
+                >
+                  Card View
+                </button>
+              </div>
+              {hasPointsPeriodFilter && (
+                <select
+                  aria-label="Points period"
+                  value={pointsPeriod}
+                  onChange={(e) => setPointsPeriod(e.target.value as PointsPeriod)}
+                  style={{
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    background: "var(--color-bg-card)",
+                    color: "var(--color-text)",
+                  }}
+                >
+                  {MOBILE_POINTS_PERIOD_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
         <p className="wrestler-list-sort-hint" role="note">
           Column headings with a ↕ control sort the table. Click once to sort, again to reverse. (Image and Titles columns are not sortable.)
         </p>
+        </>
       )}
 
       {!isBoxscore && (
         <>
       {/* Mobile: card list (no truncated headers or rotated text) */}
-      <div className="wrestler-list-cards">
+      <div className="wrestler-list-cards" style={{ display: showCards ? "flex" : "none" }}>
         {flatList.length === 0 ? null : flatList.map((w) => {
           const roster = wrestlerRosterFromBrand(w.brand);
           const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
@@ -1118,6 +1211,143 @@ export default function WrestlerList({
         })}
       </div>
 
+      {mobileViewToggleEnabled && displayMode === "table" && (
+        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <table
+            style={{
+              width: "100%",
+              minWidth: 1320,
+              borderCollapse: "collapse",
+              fontSize: 11,
+              lineHeight: 1.2,
+              color: "var(--color-text)",
+            }}
+          >
+            <thead>
+              <tr style={{ textAlign: "left", color: "var(--color-text-muted)", fontSize: 11, textTransform: "uppercase" }}>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="Roster" column="roster" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="Name" column="name" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="Rank" column="rank" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="Gender" column="gender" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="Age" column="age" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="2K" column="rating2k" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  Status
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="R/S" column="rsPoints" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="PLE" column="plePoints" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="Belt" column="beltPoints" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="Total" column="totalPoints" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="PPM" column="ppm" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="MW" column="mw" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="W" column="win" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="W%" column="winPct" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="L" column="loss" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="L%" column="lossPct" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="NC" column="nc" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="DQW" column="dqw" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="DQL" column="dql" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                  <SortableColumnHeader label="DQ%" column="dqPct" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {flatList.map((w) => {
+                const pts = getPointsForPeriod(w, pointsPeriod);
+                const ms = getMatchStatsForPeriod(w, pointsPeriod);
+                const roster = wrestlerRosterFromBrand(w.brand);
+                const rosterShort = mobileListRosterAbbrev(roster);
+                const isChamp = Boolean(w.currentChampionship?.trim());
+                const age = calculateAge(w.dob);
+                const rating = w.rating_2k26 ?? w.rating_2k25 ?? null;
+                const statusText = rosterByWrestler?.[w.id]?.ownerName ?? "FA";
+                const ppm = ms.mw > 0 ? ((pts.rsPoints + pts.plePoints) / ms.mw).toFixed(1) : "—";
+                const winPct = ms.mw > 0 ? ((ms.win / ms.mw) * 100).toFixed(1) : "—";
+                const lossPct = ms.mw > 0 ? ((ms.loss / ms.mw) * 100).toFixed(1) : "—";
+                const dqPct = ms.mw > 0 ? (((ms.dqw + ms.dql) / ms.mw) * 100).toFixed(1) : "—";
+                return (
+                  <tr key={w.id} style={{ borderBottom: "1px solid var(--color-border-light)" }}>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{rosterShort}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap", fontWeight: 600 }}>
+                      <Link
+                        href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)}
+                        style={{ color: "var(--color-blue)", textDecoration: "none" }}
+                      >
+                        {w.name || w.id}
+                        {isChamp ? (
+                          <span style={{ fontWeight: 700, color: "var(--color-text-muted)" }} aria-label="Current champion">
+                            {" "}
+                            (c)
+                          </span>
+                        ) : null}
+                      </Link>
+                    </td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{rankByWrestlerId.get(w.id) ?? "—"}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{normalizeGender(w.gender)}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{age != null ? age : "—"}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{rating != null ? rating : "—"}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{statusText}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{pts.rsPoints}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{pts.plePoints}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{pts.beltPoints}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap", fontWeight: 700 }}>{pts.totalPoints}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ppm}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.mw}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.win}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{winPct}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.loss}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{lossPct}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.nc}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dqw}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dql}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{dqPct}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Desktop: single grid — one row definition for left + right so heights always match */}
       {(() => {
         const gridTemplateRows = "40px 40px " + flatList.map(() => "80px").join(" ");
@@ -1127,11 +1357,11 @@ export default function WrestlerList({
           <div
             className="wrestler-list-table-wrap"
             style={{
+              display: showTable && !mobileViewToggleEnabled ? "grid" : "none",
               border: "1px solid " + BORDER_TABLE,
               borderRadius: 8,
               overflow: "hidden",
               background: ROW_BG_MAIN,
-              display: "grid",
               gridTemplateColumns: STICKY_TOTAL_WIDTH + "px 1fr",
               gridTemplateRows,
             }}

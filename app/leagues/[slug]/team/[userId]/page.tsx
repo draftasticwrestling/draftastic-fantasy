@@ -47,6 +47,7 @@ import type { LeagueEventDayRow } from "@/lib/league/eventDayRosterMatches";
 import { buildFactionUpcomingRosterCards, enrichFactionCardsWithLiveScores } from "@/lib/league/factionUpcomingMatchCards";
 import { ManagerAvatar } from "@/app/components/ManagerAvatar";
 import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
+import { FactionSimpleRoster } from "../FactionSimpleRoster";
 import {
   adjustRts2026LeagueAggregateBeltPoints,
   beltScoringLastMonthEndInclusive,
@@ -84,7 +85,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ slug: string; userId: string }>;
-  searchParams?: Promise<{ proposeTradeTo?: string; addFa?: string }>;
+  searchParams?: Promise<{ proposeTradeTo?: string; addFa?: string; view?: string; layout?: string }>;
 };
 
 export async function generateMetadata({ params }: Props) {
@@ -109,6 +110,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const sp = searchParams ? await searchParams : {};
   const proposeTradeTo = typeof sp.proposeTradeTo === "string" ? sp.proposeTradeTo.trim() : undefined;
   const addFa = typeof sp.addFa === "string" ? sp.addFa.trim() : undefined;
+  const view = typeof sp.view === "string" ? sp.view.trim().toLowerCase() : "";
+  const layoutParam = typeof sp.layout === "string" ? sp.layout.trim().toLowerCase() : "";
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
@@ -128,6 +131,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   if (!targetMember) notFound();
 
   const isOwnTeam = currentUser.id === userId;
+  const simpleFactionView = view === "simple";
   const teamLabel = factionDisplayName(targetMember, "Unknown");
 
   const factionNavUserIds = members.map((m) => m.user_id);
@@ -300,6 +304,120 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     });
   }
 
+  let tradeLockedWrestlerIds: string[] = [];
+  if (isOwnTeam) {
+    try {
+      tradeLockedWrestlerIds = await getWrestlerIdsLockedByPendingTrades(league.id, currentUser.id);
+    } catch {
+      tradeLockedWrestlerIds = [];
+    }
+  }
+
+  if (simpleFactionView) {
+    const initialLayout = layoutParam === "list" || layoutParam === "cards" || layoutParam === "matches" ? layoutParam : null;
+    const rosterCardWrestlers = rosterTableRows.map((w) => {
+      const a = teamScoringAudit.totalsByWrestler[w.id];
+      const rsPoints = a?.rsPoints ?? w.rsPoints ?? 0;
+      const plePoints = a?.plePoints ?? w.plePoints ?? 0;
+      const beltPoints = Math.max(a?.beltPoints ?? 0, w.beltPoints ?? 0);
+      const totalPoints = rsPoints + plePoints + beltPoints;
+      return {
+        id: w.id,
+        name: w.name,
+        brand: w.brand,
+        acquiredAt: rosterAcquiredAtById[w.id] ?? null,
+        rsPoints,
+        plePoints,
+        beltPoints,
+        totalPoints,
+        mw: w.mw ?? 0,
+        rating_2k26: w.rating_2k26,
+        rating_2k25: w.rating_2k25,
+        championBeltImageUrl: w.championBeltImageUrl,
+        image_url: w.image_url,
+      };
+    });
+    const wrestlerNameByIdForSimple = Object.fromEntries(
+      wrestlers.map((w) => [w.id, (w.name ?? w.id).trim()])
+    );
+    const wrestlerImageByIdForSimple = Object.fromEntries(wrestlers.map((w) => [w.id, w.image_url ?? null]));
+    const targetRosterWrestlerIdsForSimple = rosterEntries.map((e) => e.wrestler_id);
+    const todayYmdEtSimple = getTodayTomorrowYmdET().today;
+    const { data: upcomingEventsRowsSimple } = await supabase
+      .from("events")
+      .select("id, name, date, location, matches, status")
+      .gte("date", todayYmdEtSimple)
+      .order("date", { ascending: true })
+      .order("name", { ascending: true })
+      .limit(36);
+
+    const upcomingCandidatesSimple = ((upcomingEventsRowsSimple ?? []) as LeagueEventDayRow[]).filter((e) => {
+      const s = String(e.status ?? "").toLowerCase().trim();
+      const d = String(e.date ?? "").trim().slice(0, 10);
+      if (d === todayYmdEtSimple && s === "completed") return true;
+      return s !== "completed";
+    });
+    const eventByIdForSimple = new Map<string, LeagueEventDayRow>();
+    for (const ev of upcomingCandidatesSimple) eventByIdForSimple.set(ev.id, ev);
+    let upcomingFactionCardsSimple = upcomingCandidatesSimple.flatMap((ev) =>
+      buildFactionUpcomingRosterCards(
+        ev,
+        targetRosterWrestlerIdsForSimple,
+        wrestlerNameByIdForSimple,
+        wrestlerImageByIdForSimple
+      )
+    );
+    if (upcomingFactionCardsSimple.length > 24) {
+      upcomingFactionCardsSimple = upcomingFactionCardsSimple.slice(0, 24);
+    }
+    upcomingFactionCardsSimple = enrichFactionCardsWithLiveScores(eventByIdForSimple, upcomingFactionCardsSimple);
+
+    return (
+      <main
+        style={{
+          fontFamily: "system-ui, sans-serif",
+          padding: 24,
+          maxWidth: 1200,
+          margin: "0 auto",
+          fontSize: 16,
+          lineHeight: 1.5,
+        }}
+      >
+        <FactionSimpleRoster
+          leagueSlug={slug}
+          leagueName={league.name}
+          teamUserId={userId}
+          viewerUserId={currentUser.id}
+          isOwnFaction={isOwnTeam}
+          factionOptions={members.map((m) => ({
+            userId: m.user_id,
+            label: factionDisplayName(m, "Faction"),
+          }))}
+          teamLabel={teamLabel}
+          totalPoints={totalPoints}
+          rosterSize={rosterEntries.length}
+          rosterCap={rosterRules?.rosterSize ?? 0}
+          minFemale={rosterRules?.minFemale ?? 0}
+          minMale={rosterRules?.minMale ?? 0}
+          wrestlers={rosterCardWrestlers}
+          tradeLockedWrestlerIds={tradeLockedWrestlerIds}
+          upcomingMatches={upcomingFactionCardsSimple.map((c) => ({
+            key: c.key,
+            eventName: c.eventName,
+            eventDateLabel: c.eventDateLabel,
+            eventHref: c.eventHref,
+            wrestlerName: c.wrestlerName,
+            matchLabel: c.matchLabel,
+            isChampionship: c.isChampionship,
+            isSpecialStipulation: c.isSpecialStipulation,
+            matchPoints: c.matchPoints,
+          }))}
+          initialLayout={initialLayout}
+        />
+      </main>
+    );
+  }
+
   const rosterByWrestlerForTable: Record<string, { ownerName: string; ownerUserId: string }> = {};
   if (rosterTableRows.length > 0) {
     for (const w of rosterTableRows) {
@@ -325,15 +443,6 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const tradesForMe = tradeProposals.filter(
     (p) => p.status === "pending" && p.to_user_id === currentUser.id
   );
-
-  let tradeLockedWrestlerIds: string[] = [];
-  if (isOwnTeam) {
-    try {
-      tradeLockedWrestlerIds = await getWrestlerIdsLockedByPendingTrades(league.id, currentUser.id);
-    } catch {
-      tradeLockedWrestlerIds = [];
-    }
-  }
 
   const wrestlerNameByIdForRecent = Object.fromEntries(
     wrestlers.map((w) => [w.id, (w.name ?? w.id).trim()])
@@ -412,11 +521,6 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         lineHeight: 1.5,
       }}
     >
-      <p style={{ marginBottom: 24 }}>
-        <Link href={`/leagues/${slug}`} style={{ color: "#1a73e8", textDecoration: "none" }}>
-          ← {league.name}
-        </Link>
-      </p>
       <div
         style={{
           display: "flex",

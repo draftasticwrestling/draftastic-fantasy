@@ -22,10 +22,10 @@ export default async function StatCorrectionsPage({ params }: { params: Promise<
   const autolinkEntries = await getCachedWrestlerAutolinkEntries();
 
   return (
-    <main className="app-page" style={{ maxWidth: 720 }}>
-      <p style={{ marginBottom: 16 }}>
+    <main className="app-page" style={{ maxWidth: 720, paddingTop: 10 }}>
+      <p style={{ marginBottom: 14 }}>
         <Link href={`/leagues/${encodeURIComponent(slug)}`} className="app-link">
-          ← {league.name}
+          ← League
         </Link>
       </p>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Stat corrections</h1>

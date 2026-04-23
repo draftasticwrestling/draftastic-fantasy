@@ -9,7 +9,9 @@ import {
   formatPleDate,
 } from "@/lib/pleUpcoming";
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
+import { pleHrefForEntry, pleNavEntriesForSeasonSlug } from "@/lib/pleLeagueMenu";
 import styles from "./PleWrestlemania.module.css";
+import { PlePicker } from "../PlePicker";
 
 /**
  * WrestleMania floor projections (on the card / main-eventing, no win bonus).
@@ -210,6 +212,12 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
   );
 
   const wrestlemaniaLogoUrl = EVENT_LOGO_URLS.wrestlemania;
+  const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
+  const pleOptions = pleNavEntriesForSeasonSlug(seasonSlug).map((entry) => ({
+    href: pleHrefForEntry(slug, entry),
+    label: entry.label,
+  }));
+  const currentHref = `/leagues/${encodeURIComponent(slug)}/ple/wrestlemania`;
 
   let nextGlobalIdx = 0;
   const nightsWithIndices = WRESTLEMANIA_NIGHTS.map((night) => ({
@@ -220,8 +228,9 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
   return (
     <main className={styles.plePage}>
       <Link href={`/leagues/${slug}`} className={styles.backLink}>
-        ← {league.name}
+        ← League
       </Link>
+      <PlePicker valueHref={currentHref} options={pleOptions} label="PLE" />
 
       <section className={styles.pleHero} aria-label="Event header">
         <p className={styles.pleEventLabel}>Premium Live Event</p>

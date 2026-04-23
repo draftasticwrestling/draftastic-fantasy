@@ -42,10 +42,10 @@ export default async function EditTeamInfoPage({
   const currentCatchphrase = member.manager_catchphrase?.trim() ?? "";
 
   return (
-    <main className="app-page">
-      <p style={{ marginBottom: 24 }}>
+    <main className="app-page" style={{ paddingTop: 10 }}>
+      <p style={{ marginBottom: 14 }}>
         <Link href={`/leagues/${slug}`} className="app-link">
-          ← {league.name}
+          ← League
         </Link>
       </p>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8, color: "var(--color-text)" }}>

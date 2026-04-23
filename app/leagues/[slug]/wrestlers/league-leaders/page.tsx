@@ -368,13 +368,50 @@ export default async function LeagueLeadersPage({
 
   return (
     <main className="app-page" style={{ maxWidth: 1200, margin: "0 auto" }}>
-      <p style={{ marginBottom: 16 }}>
-        <Link href={`/leagues/${slug}`} className="app-link" style={{ fontWeight: 600 }}>
-          ← {league.name}
+      <nav
+        aria-label="Wrestlers view"
+        style={{
+          display: "inline-flex",
+          border: "1px solid var(--color-border)",
+          borderRadius: 8,
+          overflow: "hidden",
+          marginBottom: 12,
+        }}
+      >
+        <Link
+          href={`/leagues/${slug}/wrestlers/league-leaders`}
+          style={{
+            padding: "8px 12px",
+            textDecoration: "none",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            color: "#fff",
+            background: "#111",
+          }}
+        >
+          League Leaders
         </Link>
-      </p>
+        <Link
+          href={`/leagues/${slug}/wrestlers/free-agents`}
+          style={{
+            padding: "8px 12px",
+            textDecoration: "none",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            color: "var(--color-text)",
+            background: "var(--color-bg-surface)",
+            borderLeft: "1px solid var(--color-border)",
+          }}
+        >
+          Free Agents
+        </Link>
+      </nav>
       <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>League Leaders</h1>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 16, fontSize: 13 }}>
         Wrestlers ranked by fantasy points to date. Sorted by highest total first; you can re-sort by any column.
       </p>
       <WrestlerMatchStatsDisclaimer style={{ marginBottom: 24 }} />
@@ -398,6 +435,7 @@ export default async function LeagueLeadersPage({
           leagueSlug={slug}
           wrestlerProfileFrom="league-leaders"
           rosterByWrestler={rosterByWrestler}
+          enableViewToggle
         />
       )}
     </main>

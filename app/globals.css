@@ -1046,12 +1046,12 @@ body > .site-footer {
 
 .nav-league-mobile-row {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .nav-league-mobile-label {
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   font-weight: 700;
   color: var(--color-text-muted);
@@ -1059,40 +1059,119 @@ body > .site-footer {
 
 .nav-league-mobile-select {
   width: 100%;
-  min-height: 40px;
-  border-radius: 10px;
+  min-height: 34px;
+  border-radius: 8px;
   border: 1px solid var(--color-border);
   background: var(--color-bg-surface);
   color: var(--color-text);
   font-weight: 600;
-  padding: 8px 10px;
+  font-size: 0.9rem;
+  padding: 5px 9px;
+}
+
+.nav-league-mobile-select-on-dark {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f3f4f6;
+}
+
+.nav-fantasy-mobile-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nav-fantasy-mobile-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 10px 4px;
+  min-height: 44px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.55);
+  border-bottom: 2px solid transparent;
+}
+
+.nav-fantasy-mobile-tab:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.nav-fantasy-mobile-tab.is-active {
+  color: #ffffff;
+  border-bottom-color: #f5c400;
+}
+
+.nav-fantasy-mobile-more {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0 10px;
+}
+
+.nav-fantasy-mobile-more > summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 10px 2px;
+}
+
+.nav-fantasy-mobile-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-league-mobile-toggle {
+  min-height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 4px 8px;
 }
 
 .nav-league-mobile-links {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .nav-league-mobile-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
+  min-height: 30px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f3f4f6;
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.74rem;
   font-weight: 600;
   text-align: center;
-  background: var(--color-bg-surface);
+  background: rgba(255, 255, 255, 0.06);
+  min-width: 0;
+  line-height: 1.15;
 }
 
 .nav-league-mobile-link.is-active {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: rgba(245, 196, 0, 0.55);
+  color: #ffe066;
 }
 
 @media (max-width: 900px) {
@@ -1102,16 +1181,26 @@ body > .site-footer {
 
   .nav-league-mobile {
     display: grid;
-    gap: 10px;
-    padding: 10px var(--page-padding-x-mobile) 12px;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-bg-nav-secondary);
+    gap: 6px;
+    padding: 6px var(--page-padding-x-mobile) 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    background: #0b0b0b;
+  }
+
+  .nav-league-mobile .nav-league-mobile-label {
+    color: rgba(255, 255, 255, 0.55);
   }
 }
 
 @media (max-width: 640px) {
   .nav-league-mobile-links {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 380px) {
+  .nav-league-mobile-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -3540,6 +3629,60 @@ body > .site-footer {
 @media (max-width: 640px) {
   .lm-dashboard {
     padding: var(--page-padding-y) var(--page-padding-x-mobile);
+  }
+}
+
+/* League home: mobile League tab = short menu + text standings; desktop keeps full dashboard */
+.lm-league-home .league-home-mobile {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .lm-league-home .league-home-mobile {
+    display: block;
+  }
+
+  .lm-league-home .lm-league-page-desktop {
+    display: none !important;
+  }
+
+  .lm-league-home .lm-league-home-back {
+    display: none;
+  }
+}
+
+.lm-league-home .league-home-mobile-standings thead th {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.league-standings-mobile-only {
+  display: none;
+}
+
+.league-standings-desktop-only {
+  display: block;
+}
+
+.ple-mobile-picker {
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .league-standings-mobile-only {
+    display: block;
+  }
+
+  .league-standings-desktop-only {
+    display: none;
+  }
+}
+
+@media (min-width: 901px) {
+  .ple-mobile-picker {
+    display: none;
   }
 }
 
