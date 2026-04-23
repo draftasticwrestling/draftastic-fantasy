@@ -56,7 +56,7 @@ function getActivePrimary(pathname: string, slug: string): MobileLeagueSectionKe
   const rest = pathname.slice(base.length + 1).split("/")[0];
   if (rest === "standings" || rest === "roster-changes") return "league";
   if (rest === "faction") return "my-team";
-  if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info") return "my-team";
+  if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info" || rest === "faction-actions") return "my-team";
   if (rest === "") return "league";
   if (rest === "wrestlers" || rest === "league-leaders" || rest === "stat-corrections") return "wrestlers";
   if (rest === "matchups") return "matchups";
@@ -79,7 +79,7 @@ function getFantasyMobilePrimaryTab(pathname: string, slug: string): FantasyMobi
 
   if (head === "faction") return "faction";
   if (head === "team") return "faction";
-  if (head === "transactions" || head === "team-log" || head === "watchlist" || head === "edit-team-info") return "faction";
+  if (head === "transactions" || head === "team-log" || head === "watchlist" || head === "edit-team-info" || head === "faction-actions") return "faction";
 
   if (head === "wrestlers" || head === "league-leaders" || head === "stat-corrections") return "wrestlers";
 

@@ -28,6 +28,40 @@
   color: #fff;
 }
 
+.about-us-mission {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .about-us-mission {
+    display: block;
+    margin: 0 auto;
+    max-width: min(var(--page-max-width, 1200px), 100%);
+    padding: 1rem 1.15rem;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.15);
+    font-size: 1.02rem;
+    line-height: 1.6;
+    color: var(--color-text);
+    font-weight: 500;
+  }
+
+  .about-us-mission-heading {
+    margin: 0 0 0.45rem;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    letter-spacing: 0.14em;
+    font-weight: 800;
+    color: var(--color-text-muted);
+  }
+
+  .about-us-mission p {
+    margin: 0;
+  }
+}
+
 .about-us-sidebar-contact h2 {
   margin: 0 0 0.75rem !important;
   font-size: 1rem !important;

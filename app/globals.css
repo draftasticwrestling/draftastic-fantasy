@@ -1626,6 +1626,10 @@ body > .site-footer {
 .wrestler-card-img-wrap {
   position: relative;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 .wrestler-card-injury-badge {
@@ -1661,6 +1665,15 @@ body > .site-footer {
   justify-content: center;
   color: var(--color-text-muted);
   font-size: 18px;
+}
+
+.wrestler-card-total-points {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-text);
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .wrestler-card-body {

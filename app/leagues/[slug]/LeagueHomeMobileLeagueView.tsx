@@ -45,10 +45,13 @@ export function LeagueHomeMobileLeagueView({
 
   const items: { href: string; label: string }[] = [
     { href: `${base}/standings`, label: "Standings" },
+    ...(seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG
+      ? [{ href: `${base}/pathway`, label: "Your Pathway" }]
+      : []),
+    { href: `${base}/faction-actions`, label: "Add / Drop / Trade" },
     { href: `${base}/transactions`, label: "Transactions" },
-    { href: `${base}/edit-team-info`, label: "Edit Faction Info" },
     { href: pleHref, label: pleLabel },
-    { href: `${base}/stat-corrections`, label: "Stat Corrections" },
+    { href: `${base}/edit-team-info`, label: "Edit Faction Info" },
     ...(isCommissioner ? [{ href: `${base}/league-settings`, label: "GM Tools" }] : []),
   ];
 

@@ -859,11 +859,6 @@ export default function WrestlerList({
                   </div>
                 </div>
 
-                <div style={{ marginBottom: 10 }}>
-                  <label htmlFor="wrestler-search-mobile" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--color-text-muted)", marginBottom: 6 }}>Search</label>
-                  <input id="wrestler-search-mobile" type="search" placeholder="Wrestler name" value={search} onChange={(e) => setSearch(e.target.value)} style={mobileInputStyle} />
-                </div>
-
                 <button
                   type="button"
                   className="wrestler-list-reset"
@@ -910,6 +905,22 @@ export default function WrestlerList({
           >
             Filters
           </button>
+          <div style={{ marginTop: 10 }}>
+            <label
+              htmlFor="wrestler-search-mobile-outside"
+              style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--color-text-muted)", marginBottom: 6 }}
+            >
+              Search wrestler
+            </label>
+            <input
+              id="wrestler-search-mobile-outside"
+              type="search"
+              placeholder="Wrestler name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={mobileInputStyle}
+            />
+          </div>
         </div>
       )}
       {/* Toolbar: Roster checkboxes (optional), Period, Search, Reset */}
@@ -1174,6 +1185,9 @@ export default function WrestlerList({
                     <InjuryBadge size={22} />
                   </span>
                 )}
+                <span className="wrestler-card-total-points">
+                  {pts.totalPoints} pts
+                </span>
               </div>
               <div className="wrestler-card-body">
                 <span className="wrestler-card-name" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -1195,15 +1209,9 @@ export default function WrestlerList({
                   {(w.rating_2k26 != null || w.rating_2k25 != null) && (
                     <> · 2K <span style={{ color: "#c00", fontWeight: 700 }}>{(w.rating_2k26 ?? w.rating_2k25) ?? ""}</span></>
                   )}
-                  {pts.totalPoints > 0 && (
-                    <> · {pts.totalPoints} pts</>
-                  )}
                 </span>
                 <span className="wrestler-card-pts">
                   R/S {pts.rsPoints} · PLE {pts.plePoints} · Belt {pts.beltPoints}
-                  {pts.totalPoints > 0 && (
-                    <> → {pts.totalPoints}</>
-                  )}
                 </span>
               </div>
             </Link>

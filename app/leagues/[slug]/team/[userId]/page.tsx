@@ -387,7 +387,6 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           leagueSlug={slug}
           leagueName={league.name}
           teamUserId={userId}
-          viewerUserId={currentUser.id}
           isOwnFaction={isOwnTeam}
           factionOptions={members.map((m) => ({
             userId: m.user_id,

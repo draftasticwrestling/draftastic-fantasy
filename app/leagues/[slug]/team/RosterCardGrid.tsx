@@ -81,7 +81,7 @@ type Props = {
   /** User whose roster this is (owner of these cards) */
   teamUserId: string;
   /** Currently logged-in user viewing the page */
-  viewerUserId: string;
+  viewerUserId?: string;
   /** Show Drop action on cards (only for own team) */
   showDrop?: boolean;
   /** Show Trade action on cards */
@@ -90,6 +90,8 @@ type Props = {
   isOwnTeam?: boolean;
   /** Wrestlers that can't be dropped while tied to an unfinished trade */
   tradeLockedWrestlerIds?: string[];
+  /** Route card actions to mobile faction actions page */
+  useFactionActionsPage?: boolean;
 };
 
 function WrestlerCard({
@@ -475,6 +477,7 @@ export function RosterCardGrid({
   showTrade = false,
   isOwnTeam = false,
   tradeLockedWrestlerIds,
+  useFactionActionsPage = false,
 }: Props) {
   const router = useRouter();
   const [sortBy, setSortBy] = useState<SortKey>("total");
@@ -509,21 +512,29 @@ export function RosterCardGrid({
       const ok = window.confirm(`Request to drop ${name} from your roster? This will open the release form.`);
       if (!ok) return;
     }
-    const url = `/leagues/${encodeURIComponent(leagueSlug)}/team/${encodeURIComponent(
-      teamUserId,
-    )}?dropWrestlerId=${encodeURIComponent(w.id)}#request-release`;
+    const url = useFactionActionsPage && isOwnTeam
+      ? `/leagues/${encodeURIComponent(leagueSlug)}/faction-actions?dropWrestlerId=${encodeURIComponent(w.id)}#request-release`
+      : `/leagues/${encodeURIComponent(leagueSlug)}/team/${encodeURIComponent(
+          teamUserId,
+        )}?dropWrestlerId=${encodeURIComponent(w.id)}#request-release`;
     router.push(url);
   }
 
   function handleTrade(w: RosterCardWrestler) {
     if (!showTrade) return;
-    // For own team, just open the trade section on my team page.
-    // For other teams, go to my team page with proposeTradeTo set to this roster's owner.
-    const baseTeamUserId = encodeURIComponent(viewerUserId);
-    const base = `/leagues/${encodeURIComponent(leagueSlug)}/team/${baseTeamUserId}`;
-    const url = isOwnTeam
-      ? `${base}#propose-trade`
-      : `${base}?proposeTradeTo=${encodeURIComponent(teamUserId)}#propose-trade`;
+    // For own team, open the mobile-friendly faction actions page.
+    // For other teams, preselect that manager on the same page.
+    const url = useFactionActionsPage
+      ? isOwnTeam
+        ? `/leagues/${encodeURIComponent(leagueSlug)}/faction-actions#propose-trade`
+        : `/leagues/${encodeURIComponent(leagueSlug)}/faction-actions?proposeTradeTo=${encodeURIComponent(teamUserId)}#propose-trade`
+      : isOwnTeam
+        ? `/leagues/${encodeURIComponent(leagueSlug)}/team/${encodeURIComponent(teamUserId)}#propose-trade`
+        : viewerUserId
+          ? `/leagues/${encodeURIComponent(leagueSlug)}/team/${encodeURIComponent(
+              viewerUserId,
+            )}?proposeTradeTo=${encodeURIComponent(teamUserId)}#propose-trade`
+          : `/leagues/${encodeURIComponent(leagueSlug)}/team?proposeTradeTo=${encodeURIComponent(teamUserId)}#propose-trade`;
     router.push(url);
   }
 

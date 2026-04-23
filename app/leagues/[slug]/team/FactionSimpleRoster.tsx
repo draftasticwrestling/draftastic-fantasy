@@ -25,7 +25,6 @@ type Props = {
   leagueSlug: string;
   leagueName: string;
   teamUserId: string;
-  viewerUserId: string;
   isOwnFaction: boolean;
   factionOptions?: Array<{ userId: string; label: string }>;
   teamLabel: string;
@@ -45,7 +44,6 @@ export function FactionSimpleRoster({
   leagueSlug,
   leagueName,
   teamUserId,
-  viewerUserId,
   isOwnFaction,
   factionOptions = [],
   teamLabel,
@@ -337,7 +335,7 @@ export function FactionSimpleRoster({
           wrestlers={sorted}
           leagueSlug={leagueSlug}
           teamUserId={teamUserId}
-          viewerUserId={viewerUserId}
+          useFactionActionsPage
           showDrop={isOwnFaction}
           showTrade={isOwnFaction}
           isOwnTeam={isOwnFaction}

@@ -84,10 +84,30 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
   const { supabase, user } = await getServerAuth();
   if (!user) return [];
 
-  const { data: memberships } = await supabase
+  let memberships: unknown[] | null = null;
+  const primary = await supabase
     .from("league_members")
     .select("league_id, leagues!inner(slug, draft_status, is_archived)")
     .eq("user_id", user.id);
+  if (!primary.error) {
+    memberships = primary.data as unknown[] | null;
+  } else {
+    // Be resilient to partial schema drift (e.g. missing is_archived / draft_status columns).
+    const fallback = await supabase
+      .from("league_members")
+      .select("league_id, leagues!inner(slug, draft_status)")
+      .eq("user_id", user.id);
+    if (!fallback.error) {
+      memberships = fallback.data as unknown[] | null;
+    } else {
+      const minimal = await supabase
+        .from("league_members")
+        .select("league_id, leagues!inner(slug)")
+        .eq("user_id", user.id);
+      memberships = minimal.error ? [] : (minimal.data as unknown[] | null);
+    }
+  }
+
   const leagueRows = (memberships ?? []) as Array<{
     league_id: string;
     leagues?: { slug?: string | null; draft_status?: string | null; is_archived?: boolean | null } | null;
@@ -108,7 +128,8 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
   const configs = await getLoginNudgeConfigs();
   const nudges: UserLoginNudge[] = [];
 
-  if (leagueIds.length === 0) {
+  // Only show "no league joined" when the user truly has no memberships.
+  if (leagueRows.length === 0) {
     const cfg = configs.no_league_joined;
     if (cfg.enabled) {
       nudges.push({

@@ -17,6 +17,14 @@ export default function AboutUsPage() {
       <p className="about-us-back">
         <Link href="/">← Home</Link>
       </p>
+      <section className="about-us-mission" aria-label="Mission statement">
+        <h2 className="about-us-mission-heading">MISSION STATEMENT</h2>
+        <p>
+          At Draftastic, our mission is to make pro wrestling more fun, more meaningful, and more accessible for every
+          fan. By gamifying the experience, we bring casual viewers and diehards together in a dynamic and constantly
+          evolving fantasy platform where every match counts.
+        </p>
+      </section>
       <MarketingLandingCopy
         showHero={false}
         sidebar={

@@ -39,12 +39,13 @@ export function ProposeReleaseForm(props: {
   rosterRules: RosterRules | null;
   freeAgents: { id: string; name: string | null }[];
   pendingReleaseIds: string[];
+  initialWrestlerId?: string | null;
   /** Wrestlers reserved for an unfinished trade — cannot drop until trade completes or is cancelled */
   tradeLockedWrestlerIds?: string[];
 }) {
-  const { leagueSlug, rosterWrestlers, rosterRules, freeAgents, tradeLockedWrestlerIds = [] } = props;
+  const { leagueSlug, rosterWrestlers, rosterRules, freeAgents, initialWrestlerId, tradeLockedWrestlerIds = [] } = props;
   const tradeLocked = new Set(tradeLockedWrestlerIds.map((id) => String(id).trim()).filter(Boolean));
-  const [wrestlerId, setWrestlerId] = useState("");
+  const [wrestlerId, setWrestlerId] = useState(initialWrestlerId ?? "");
   const [freeAgentId, setFreeAgentId] = useState("");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
