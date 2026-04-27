@@ -79,6 +79,7 @@ export default async function InternalAdminUserModerationPage({
         <div style={{ display: "grid", gap: 6, color: "var(--color-text-muted)" }}>
           <div>Created: {detail.created_at ? detail.created_at.slice(0, 10) : "—"}</div>
           <div>Last sign-in: {detail.last_sign_in_at ? detail.last_sign_in_at.slice(0, 10) : "—"}</div>
+          <div>Last activity: {detail.last_activity_at ? detail.last_activity_at.slice(0, 10) : "—"}</div>
           <div>Leagues: {detail.memberships.length}</div>
           <div>Draft preferences saved: {detail.draft_pref_count > 0 ? `Yes (${detail.draft_pref_count})` : "No"}</div>
           <div>Timezone: {detail.timezone ?? "—"}</div>

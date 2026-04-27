@@ -19,6 +19,7 @@ export type SiteAdminUserRow = {
   suspended_until: string | null;
   created_at: string;
   last_sign_in_at: string | null;
+  last_activity_at: string | null;
 };
 
 export type SiteAdminUserMembership = {
@@ -58,6 +59,7 @@ export type SiteAdminUserDetail = {
   draft_pref_count: number;
   created_at: string;
   last_sign_in_at: string | null;
+  last_activity_at: string | null;
   memberships: SiteAdminUserMembership[];
   audit: SiteAdminModerationAuditRow[];
 };
@@ -71,6 +73,7 @@ function toRow(
         is_suspended: boolean;
         suspended_until: string | null;
         marketing_opt_in: boolean;
+        last_activity_at: string | null;
       }
     | undefined
 ): SiteAdminUserRow {
@@ -87,6 +90,7 @@ function toRow(
     suspended_until: profile?.suspended_until ?? null,
     created_at: u.created_at ?? "",
     last_sign_in_at: u.last_sign_in_at ?? null,
+    last_activity_at: profile?.last_activity_at ?? null,
   };
 }
 
@@ -102,6 +106,7 @@ async function enrichWithProfiles(
       is_suspended: boolean;
       suspended_until: string | null;
       marketing_opt_in: boolean;
+      last_activity_at: string | null;
     }
   >
 > {
@@ -113,13 +118,23 @@ async function enrichWithProfiles(
       is_suspended: boolean;
       suspended_until: string | null;
       marketing_opt_in: boolean;
+      last_activity_at: string | null;
     }
   >();
   if (users.length === 0) return map;
-  const { data, error } = await admin
+  const userIds = [...new Set(users.map((u) => u.id))];
+  let { data, error } = await admin
     .from("profiles")
-    .select("id, display_name, is_site_admin, is_suspended, suspended_until, marketing_opt_in")
-    .in("id", [...new Set(users.map((u) => u.id))]);
+    .select("id, display_name, is_site_admin, is_suspended, suspended_until, marketing_opt_in, last_activity_at")
+    .in("id", userIds);
+  if (error && /last_activity_at/i.test(error.message ?? "")) {
+    const fallback = await admin
+      .from("profiles")
+      .select("id, display_name, is_site_admin, is_suspended, suspended_until, marketing_opt_in")
+      .in("id", userIds);
+    data = fallback.data;
+    error = fallback.error;
+  }
   if (error || !data) return map;
   for (const row of data) {
     map.set(row.id, {
@@ -128,6 +143,7 @@ async function enrichWithProfiles(
       is_suspended: Boolean(row.is_suspended),
       suspended_until: row.suspended_until ?? null,
       marketing_opt_in: Boolean((row as { marketing_opt_in?: boolean | null }).marketing_opt_in),
+      last_activity_at: (row as { last_activity_at?: string | null }).last_activity_at ?? null,
     });
   }
   return map;
@@ -270,13 +286,24 @@ export async function siteAdminGetUserDetail(
   const u = userData.user;
   if (!u) return { detail: null, error: null };
 
-  const { data: profile, error: profileErr } = await admin
+  let { data: profile, error: profileErr } = await admin
     .from("profiles")
     .select(
-      "display_name, avatar_url, timezone, is_site_admin, accepted_terms_at, accepted_privacy_at, is_suspended, suspended_until, suspension_reason, moderation_note, marketing_opt_in, marketing_opt_in_at"
+      "display_name, avatar_url, timezone, is_site_admin, accepted_terms_at, accepted_privacy_at, is_suspended, suspended_until, suspension_reason, moderation_note, marketing_opt_in, marketing_opt_in_at, last_activity_at"
     )
     .eq("id", userId)
     .maybeSingle();
+  if (profileErr && /last_activity_at/i.test(profileErr.message ?? "")) {
+    const fallback = await admin
+      .from("profiles")
+      .select(
+        "display_name, avatar_url, timezone, is_site_admin, accepted_terms_at, accepted_privacy_at, is_suspended, suspended_until, suspension_reason, moderation_note, marketing_opt_in, marketing_opt_in_at"
+      )
+      .eq("id", userId)
+      .maybeSingle();
+    profile = fallback.data;
+    profileErr = fallback.error;
+  }
   if (profileErr) return { detail: null, error: profileErr.message };
 
   let memberships: SiteAdminUserMembership[] = [];
@@ -367,6 +394,7 @@ export async function siteAdminGetUserDetail(
     draft_pref_count: draftPrefCount ?? 0,
     created_at: u.created_at ?? "",
     last_sign_in_at: u.last_sign_in_at ?? null,
+    last_activity_at: (profile as { last_activity_at?: string | null } | null)?.last_activity_at ?? null,
     memberships,
     audit: ((auditRows ?? []) as SiteAdminModerationAuditRow[]),
   };

@@ -5,6 +5,7 @@ create table if not exists public.profiles (
   id uuid not null references auth.users on delete cascade,
   display_name text null,
   avatar_url text null,
+  last_activity_at timestamptz null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (id)
@@ -17,12 +18,14 @@ create index if not exists idx_profiles_display_name on public.profiles (display
 alter table public.profiles enable row level security;
 
 -- Anyone authenticated can read all profiles (e.g. show names in leagues).
+drop policy if exists "Profiles are viewable by authenticated users" on public.profiles;
 create policy "Profiles are viewable by authenticated users"
   on public.profiles for select
   to authenticated
   using (true);
 
 -- Users can update only their own profile.
+drop policy if exists "Users can update own profile" on public.profiles;
 create policy "Users can update own profile"
   on public.profiles for update
   to authenticated
@@ -71,3 +74,18 @@ select id, coalesce(
 )
 from auth.users
 on conflict (id) do nothing;
+
+-- Ensure column exists for older environments created before this field.
+alter table public.profiles
+  add column if not exists last_activity_at timestamptz null;
+
+-- One-time historical backfill for existing users.
+-- Preference order:
+-- 1) Auth last_sign_in_at (best true activity signal),
+-- 2) profile updated_at,
+-- 3) profile created_at.
+update public.profiles p
+set last_activity_at = coalesce(u.last_sign_in_at, p.updated_at, p.created_at)
+from auth.users u
+where u.id = p.id
+  and p.last_activity_at is null;

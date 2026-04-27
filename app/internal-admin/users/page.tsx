@@ -129,6 +129,7 @@ export default async function InternalAdminUsersPage({
                   <th style={{ padding: "10px 8px" }}>Site admin</th>
                   <th style={{ padding: "10px 8px" }}>Created</th>
                   <th style={{ padding: "10px 8px" }}>Last sign-in</th>
+                  <th style={{ padding: "10px 8px" }}>Last activity</th>
                   <th style={{ padding: "10px 8px" }}>Suspended</th>
                 </tr>
               </thead>
@@ -165,6 +166,9 @@ export default async function InternalAdminUsersPage({
                     </td>
                     <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>
                       {row.last_sign_in_at ? row.last_sign_in_at.slice(0, 10) : "—"}
+                    </td>
+                    <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>
+                      {row.last_activity_at ? row.last_activity_at.slice(0, 10) : "—"}
                     </td>
                     <td style={{ padding: "10px 8px" }}>
                       {row.is_suspended

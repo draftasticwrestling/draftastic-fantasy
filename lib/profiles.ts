@@ -21,6 +21,7 @@ export type Profile = {
   marketing_opt_in_source?: string | null;
   created_at: string;
   updated_at: string;
+  last_activity_at?: string | null;
 };
 
 /**
@@ -31,13 +32,13 @@ export async function getProfile(userId: string): Promise<Profile | null> {
   const primary = await supabase
     .from("profiles")
     .select(
-      "id, display_name, avatar_url, accepted_terms_at, accepted_privacy_at, timezone, notify_trade_proposals, notify_draft_reminder, notify_weekly_results, marketing_opt_in, marketing_opt_in_at, marketing_opt_in_source, created_at, updated_at"
+      "id, display_name, avatar_url, accepted_terms_at, accepted_privacy_at, timezone, notify_trade_proposals, notify_draft_reminder, notify_weekly_results, marketing_opt_in, marketing_opt_in_at, marketing_opt_in_source, created_at, updated_at, last_activity_at"
     )
     .eq("id", userId)
     .maybeSingle();
   let row: Record<string, unknown> | null = (primary.data as Record<string, unknown> | null) ?? null;
   let error = primary.error;
-  if (error && /marketing_opt_in/i.test(error.message ?? "")) {
+  if (error && /(marketing_opt_in|last_activity_at)/i.test(error.message ?? "")) {
     const fallback = await supabase
       .from("profiles")
       .select(

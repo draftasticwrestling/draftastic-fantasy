@@ -13,6 +13,36 @@ type Nudge = {
   secondaryCta: { label: string; href: string } | null;
 };
 
+/** YYYY-MM-DD in the user's local timezone — used to show each nudge at most once per day. */
+function localCalendarDayKey(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function nudgeSeenStorageKey(nudgeKey: string): string {
+  return `draftastic-login-nudge-seen:${nudgeKey}`;
+}
+
+function wasNudgeSeenToday(nudgeKey: string): boolean {
+  try {
+    const day = localStorage.getItem(nudgeSeenStorageKey(nudgeKey));
+    return day === localCalendarDayKey();
+  } catch {
+    return false;
+  }
+}
+
+function markNudgeSeenToday(nudgeKey: string): void {
+  try {
+    localStorage.setItem(nudgeSeenStorageKey(nudgeKey), localCalendarDayKey());
+  } catch {
+    // no-op (private mode, etc.)
+  }
+}
+
 export default function LoginNudges() {
   const [loaded, setLoaded] = useState(false);
   const [nudges, setNudges] = useState<Nudge[]>([]);
@@ -25,15 +55,8 @@ export default function LoginNudges() {
       .then((data) => {
         if (cancelled) return;
         const list = Array.isArray(data?.nudges) ? (data.nudges as Nudge[]) : [];
-        // Show once per browser tab session; they'll reappear on the next login/session.
-        const filtered = list.filter((n) => {
-          try {
-            const k = `draftastic-login-nudge-seen:${n.key}`;
-            return sessionStorage.getItem(k) !== "1";
-          } catch {
-            return true;
-          }
-        });
+        // At most once per calendar day (local) per nudge; persists across visits/sessions.
+        const filtered = list.filter((n) => !wasNudgeSeenToday(n.key));
         setNudges(filtered);
         setLoaded(true);
       })
@@ -49,11 +72,7 @@ export default function LoginNudges() {
 
   const dismiss = () => {
     if (!current) return;
-    try {
-      sessionStorage.setItem(`draftastic-login-nudge-seen:${current.key}`, "1");
-    } catch {
-      // no-op
-    }
+    markNudgeSeenToday(current.key);
     setIdx((v) => v + 1);
   };
 
