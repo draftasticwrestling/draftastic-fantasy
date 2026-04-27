@@ -132,8 +132,9 @@ async function enrichWithProfiles(
       .from("profiles")
       .select("id, display_name, is_site_admin, is_suspended, suspended_until, marketing_opt_in")
       .in("id", userIds);
-    data = fallback.data;
     error = fallback.error;
+    // Old DBs without the column: normalize shape so it matches the primary select type.
+    data = (fallback.data ?? []).map((r) => ({ ...r, last_activity_at: null as string | null }));
   }
   if (error || !data) return map;
   for (const row of data) {
@@ -301,8 +302,11 @@ export async function siteAdminGetUserDetail(
       )
       .eq("id", userId)
       .maybeSingle();
-    profile = fallback.data;
     profileErr = fallback.error;
+    const row = fallback.data;
+    profile = row
+      ? { ...row, last_activity_at: null as string | null }
+      : null;
   }
   if (profileErr) return { detail: null, error: profileErr.message };
 
