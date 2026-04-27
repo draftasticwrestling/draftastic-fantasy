@@ -1,4 +1,4 @@
-import { SPECIAL_MATCH_BATTLE_ROYAL_POINTS } from "@/lib/howItWorksPoints";
+import { SPECIAL_MATCH_BATTLE_ROYAL_POINTS, SPECIAL_MATCH_VICTORY_BONUS_BY_EVENT_TIER } from "@/lib/howItWorksPoints";
 import styles from "./HowItWorks.module.css";
 
 type Props = {
@@ -46,6 +46,52 @@ export function HowItWorksSpecialMatches({ variant }: Props) {
           ))}
         </div>
       </div>
+
+      <h3 style={{ fontSize: "1.15rem", marginBottom: 8, fontWeight: 700, textAlign: "center" }}>
+        Multi-person / round-based victory bonus
+      </h3>
+      <p
+        style={{
+          marginBottom: 16,
+          color: "#555",
+          textAlign: "center",
+          maxWidth: 760,
+          marginLeft: "auto",
+          marginRight: "auto",
+          fontSize: 15,
+        }}
+      >
+        Multi-person and multi-team matches (triple threat, fatal four-way, five-way, etc.) earn an extra victory bonus
+        for each opponent/team defeated. <strong>2 out of 3 Falls</strong> and <strong>Gauntlet</strong> matches award
+        this same bonus per round won.
+      </p>
+      <div className={styles.darkBox}>
+        <div className={styles.specialMatchesInner}>
+          {SPECIAL_MATCH_VICTORY_BONUS_BY_EVENT_TIER.map(([label, pts]) => (
+            <div key={label} className={styles.pointRow}>
+              <span>{label}</span>
+              <span className={styles.pointRowPoints}>{pts}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {variant === "rts" ? (
+        <p
+          style={{
+            marginTop: -10,
+            marginBottom: 0,
+            color: "#555",
+            textAlign: "center",
+            maxWidth: 760,
+            marginLeft: "auto",
+            marginRight: "auto",
+            fontSize: 14,
+          }}
+        >
+          Examples: a 4-team tag winner at WrestleMania earns <strong>+9</strong> (3 teams defeated × 3 major-ple points
+          each). A Raw fatal four-way winner earns <strong>+3</strong> (3 opponents defeated × 1 weekly point each).
+        </p>
+      ) : null}
     </section>
   );
 }

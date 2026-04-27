@@ -3,7 +3,7 @@ import "server-only";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 
-export type LoginNudgeKey = "missing_draft_prefs" | "no_league_joined";
+export type LoginNudgeKey = "missing_draft_prefs" | "no_league_joined" | "big_boards_updated";
 
 export type LoginNudgeConfig = {
   nudge_key: LoginNudgeKey;
@@ -45,6 +45,16 @@ const DEFAULT_CONFIGS: Record<LoginNudgeKey, LoginNudgeConfig> = {
     secondary_cta_label: "Create a league",
     secondary_cta_href: "/leagues/new",
   },
+  big_boards_updated: {
+    nudge_key: "big_boards_updated",
+    enabled: true,
+    title: "BIG BOARDS UPDATED",
+    body: "Much has changed since WrestleMania, with releases and call ups, so our Big Boards have changed as well! Check out the updates and make sure you like your draft order. Drafts begin May 1st!",
+    primary_cta_label: null,
+    primary_cta_href: null,
+    secondary_cta_label: null,
+    secondary_cta_href: null,
+  },
 };
 
 function renderTemplate(
@@ -71,7 +81,13 @@ export async function getLoginNudgeConfigs(): Promise<Record<LoginNudgeKey, Logi
     ...DEFAULT_CONFIGS,
   };
   for (const raw of data as LoginNudgeConfig[]) {
-    if (raw.nudge_key !== "missing_draft_prefs" && raw.nudge_key !== "no_league_joined") continue;
+    if (
+      raw.nudge_key !== "missing_draft_prefs" &&
+      raw.nudge_key !== "no_league_joined" &&
+      raw.nudge_key !== "big_boards_updated"
+    ) {
+      continue;
+    }
     out[raw.nudge_key] = {
       ...DEFAULT_CONFIGS[raw.nudge_key],
       ...raw,
@@ -127,6 +143,23 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
 
   const configs = await getLoginNudgeConfigs();
   const nudges: UserLoginNudge[] = [];
+
+  const bigBoardsCfg = configs.big_boards_updated;
+  if (bigBoardsCfg.enabled) {
+    nudges.push({
+      key: bigBoardsCfg.nudge_key,
+      title: bigBoardsCfg.title,
+      body: bigBoardsCfg.body,
+      primaryCta:
+        bigBoardsCfg.primary_cta_label && bigBoardsCfg.primary_cta_href
+          ? { label: bigBoardsCfg.primary_cta_label, href: bigBoardsCfg.primary_cta_href }
+          : null,
+      secondaryCta:
+        bigBoardsCfg.secondary_cta_label && bigBoardsCfg.secondary_cta_href
+          ? { label: bigBoardsCfg.secondary_cta_label, href: bigBoardsCfg.secondary_cta_href }
+          : null,
+    });
+  }
 
   // Only show "no league joined" when the user truly has no memberships.
   if (leagueRows.length === 0) {

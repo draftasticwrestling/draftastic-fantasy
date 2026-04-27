@@ -295,7 +295,6 @@ export default async function DraftPreferencesPage({ params }: Props) {
           </>
         )}
       </p>
-
       {!canEdit && (
         <p style={{ padding: "12px 16px", background: "var(--color-bg-elevated)", borderRadius: "var(--radius)", marginBottom: 24, color: "var(--color-text-muted)" }}>
           The draft has already started or finished. Preferences cannot be changed now.

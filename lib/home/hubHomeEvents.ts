@@ -3,6 +3,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getCivilYmdInPst } from "@/lib/pstCivilTime";
 
 export type HubPreviewEventRow = {
   id: string;
@@ -12,6 +13,39 @@ export type HubPreviewEventRow = {
   matches: unknown;
   status?: string | null;
 };
+
+function addDaysToYmd(ymd: string, days: number): string {
+  const y = Number(ymd.slice(0, 4));
+  const m = Number(ymd.slice(5, 7)) - 1;
+  const d = Number(ymd.slice(8, 10));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return "";
+  const dt = new Date(Date.UTC(y, m, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+export type HubCompletedStickyPlacement = "top" | "after_first_article" | null;
+
+/**
+ * Pacific-time home feed rule for a just-completed event:
+ * - same PT date as event => keep completed card at top through 11:59pm PT
+ * - next PT date (Tuesday for Monday Raw) => keep completed card after latest article
+ * - later dates => no sticky placement (normal ordering resumes)
+ */
+export function getHubCompletedStickyPlacement(
+  eventDateYmd: string | null | undefined,
+  nowMs: number = Date.now()
+): HubCompletedStickyPlacement {
+  const eventDate = String(eventDateYmd ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) return null;
+  const nowPstYmd = getCivilYmdInPst(nowMs);
+  if (nowPstYmd === eventDate) return "top";
+  if (nowPstYmd === addDaysToYmd(eventDate, 1)) return "after_first_article";
+  return null;
+}
 
 /** Calendar YYYY-MM-DD in America/New_York (WWE domestic air times). */
 export function getTodayTomorrowYmdET(): { today: string; tomorrow: string } {

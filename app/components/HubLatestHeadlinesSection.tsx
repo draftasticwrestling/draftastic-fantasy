@@ -4,7 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import HubLatestEventPreview from "@/app/components/HubLatestEventPreview";
 import { HubLatestArticleCard } from "@/app/components/HubLatestArticleCard";
 import { firstArticleImageUrl } from "@/lib/articleFirstImage";
-import { fetchHubRecentCompleted, fetchHubTodayPrimaryEvent, fetchHubUpcomingSpotlight } from "@/lib/home/hubHomeEvents";
+import {
+  fetchHubRecentCompleted,
+  fetchHubTodayPrimaryEvent,
+  fetchHubUpcomingSpotlight,
+  getHubCompletedStickyPlacement,
+} from "@/lib/home/hubHomeEvents";
 import { listPublishedArticles, type ArticleRow } from "@/lib/articles";
 
 /** Hub “The latest”: up to four article cards; order with events varies by event-day vs non-event-day. */
@@ -94,7 +99,8 @@ export default async function HubLatestHeadlinesSection({
     const wrestlerRows = (wrestlersData ?? []) as { id: string; name: string | null; image_url: string | null }[];
     const latestArticles = articles.slice(0, LATEST_SECTION_ARTICLES);
     const completedEvent = completedRows[0];
-    const isEventDay = Boolean(todayPrimary);
+    const completedStickyPlacement = getHubCompletedStickyPlacement(completedEvent?.date ?? null);
+    const isEventDay = Boolean(todayPrimary) || completedStickyPlacement === "top";
     const hasUpcoming = Boolean(upcoming);
     const hasCompleted = Boolean(completedEvent);
     const hasArticles = latestArticles.length > 0;
@@ -130,21 +136,41 @@ export default async function HubLatestHeadlinesSection({
       />
     ) : null;
 
-    /** Top of “The latest”: event → article → event (event day) or article → event → article (non-event day). */
+    /** Top of “The latest”: special completed-event PT sticky rules + event-day/non-event-day ordering. */
     const fullFeedNodes: ReactNode[] = [];
+    let completedAdded = false;
+    const pushCompletedOnce = () => {
+      if (!completedAdded && completedCard) {
+        fullFeedNodes.push(completedCard);
+        completedAdded = true;
+      }
+    };
     if (isEventDay) {
-      if (todayEventCard) fullFeedNodes.push(todayEventCard);
+      if (todayEventCard) {
+        fullFeedNodes.push(todayEventCard);
+      } else if (completedStickyPlacement === "top") {
+        pushCompletedOnce();
+      }
       if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
       if (upcomingCard) fullFeedNodes.push(upcomingCard);
       if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
-      if (completedCard) fullFeedNodes.push(completedCard);
+      pushCompletedOnce();
+      if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
+      if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
+    } else if (completedStickyPlacement === "after_first_article") {
+      if (latestArticles[0]) {
+        fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
+      }
+      pushCompletedOnce();
+      if (upcomingCard) fullFeedNodes.push(upcomingCard);
+      if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
       if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
       if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
     } else {
       if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
       if (upcomingCard) fullFeedNodes.push(upcomingCard);
       if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
-      if (completedCard) fullFeedNodes.push(completedCard);
+      pushCompletedOnce();
       if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
       if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
     }

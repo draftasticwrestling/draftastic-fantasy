@@ -348,6 +348,10 @@ export function DraftPreferencesForm({
         <section>
           <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
             Priority list source
+            <span style={{ color: "var(--color-success, #0d7d0d)", fontSize: 14, fontWeight: 500 }}>
+              {" "}
+              (updated 4/26/26)
+            </span>
           </h2>
           <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 12 }}>
             Everyone defaults to the site <strong>Default Big Board</strong> until you deliberately choose another provided Big Board or{" "}

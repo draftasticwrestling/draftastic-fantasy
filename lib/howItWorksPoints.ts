@@ -64,6 +64,12 @@ export const SPECIAL_MATCH_BATTLE_ROYAL_POINTS: [string, number][] = [
   ["Entering the Battle Royal (appearance)", 1],
 ];
 
+export const SPECIAL_MATCH_VICTORY_BONUS_BY_EVENT_TIER: [string, number][] = [
+  ["Raw / SmackDown", 1],
+  ["Minor / Medium PLE", 2],
+  ["Major PLE", 3],
+];
+
 /** Raw and SmackDown base match-card scoring (Road to SummerSlam 2026 and Legacy). */
 export const RAWSMACKDOWN_POINTS: [string, number][] = [
   ["Winning the main event", 4],
