@@ -22,7 +22,7 @@ import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormal
 import type { ChampionshipReignRow } from "@/lib/championshipTitleHistory";
 import { factionDisplayName } from "@/lib/factionName";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
-import { isRawOrSmackDownWrestlerRoster } from "@/lib/wrestlerRosterFromBrand";
+import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
 import {
   AUTOPICK_LIST_EXHAUSTED_TIE_BREAK,
   AUTOPICK_REQUIRED_FEMALE_COUNT,
@@ -35,6 +35,7 @@ import {
 } from "@/lib/leagueLeadersAllTimeScoring";
 import { bigBoardLabel, getBigBoardPriorityList, isBigBoardId, type BigBoardId } from "@/lib/draftBigBoards";
 import { isInBetaAutopickRunWindow } from "@/lib/betaAutopickSchedule";
+import { leagueIncludesNxt } from "@/lib/leagueStructure";
 
 const LEAGUE_START_DATE = "2025-05-02";
 
@@ -1356,6 +1357,16 @@ export async function getTopAvailableWrestlerByPoints(
     list = ((noClassification.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   }
   list = list.filter(isDraftableWrestler).filter((w): w is (DraftPoolRow & { id: string; gender?: string | null }) => Boolean(w.id));
+
+  const nxtPoolRes = await supabase.from("leagues").select("include_nxt").eq("id", leagueId).maybeSingle();
+  const poolOptionsAutopick = {
+    includeNxt:
+      nxtPoolRes.error && /include_nxt/i.test(nxtPoolRes.error.message ?? "")
+        ? false
+        : leagueIncludesNxt(nxtPoolRes.data as { include_nxt?: boolean | null } | null),
+  };
+  list = list.filter((w) => isMainBrandWrestlerRosterForLeague((w as { brand?: string | null }).brand, poolOptionsAutopick));
+
   if (needGender) {
     const byGender = list.filter((w) => normalizeGender(w.gender) === needGender);
     if (byGender.length > 0) list = byGender;
@@ -1432,6 +1443,13 @@ export async function getTopAvailableWrestlerForUser(
 ): Promise<string | null> {
   /** Autopick passes service role via opts; otherwise prefer admin so prefs bypass RLS. */
   const supabase = opts?.supabase ?? getAdminClient() ?? (await createClient());
+  const nxtLg = await supabase.from("leagues").select("include_nxt").eq("id", leagueId).maybeSingle();
+  const poolOptionsForUser = {
+    includeNxt:
+      nxtLg.error && /include_nxt/i.test(nxtLg.error.message ?? "")
+        ? false
+        : leagueIncludesNxt(nxtLg.data as { include_nxt?: boolean | null } | null),
+  };
   const rosters = opts?.rosters ?? (await getRostersForLeague(leagueId));
   const draftedIds = opts?.draftedIds ?? (() => {
     const set = new Set<string>();
@@ -1484,18 +1502,27 @@ export async function getTopAvailableWrestlerForUser(
   if (priorityWalkList.length) {
     const undraftedPriorityIds = priorityWalkList.filter((wid): wid is string => Boolean(wid) && !draftedIds.has(wid));
     if (undraftedPriorityIds.length > 0) {
-      const { data: priG } = await supabase.from("wrestlers").select("id,gender").in("id", undraftedPriorityIds);
+      const { data: priG } = await supabase
+        .from("wrestlers")
+        .select("id,gender,brand")
+        .in("id", undraftedPriorityIds);
       const genderById = new Map<string, "F" | "M" | null>();
-      for (const row of (priG ?? []) as { id: string; gender?: string | null }[]) {
+      const brandById = new Map<string, string | null>();
+      for (const row of (priG ?? []) as { id: string; gender?: string | null; brand?: string | null }[]) {
         const ng = normalizeGender(row.gender);
         const id = String(row.id);
         genderById.set(id, ng);
         genderById.set(id.toLowerCase(), ng);
+        brandById.set(id, row.brand ?? null);
+        brandById.set(id.toLowerCase(), row.brand ?? null);
       }
       for (const wid of priorityWalkList) {
         if (!wid || draftedIds.has(wid)) continue;
         const g = genderById.get(wid) ?? genderById.get(String(wid).toLowerCase()) ?? null;
         if (requiredGender && g !== requiredGender) continue;
+        const brand =
+          brandById.get(String(wid)) ?? brandById.get(String(wid).toLowerCase()) ?? null;
+        if (!isMainBrandWrestlerRosterForLeague(brand, poolOptionsForUser)) continue;
         return wid;
       }
     }
@@ -1516,10 +1543,20 @@ export async function getTopAvailableWrestlerForUser(
     const noClassification = await supabase.from("wrestlers").select('id, gender, brand, status, "Status"').order("id");
     rawWrestlers = noClassification.data as (Record<string, unknown> & { id: string })[] | null;
   }
-  wrestlers = (rawWrestlers ?? []).map((w) => ({ ...w, ...normalizeWrestlerRowFromApi(w) })).filter(isDraftableWrestler) as WrestlerRow[];
+  wrestlers = (rawWrestlers ?? [])
+    .map((w) => ({ ...w, ...normalizeWrestlerRowFromApi(w) }))
+    .filter(isDraftableWrestler) as WrestlerRow[];
+  wrestlers = (wrestlers as WrestlerRow[]).filter((w) =>
+    isMainBrandWrestlerRosterForLeague((w as { brand?: string | null }).brand, poolOptionsForUser)
+  ) as WrestlerRow[];
 
   const wrestlerById = new Map((wrestlers ?? []).map((x) => [x.id, x]));
-  const rosterBrandCounts: Record<string, number> = { Raw: 0, SmackDown: 0, Unassigned: 0 };
+  const rosterBrandCounts: Record<string, number> = {
+    Raw: 0,
+    SmackDown: 0,
+    Unassigned: 0,
+    ...(poolOptionsForUser.includeNxt ? { NXT: 0 } : {}),
+  };
   const rosterGenderCounts: Record<string, number> = { F: 0, M: 0 };
   for (const e of currentRoster) {
     const w = wrestlerById.get(e.wrestler_id);
@@ -1856,7 +1893,8 @@ async function loadAutopickChampionsBySlug(admin: AdminClient): Promise<Record<s
 async function findFirstUndraftedAutopickRawSdWrestlerId(
   admin: AdminClient,
   draftedIds: Set<string>,
-  requiredGender: "F" | "M" | null
+  requiredGender: "F" | "M" | null,
+  poolOptions: { includeNxt: boolean }
 ): Promise<string | null> {
   const selectCols = 'id, name, gender, status, "Status", brand, classification, "Classification"';
   let wrestlersRes = await admin.from("wrestlers").select(selectCols).order("id");
@@ -1882,7 +1920,7 @@ async function findFirstUndraftedAutopickRawSdWrestlerId(
     const id = w.id != null ? String(w.id) : "";
     if (!id || isInDraftedSet(draftedIds, id)) continue;
     if (!isAutopickDraftableWrestler(w)) continue;
-    if (!isRawOrSmackDownWrestlerRoster(w.brand)) continue;
+    if (!isMainBrandWrestlerRosterForLeague(w.brand, poolOptions)) continue;
     if (requiredGender != null && normalizeGender((w as { gender?: string | null }).gender) !== requiredGender) {
       continue;
     }
@@ -1904,7 +1942,8 @@ async function pickAutopickLeagueWrestler(
   draftedIds: Set<string>,
   requiredGenderFromRules: "F" | "M" | null,
   championsBySlug: Record<string, string[]>,
-  eventPointsBySlug?: ReturnType<typeof aggregateWrestlerPoints> | null
+  eventPointsBySlug: ReturnType<typeof aggregateWrestlerPoints> | null | undefined,
+  poolOptions: { includeNxt: boolean }
 ): Promise<string | null> {
   const selectCols = 'id, name, gender, status, "Status", brand, classification, "Classification"';
   let wrestlersRes = await admin.from("wrestlers").select(selectCols).order("id");
@@ -1929,7 +1968,7 @@ async function pickAutopickLeagueWrestler(
   const rawSmackdownRosterPool = list
     .filter(isAutopickDraftableWrestler)
     .filter((w): w is DraftPoolRow & { id: string; gender?: string | null } => Boolean(w.id))
-    .filter((w) => isRawOrSmackDownWrestlerRoster(w.brand));
+    .filter((w) => isMainBrandWrestlerRosterForLeague(w.brand, poolOptions));
   if (rawSmackdownRosterPool.length === 0) return null;
 
   const pointsBySlug = eventPointsBySlug ?? (await loadAutopickEventPointsBySlug(admin));
@@ -2137,19 +2176,28 @@ async function performOneAutoPick(
 
   let wrestlerId: string | null = null;
   if (simplifiedAutopick) {
+    const { data: nxtRow, error: nxtErr } = await admin
+      .from("leagues")
+      .select("include_nxt")
+      .eq("id", leagueId)
+      .maybeSingle();
+    const poolOptions = {
+      includeNxt: !nxtErr && nxtRow ? leagueIncludesNxt(nxtRow as { include_nxt?: boolean | null }) : false,
+    };
     const champs = autopickChampionsBySlug ?? (await loadAutopickChampionsBySlug(admin));
     wrestlerId = await pickAutopickLeagueWrestler(
       admin,
       draftedIds,
       requiredGender,
       champs,
-      autopickEventPointsBySlug
+      autopickEventPointsBySlug,
+      poolOptions
     );
     if (!wrestlerId) {
-      wrestlerId = await findFirstUndraftedAutopickRawSdWrestlerId(admin, draftedIds, requiredGender);
+      wrestlerId = await findFirstUndraftedAutopickRawSdWrestlerId(admin, draftedIds, requiredGender, poolOptions);
     }
     if (!wrestlerId && requiredGender != null) {
-      wrestlerId = await findFirstUndraftedAutopickRawSdWrestlerId(admin, draftedIds, null);
+      wrestlerId = await findFirstUndraftedAutopickRawSdWrestlerId(admin, draftedIds, null, poolOptions);
     }
     // Raw/SmackDown pool can run out before the draft ends (large leagues, heavy drafting, or sparse brands).
     // Prefer best all-time score among all draftable talent, then any undrafted draftable, so the draft can finish.

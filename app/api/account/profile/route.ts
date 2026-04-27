@@ -20,6 +20,7 @@ export async function PATCH(request: Request) {
 
     const body = await request.json() as Record<string, unknown>;
     let shouldSyncMarketing = false;
+    const nowIso = new Date().toISOString();
 
     const { data: existingProfile } = await supabase
       .from("profiles")
@@ -29,7 +30,8 @@ export async function PATCH(request: Request) {
     const currentTz = ((existingProfile as { timezone?: string | null } | null)?.timezone ?? "").trim();
 
     const updates: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
+      last_activity_at: nowIso,
     };
 
     if ("display_name" in body) {
@@ -59,7 +61,7 @@ export async function PATCH(request: Request) {
     }
     if (typeof body.marketing_opt_in === "boolean") {
       updates.marketing_opt_in = body.marketing_opt_in;
-      updates.marketing_opt_in_at = body.marketing_opt_in ? new Date().toISOString() : null;
+      updates.marketing_opt_in_at = body.marketing_opt_in ? nowIso : null;
       updates.marketing_opt_in_source = body.marketing_opt_in ? "account_settings" : null;
       shouldSyncMarketing = body.marketing_opt_in;
     }

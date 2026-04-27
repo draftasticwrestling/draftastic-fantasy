@@ -1,0 +1,266 @@
+import Link from "next/link";
+import { Fragment } from "react";
+import type { BeltKey, EventLogoKey } from "@/lib/howItWorksImages";
+import { BELT_IMAGE_URLS } from "@/lib/howItWorksImages";
+import { HowItWorksEventLogo } from "./HowItWorksEventLogo";
+import styles from "./HowItWorks.module.css";
+
+const NXT_TITLE_POINTS_MENS: Array<{ name: string; points: number; beltKey?: BeltKey }> = [
+  { name: "NXT Championship", points: 3, beltKey: "nxt-mens" },
+  { name: "NXT North American Championship", points: 2, beltKey: "nxt-na-mens" },
+  { name: "NXT Men's Speed Championship", points: 1, beltKey: "nxt-speed-mens" },
+  { name: "NXT Tag Team Championship (per member)", points: 1, beltKey: "nxt-tag-team" },
+];
+
+const NXT_TITLE_POINTS_WOMENS: Array<{ name: string; points: number; beltKey?: BeltKey }> = [
+  { name: "NXT Women's Championship", points: 3, beltKey: "nxt-womens" },
+  { name: "NXT Women's North American Championship", points: 2, beltKey: "nxt-na-womens" },
+  { name: "NXT Women's Speed Championship", points: 1, beltKey: "nxt-speed-womens" },
+  { name: "Main roster call-up", points: 15 },
+];
+
+const NXT_STAND_AND_DELIVER_POINTS: Array<[string, number]> = [
+  ["Main Eventing", 8],
+  ["Winning the Main Event", 10],
+  ["Being on the Match Card (non-main event)", 4],
+  ["Winning your Match", 5],
+];
+
+const NXT_PLE_SPECIAL_POINTS: Array<[string, number]> = [
+  ["Main Eventing", 3],
+  ["Winning the Main Event", 4],
+  ["Being on the Match Card (non-main event)", 2],
+  ["Winning your Match", 3],
+];
+
+const NXT_SPECIAL_EPISODE_POINTS: Array<[string, number]> = [
+  ["Main Eventing", 2],
+  ["Winning the Main Event", 3],
+  ["Being on the Match Card (non-main event)", 1],
+  ["Winning your Match", 2],
+];
+
+const NXT_TUESDAY_POINTS: Array<[string, number]> = [
+  ["Main Eventing", 1.5],
+  ["Winning the Main Event", 2],
+  ["Being on the Match Card (non-main event)", 0.5],
+  ["Winning your Match", 1],
+];
+
+const NXT_IRON_SURVIVOR_POINTS: Array<[string, number]> = [
+  ["Iron Survivor participant", 4],
+  ["Each Iron Survivor pin", 1],
+  ["Winning Iron Survivor Challenge", 5],
+];
+
+const NXT_MULTI_PERSON_BONUS: Array<[string, number]> = [
+  ["Tuesday NXT", 0.5],
+  ["Minor NXT PLE / Special", 1],
+  ["Stand & Deliver", 1.5],
+];
+
+export function HowItWorksRoadToSurvivorSeries() {
+  const nxtPleKeys: EventLogoKey[] = [
+    "nxt-battleground",
+    "nxt-great-american-bash",
+    "nxt-heatwave",
+    "nxt-no-mercy",
+    "nxt-halloween-havoc",
+    "nxt-vengeance-day",
+    "nxt-deadline",
+  ];
+  const nxtSpecialEpisodeKeys: EventLogoKey[] = [
+    "nxt-new-years-evil",
+    "nxt-roadblock",
+    "nxt-homecoming",
+    "nxt-showdown",
+    "nxt-gold-rush",
+    "nxt-revenge",
+  ];
+
+  return (
+    <>
+      <section style={{ marginBottom: 32 }}>
+        <h2 className={styles.sectionTitle}>Road to Survivor Series (NXT add-on beta)</h2>
+        <p className={styles.sectionSubtitle} style={{ maxWidth: 820, marginLeft: "auto", marginRight: "auto" }}>
+          This scoring profile is used for <strong>Road to Survivor Series</strong> leagues when{" "}
+          <strong>Include NXT</strong> is enabled (admin testing path). If Include NXT is off, league scoring follows
+          the standard main-roster model.
+        </p>
+      </section>
+
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Title points / Main roster promotion</h2>
+        <p className={styles.sectionSubtitle}>
+          Awarded to the wrestler holding the title at the end of each scoring week. Weekly points are one quarter of
+          monthly values.
+        </p>
+        <div className={styles.titlePointsGrid}>
+          <div className={styles.titlePointsThMens}>Men&apos;s Division</div>
+          <div className={styles.titlePointsThBeltMens} aria-hidden />
+          <div className={styles.titlePointsThPtsMens}>Points</div>
+          <div className={styles.titlePointsThWomens}>Women&apos;s Division</div>
+          <div className={styles.titlePointsThBeltWomens} aria-hidden />
+          <div className={styles.titlePointsThPtsWomens}>Points</div>
+          {NXT_TITLE_POINTS_MENS.map((mensRow, i) => {
+            const womensRow = NXT_TITLE_POINTS_WOMENS[i];
+            const rowAlt = i % 2 === 1 ? styles.titlePointsRowAlt : "";
+            return (
+              <Fragment key={mensRow.name}>
+                <div className={`${styles.titlePointsTdNameMens} ${rowAlt}`}>
+                  {mensRow.name}
+                </div>
+                <div className={`${styles.titlePointsTdBeltMens} ${rowAlt}`}>
+                  {mensRow.beltKey && BELT_IMAGE_URLS[mensRow.beltKey] ? (
+                    <div className={styles.beltImageWrap}>
+                      <img src={BELT_IMAGE_URLS[mensRow.beltKey]} alt="" className={styles.beltImage} />
+                    </div>
+                  ) : (
+                    <div className={styles.beltPlaceholder}>NXT</div>
+                  )}
+                </div>
+                <div className={`${styles.titlePointsTdPtsMens} ${rowAlt}`}>
+                  {mensRow.points}
+                </div>
+                <div className={`${styles.titlePointsTdNameWomens} ${rowAlt}`}>
+                  {womensRow.name}
+                </div>
+                <div className={`${styles.titlePointsTdBeltWomens} ${rowAlt}`}>
+                  {womensRow.beltKey && BELT_IMAGE_URLS[womensRow.beltKey] ? (
+                    <div className={styles.beltImageWrap}>
+                      <img src={BELT_IMAGE_URLS[womensRow.beltKey]} alt="" className={styles.beltImage} />
+                    </div>
+                  ) : (
+                    <div className={styles.beltPlaceholder}>Call Up</div>
+                  )}
+                </div>
+                <div className={`${styles.titlePointsTdPtsWomens} ${rowAlt}`}>
+                  {womensRow.points}
+                </div>
+              </Fragment>
+            );
+          })}
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>NXT PLEs</h2>
+        <div className={styles.rulesBlock}>
+          <p>
+            A standard match victory earns full points. If a victory occurs via disqualification (DQ), points are
+            halved. No Contest earns appearance points only.
+          </p>
+          <p>
+            A successful title defense adds <strong>1</strong> point (<strong>0.5</strong> via DQ). An initial title
+            win adds <strong>2</strong> points.
+          </p>
+          <p>
+            Additional main event points apply only when the match is not the featured/titled match for that event.
+          </p>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12 }}>Stand &amp; Deliver</h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="nxt-stand-and-deliver"
+                placeholderText="NXT Stand and Deliver"
+                className={styles.eventCardLogo}
+              />
+              {NXT_STAND_AND_DELIVER_POINTS.map(([action, pts]) => (
+                <div key={action} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12 }}>Other NXT PLEs / specials</h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.minorPleGrid}>
+            {nxtPleKeys.map((key) => (
+              <div key={key} className={styles.minorPleCard}>
+                <HowItWorksEventLogo eventKey={key} placeholderText={key} className={styles.eventCardLogo} />
+                {NXT_PLE_SPECIAL_POINTS.map(([action, pts]) => (
+                  <div key={`${key}-${action}`} className={styles.pointRow}>
+                    <span>{action}</span>
+                    <span className={styles.pointRowPoints}>{pts}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div style={{ maxWidth: 460, margin: "18px auto 0" }}>
+            <h4 style={{ margin: "0 0 8px", textAlign: "center", fontSize: 15 }}>Iron Survivor Challenge (Deadline)</h4>
+            {NXT_IRON_SURVIVOR_POINTS.map(([action, pts]) => (
+              <div key={action} className={styles.pointRow}>
+                <span>{action}</span>
+                <span className={styles.pointRowPoints}>{pts}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>NXT special episodes</h2>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.minorPleGrid}>
+            {nxtSpecialEpisodeKeys.map((key) => (
+                <div key={key} className={styles.minorPleCard}>
+                  <HowItWorksEventLogo eventKey={key} placeholderText={key} className={styles.eventCardLogo} />
+                  {NXT_SPECIAL_EPISODE_POINTS.map(([action, pts]) => (
+                    <div key={`${key}-${action}`} className={styles.pointRow}>
+                      <span>{action}</span>
+                      <span className={styles.pointRowPoints}>{pts}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+          </div>
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>NXT Tuesday Night</h2>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo eventKey="nxt" placeholderText="NXT" className={styles.eventCardLogo} />
+              {NXT_TUESDAY_POINTS.map(([action, pts]) => (
+                <div key={action} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h2 className={styles.sectionTitle}>Specialty match bonus</h2>
+        <p className={styles.sectionSubtitle} style={{ maxWidth: 780, marginLeft: "auto", marginRight: "auto" }}>
+          For multi-person matches (Triple Threat, Fatal Four-Way, Five Way, Six Pack, etc.), add this bonus per
+          participant or per pinfall, depending on match result formatting.
+        </p>
+        <div className={styles.darkBox} style={{ maxWidth: 680, margin: "0 auto" }}>
+          {NXT_MULTI_PERSON_BONUS.map(([bucket, pts]) => (
+            <div key={bucket} className={styles.pointRow}>
+              <span>{bucket}</span>
+              <span className={styles.pointRowPoints}>{pts}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <p style={{ marginTop: 24 }}>
+        <Link href="/points">Full Points System</Link> for cross-references. <Link href="/event-results">Event Results</Link> to
+        see points in action.
+      </p>
+    </>
+  );
+}

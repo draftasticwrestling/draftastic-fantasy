@@ -249,7 +249,7 @@ export function CreateLeagueForm({
         <label>League Format *</label>
         <div className="create-league-type-grid">
           {LEAGUE_TYPES.map((opt) => {
-            const locked = !!(opt.comingSoon && !adminFullMode);
+            const locked = !!(opt.comingSoon && (!adminFullMode || opt.id !== "head_to_head"));
             return (
             <button
               key={opt.id}
@@ -268,6 +268,18 @@ export function CreateLeagueForm({
         </div>
         <input type="hidden" name="league_type" value={leagueType} />
       </div>
+
+      {adminFullMode && leagueType === "head_to_head" ? (
+        <div className="form-group">
+          <label className="create-league-toggle-label" style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <input type="checkbox" name="include_nxt" value="1" />
+            <span>
+              <strong>Include NXT</strong> — NXT wrestlers, weekly NXT shows, and NXT titles count in this league
+              (site-admin testing only; Head-to-Head required).
+            </span>
+          </label>
+        </div>
+      ) : null}
 
       {state?.error && (
         <p style={{ margin: "0 0 16px", color: "var(--color-red)", fontSize: 14 }}>

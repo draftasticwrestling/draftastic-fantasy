@@ -40,9 +40,11 @@ const LEAGUE_TYPES: Array<{
 type Props = {
   leagueSlug: string;
   leagueType: string | null | undefined;
+  /** Site admins can switch a league to Head-to-Head for testing. */
+  isSiteAdmin?: boolean;
 };
 
-export function LeagueTypeSection({ leagueSlug, leagueType }: Props) {
+export function LeagueTypeSection({ leagueSlug, leagueType, isSiteAdmin = false }: Props) {
   const effectiveType = leagueType ?? "season_overall";
 
   const [state, formAction] = useActionState(updateLeagueTypeFormAction, null as { error?: string } | null);
@@ -63,7 +65,9 @@ export function LeagueTypeSection({ leagueSlug, leagueType }: Props) {
           {LEAGUE_TYPES.map((opt) => {
             const optionDisabled =
               Boolean(opt.disabled) ||
-              (opt.value === "head_to_head" && leagueType !== "head_to_head");
+              (opt.value === "head_to_head" &&
+                leagueType !== "head_to_head" &&
+                !isSiteAdmin);
             return (
             <li key={opt.value} style={{ marginBottom: 16 }}>
               <label
@@ -85,7 +89,8 @@ export function LeagueTypeSection({ leagueSlug, leagueType }: Props) {
                 />
                 <span>
                   <span style={{ fontWeight: 600 }}>{opt.label}</span>
-                  {(opt.disabled || (opt.value === "head_to_head" && leagueType !== "head_to_head")) && (
+                  {(opt.disabled ||
+                    (opt.value === "head_to_head" && leagueType !== "head_to_head" && !isSiteAdmin)) && (
                     <span style={{ marginLeft: 8, fontSize: 12, color: "var(--color-text-muted)" }}>
                       (Coming soon)
                     </span>

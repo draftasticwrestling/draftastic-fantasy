@@ -215,7 +215,10 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
     const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] }) as ScoredEvent;
     const eventType = scored.eventType;
-    const isRS = eventType === EVENT_TYPES.RAW || eventType === EVENT_TYPES.SMACKDOWN;
+    const isRS =
+      eventType === EVENT_TYPES.RAW ||
+      eventType === EVENT_TYPES.SMACKDOWN ||
+      eventType === EVENT_TYPES.NXT;
     const isKOTRPLE =
       eventType === EVENT_TYPES.NIGHT_OF_CHAMPIONS ||
       eventType === EVENT_TYPES.KING_QUEEN_OF_THE_RING;

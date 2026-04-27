@@ -11,8 +11,10 @@ export type ChampionshipReignRow = {
   title?: string | null;
   title_name?: string | null;
   won_date?: string | null;
+  date_won?: string | null;
   start_date?: string | null;
   lost_date?: string | null;
+  date_lost?: string | null;
   end_date?: string | null;
   /** Pro Wrestling Boxscore: stable id matching /championship/{id} (e.g. wwe-championship). */
   championship_id?: string | null;
@@ -115,6 +117,16 @@ type WrestlerMini = {
   gender: string | null;
 };
 
+function canonicalChampionshipSlugFromId(idRaw: string): string {
+  const id = String(idRaw || "").trim().toLowerCase();
+  if (!id) return "";
+  if (id === "intercontinental-championship") return "mens-ic-championship";
+  if (id === "womens-intercontinental-championship") return "womens-ic-championship";
+  if (id === "united-states-championship") return "mens-us-championship";
+  if (id === "womens-united-states-championship") return "womens-us-championship";
+  return id;
+}
+
 /**
  * One history row per reign; same title may appear many times (sorted by caller).
  */
@@ -128,9 +140,9 @@ export function buildTitleHistoryByTitle(
   for (const r of reigns) {
     const title = (r.title ?? r.title_name ?? "").trim();
     if (!title) continue;
-    const wonDate = (r.won_date ?? r.start_date ?? "").slice(0, 10);
+    const wonDate = (r.won_date ?? r.start_date ?? r.date_won ?? "").slice(0, 10);
     if (!wonDate) continue;
-    const lostDate = (r.lost_date ?? r.end_date ?? null)?.slice(0, 10) ?? null;
+    const lostDate = (r.lost_date ?? r.end_date ?? r.date_lost ?? null)?.slice(0, 10) ?? null;
     const rawSlug = (r.champion_slug ?? r.champion_id ?? r.champion ?? "").trim();
     const championSlug = normalizeWrestlerName(rawSlug || (r.champion ?? r.champion_name ?? ""));
     const fromSlug = championSlug ? wrestlerBySlug.get(championSlug) : null;
@@ -178,7 +190,7 @@ export function buildTitleHistoryByChampionshipSlug(
   const bySlug = new Map<string, TitleHistoryBucket>();
 
   for (const r of reigns) {
-    const cid = (r.championship_id ?? "").trim();
+    const cid = canonicalChampionshipSlugFromId((r.championship_id ?? "").trim());
     const rawTitle = (r.title ?? r.title_name ?? "").trim();
     if (!cid && !rawTitle) continue;
 
@@ -193,9 +205,9 @@ export function buildTitleHistoryByChampionshipSlug(
       slug = page?.slug ?? titleToChampionshipSlug(rawTitle);
       displayTitle = page?.displayTitle ?? rawTitle;
     }
-    const wonDate = (r.won_date ?? r.start_date ?? "").slice(0, 10);
+    const wonDate = (r.won_date ?? r.start_date ?? r.date_won ?? "").slice(0, 10);
     if (!wonDate) continue;
-    const lostDate = (r.lost_date ?? r.end_date ?? null)?.slice(0, 10) ?? null;
+    const lostDate = (r.lost_date ?? r.end_date ?? r.date_lost ?? null)?.slice(0, 10) ?? null;
     const rawSlug = (r.champion_slug ?? r.champion_id ?? r.champion ?? "").trim();
     const championSlug = normalizeWrestlerName(rawSlug || (r.champion ?? r.champion_name ?? ""));
     const fromSlug = championSlug ? wrestlerBySlug.get(championSlug) : null;

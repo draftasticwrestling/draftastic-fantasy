@@ -101,3 +101,16 @@ export function isRawOrSmackDownWrestlerRoster(brand: string | null | undefined)
   const r = wrestlerRosterFromBrand(brand);
   return r === "Raw" || r === "SmackDown";
 }
+
+/**
+ * Draft/autopick pool for a league: Raw + SmackDown, and optionally NXT when `includeNxt` is true
+ * (admin beta leagues).
+ */
+export function isMainBrandWrestlerRosterForLeague(
+  brand: string | null | undefined,
+  options: { includeNxt: boolean }
+): boolean {
+  if (isRawOrSmackDownWrestlerRoster(brand)) return true;
+  if (options.includeNxt && wrestlerRosterFromBrand(brand) === "NXT") return true;
+  return false;
+}

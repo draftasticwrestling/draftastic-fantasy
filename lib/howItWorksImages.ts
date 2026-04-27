@@ -20,7 +20,14 @@ export type BeltKey =
   | "us-womens"
   | "tag-team-mens"
   | "tag-team-smackdown"
-  | "tag-team-womens";
+  | "tag-team-womens"
+  | "nxt-mens"
+  | "nxt-womens"
+  | "nxt-na-mens"
+  | "nxt-na-womens"
+  | "nxt-tag-team"
+  | "nxt-speed-mens"
+  | "nxt-speed-womens";
 
 export type EventLogoKey =
   | "raw"
@@ -40,7 +47,21 @@ export type EventLogoKey =
   | "backlash"
   | "evolution"
   | "clash-in-paris"
-  | "wrestlepalooza";
+  | "wrestlepalooza"
+  | "nxt-battleground"
+  | "nxt-deadline"
+  | "nxt-gold-rush"
+  | "nxt-great-american-bash"
+  | "nxt-halloween-havoc"
+  | "nxt-heatwave"
+  | "nxt-homecoming"
+  | "nxt-new-years-evil"
+  | "nxt-no-mercy"
+  | "nxt-revenge"
+  | "nxt-roadblock"
+  | "nxt-showdown"
+  | "nxt-stand-and-deliver"
+  | "nxt-vengeance-day";
 
 /** Same-origin belt art under `public/images/belts/` (no Supabase Storage egress). */
 const BELTS_PUBLIC = "/images/belts";
@@ -59,6 +80,14 @@ export const BELT_IMAGE_URLS: Partial<Record<BeltKey, string>> = {
   "tag-team-mens": `${BELTS_PUBLIC}/raw-tag-team-championship.png`,
   "tag-team-smackdown": `${BELTS_PUBLIC}/smackdown-tag-team-championship.png`,
   "tag-team-womens": `${BELTS_PUBLIC}/womens-tag-team-championship.png`,
+  // NXT title art
+  "nxt-mens": `${BELTS_PUBLIC}/nxt-championship.png`,
+  "nxt-womens": `${BELTS_PUBLIC}/nxt-womens-championship.png`,
+  "nxt-na-mens": `${BELTS_PUBLIC}/nxt-north-american-championship.png`,
+  "nxt-na-womens": `${BELTS_PUBLIC}/nxt-north-american-womens-championship.png`,
+  "nxt-tag-team": `${BELTS_PUBLIC}/nxt-tag-team-championship.png`,
+  "nxt-speed-mens": `${BELTS_PUBLIC}/wwe-speed-championship.png`,
+  "nxt-speed-womens": `${BELTS_PUBLIC}/wwe-womens-speed-championship.png`,
 };
 
 /** Same-origin event / brand marks under `public/images/event-logos/`. */
@@ -84,6 +113,20 @@ export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
   evolution: `${EVENT_LOGOS_BASE}/Evolution.png`,
   "clash-in-paris": `${EVENT_LOGOS_BASE}/clash-in-paris.png`,
   wrestlepalooza: `${EVENT_LOGOS_BASE}/Wrestlepalooza.png`,
+  "nxt-battleground": `${EVENT_LOGOS_BASE}/nxt-battleground.png`,
+  "nxt-deadline": `${EVENT_LOGOS_BASE}/nxt-deadline.png`,
+  "nxt-gold-rush": `${EVENT_LOGOS_BASE}/nxt-gold-rush.png`,
+  "nxt-great-american-bash": `${EVENT_LOGOS_BASE}/nxt-great-american-bash.png`,
+  "nxt-halloween-havoc": `${EVENT_LOGOS_BASE}/nxt-halloween-havoc.png`,
+  "nxt-heatwave": `${EVENT_LOGOS_BASE}/nxt-heatwave.png`,
+  "nxt-homecoming": `${EVENT_LOGOS_BASE}/nxt-homecoming.png`,
+  "nxt-new-years-evil": `${EVENT_LOGOS_BASE}/nxt-new-years-evil.png`,
+  "nxt-no-mercy": `${EVENT_LOGOS_BASE}/nxt-no-mercy.png`,
+  "nxt-revenge": `${EVENT_LOGOS_BASE}/nxt-revenge.png`,
+  "nxt-roadblock": `${EVENT_LOGOS_BASE}/nxt-roadblock.png`,
+  "nxt-showdown": `${EVENT_LOGOS_BASE}/nxt-showdown.png`,
+  "nxt-stand-and-deliver": `${EVENT_LOGOS_BASE}/nxt-stand-and-deliver.png`,
+  "nxt-vengeance-day": `${EVENT_LOGOS_BASE}/nxt-vengeance-day.png`,
 };
 
 /** WWE 2K mark on roster trading cards (not an EventLogoKey). */
@@ -107,6 +150,20 @@ export function eventTypeToLogoKey(eventType: string): EventLogoKey | null {
   if (t === "evolution") return "evolution";
   if (t === "clash-in-paris") return "clash-in-paris";
   if (t === "wrestlepalooza") return "wrestlepalooza";
+  if (t === "nxt-battleground") return "nxt-battleground";
+  if (t === "nxt-deadline") return "nxt-deadline";
+  if (t === "nxt-gold-rush") return "nxt-gold-rush";
+  if (t === "nxt-great-american-bash") return "nxt-great-american-bash";
+  if (t === "nxt-halloween-havoc") return "nxt-halloween-havoc";
+  if (t === "nxt-heatwave") return "nxt-heatwave";
+  if (t === "nxt-homecoming") return "nxt-homecoming";
+  if (t === "nxt-new-years-evil") return "nxt-new-years-evil";
+  if (t === "nxt-no-mercy") return "nxt-no-mercy";
+  if (t === "nxt-revenge") return "nxt-revenge";
+  if (t === "nxt-roadblock") return "nxt-roadblock";
+  if (t === "nxt-showdown") return "nxt-showdown";
+  if (t === "nxt-stand-and-deliver") return "nxt-stand-and-deliver";
+  if (t === "nxt-vengeance-day") return "nxt-vengeance-day";
   if (t === "crown-jewel") return "crown-jewel";
   return null;
 }

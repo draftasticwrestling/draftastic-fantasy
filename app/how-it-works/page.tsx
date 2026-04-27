@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { HowItWorksLegacyContent } from "./HowItWorksLegacyContent";
+import { HowItWorksRoadToSurvivorSeries } from "./HowItWorksRoadToSurvivorSeries";
 import { HowItWorksRoadToSummerSlam } from "./HowItWorksRoadToSummerSlam";
 import { HowItWorksSeasonPlaceholder } from "./HowItWorksSeasonPlaceholder";
 import { HowItWorksTabs } from "./HowItWorksTabs";
@@ -45,12 +46,7 @@ export default async function HowItWorksPage({
         <HowItWorksTabs
           initialTab={initialTab}
           roadToSummerSlam={<HowItWorksRoadToSummerSlam />}
-          roadToSurvivorSeries={
-            <HowItWorksSeasonPlaceholder
-              seasonName="Road to Survivor Series"
-              windowHint="shorter fall season (typically August through Survivor Series)"
-            />
-          }
+          roadToSurvivorSeries={<HowItWorksRoadToSurvivorSeries />}
           roadToWrestleMania={
             <HowItWorksSeasonPlaceholder
               seasonName="Road to WrestleMania"

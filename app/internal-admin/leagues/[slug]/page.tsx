@@ -263,6 +263,8 @@ export default async function InternalAdminLeagueDetailPage({
             {league.league_type ?? "—"}
             {league.max_teams != null ? ` · max ${league.max_teams} teams` : ""}
           </dd>
+          <dt style={{ color: "var(--color-text-muted)" }}>Include NXT</dt>
+          <dd style={{ margin: 0 }}>{league.include_nxt ? "Yes" : "No"}</dd>
           <dt style={{ color: "var(--color-text-muted)" }}>Created</dt>
           <dd style={{ margin: 0 }}>{league.created_at}</dd>
         </dl>

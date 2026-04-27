@@ -32,7 +32,8 @@ import {
   beltScoringLastWeekEndSundayInclusive,
   firstEligibleWeekEndSundayForLeagueStart,
 } from "@/lib/beltWeeklyHold";
-import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { leagueIncludesNxt, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
@@ -194,7 +195,10 @@ export default async function WrestlersFreeAgentsPage({
   const endOfMonthBeltPoints2026 = computeHybridBeltHoldBySlugForCalendarYear(reigns, 2026);
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
-  const wrestlersFiltered = wrestlersFilteredForCache;
+  const poolOpts = { includeNxt: leagueIncludesNxt(league) };
+  const wrestlersFiltered = wrestlersFilteredForCache.filter((w) =>
+    isMainBrandWrestlerRosterForLeague(w.brand, poolOpts)
+  );
   const rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";

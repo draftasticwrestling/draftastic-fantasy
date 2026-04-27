@@ -2,7 +2,8 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getRosterRulesForLeagueId, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { getRosterRulesForLeagueId, leagueIncludesNxt, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
 import { getDefaultStartEndForSeason, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { eventPointsForRosterStint, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
@@ -60,6 +61,8 @@ export type League = {
   draft_date?: string | null;
   draft_time?: string | null;
   league_type?: string | null;
+  /** Admin/beta: include NXT in draft pool and weekly scoring. */
+  include_nxt?: boolean | null;
   max_teams?: number | null;
   visibility_type?: "private" | "public" | null;
   public_status?: "open" | "full" | "awaiting_minimum" | "active" | null;
@@ -151,6 +154,8 @@ export async function createLeague(params: {
   start_date?: string | null;
   end_date?: string | null;
   league_type?: string | null;
+  /** Site admin only; stored on the league row. */
+  include_nxt?: boolean | null;
   max_teams?: number | null;
   visibility_type?: "private" | "public" | null;
 }): Promise<{ league?: League; error?: string }> {
@@ -204,9 +209,19 @@ export async function createLeague(params: {
 
   const draft_date = null;
   const league_type = params.league_type?.trim() || null;
+  const include_nxt_requested = Boolean(params.include_nxt);
+  if (include_nxt_requested && !isSiteAdmin) {
+    return { error: "Only site administrators can create leagues that include NXT." };
+  }
+  if (include_nxt_requested && league_type !== "head_to_head") {
+    return {
+      error: "Include NXT is only available for Head-to-Head leagues (admin testing).",
+    };
+  }
+  const include_nxt = include_nxt_requested;
 
   const leagueSelect =
-    "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, created_at";
+    "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, created_at";
 
   let league: League | null = null;
   let createError: string | undefined;
@@ -243,6 +258,7 @@ export async function createLeague(params: {
         draft_style: "snake",
         draft_order_method: "random_one_hour_before",
         league_type,
+        include_nxt,
         max_teams,
         visibility_type: visibilityType,
         public_status,
@@ -288,8 +304,19 @@ export const getLeagueBySlug = cache(
     if (!user) return null;
 
     const fullSelect =
+      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
+    const fullSelectNoIncludeNxt =
       "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
     let result = await supabase.from("leagues").select(fullSelect).eq("slug", slug).maybeSingle();
+    if (
+      result.error?.code === "42703" &&
+      /include_nxt/i.test(result.error.message ?? "")
+    ) {
+      result = await supabase.from("leagues").select(fullSelectNoIncludeNxt).eq("slug", slug).maybeSingle();
+      if (result.data) {
+        result = { ...result, data: { ...result.data, include_nxt: false } };
+      }
+    }
 
     let league = result.data;
     const isColumnError =
@@ -1059,7 +1086,8 @@ export async function addWrestlerToRoster(
   wrestlerId: string,
   contract?: string | null,
   useServiceRole?: boolean,
-  acquiredAt?: string | null
+  acquiredAt?: string | null,
+  options?: { skipMainBrandPoolCheck?: boolean }
 ): Promise<{ error?: string }> {
   const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated" };
@@ -1068,6 +1096,8 @@ export async function addWrestlerToRoster(
   if (!wid) return { error: "Wrestler is required" };
 
   const rules = await getRosterRulesForLeagueId(supabase, leagueId);
+
+  let brandForPool: string | null = null;
 
   if (rules) {
     const { data: currentRows } = await supabase
@@ -1085,7 +1115,7 @@ export async function addWrestlerToRoster(
     const wrestlerIdsToFetch = [...new Set([...currentIds, wid])];
     const { data: wrestlerRows } = await supabase
       .from("wrestlers")
-      .select("id, gender")
+      .select("id, gender, brand")
       .in("id", wrestlerIdsToFetch);
     const genderById: Record<string, "F" | "M" | null> = {};
     for (const w of wrestlerRows ?? []) {
@@ -1106,6 +1136,27 @@ export async function addWrestlerToRoster(
     if (newCount === rules.rosterSize && (newFemale < rules.minFemale || newMale < rules.minMale)) {
       return {
         error: `Roster must have at least ${rules.minFemale} female and ${rules.minMale} male wrestlers when full. Current would be ${newFemale}F / ${newMale}M.`,
+      };
+    }
+
+    const newRow = (wrestlerRows ?? []).find((r) => r.id === wid) as { brand?: string | null } | undefined;
+    brandForPool = newRow?.brand ?? null;
+  } else {
+    const { data: oneW } = await supabase.from("wrestlers").select("brand").eq("id", wid).maybeSingle();
+    brandForPool = (oneW as { brand?: string | null } | null)?.brand ?? null;
+  }
+
+  if (!options?.skipMainBrandPoolCheck) {
+    const poolRes = await supabase.from("leagues").select("include_nxt").eq("id", leagueId).maybeSingle();
+    const includeNxt =
+      poolRes.error && /include_nxt/i.test(poolRes.error.message ?? "")
+        ? false
+        : leagueIncludesNxt(poolRes.data as { include_nxt?: boolean | null } | null);
+    if (!isMainBrandWrestlerRosterForLeague(brandForPool, { includeNxt })) {
+      return {
+        error: includeNxt
+          ? "This wrestler is not in the eligible pool (Raw, SmackDown, or NXT only)."
+          : "This wrestler is not in the eligible pool (Raw and SmackDown only). For Head-to-Head test leagues, turn on Include NXT (site admin) to add NXT roster talent.",
       };
     }
   }

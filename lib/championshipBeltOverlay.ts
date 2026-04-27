@@ -21,6 +21,13 @@ function normalizeTitleForBeltMatch(title: string): string {
 
 /** Match title name to BeltKey; order is most specific first. */
 const TITLE_TO_BELT: { pattern: RegExp; key: BeltKey }[] = [
+  { pattern: /nxt\s+women'?s?\s+north\s+american/i, key: "nxt-na-womens" },
+  { pattern: /nxt\s+north\s+american/i, key: "nxt-na-mens" },
+  { pattern: /nxt\s+women'?s?\s+speed/i, key: "nxt-speed-womens" },
+  { pattern: /nxt\s+men'?s?\s+speed/i, key: "nxt-speed-mens" },
+  { pattern: /nxt\s+women'?s?\s+championship/i, key: "nxt-womens" },
+  { pattern: /nxt\s+tag/i, key: "nxt-tag-team" },
+  { pattern: /\bnxt\s+championship\b/i, key: "nxt-mens" },
   { pattern: /undisputed\s+wwe|wwe\s+undisputed|wwe\s+championship(?!\s+women)/i, key: "undisputed-wwe" },
   { pattern: /world\s+heavyweight|heavyweight\s+championship/i, key: "heavyweight" },
   { pattern: /wwe\s+women'?s?|women'?s?\s+wwe\s+championship/i, key: "wwe-womens" },

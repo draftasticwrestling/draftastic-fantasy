@@ -4,7 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
 
 const LEAGUE_LIST_SELECT =
-  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at, visibility_type, public_status, is_archived, archived_at";
+  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, include_nxt, max_teams, draft_status, created_at, visibility_type, public_status, is_archived, archived_at";
+
+/** When `include_nxt` migration is not applied yet. */
+const LEAGUE_LIST_SELECT_NO_INCLUDE_NXT = LEAGUE_LIST_SELECT.replace(", include_nxt", "");
 
 export type SiteAdminLeagueSummary = {
   id: string;
@@ -16,6 +19,7 @@ export type SiteAdminLeagueSummary = {
   season_slug: string | null;
   draft_date: string | null;
   league_type: string | null;
+  include_nxt: boolean | null;
   max_teams: number | null;
   draft_status: string | null;
   created_at: string;
@@ -96,9 +100,42 @@ export async function siteAdminSearchLeagues(
   if (error) {
     const isMissingCol =
       error.code === "42703" ||
-      /column.*visibility_type|public_status|is_archived|archived_at/i.test(error.message ?? "") ||
+      /column.*visibility_type|public_status|is_archived|archived_at|include_nxt/i.test(error.message ?? "") ||
       /schema cache/i.test(error.message ?? "");
     if (!isMissingCol) return { rows: [], error: error.message };
+    if (/include_nxt/i.test(error.message ?? "")) {
+      let qbn = admin
+        .from("leagues")
+        .select(LEAGUE_LIST_SELECT_NO_INCLUDE_NXT)
+        .order("created_at", { ascending: false })
+        .limit(40);
+      if (q.length > 0) {
+        const safe = escapeIlikePattern(q);
+        qbn = qbn.or(`slug.ilike.%${safe}%,name.ilike.%${safe}%`);
+      }
+      const { data: dataN, error: errN } = await qbn;
+      if (!errN && dataN) {
+        const leaguesN = (dataN ?? []) as unknown as Omit<
+          SiteAdminLeagueSummary,
+          "commissioner_display_name" | "member_count"
+        >[];
+        const namesN = await commissionerNamesByIds(
+          admin,
+          leaguesN.map((l) => l.commissioner_id)
+        );
+        const countsN = await memberCountsByLeagueId(
+          admin,
+          leaguesN.map((l) => l.id)
+        );
+        const rows: SiteAdminLeagueSummary[] = leaguesN.map((l) => ({
+          ...l,
+          include_nxt: false,
+          member_count: countsN.get(l.id) ?? 0,
+          commissioner_display_name: namesN.get(l.commissioner_id) ?? null,
+        }));
+        return { rows };
+      }
+    }
     let qb2 = admin
       .from("leagues")
       .select(
@@ -126,6 +163,7 @@ export async function siteAdminSearchLeagues(
     );
     const rows: SiteAdminLeagueSummary[] = leagues2.map((l) => ({
       ...l,
+      include_nxt: false,
       visibility_type: "private",
       public_status: null,
       is_archived: false,
@@ -163,6 +201,18 @@ export async function siteAdminGetLeagueBySlug(
   let league = leagueRes.data;
   let leagueErr = leagueRes.error;
 
+  if (leagueErr && /include_nxt/i.test(leagueErr.message ?? "")) {
+    const retryNxt = await admin.from("leagues").select(LEAGUE_LIST_SELECT_NO_INCLUDE_NXT).eq("slug", slug).maybeSingle();
+    const row = retryNxt.data;
+    if (!retryNxt.error && row && typeof row === "object" && !Array.isArray(row)) {
+      league = { ...(row as Record<string, unknown>), include_nxt: false } as typeof league;
+      leagueErr = null;
+    } else {
+      league = row as typeof league;
+      leagueErr = retryNxt.error;
+    }
+  }
+
   if (leagueErr) {
     const isMissingCol =
       leagueErr.code === "42703" ||
@@ -175,6 +225,7 @@ export async function siteAdminGetLeagueBySlug(
     if (league && !leagueErr) {
       league = {
         ...league,
+        include_nxt: false,
         visibility_type: "private",
         public_status: null,
         is_archived: false,

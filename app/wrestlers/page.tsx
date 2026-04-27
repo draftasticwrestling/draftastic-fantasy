@@ -16,6 +16,13 @@ import { sortByChampionshipDisplayOrder } from "@/lib/championshipDisplayOrder";
 import { collapseTagTeamChampionsForCard } from "@/lib/championshipCardTagChampions";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import type { TitleHistoryItem } from "@/lib/championshipTitleHistory";
+import { supabase } from "@/lib/supabase";
+import { getPwbsChampionshipPage } from "@/lib/pwbsChampionshipSlug.js";
+import {
+  getTagTeamMemberSlugs,
+  isTagTeamTitle,
+  parseTagTeamChampionToMemberSlugs,
+} from "@/lib/scoring/tagTeamMembers.js";
 
 /** Allow cached response for 60s to improve repeat visit speed. */
 export const revalidate = 60;
@@ -60,6 +67,26 @@ export const metadata = {
 };
 
 export default async function WrestlersPage() {
+  const dedupeChampionRows = (rows: TitleHistoryItem[]): TitleHistoryItem[] => {
+    const byKey = new Map<string, TitleHistoryItem>();
+    for (const row of rows) {
+      const key =
+        normalizeWrestlerName(String(row.championSlug || "").trim()) ||
+        normalizeWrestlerName(String(row.champion || "").trim());
+      if (!key) continue;
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, row);
+        continue;
+      }
+      // Prefer the row with an image/event metadata if duplicates exist for the same champion + date.
+      const score = (r: TitleHistoryItem) =>
+        (r.imageUrl ? 2 : 0) + (r.eventWon ? 1 : 0) + (r.eventLost ? 1 : 0) + (r.defeated ? 1 : 0);
+      if (score(row) > score(existing)) byKey.set(key, row);
+    }
+    return [...byKey.values()];
+  };
+
   const dataset = await getChampionshipHistoryDataset();
 
   const { events, reigns, titleHistoryBySlug, wrestlerBySlug, wrestlerByNameKey, wrestlers: wrestlersFromDb } =
@@ -131,7 +158,7 @@ export default async function WrestlersPage() {
       const latest = h.items[0];
       if (!latest) return null;
       const latestWon = latest.wonDate;
-      const rawChamps = h.items.filter((x) => x.wonDate === latestWon);
+      const rawChamps = dedupeChampionRows(h.items.filter((x) => x.wonDate === latestWon));
       const { champions: champs, tagTeamName, hasTeamNameRow } = collapseTagTeamChampionsForCard(
         h.title,
         rawChamps,
@@ -147,6 +174,7 @@ export default async function WrestlersPage() {
         tagTeamName,
         hasTeamNameRow,
         beltImageUrl: getBeltImageUrlForTitle(h.title),
+        hasHistory: true,
       };
     })
     .filter(Boolean) as {
@@ -156,7 +184,127 @@ export default async function WrestlersPage() {
     tagTeamName: string | null;
     hasTeamNameRow: boolean;
     beltImageUrl: string | null;
+    hasHistory: boolean;
   }[];
+
+  // Include titles that are only present in the `championships` current snapshot table
+  // (e.g. newly added titles before full championship_history backfill).
+  const existingTitles = new Set(currentChampionCards.map((c) => c.title.trim().toLowerCase()));
+  const existingSlugs = new Set(currentChampionCards.map((c) => c.slug.trim().toLowerCase()));
+  const { data: championshipRows } = await supabase
+    .from("championships")
+    .select("id, title_name, current_champion, current_champion_slug");
+  const supplementalCards: {
+    slug: string;
+    title: string;
+    champs: TitleHistoryItem[];
+    tagTeamName: string | null;
+    hasTeamNameRow: boolean;
+    beltImageUrl: string | null;
+    hasHistory: boolean;
+  }[] = [];
+  for (const row of (championshipRows ?? []) as {
+    id?: string | null;
+    title_name?: string | null;
+    current_champion?: string | null;
+    current_champion_slug?: string | null;
+  }[]) {
+    const title =
+      (row.title_name ?? "").trim() ||
+      (row.id ?? "").trim().replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    if (!title) continue;
+    if (existingTitles.has(title.toLowerCase())) continue;
+
+    const rawChampion = (row.current_champion ?? "").trim();
+    const rawChampionSlug = (row.current_champion_slug ?? "").trim();
+    const normalizedSlug = rawChampionSlug ? normalizeWrestlerName(rawChampionSlug) : "";
+    const champs: TitleHistoryItem[] = [];
+    const isTag = isTagTeamTitle(title);
+
+    if (isTag) {
+      const memberSlugs =
+        getTagTeamMemberSlugs(normalizedSlug) ??
+        parseTagTeamChampionToMemberSlugs(rawChampion || rawChampionSlug || "");
+      if (memberSlugs?.length) {
+        for (const memberSlug of memberSlugs) {
+          const w =
+            wrestlerBySlug.get(memberSlug) ??
+            wrestlerByNameKey.get(normalizeWrestlerName(memberSlug.replace(/-/g, " ")));
+          const championName = (w?.name ?? memberSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())).trim();
+          champs.push({
+            champion: championName,
+            championSlug: memberSlug,
+            wonDate: "",
+            lostDate: null,
+            imageUrl: w?.image_url ?? null,
+            defeated: null,
+            defeatedSlug: null,
+            eventWon: null,
+            eventLost: null,
+            daysHeldDb: null,
+          });
+        }
+      }
+    }
+
+    if (champs.length === 0) {
+      const key = normalizedSlug || normalizeWrestlerName(rawChampion);
+      if (!key) continue;
+      const w = wrestlerBySlug.get(key) ?? wrestlerByNameKey.get(normalizeWrestlerName(rawChampion));
+      const fallbackName = (rawChampion || key.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())).trim();
+      champs.push({
+        champion: (w?.name ?? fallbackName).trim(),
+        championSlug: key,
+        wonDate: "",
+        lostDate: null,
+        imageUrl: w?.image_url ?? null,
+        defeated: null,
+        defeatedSlug: null,
+        eventWon: null,
+        eventLost: null,
+        daysHeldDb: null,
+      });
+    }
+
+    const page = getPwbsChampionshipPage(title);
+    const fallbackSlug = ((row.id ?? "").trim() || title.toLowerCase().replace(/\s+/g, "-")).trim();
+    const cardSlug = (page?.slug ?? fallbackSlug).toLowerCase();
+    if (existingSlugs.has(cardSlug)) continue;
+    existingSlugs.add(cardSlug);
+    supplementalCards.push({
+      slug: cardSlug,
+      title,
+      champs,
+      tagTeamName: isTag ? (rawChampion || null) : null,
+      hasTeamNameRow: isTag,
+      beltImageUrl: getBeltImageUrlForTitle(title),
+      hasHistory: false,
+    });
+  }
+  if (supplementalCards.length > 0) {
+    currentChampionCards.push(...supplementalCards);
+  }
+  const isNxtChampionCard = (card: { slug: string; title: string }) =>
+    /^nxt-/i.test(card.slug) || /\bnxt\b/i.test(card.title);
+  const NXT_CHAMP_ORDER: string[] = [
+    "nxt-championship",
+    "nxt-womens-championship",
+    "nxt-north-american-championship",
+    "nxt-womens-north-american-championship",
+    "nxt-tag-team-championship",
+    "nxt-mens-speed-championship",
+    "nxt-womens-speed-championship",
+  ];
+  const nxtOrderIndex = new Map(NXT_CHAMP_ORDER.map((slug, i) => [slug, i]));
+  const mainRosterChampionCards = currentChampionCards.filter((card) => !isNxtChampionCard(card));
+  const nxtChampionCards = currentChampionCards
+    .filter((card) => isNxtChampionCard(card))
+    .sort((a, b) => {
+      const ai = nxtOrderIndex.get(a.slug) ?? 999;
+      const bi = nxtOrderIndex.get(b.slug) ?? 999;
+      if (ai !== bi) return ai - bi;
+      return a.title.localeCompare(b.title);
+    });
 
   const error = dataset.error;
   return (
@@ -175,8 +323,11 @@ export default async function WrestlersPage() {
           We are still in the process of building out the historical data. Title histories are not complete and may be
           missing data.
         </p>
+        <h2 style={{ margin: "0 0 10px", fontSize: 18, letterSpacing: "0.02em" }}>
+          Raw/SmackDown (Main Roster) Champions
+        </h2>
         <div className="wrestlers-page-champs-grid">
-          {currentChampionCards.map((card) => {
+          {mainRosterChampionCards.map((card) => {
             const slug = card.slug;
             return (
               <article key={card.slug} className="wrestlers-champ-card">
@@ -230,14 +381,103 @@ export default async function WrestlersPage() {
                   {card.champs.map((c) => c.champion).join(" & ")}
                 </div>
                 <div className="wrestlers-champ-card__footer">
-                  <Link href={`/championship/${encodeURIComponent(slug)}`} className="wrestlers-champ-title-history-pill">
-                    Title History
-                  </Link>
+                  {card.hasHistory ? (
+                    <Link href={`/championship/${encodeURIComponent(slug)}`} className="wrestlers-champ-title-history-pill">
+                      Title History
+                    </Link>
+                  ) : (
+                    <span
+                      className="wrestlers-champ-title-history-pill"
+                      style={{ opacity: 0.7, cursor: "default" }}
+                      aria-label="Current champion snapshot"
+                    >
+                      Current Snapshot
+                    </span>
+                  )}
                 </div>
               </article>
             );
           })}
         </div>
+
+        {nxtChampionCards.length > 0 ? (
+          <>
+            <h2 style={{ margin: "22px 0 10px", fontSize: 18, letterSpacing: "0.02em" }}>NXT Champions</h2>
+            <div className="wrestlers-page-champs-grid">
+              {nxtChampionCards.map((card) => {
+                const slug = card.slug;
+                return (
+                  <article key={card.slug} className="wrestlers-champ-card">
+                    <h3 className="wrestlers-champ-card__title">
+                      <span className="wrestlers-champ-card__title-text">{card.title}</span>
+                    </h3>
+                    <div className="wrestlers-champ-card__belt" aria-hidden={!card.beltImageUrl}>
+                      {card.beltImageUrl ? (
+                        <Image
+                          src={card.beltImageUrl}
+                          alt=""
+                          width={200}
+                          height={58}
+                          sizes="200px"
+                          loading="lazy"
+                          className={champCardBeltClassName(card.beltImageUrl)}
+                        />
+                      ) : null}
+                    </div>
+                    <div className="wrestlers-champ-card__avatars">
+                      {card.champs.map((c) => (
+                        <div key={`${card.title}-${c.championSlug || c.champion}`}>
+                          {c.imageUrl ? (
+                            <Image
+                              src={c.imageUrl}
+                              alt={c.champion}
+                              width={52}
+                              height={52}
+                              sizes="52px"
+                              loading="lazy"
+                              className="wrestlers-champ-card__avatar-img"
+                            />
+                          ) : (
+                            <div className="wrestlers-champ-card__avatar-ph" aria-hidden>
+                              ?
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {card.hasTeamNameRow ? (
+                      <div
+                        className={`wrestlers-champ-card__team-name${
+                          card.tagTeamName ? "" : " wrestlers-champ-card__team-name--empty"
+                        }`}
+                      >
+                        {card.tagTeamName ?? "\u00a0"}
+                      </div>
+                    ) : null}
+                    <div className="wrestlers-champ-card__names">
+                      {card.champs.map((c) => c.champion).join(" & ")}
+                    </div>
+                    <div className="wrestlers-champ-card__footer">
+                      {card.hasHistory ? (
+                        <Link href={`/championship/${encodeURIComponent(slug)}`} className="wrestlers-champ-title-history-pill">
+                          Title History
+                        </Link>
+                      ) : (
+                        <span
+                          className="wrestlers-champ-title-history-pill"
+                          style={{ opacity: 0.7, cursor: "default" }}
+                          aria-label="Current champion snapshot"
+                        >
+                          Current Snapshot
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
       </section>
 
       {error && (
