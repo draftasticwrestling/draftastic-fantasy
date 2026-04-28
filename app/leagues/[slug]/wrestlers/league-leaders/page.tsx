@@ -40,6 +40,15 @@ import {
   LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT,
   allTimeLeadersStylePointBreakdown,
 } from "@/lib/leagueLeadersAllTimeScoring";
+import {
+  getCachedChampionshipHistoryRows,
+  getCachedCurrentChampionsFromChanges,
+  getCachedCurrentChampionsFromTable,
+  getCachedEventsFrom,
+  getCachedEventsSince,
+  getCachedWrestlersForLeagueViews,
+  getPublicSupabaseForLeagueViews,
+} from "@/lib/leagueWrestlerCachedReads";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -83,7 +92,7 @@ export default async function LeagueLeadersPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const { supabase } = await getServerAuth();
+  await getServerAuth();
   const league = await getLeagueBySlug(slug);
   if (!league) {
     redirect("/leagues");
@@ -91,30 +100,17 @@ export default async function LeagueLeadersPage({
 
   const startDate = getEffectiveLeagueStartDate(league);
 
-  const [
-    wrestlersResult,
-    cacheMaps,
-    rosters,
-    members,
-    { data: rawReigns },
-    currentFromTable,
-    currentFromChanges,
-  ] = await Promise.all([
-    (async () => {
-      // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
-      const r = await supabase
-        .from("wrestlers")
-        .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
-        .order("name", { ascending: true });
-      return r;
-    })(),
-    loadWrestlerStatsCacheMaps(supabase),
-    getRostersForLeague(league.id),
-    getLeagueMembers(league.id),
-    supabase.from("championship_history").select("*"),
-    getCurrentChampionsFromChampionshipsTable(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
-    getCurrentChampionsFromChanges(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
-  ]);
+  const publicSupabase = getPublicSupabaseForLeagueViews();
+  const [wrestlersResult, cacheMaps, rosters, members, rawReigns, currentFromTable, currentFromChanges] =
+    await Promise.all([
+      getCachedWrestlersForLeagueViews(),
+      publicSupabase ? loadWrestlerStatsCacheMaps(publicSupabase) : Promise.resolve(null),
+      getRostersForLeague(league.id),
+      getLeagueMembers(league.id),
+      getCachedChampionshipHistoryRows(),
+      getCachedCurrentChampionsFromTable().catch((): Record<string, CurrentChampionFromChanges> => ({})),
+      getCachedCurrentChampionsFromChanges().catch((): Record<string, CurrentChampionFromChanges> => ({})),
+    ]);
 
   const wrestlers = wrestlersResult.data ?? [];
   const wrestlersFilteredForCache = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
@@ -128,25 +124,14 @@ export default async function LeagueLeadersPage({
   let events2026: typeof eventsAll;
 
   if (cacheUsable && cacheMaps) {
-    const { data: sinceStartData } = await supabase
-      .from("events")
-      .select("id, name, date, matches")
-      .in("status", [...EVENT_STATUSES_FOR_SCORING])
-      .gte("date", startDate)
-      .order("date", { ascending: true });
-    eventsSinceStart = (sinceStartData ?? []) as typeof eventsAll;
+    const sinceStartData = await getCachedEventsSince(startDate);
+    eventsSinceStart = sinceStartData as typeof eventsAll;
     eventsAll = eventsSinceStart;
     events2025 = [];
     events2026 = [];
   } else {
-    const { data: allEventsData } = await supabase
-      .from("events")
-      .select("id, name, date, matches")
-      .in("status", [...EVENT_STATUSES_FOR_SCORING])
-      .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
-      .order("date", { ascending: true })
-      .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT);
-    eventsAll = (allEventsData ?? []) as typeof eventsAll;
+    const allEventsData = await getCachedEventsFrom(LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM, LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT);
+    eventsAll = allEventsData as typeof eventsAll;
     eventsSinceStart = eventsAll.filter((e) => (e.date ?? "") >= startDate);
     events2025 = eventsAll.filter((e) => (e.date ?? "") >= "2025-01-01" && (e.date ?? "") <= "2025-12-31");
     events2026 = eventsAll.filter((e) => (e.date ?? "") >= "2026-01-01" && (e.date ?? "") <= "2026-12-31");
@@ -418,7 +403,7 @@ export default async function LeagueLeadersPage({
 
       {error && (
         <p style={{ color: "var(--color-red)", marginBottom: 16 }}>
-          Error loading wrestlers: {error.message}
+          Error loading wrestlers: {error}
         </p>
       )}
 
