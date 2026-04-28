@@ -4,7 +4,8 @@ import { schedule } from "@netlify/functions";
  * Calls the Next.js API route that expires stale pending trades and auto-executes
  * trades awaiting GM approval after 48h. Requires CRON_SECRET and URL in env.
  */
-export const handler = schedule("*/15 * * * *", async () => {
+// Hourly is sufficient for 48h trade windows; cuts baseline scheduled compute by ~75%.
+export const handler = schedule("0 * * * *", async () => {
   const base = (process.env.URL ?? process.env.DEPLOY_PRIME_URL ?? "").replace(/\/$/, "");
   const secret = process.env.CRON_SECRET;
   if (!base || !secret) {

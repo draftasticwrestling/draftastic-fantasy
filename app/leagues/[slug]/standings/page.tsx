@@ -6,7 +6,7 @@ import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { LeagueMobileStandingsTable } from "../LeagueMobileStandingsTable";
 import { LeagueStandingsTable } from "../LeagueStandingsTable";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 export async function generateMetadata({
   params,

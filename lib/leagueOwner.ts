@@ -1232,6 +1232,22 @@ export async function processTradeTimerDeadlines(): Promise<{
   const nowMs = Date.now();
   const cutoffIso = new Date(nowMs - TRADE_TIMER_FORTY_EIGHT_H_MS).toISOString();
 
+  const [{ count: pendingDueCount }, { count: awaitingDueCount }] = await Promise.all([
+    admin
+      .from("league_trade_proposals")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending")
+      .lt("created_at", cutoffIso),
+    admin
+      .from("league_trade_proposals")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "awaiting_gm_approval")
+      .lt("accepted_at", cutoffIso),
+  ]);
+
+  // Fast exit for the common case: nothing is due.
+  if ((pendingDueCount ?? 0) === 0 && (awaitingDueCount ?? 0) === 0) return empty;
+
   const { data: pendingOld } = await admin
     .from("league_trade_proposals")
     .select("id")

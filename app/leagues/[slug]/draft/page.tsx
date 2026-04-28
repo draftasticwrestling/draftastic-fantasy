@@ -36,6 +36,7 @@ import { LeagueDraftRoom } from "./LeagueDraftRoom";
 import { AutopickClientRunner } from "./AutopickClientRunner";
 import { AutopickDraftBoardView } from "./AutopickDraftBoardView";
 import { startDraftFromFormAction } from "./actions";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -65,6 +66,7 @@ export default async function LeagueDraftPage({ params }: Props) {
   let memberByUserId: Record<string, { display_name?: string | null; team_name?: string | null }> = {};
   let availableWrestlers: { id: string; name: string | null }[] = [];
   let isCommissioner = false;
+  let isSiteAdmin = false;
   let isCurrentPicker = false;
   let picksHistory: Awaited<ReturnType<typeof getDraftPicksHistory>> = [];
   let rosterRules: ReturnType<typeof getRosterRulesForLeague> = null;
@@ -267,6 +269,7 @@ export default async function LeagueDraftPage({ params }: Props) {
     const { user } = await getServerAuth();
     userDraftPrefs = user ? await getDraftPreferences(league.id, user.id) : null;
     isCommissioner = league.role === "commissioner";
+    isSiteAdmin = user ? await getIsSiteAdmin() : false;
     isCurrentPicker =
       !!currentPick &&
       !!user &&
@@ -584,7 +587,7 @@ export default async function LeagueDraftPage({ params }: Props) {
               intervalMs={isAutopickRunning ? 3500 : undefined}
             />
           )}
-          {draftStatus === "in_progress" && !autopickDisabled && league.draft_type === "autopick" && (
+          {draftStatus === "in_progress" && !autopickDisabled && league.draft_type === "autopick" && isSiteAdmin && (
             <AutopickClientRunner leagueSlug={slug} enabled />
           )}
           {isAutopickRunning || draftStatus === "completed" || isReviewPending ? (

@@ -15,7 +15,7 @@ import {
 } from "@/lib/leagueOwner";
 import { appendRecipientCutsToDescription } from "@/lib/tradeDisplay";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 600;
 
 type TransactionRow = {
   date: string;
