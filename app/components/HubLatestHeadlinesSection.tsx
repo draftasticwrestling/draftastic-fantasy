@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import HubLatestEventPreview from "@/app/components/HubLatestEventPreview";
 import { HubLatestArticleCard } from "@/app/components/HubLatestArticleCard";
-import { firstArticleImageUrl } from "@/lib/articleFirstImage";
+import { articleFeedThumbnailUrl } from "@/lib/articleFirstImage";
 import {
   fetchHubRecentCompleted,
   fetchHubTodayPrimaryEvent,
@@ -32,7 +32,7 @@ function hubArticleCardEl(a: ArticleRow) {
       title={a.title}
       excerpt={a.excerpt}
       publishedAt={a.published_at}
-      imageUrl={firstArticleImageUrl(a.body)}
+      imageUrl={articleFeedThumbnailUrl(a)}
     />
   );
 }

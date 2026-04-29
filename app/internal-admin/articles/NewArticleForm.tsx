@@ -6,6 +6,7 @@ import { ArticleImageLibrary } from "./ArticleImageLibrary";
 import { ArticleImageUpload } from "./ArticleImageUpload";
 import { ArticleMarkdownEditor } from "./ArticleMarkdownEditor";
 import { DocxBodyImport } from "./DocxBodyImport";
+import { ArticleThumbnailPicker } from "./ArticleThumbnailPicker";
 
 export function NewArticleForm() {
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +148,7 @@ export function NewArticleForm() {
         </div>
         <ArticleMarkdownEditor key={mdEditorKey} value={body} onChange={setBody} disabled={pending} />
         <input type="hidden" name="body" value={body} />
+        <ArticleThumbnailPicker body={body} initialThumbnail={null} disabled={pending} />
       </div>
       <label className="admin-article-label inline">
         <span>Status</span>

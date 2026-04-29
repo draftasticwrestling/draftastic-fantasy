@@ -21,6 +21,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return { title: `${decodeURIComponent(slug)} — League — Site admin` };
 }
 
+function draftTypeLabel(value: string | null | undefined): string {
+  const t = String(value ?? "").trim().toLowerCase();
+  if (!t) return "Autopick (default)";
+  if (t === "offline") return "Offline";
+  if (t === "autopick") return "Autopick";
+  if (t === "snake" || t === "linear") return "Autopick (legacy)";
+  return t;
+}
+
 export default async function InternalAdminLeagueDetailPage({
   params,
   searchParams,
@@ -258,6 +267,8 @@ export default async function InternalAdminLeagueDetailPage({
           <dd style={{ margin: 0 }}>{league.season_slug ?? "—"}</dd>
           <dt style={{ color: "var(--color-text-muted)" }}>Draft date</dt>
           <dd style={{ margin: 0 }}>{league.draft_date ?? "—"}</dd>
+          <dt style={{ color: "var(--color-text-muted)" }}>Draft type</dt>
+          <dd style={{ margin: 0 }}>{draftTypeLabel(league.draft_type)}</dd>
           <dt style={{ color: "var(--color-text-muted)" }}>Format</dt>
           <dd style={{ margin: 0 }}>
             {league.league_type ?? "—"}

@@ -7,6 +7,15 @@ function isPublicLeague(row: SiteAdminLeagueSummary) {
   return String(row.visibility_type ?? "").toLowerCase() === "public";
 }
 
+function draftTypeLabel(value: string | null | undefined): string {
+  const t = String(value ?? "").trim().toLowerCase();
+  if (!t) return "Autopick (default)";
+  if (t === "offline") return "Offline";
+  if (t === "autopick") return "Autopick";
+  if (t === "snake" || t === "linear") return "Autopick (legacy)";
+  return t;
+}
+
 function LeagueTable({ rows }: { rows: SiteAdminLeagueSummary[] }) {
   return (
     <div style={{ overflowX: "auto" }}>
@@ -19,6 +28,7 @@ function LeagueTable({ rows }: { rows: SiteAdminLeagueSummary[] }) {
             <th style={{ padding: "10px 8px" }}>Commissioner</th>
             <th style={{ padding: "10px 8px" }}>Season</th>
             <th style={{ padding: "10px 8px" }}>Draft review</th>
+            <th style={{ padding: "10px 8px" }}>Draft type</th>
             <th style={{ padding: "10px 8px" }}>Archived</th>
             <th style={{ padding: "10px 8px" }}>Created</th>
           </tr>
@@ -58,6 +68,9 @@ function LeagueTable({ rows }: { rows: SiteAdminLeagueSummary[] }) {
                 ) : (
                   (row.draft_status ?? "—")
                 )}
+              </td>
+              <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>
+                {draftTypeLabel(row.draft_type)}
               </td>
               <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>
                 {row.is_archived ? `Yes${row.archived_at ? ` (${row.archived_at.slice(0, 10)})` : ""}` : "—"}

@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
 
 const LEAGUE_LIST_SELECT =
-  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at, visibility_type, public_status, is_archived, archived_at";
+  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_type, league_type, max_teams, draft_status, created_at, visibility_type, public_status, is_archived, archived_at";
 
 export type SiteAdminLeagueSummary = {
   id: string;
@@ -15,6 +15,7 @@ export type SiteAdminLeagueSummary = {
   end_date: string | null;
   season_slug: string | null;
   draft_date: string | null;
+  draft_type: string | null;
   league_type: string | null;
   max_teams: number | null;
   draft_status: string | null;
@@ -126,6 +127,7 @@ export async function siteAdminSearchLeagues(
     );
     const rows: SiteAdminLeagueSummary[] = leagues2.map((l) => ({
       ...l,
+      draft_type: null,
       visibility_type: "private",
       public_status: null,
       is_archived: false,
@@ -175,6 +177,7 @@ export async function siteAdminGetLeagueBySlug(
     if (league && !leagueErr) {
       league = {
         ...league,
+        draft_type: null,
         visibility_type: "private",
         public_status: null,
         is_archived: false,

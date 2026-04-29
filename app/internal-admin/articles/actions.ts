@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { slugifyTitle, isValidArticleSlug } from "@/lib/articles";
+import { listArticleImageUrls } from "@/lib/articleFirstImage";
 
 const BYLINE_MAX = 160;
 const SERIES_TITLE_MAX = 120;
@@ -44,6 +45,25 @@ function isBylineSchemaError(message: string): boolean {
   );
 }
 
+function parseThumbnailImageUrl(
+  body: string,
+  formData: FormData
+): { thumbnail_image_url: string | null } {
+  const raw = (formData.get("thumbnail_image_url") ?? "").toString().trim();
+  if (!raw) return { thumbnail_image_url: null };
+  const urls = listArticleImageUrls(body);
+  return { thumbnail_image_url: urls.includes(raw) ? raw : null };
+}
+
+/** PostgREST when `thumbnail_image_url` column is missing. */
+function isThumbnailSchemaError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("thumbnail_image_url") &&
+    (m.includes("schema cache") || m.includes("could not find") || m.includes("column"))
+  );
+}
+
 function parseByline(formData: FormData): { byline: string | null } | { error: string } {
   const raw = (formData.get("byline") ?? "").toString().trim();
   if (!raw) return { byline: null };
@@ -72,6 +92,7 @@ export async function createArticleAction(
   if ("error" in parsedByline) return parsedByline;
   const parsedSeries = parseSeries(formData);
   if ("error" in parsedSeries) return parsedSeries;
+  const thumb = parseThumbnailImageUrl(body, formData);
   const published_at = status === "published" ? new Date().toISOString() : null;
   const rowBase = {
     slug,
@@ -85,9 +106,22 @@ export async function createArticleAction(
     series_title: parsedSeries.series_title,
     series_part: parsedSeries.series_part,
   };
+  const rowWithThumb = { ...rowBase, thumbnail_image_url: thumb.thumbnail_image_url };
   const rowWithByline =
-    parsedByline.byline !== null ? { ...rowBase, byline: parsedByline.byline } : rowBase;
+    parsedByline.byline !== null ? { ...rowWithThumb, byline: parsedByline.byline } : rowWithThumb;
   let { data, error } = await supabase.from("articles").insert(rowWithByline).select("id").single();
+  if (error && isThumbnailSchemaError(error.message)) {
+    const retryIns =
+      parsedByline.byline !== null ? { ...rowBase, byline: parsedByline.byline } : rowBase;
+    const r2 = await supabase.from("articles").insert(retryIns).select("id").single();
+    data = r2.data;
+    error = r2.error;
+    if (!error && data?.id) {
+      revalidatePath("/news");
+      revalidatePath("/");
+      redirect(`/internal-admin/articles/${data.id}/edit?saved=1&thumbnailPending=1`);
+    }
+  }
   if (error && isBylineSchemaError(error.message)) {
     const retry = await supabase.from("articles").insert(rowBase).select("id").single();
     data = retry.data;
@@ -124,6 +158,7 @@ export async function updateArticleAction(
   if ("error" in parsedByline) return parsedByline;
   const parsedSeries = parseSeries(formData);
   if ("error" in parsedSeries) return parsedSeries;
+  const thumb = parseThumbnailImageUrl(body, formData);
   let published_at: string | null = null;
   if (status === "published") {
     const { data: existing } = await supabase
@@ -134,7 +169,7 @@ export async function updateArticleAction(
     const prev = (existing as { published_at?: string | null } | null)?.published_at;
     published_at = prev ?? new Date().toISOString();
   }
-  const updateBase = {
+  const core = {
     slug,
     title,
     excerpt,
@@ -145,10 +180,25 @@ export async function updateArticleAction(
     series_title: parsedSeries.series_title,
     series_part: parsedSeries.series_part,
   };
-  const updateRow = { ...updateBase, byline: parsedByline.byline };
+  const withThumb = { ...core, thumbnail_image_url: thumb.thumbnail_image_url };
+  const updateRow = { ...withThumb, byline: parsedByline.byline };
   let { error } = await supabase.from("articles").update(updateRow).eq("id", id);
+  if (error && isThumbnailSchemaError(error.message)) {
+    const retry = await supabase
+      .from("articles")
+      .update({ ...core, byline: parsedByline.byline })
+      .eq("id", id);
+    error = retry.error;
+    if (!error) {
+      revalidatePath("/news");
+      revalidatePath(`/news/${slug}`);
+      revalidatePath("/");
+      revalidatePath("/internal-admin/articles");
+      redirect(`/internal-admin/articles/${id}/edit?saved=1&thumbnailPending=1`);
+    }
+  }
   if (error && isBylineSchemaError(error.message)) {
-    const retry = await supabase.from("articles").update(updateBase).eq("id", id);
+    const retry = await supabase.from("articles").update(withThumb).eq("id", id);
     error = retry.error;
     if (!error) {
       revalidatePath("/news");

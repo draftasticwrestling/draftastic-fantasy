@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
+import { ArticleLeadImage } from "./ArticleLeadImage";
 
 function makeArticleComponents(): Components {
   let imgCount = 0;
@@ -9,12 +10,7 @@ function makeArticleComponents(): Components {
     img: ({ node: _node, ...props }) => {
       const i = imgCount++;
       if (i === 0) {
-        return (
-          <div className="article-md-hero-img-wrap">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img {...props} alt={props.alt ?? ""} />
-          </div>
-        );
+        return <ArticleLeadImage {...props} alt={props.alt ?? ""} />;
       }
       // eslint-disable-next-line @next/next/no-img-element
       return <img {...props} alt={props.alt ?? ""} />;

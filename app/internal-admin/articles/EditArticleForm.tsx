@@ -8,6 +8,7 @@ import { ArticleImageLibrary } from "./ArticleImageLibrary";
 import { ArticleImageUpload } from "./ArticleImageUpload";
 import { ArticleMarkdownEditor } from "./ArticleMarkdownEditor";
 import { DocxBodyImport } from "./DocxBodyImport";
+import { ArticleThumbnailPicker } from "./ArticleThumbnailPicker";
 
 export function EditArticleForm({ article }: { article: ArticleRow }) {
   const router = useRouter();
@@ -186,6 +187,11 @@ export function EditArticleForm({ article }: { article: ArticleRow }) {
         </div>
         <ArticleMarkdownEditor key={mdEditorKey} value={body} onChange={setBody} disabled={pending} />
         <input type="hidden" name="body" value={body} />
+        <ArticleThumbnailPicker
+          body={body}
+          initialThumbnail={article.thumbnail_image_url ?? null}
+          disabled={pending}
+        />
       </div>
       <label className="admin-article-label inline">
         <span>Status</span>

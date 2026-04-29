@@ -19,6 +19,8 @@ export type ArticleRow = {
   series_slug?: string | null;
   series_title?: string | null;
   series_part?: number | null;
+  /** After `articles_thumbnail_image_url.sql`: feed / home card image (must match a URL in body) */
+  thumbnail_image_url?: string | null;
   status: "draft" | "published";
   published_at: string | null;
   created_at: string;

@@ -36,6 +36,7 @@ export default async function LeagueSettingsPage({
   const members = isCommissioner ? await getLeagueMembers(league.id) : [];
 
   const draftType = league.draft_type ?? (league.draft_style as "snake" | "linear" | undefined) ?? "autopick";
+  const isPublicLeague = String(league.visibility_type ?? "").toLowerCase() === "public";
   const draftTypeLabel =
     draftType === "offline"
       ? "Offline"
@@ -73,7 +74,7 @@ export default async function LeagueSettingsPage({
             teamCountOptions={teamCountOptions}
           />
           <LeagueTypeSection leagueSlug={slug} leagueType={leagueType} />
-          <DraftSettingsSection leagueSlug={slug} draftType={draftType} />
+          <DraftSettingsSection leagueSlug={slug} draftType={draftType} isPublicLeague={isPublicLeague} />
           {(league.draft_status !== "in_progress" &&
             league.draft_status !== "completed" &&
             league.draft_status !== "ready_for_review") && (

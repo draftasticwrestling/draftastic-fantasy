@@ -109,6 +109,7 @@ export async function updateDraftSettingsAction(
   }
 
   const draft_type_ui = (formData.get("draft_type_ui") as string)?.trim();
+  const isPublicLeague = String(league.visibility_type ?? "").toLowerCase() === "public";
 
   const payload: Record<string, unknown> = {
     draft_date: null,
@@ -117,6 +118,10 @@ export async function updateDraftSettingsAction(
     draft_order_method: "random_one_hour_before" satisfies DraftOrderMethod,
     time_per_pick_seconds: null,
   };
+
+  if (draft_type_ui === "offline" && isPublicLeague) {
+    return { error: "Public leagues must use Autopick draft type." };
+  }
 
   if (draft_type_ui === "offline") {
     payload.draft_type = "offline";

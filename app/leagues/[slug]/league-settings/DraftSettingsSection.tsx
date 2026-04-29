@@ -33,6 +33,7 @@ type Props = {
   leagueSlug: string;
   /** Stored draft_type: offline | autopick | legacy linear/snake (treated as Autopick in UI). */
   draftType: string | null | undefined;
+  isPublicLeague: boolean;
 };
 
 function toUiDraftType(stored: string | null | undefined): "offline" | "autopick" {
@@ -41,13 +42,16 @@ function toUiDraftType(stored: string | null | undefined): "offline" | "autopick
   return "autopick";
 }
 
-export function DraftSettingsSection({ leagueSlug, draftType }: Props) {
+export function DraftSettingsSection({ leagueSlug, draftType, isPublicLeague }: Props) {
   const storedUi = toUiDraftType(draftType);
-  const [selectedType, setSelectedType] = useState<"offline" | "autopick">(storedUi);
+  const initialType: "offline" | "autopick" =
+    isPublicLeague && storedUi === "offline" ? "autopick" : storedUi;
+  const [selectedType, setSelectedType] = useState<"offline" | "autopick">(initialType);
 
   useEffect(() => {
-    setSelectedType(toUiDraftType(draftType));
-  }, [draftType]);
+    const next = toUiDraftType(draftType);
+    setSelectedType(isPublicLeague && next === "offline" ? "autopick" : next);
+  }, [draftType, isPublicLeague]);
 
   const [state, formAction] = useActionState(updateDraftSettingsFormAction, null as { error?: string } | null);
 
@@ -59,6 +63,11 @@ export function DraftSettingsSection({ leagueSlug, draftType }: Props) {
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16, maxWidth: 640 }}>
         Road to SummerSlam beta: choose <strong>Offline</strong> or <strong>Autopick</strong>. There is no live on-site draft and no scheduled draft date — timing follows the beta schedule below.
       </p>
+      {isPublicLeague ? (
+        <p style={{ color: "var(--color-text-muted)", marginBottom: 16, maxWidth: 640, fontSize: 14 }}>
+          Public leagues are limited to <strong>Autopick</strong> so managers across different regions/time zones can participate fairly.
+        </p>
+      ) : null}
 
       <div
         style={{
@@ -127,14 +136,17 @@ export function DraftSettingsSection({ leagueSlug, draftType }: Props) {
             aria-labelledby="draft-type-options-heading"
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
-            {DRAFT_TYPE_OPTIONS.map((opt) => (
+            {DRAFT_TYPE_OPTIONS.map((opt) => {
+              const disabled = isPublicLeague && opt.value === "offline";
+              return (
               <li key={opt.value} style={{ marginBottom: 16 }}>
                 <label
                   style={{
                     display: "flex",
                     alignItems: "flex-start",
                     gap: 12,
-                    cursor: "pointer",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    opacity: disabled ? 0.65 : 1,
                   }}
                 >
                   <input
@@ -143,6 +155,7 @@ export function DraftSettingsSection({ leagueSlug, draftType }: Props) {
                     value={opt.value}
                     checked={selectedType === opt.value}
                     onChange={() => setSelectedType(opt.value)}
+                    disabled={disabled}
                     style={{ marginTop: 4, flexShrink: 0 }}
                   />
                   <span>
@@ -153,7 +166,8 @@ export function DraftSettingsSection({ leagueSlug, draftType }: Props) {
                   </span>
                 </label>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
 

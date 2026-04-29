@@ -13,7 +13,7 @@ export default async function InternalAdminEditArticlePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; bylinePending?: string }>;
+  searchParams: Promise<{ saved?: string; bylinePending?: string; thumbnailPending?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -83,6 +83,27 @@ export default async function InternalAdminEditArticlePage({
           >
             {ARTICLE_BYLINE_MIGRATION_SQL}
           </pre>
+        </div>
+      ) : null}
+      {sp.thumbnailPending ? (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 16,
+            padding: 14,
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--color-border)",
+            background: "var(--color-amber-bg, rgba(245, 158, 11, 0.12))",
+            color: "var(--color-text)",
+            fontSize: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          <p style={{ margin: 0 }}>
+            <strong>Feed / home thumbnail was not saved.</strong> The article is saved without that column. Run{" "}
+            <code style={{ fontSize: 13 }}>supabase/articles_thumbnail_image_url.sql</code> in the Supabase SQL Editor,
+            then click <strong>Save changes</strong> again to store your thumbnail choice.
+          </p>
         </div>
       ) : null}
       {sp.saved ? (

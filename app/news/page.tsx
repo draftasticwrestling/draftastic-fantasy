@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { firstArticleImageUrl } from "@/lib/articleFirstImage";
+import { articleFeedThumbnailUrl } from "@/lib/articleFirstImage";
 import { listPublishedArticles } from "@/lib/articles";
 
 export const revalidate = 120;
@@ -40,7 +40,7 @@ export default async function NewsPage() {
       ) : (
         <ul className="news-list">
           {articles.map((a) => {
-            const thumb = firstArticleImageUrl(a.body);
+            const thumb = articleFeedThumbnailUrl(a);
             const href = `/news/${encodeURIComponent(a.slug)}`;
             return (
               <li key={a.id} className="news-list-item">
