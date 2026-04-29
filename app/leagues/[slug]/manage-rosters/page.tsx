@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getServerAuth } from "@/lib/supabase/serverAuth";
+import { getAdminClient } from "@/lib/supabase/admin";
+import { supabase as publicSupabase } from "@/lib/supabase";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
-import { isDraftableWrestler, normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
+import { normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
+import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { RostersSection } from "../RostersSection";
 
 export async function generateMetadata({
@@ -32,11 +34,30 @@ export default async function ManageRostersPage({
   const rosters = await getRostersForLeague(league.id);
   const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
 
-  const { supabase } = await getServerAuth();
-  const { data: result } = await supabase
+  const db = getAdminClient() ?? publicSupabase;
+  let result: Record<string, unknown>[] | null = null;
+
+  const primary = await db
     .from("wrestlers")
-    .select('id, name, gender, status, "Status", brand, classification, "Classification"')
+    .select('id, name, gender, status, "Status", brand, roster, "Roster", classification, "Classification"')
     .order("name", { ascending: true });
+  if (!primary.error) {
+    result = (primary.data ?? []) as Record<string, unknown>[];
+  } else {
+    const fallback = await db
+      .from("wrestlers")
+      .select('id, name, gender, status, "Status", brand, classification, "Classification"')
+      .order("name", { ascending: true });
+    if (!fallback.error) {
+      result = (fallback.data ?? []) as Record<string, unknown>[];
+    } else {
+      const minimal = await db
+        .from("wrestlers")
+        .select('id, name, gender, brand, status, "Status"')
+        .order("name", { ascending: true });
+      result = minimal.error ? [] : ((minimal.data ?? []) as Record<string, unknown>[]);
+    }
+  }
 
   const rawRows = (result ?? []) as Record<string, unknown>[];
   const wrestlers = rawRows
@@ -46,10 +67,25 @@ export default async function ManageRostersPage({
       const norm = normalizeWrestlerRowFromApi(r);
       const rawGender = r.gender ?? r.Gender;
       const gender = rawGender != null && String(rawGender).trim() !== "" ? String(rawGender) : null;
-      return { ...r, id, name, gender, ...norm };
+      const brandRaw = r.brand ?? r.Brand ?? r.roster ?? r.Roster ?? null;
+      const brand = brandRaw != null && String(brandRaw).trim() !== "" ? String(brandRaw) : null;
+      const classificationRaw = r.classification ?? r.Classification ?? norm.classification ?? null;
+      const classification =
+        classificationRaw != null && String(classificationRaw).trim() !== ""
+          ? String(classificationRaw).trim().toLowerCase()
+          : "";
+      // Keep the broader brand fallback (brand/Brand/roster/Roster) even when normalize helper has no brand.
+      return { ...r, ...norm, id, name, gender, brand, classification };
     })
-    .filter((w) => w.id && isDraftableWrestler(w))
-    .map((w) => ({ id: w.id, name: w.name ?? w.id, gender: w.gender ?? null }));
+    .filter((w) => {
+      if (!w.id) return false;
+      const rosterBucket = wrestlerRosterFromBrand(w.brand ?? null);
+      if (!(rosterBucket === "Raw" || rosterBucket === "SmackDown" || rosterBucket === "NXT")) return false;
+      if (w.classification === "non-wrestlers" || w.classification === "alumni") return false;
+      return true;
+    })
+    .map((w) => ({ id: w.id, name: w.name ?? w.id, gender: w.gender ?? null }))
+    .sort((a, b) => String(a.name ?? a.id).localeCompare(String(b.name ?? b.id), undefined, { sensitivity: "base" }));
 
   return (
     <main className="app-page">

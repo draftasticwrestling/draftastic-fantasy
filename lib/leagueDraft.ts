@@ -35,6 +35,7 @@ import {
 } from "@/lib/leagueLeadersAllTimeScoring";
 import { bigBoardLabel, getBigBoardPriorityList, isBigBoardId, type BigBoardId } from "@/lib/draftBigBoards";
 import { isInBetaAutopickRunWindow } from "@/lib/betaAutopickSchedule";
+import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 
 const LEAGUE_START_DATE = "2025-05-02";
 
@@ -1113,13 +1114,6 @@ export async function makeDraftPick(
     return { error: "It's not your turn to pick." };
   }
 
-  const addResult = await addWrestlerToRoster(leagueId, current.user_id, wrestlerId, null, true);
-  if (addResult.error) return addResult;
-
-  const state = await getLeagueDraftState(leagueId);
-  const nextPick = (state?.draft_current_pick ?? 0) + 1;
-  const totalPicks = state?.total_picks ?? 0;
-
   const admin = getAdminClient();
   if (!admin) {
     return {
@@ -1138,6 +1132,27 @@ export async function makeDraftPick(
   if (!draftRunId) {
     return { error: "Draft run not found. Generate or set draft order first." };
   }
+
+  const rosters = await getRostersForLeagueAdmin(leagueId, admin);
+  const draftedIds = new Set<string>();
+  for (const entries of Object.values(rosters)) for (const e of entries) addToDraftedSet(draftedIds, e.wrestler_id);
+  const { data: existingPickRows } = await admin
+    .from("league_draft_picks")
+    .select("wrestler_id")
+    .eq("draft_run_id", draftRunId);
+  for (const row of existingPickRows ?? []) {
+    addToDraftedSet(draftedIds, (row as { wrestler_id?: string | null }).wrestler_id);
+  }
+  if (isInDraftedSet(draftedIds, wrestlerId)) {
+    return { error: "That wrestler (or an alter ego of that wrestler) has already been drafted." };
+  }
+
+  const addResult = await addWrestlerToRoster(leagueId, current.user_id, wrestlerId, null, true);
+  if (addResult.error) return addResult;
+
+  const state = await getLeagueDraftState(leagueId);
+  const nextPick = (state?.draft_current_pick ?? 0) + 1;
+  const totalPicks = state?.total_picks ?? 0;
 
   const { error: pickErr } = await admin.from("league_draft_picks").insert({
     league_id: leagueId,
@@ -1795,8 +1810,13 @@ function addToDraftedSet(set: Set<string>, id: string | null | undefined): void 
   if (id == null || typeof id !== "string") return;
   const t = id.trim();
   if (!t) return;
-  set.add(t);
-  set.add(t.toLowerCase());
+  const variants = new Set<string>([t, t.toLowerCase(), ...draftEquivalentSlugs(t)]);
+  for (const v of variants) {
+    const norm = String(v).trim();
+    if (!norm) continue;
+    set.add(norm);
+    set.add(norm.toLowerCase());
+  }
 }
 
 function isInDraftedSet(set: Set<string>, id: string | null | undefined): boolean {

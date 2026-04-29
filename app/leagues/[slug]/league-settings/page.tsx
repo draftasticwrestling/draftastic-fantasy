@@ -6,7 +6,11 @@ import { DraftSettingsSection } from "./DraftSettingsSection";
 import { LeagueTypeSection } from "./LeagueTypeSection";
 import { RemoveOwnerSection } from "./RemoveOwnerSection";
 import { DeleteLeagueSection } from "./DeleteLeagueSection";
+import { GmToolsNav } from "./GmToolsNav";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
+
+const OFFLINE_DRAFT_SHEET_EXPORT_URL =
+  "https://docs.google.com/spreadsheets/d/19v4VhgG0kYhHr1HGbAPb29flqIPxeNgY/export?format=xlsx";
 
 export const metadata = {
   title: "League Settings — Draftastic Fantasy",
@@ -58,6 +62,7 @@ export default async function LeagueSettingsPage({
 
       {isCommissioner ? (
         <>
+          <GmToolsNav leagueSlug={slug} />
           <BasicSettingsSection
             key={`basic-${slug}-${maxTeams ?? ""}-${league.name}-${autoReactivate}`}
             leagueSlug={slug}
@@ -101,6 +106,16 @@ export default async function LeagueSettingsPage({
             <p style={{ color: "var(--color-text-muted)" }}>
               Only the GM can change draft settings. Current draft type: <strong>{draftTypeLabel}</strong>. On-site autopick uses snake
               pick order; the GM randomizes round-1 order once on the Draft tab before the beta draft window.
+            </p>
+            <p style={{ color: "var(--color-text-muted)", marginTop: 10 }}>
+              Offline resources:{" "}
+              <a href={OFFLINE_DRAFT_SHEET_EXPORT_URL} className="app-link">
+                Download Offline Draft Tracker (Excel)
+              </a>
+              {" · "}
+              <Link href="/how-it-works/offline-draft" className="app-link">
+                Offline Draft How-To
+              </Link>
             </p>
           </section>
         </>

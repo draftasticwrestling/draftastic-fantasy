@@ -31,6 +31,7 @@ import { DraftPolling } from "./DraftPolling";
 import { CommissionerDraftActions } from "./CommissionerDraftActions";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
 import { LeagueDraftRoom } from "./LeagueDraftRoom";
 import { AutopickClientRunner } from "./AutopickClientRunner";
@@ -260,7 +261,10 @@ export default async function LeagueDraftPage({ params }: Props) {
     rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
     const draftedIds = new Set<string>();
     for (const entries of Object.values(rosters)) {
-      for (const e of entries) draftedIds.add(e.wrestler_id);
+      for (const e of entries) {
+        draftedIds.add(e.wrestler_id);
+        for (const alias of draftEquivalentSlugs(e.wrestler_id)) draftedIds.add(alias);
+      }
     }
     availableWrestlers = wrestlersRows
       .filter((w) => !draftedIds.has(w.id))

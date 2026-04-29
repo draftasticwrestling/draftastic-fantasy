@@ -89,6 +89,7 @@ A fantasy sports platform for pro wrestling (WWE-first), modeled after [Yahoo Fa
 - [ ] Waiver wire / free agents (if you add that rule).
 - [ ] Payout tracking (optional; sensitive — keep minimal or manual).
 - [ ] Private leagues and discovery.
+- [ ] Configure custom SMTP for Supabase Auth confirmations/resets (improve Yahoo/Outlook deliverability).
 
 ---
 

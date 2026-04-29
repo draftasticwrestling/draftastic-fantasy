@@ -30,6 +30,7 @@ import {
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
+import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { validateFactionNameForSave } from "@/lib/factionName";
 import { validateManagerCatchphraseForSave } from "@/lib/managerCatchphrase";
 import { validateFactionEmojiForSave } from "@/lib/factionEmoji";
@@ -1066,6 +1067,22 @@ export async function addWrestlerToRoster(
 
   const wid = String(wrestlerId).trim();
   if (!wid) return { error: "Wrestler is required" };
+  const equivalentIds = [...new Set(draftEquivalentSlugs(wid).map((s) => s.trim()).filter(Boolean))];
+
+  // Keep dual-identity wrestlers mutually exclusive across faction rosters in the same league.
+  if (equivalentIds.length > 0) {
+    const { data: leagueRows } = await supabase
+      .from("league_rosters")
+      .select("user_id, wrestler_id")
+      .eq("league_id", leagueId)
+      .is("released_at", null)
+      .in("wrestler_id", equivalentIds);
+    const existing = (leagueRows ?? []) as { user_id: string; wrestler_id: string }[];
+    const conflict = existing.find((r) => r.user_id !== userId);
+    if (conflict) {
+      return { error: "That wrestler (or an alter ego of that wrestler) is already on another faction roster." };
+    }
+  }
 
   const rules = await getRosterRulesForLeagueId(supabase, leagueId);
 
@@ -1078,6 +1095,9 @@ export async function addWrestlerToRoster(
       .is("released_at", null);
     const currentIds = (currentRows ?? []).map((r) => r.wrestler_id);
     if (currentIds.includes(wid)) return { error: "That wrestler is already on this roster." };
+    if (equivalentIds.some((id) => currentIds.includes(id))) {
+      return { error: "That wrestler (or an alter ego of that wrestler) is already on this roster." };
+    }
     if (currentIds.length >= rules.rosterSize) {
       return { error: `Roster full (max ${rules.rosterSize} wrestlers).` };
     }

@@ -26,6 +26,9 @@ const DRAFT_TYPE_OPTIONS: { value: "offline" | "autopick"; label: string; descri
   },
 ];
 
+const OFFLINE_DRAFT_SHEET_EXPORT_URL =
+  "https://docs.google.com/spreadsheets/d/19v4VhgG0kYhHr1HGbAPb29flqIPxeNgY/export?format=xlsx";
+
 type Props = {
   leagueSlug: string;
   /** Stored draft_type: offline | autopick | legacy linear/snake (treated as Autopick in UI). */
@@ -87,6 +90,28 @@ export function DraftSettingsSection({ leagueSlug, draftType }: Props) {
         </Link>{" "}
         tab to <strong>randomize pick order once</strong> before the draft window so managers know their slot while building lists. That order cannot be changed after it is generated; if the GM never clicks it, a random order is created automatically when the autopick draft runs.
       </p>
+
+      <div
+        style={{
+          marginBottom: 20,
+          padding: "14px 16px",
+          background: "var(--color-bg-elevated)",
+          borderRadius: "var(--radius)",
+          border: "1px solid var(--color-border)",
+          fontSize: 14,
+        }}
+      >
+        <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Offline draft resources</p>
+        <p style={{ margin: 0, color: "var(--color-text-muted)", lineHeight: 1.6 }}>
+          <a href={OFFLINE_DRAFT_SHEET_EXPORT_URL} className="app-link">
+            Download Offline Draft Tracker (Excel)
+          </a>
+          {" · "}
+          <Link href="/how-it-works/offline-draft" className="app-link">
+            Offline Draft How-To
+          </Link>
+        </p>
+      </div>
 
       <form action={formAction}>
         <input type="hidden" name="league_slug" value={leagueSlug} />
