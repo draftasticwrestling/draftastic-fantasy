@@ -20,7 +20,14 @@ export type BeltKey =
   | "us-womens"
   | "tag-team-mens"
   | "tag-team-smackdown"
-  | "tag-team-womens";
+  | "tag-team-womens"
+  | "nxt"
+  | "nxt-womens"
+  | "nxt-north-american"
+  | "nxt-north-american-womens"
+  | "nxt-tag-team"
+  | "speed-mens"
+  | "speed-womens";
 
 export type EventLogoKey =
   | "raw"
@@ -59,6 +66,13 @@ export const BELT_IMAGE_URLS: Partial<Record<BeltKey, string>> = {
   "tag-team-mens": `${BELTS_PUBLIC}/raw-tag-team-championship.png`,
   "tag-team-smackdown": `${BELTS_PUBLIC}/smackdown-tag-team-championship.png`,
   "tag-team-womens": `${BELTS_PUBLIC}/womens-tag-team-championship.png`,
+  nxt: `${BELTS_PUBLIC}/nxt-championship.png`,
+  "nxt-womens": `${BELTS_PUBLIC}/nxt-womens-championship.png`,
+  "nxt-north-american": `${BELTS_PUBLIC}/nxt-north-american-championship.png`,
+  "nxt-north-american-womens": `${BELTS_PUBLIC}/nxt-north-american-womens-championship.png`,
+  "nxt-tag-team": `${BELTS_PUBLIC}/nxt-tag-team-championship.png`,
+  "speed-mens": `${BELTS_PUBLIC}/nxt-speed-championship.png`,
+  "speed-womens": `${BELTS_PUBLIC}/nxt-womens-speed-championship.png`,
 };
 
 /** Same-origin event / brand marks under `public/images/event-logos/`. */

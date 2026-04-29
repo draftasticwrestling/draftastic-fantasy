@@ -16,7 +16,9 @@ function isFemale(gender: string | null | undefined): boolean {
 
 /** Boxscore / DB sometimes use curly apostrophe (U+2019); normalize so "Women's …" patterns match. */
 function normalizeTitleForBeltMatch(title: string): string {
-  return title.replace(/[\u2018\u2019\u201B\u2032]/g, "'");
+  return title
+    .replace(/[\u2018\u2019\u201B\u2032]/g, "'")
+    .replace(/[-_]+/g, " ");
 }
 
 /** Match title name to BeltKey; order is most specific first. */
@@ -30,6 +32,14 @@ const TITLE_TO_BELT: { pattern: RegExp; key: BeltKey }[] = [
   { pattern: /intercontinental|\bic\b/i, key: "intercontinental-mens" },
   { pattern: /women'?s?\s+united\s+states|women'?s?\s+u\.?s\.?/i, key: "us-womens" },
   { pattern: /united\s+states|\b(us|u\.s\.)\s+championship/i, key: "us-mens" },
+  { pattern: /^nxt\s+women'?s?\s+championship\b/i, key: "nxt-womens" },
+  { pattern: /^nxt\s+championship\b/i, key: "nxt" },
+  { pattern: /^nxt\s+women'?s?\s+north\s+american\b/i, key: "nxt-north-american-womens" },
+  { pattern: /^nxt\s+north\s+american\b/i, key: "nxt-north-american" },
+  { pattern: /^nxt\s+tag\s+team\b/i, key: "nxt-tag-team" },
+  // Speed belts currently use WWE speed art assets.
+  { pattern: /^nxt\s+women'?s?\s+speed\b/i, key: "speed-womens" },
+  { pattern: /^nxt\s+men'?s?\s+speed\b/i, key: "speed-mens" },
   { pattern: /women'?s?\s+tag/i, key: "tag-team-womens" },
   { pattern: /smackdown\s+tag/i, key: "tag-team-smackdown" },
   { pattern: /tag\s+team|raw\s+tag|world\s+tag/i, key: "tag-team-mens" },

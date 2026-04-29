@@ -56,6 +56,11 @@ export type ChampionshipHistoryDataset = {
   titleHistoryBySlug: Map<string, TitleHistoryBucket>;
   wrestlerBySlug: Map<string, WrestlerMini>;
   wrestlerByNameKey: Map<string, WrestlerMini>;
+  /**
+   * tag_team_members lookup keyed by member slug and team id slug; value is all member slugs.
+   * Used to expand tag titles when history rows only include one member slug.
+   */
+  tagTeamMembersBySlug: Map<string, string[]>;
   error: Error | null;
 };
 
@@ -63,7 +68,7 @@ export type ChampionshipHistoryDataset = {
  * Shared data for /wrestlers and /championship/* — merged reigns and title history lookup maps.
  */
 export const getChampionshipHistoryDataset = cache(async (): Promise<ChampionshipHistoryDataset> => {
-  const [wrestlersResult, { data: events }, { data: eventsForReignInference }, { data: rawReigns }] =
+  const [wrestlersResult, { data: events }, { data: eventsForReignInference }, { data: rawReigns }, { data: rawTagTeamMembers }] =
     await Promise.all([
       supabase
         .from("wrestlers")
@@ -82,6 +87,11 @@ export const getChampionshipHistoryDataset = cache(async (): Promise<Championshi
         .gte("date", REIGN_EFFECTIVE_START)
         .order("date", { ascending: true }),
       supabase.from("championship_history").select("*"),
+      supabase
+        .from("tag_team_members")
+        .select("tag_team_id,wrestler_slug,member_order,active")
+        .eq("active", true)
+        .order("member_order", { ascending: true }),
     ]);
 
   const tableReigns = (rawReigns ?? [])
@@ -128,6 +138,21 @@ export const getChampionshipHistoryDataset = cache(async (): Promise<Championshi
     });
   }
 
+  const tagTeamMembersBySlug = new Map<string, string[]>();
+  const membersByTeam = new Map<string, string[]>();
+  for (const r of (rawTagTeamMembers ?? []) as Array<{ tag_team_id?: string | null; wrestler_slug?: string | null }>) {
+    const teamId = normalizeWrestlerName(String(r.tag_team_id ?? ""));
+    const member = normalizeWrestlerName(String(r.wrestler_slug ?? ""));
+    if (!teamId || !member) continue;
+    const list = membersByTeam.get(teamId) ?? [];
+    if (!list.includes(member)) list.push(member);
+    membersByTeam.set(teamId, list);
+  }
+  for (const [teamId, members] of membersByTeam) {
+    tagTeamMembersBySlug.set(teamId, members);
+    for (const member of members) tagTeamMembersBySlug.set(member, members);
+  }
+
   return {
     events: (events ?? []) as ChampionshipHistoryDataset["events"],
     wrestlers,
@@ -135,6 +160,7 @@ export const getChampionshipHistoryDataset = cache(async (): Promise<Championshi
     titleHistoryBySlug,
     wrestlerBySlug,
     wrestlerByNameKey,
+    tagTeamMembersBySlug,
     error: wrestlersResult.error ?? null,
   };
 });

@@ -19,6 +19,16 @@ create table if not exists public.site_login_nudges (
 
 create index if not exists idx_site_login_nudges_key on public.site_login_nudges(nudge_key);
 
+alter table public.site_login_nudges enable row level security;
+
+-- Authenticated users can read nudge configs.
+-- Writes happen through service-role admin actions.
+drop policy if exists "Site login nudges are viewable by authenticated users" on public.site_login_nudges;
+create policy "Site login nudges are viewable by authenticated users"
+  on public.site_login_nudges for select
+  to authenticated
+  using (true);
+
 insert into public.site_login_nudges (
   nudge_key,
   enabled,

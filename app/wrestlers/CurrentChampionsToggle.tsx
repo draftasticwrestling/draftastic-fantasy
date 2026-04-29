@@ -1,0 +1,141 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+
+type ChampionItem = {
+  champion: string;
+  championSlug: string;
+  imageUrl: string | null;
+};
+
+type ChampionCard = {
+  slug: string;
+  title: string;
+  champs: ChampionItem[];
+  tagTeamName: string | null;
+  hasTeamNameRow: boolean;
+  beltImageUrl: string | null;
+};
+
+type Props = {
+  cards: ChampionCard[];
+};
+
+function isNxtTitle(title: string): boolean {
+  return title.trim().toLowerCase().startsWith("nxt ");
+}
+
+function isTagTeamCard(title: string): boolean {
+  return /\btag\s+team\b/i.test(title);
+}
+
+function beltClassName(src: string | null | undefined): string | undefined {
+  if (!src) return undefined;
+  const base = src.toLowerCase().split("?")[0];
+  const parts: string[] = [];
+  if (
+    base.endsWith("mens-intercontinental-championship.png") ||
+    base.endsWith("mens-united-states-championship.png")
+  ) {
+    parts.push("wrestlers-champ-card__belt--mens-boost");
+  }
+  if (
+    base.endsWith("womens-intercontinental-championship.png") ||
+    base.endsWith("womens-united-states-championship.png")
+  ) {
+    parts.push("wrestlers-champ-card__belt--womens-ic-us-cap");
+  }
+  return parts.length ? parts.join(" ") : undefined;
+}
+
+export function CurrentChampionsToggle({ cards }: Props) {
+  const [tab, setTab] = useState<"main" | "nxt">("main");
+  const filtered = useMemo(
+    () => cards.filter((c) => (tab === "nxt" ? isNxtTitle(c.title) : !isNxtTitle(c.title))),
+    [cards, tab]
+  );
+
+  return (
+    <>
+      <div style={{ display: "inline-flex", gap: 8, marginBottom: 14 }}>
+        <button
+          type="button"
+          className="wrestlers-champ-title-history-pill"
+          onClick={() => setTab("main")}
+          style={{ opacity: tab === "main" ? 1 : 0.65 }}
+        >
+          Main Roster
+        </button>
+        <button
+          type="button"
+          className="wrestlers-champ-title-history-pill"
+          onClick={() => setTab("nxt")}
+          style={{ opacity: tab === "nxt" ? 1 : 0.65 }}
+        >
+          NXT
+        </button>
+      </div>
+      {filtered.length === 0 ? (
+        <p style={{ color: "var(--color-text-muted)", margin: "0 0 14px" }}>
+          No championships found for this category yet.
+        </p>
+      ) : null}
+      <div className="wrestlers-page-champs-grid">
+        {filtered.map((card) => (
+          <article key={card.slug} className="wrestlers-champ-card">
+            <h3 className="wrestlers-champ-card__title">
+              <span className="wrestlers-champ-card__title-text">{card.title}</span>
+            </h3>
+            <div className="wrestlers-champ-card__belt" aria-hidden={!card.beltImageUrl}>
+              {card.beltImageUrl ? (
+                <Image
+                  src={card.beltImageUrl}
+                  alt=""
+                  width={200}
+                  height={58}
+                  sizes="200px"
+                  loading="lazy"
+                  className={beltClassName(card.beltImageUrl)}
+                />
+              ) : null}
+            </div>
+            <div className="wrestlers-champ-card__avatars">
+              {card.champs.map((c) => (
+                <div key={`${card.title}-${c.championSlug || c.champion}`}>
+                  {c.imageUrl ? (
+                    <Image
+                      src={c.imageUrl}
+                      alt={c.champion}
+                      width={52}
+                      height={52}
+                      sizes="52px"
+                      loading="lazy"
+                      className="wrestlers-champ-card__avatar-img"
+                    />
+                  ) : (
+                    <div className="wrestlers-champ-card__avatar-ph" aria-hidden>
+                      ?
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {card.tagTeamName ? <div className="wrestlers-champ-card__team-name">{card.tagTeamName}</div> : null}
+            <div
+              className={`wrestlers-champ-card__names${isTagTeamCard(card.title) ? " wrestlers-champ-card__names--single-line" : ""}`}
+            >
+              {card.champs.map((c) => c.champion).join(" & ")}
+            </div>
+            <div className="wrestlers-champ-card__footer">
+              <Link href={`/championship/${encodeURIComponent(card.slug)}`} className="wrestlers-champ-title-history-pill">
+                Title History
+              </Link>
+            </div>
+          </article>
+        ))}
+      </div>
+    </>
+  );
+}

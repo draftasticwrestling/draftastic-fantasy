@@ -194,6 +194,41 @@ export function rtsPleAnticipatedAppearanceFloorPts(plePathKey: string): number 
   }
 }
 
+/**
+ * Main-event appearance value for RTS PLE anticipated grid.
+ * Used when a match is marked as main event in the event card.
+ */
+export function rtsPleAnticipatedMainEventAppearancePts(
+  plePathKey: string,
+  opts?: { eventName?: string | null }
+): number {
+  const minorMain =
+    MINOR_PLE_BASE_POINTS.find(([label]) => label.toLowerCase().includes("main eventing"))?.[1] ?? 9;
+  const nocMain = NOC_POINTS.find(([label]) => label.toLowerCase().includes("main eventing"))?.[1] ?? 12;
+  const summerslamNight1Main =
+    SUMMERSLAM_POINTS.find(([label]) => label.toLowerCase().includes("night 1") && label.toLowerCase().includes("main eventing"))
+      ?.[1] ?? 20;
+  const summerslamNight2Main =
+    SUMMERSLAM_POINTS.find(([label]) => label.toLowerCase().includes("night 2") && label.toLowerCase().includes("main eventing"))
+      ?.[1] ?? 30;
+  switch (plePathKey) {
+    case "backlash":
+    case "snme-1":
+    case "snme-2":
+    case "clash-in-italy":
+      return minorMain;
+    case "night-of-champions":
+      return nocMain;
+    case "summerslam": {
+      const name = String(opts?.eventName ?? "").toLowerCase();
+      if (name.includes("night 2")) return summerslamNight2Main;
+      return summerslamNight1Main;
+    }
+    default:
+      return minorMain;
+  }
+}
+
 export const EVOLUTION_EXTRA_POINTS: [string, number][] = [
   ["Winning the Battle Royal", 8],
   ["Each elimination (per opponent removed)", 2],

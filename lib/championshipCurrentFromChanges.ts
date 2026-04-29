@@ -34,6 +34,13 @@ export const CHAMPIONSHIP_TYPE_TO_TITLE: Record<string, string> = {
   "womens-tag-team-championship": "Women's Tag Team Championship",
   "raw-tag-team-championship": "Raw Tag Team Championship",
   "smackdown-tag-team-championship": "SmackDown Tag Team Championship",
+  "nxt-championship": "NXT Championship",
+  "nxt-womens-championship": "NXT Women's Championship",
+  "nxt-tag-team-championship": "NXT Tag Team Championship",
+  "nxt-north-american-championship": "NXT North American Championship",
+  "nxt-womens-north-american-championship": "NXT Women's North American Championship",
+  "nxt-mens-speed-championship": "NXT Men's Speed Championship",
+  "nxt-womens-speed-championship": "NXT Women's Speed Championship",
 };
 
 const TAG_TEAM_TYPES = new Set([

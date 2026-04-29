@@ -12,7 +12,7 @@ import {
   rtsPleDatesForPathKey,
   rtsPleDisplayTitle,
 } from "@/lib/pleLeagueMenu";
-import { rtsPleAnticipatedAppearanceFloorPts } from "@/lib/howItWorksPoints";
+import { rtsPleAnticipatedAppearanceFloorPts, rtsPleAnticipatedMainEventAppearancePts } from "@/lib/howItWorksPoints";
 import { fetchPleEventsOnDates, matchesFromEventRow, type PleEventRow } from "@/lib/pleRtsEvents";
 import { formatPleDate } from "@/lib/pleUpcoming";
 import type { UpcomingMatch } from "@/lib/pleUpcoming";
@@ -35,6 +35,50 @@ export async function generateMetadata({ params }: Props) {
 }
 
 type NightBlock = { nightLabel: string; matches: UpcomingMatch[]; globalIdxStart: number };
+function formatCardUpdatedAt(ts: string): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function isExplicitMainEvent(match: UpcomingMatch): boolean {
+  const raw = (match.raw ?? {}) as Record<string, unknown>;
+  const cardType = String(raw.cardType ?? raw.card_type ?? "")
+    .trim()
+    .toLowerCase();
+  if (cardType === "main event") return true;
+  if (raw.mainEvent === true || raw.isMainEvent === true) return true;
+  return false;
+}
+
+function isExplicitUndercard(match: UpcomingMatch): boolean {
+  const raw = (match.raw ?? {}) as Record<string, unknown>;
+  const cardType = String(raw.cardType ?? raw.card_type ?? "")
+    .trim()
+    .toLowerCase();
+  if (cardType === "undercard") return true;
+  if (raw.mainEvent === false || raw.isMainEvent === false) return true;
+  return false;
+}
+
+function isProjectedMainEvent(match: UpcomingMatch, allMatches: UpcomingMatch[]): boolean {
+  if (!allMatches.length) return false;
+  if (isExplicitUndercard(match)) return false;
+  if (isExplicitMainEvent(match)) return true;
+  const maxOrder = Math.max(...allMatches.map((m) => m.order || 0));
+  const isClosingMatch = allMatches[allMatches.length - 1] === match;
+  const matchesWithMaxOrder = allMatches.filter((m) => (m.order || 0) === maxOrder);
+  if (matchesWithMaxOrder.length === allMatches.length) {
+    return isClosingMatch;
+  }
+  return (match.order || 0) === maxOrder || isClosingMatch;
+}
 
 export default async function PleRtsSlotPage({ params }: Props) {
   const { slug, pleKey } = await params;
@@ -48,11 +92,17 @@ export default async function PleRtsSlotPage({ params }: Props) {
 
   const dates = rtsPleDatesForPathKey(pleKey);
   const eventRows = await fetchPleEventsOnDates(dates);
+  const leagueDraftStatus = String((league as { draft_status?: string | null }).draft_status ?? "not_started");
+  const hasDraftedTeams = leagueDraftStatus === "ready_for_review" || leagueDraftStatus === "completed";
 
-  const [members, pointsByOwner, rosters] = await Promise.all([
+  const [members, pointsByOwner, rosters]: [
+    Awaited<ReturnType<typeof getLeagueMembers>>,
+    Awaited<ReturnType<typeof getPointsByOwnerForLeagueWithBonuses>>,
+    Awaited<ReturnType<typeof getRostersForLeague>>,
+  ] = await Promise.all([
     getLeagueMembers(league.id),
     getPointsByOwnerForLeagueWithBonuses(league.id),
-    getRostersForLeague(league.id),
+    hasDraftedTeams ? getRostersForLeague(league.id) : Promise.resolve({} as Awaited<ReturnType<typeof getRostersForLeague>>),
   ]);
 
   const pointsByUserId = pointsByOwner ?? {};
@@ -75,6 +125,7 @@ export default async function PleRtsSlotPage({ params }: Props) {
   const flatMatches: UpcomingMatch[] = nights.flatMap((n) => n.matches);
   const hasMatches = flatMatches.length > 0;
   const appearancePts = rtsPleAnticipatedAppearanceFloorPts(pleKey);
+  const eventNameById = new Map(eventRows.map((row) => [row.id, row.name]));
 
   const rosterByUser = rosters ?? {};
   const slugSetByUser: Record<string, Set<string>> = {};
@@ -86,12 +137,15 @@ export default async function PleRtsSlotPage({ params }: Props) {
   flatMatches.forEach((match, idx) => {
     pointsGrid[idx] = {};
     const matchSlugs = new Set(match.participantSlugs.map((s) => s.toLowerCase()));
+    const matchAppearancePts = isProjectedMainEvent(match, flatMatches)
+      ? rtsPleAnticipatedMainEventAppearancePts(pleKey, { eventName: eventNameById.get(match.eventId) ?? null })
+      : appearancePts;
     membersByPoints.forEach((mem) => {
       const userSlugs = slugSetByUser[mem.user_id];
       if (!userSlugs) return;
       const rosterCountInMatch = [...matchSlugs].filter((s) => userSlugs.has(s)).length;
-      if (rosterCountInMatch > 0) {
-        pointsGrid[idx][mem.user_id] = rosterCountInMatch * appearancePts;
+      if (hasDraftedTeams && rosterCountInMatch > 0) {
+        pointsGrid[idx][mem.user_id] = rosterCountInMatch * matchAppearancePts;
       }
     });
   });
@@ -107,6 +161,11 @@ export default async function PleRtsSlotPage({ params }: Props) {
   );
 
   const displayTitle = rtsPleDisplayTitle(pleKey);
+  const latestCardUpdatedAt = eventRows
+    .map((row) => row.updated_at)
+    .filter((v): v is string => Boolean(v))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+  const cardUpdatedLabel = latestCardUpdatedAt ? formatCardUpdatedAt(latestCardUpdatedAt) : "";
   const dateLine =
     eventRows.length > 0
       ? eventRows.map((e) => formatPleDate(e.date)).join(" · ")
@@ -139,6 +198,16 @@ export default async function PleRtsSlotPage({ params }: Props) {
           <Link href="/how-it-works?tab=road-to-summerslam">How it Works → Road to SummerSlam</Link> ({appearancePts}{" "}
           pts per roster wrestler listed in a match) until the event is scored.
         </p>
+        {!hasDraftedTeams && (
+          <p className={styles.pleMeta} style={{ marginTop: 4, fontSize: "0.85rem", opacity: 0.8 }}>
+            Projections appear after league draft completes.
+          </p>
+        )}
+        {cardUpdatedLabel && (
+          <p className={styles.pleMeta} style={{ marginTop: 4, fontSize: "0.8rem", opacity: 0.78 }}>
+            Last updated from event card: {cardUpdatedLabel}
+          </p>
+        )}
         <hr className={styles.pleDivider} />
       </section>
 
@@ -154,8 +223,9 @@ export default async function PleRtsSlotPage({ params }: Props) {
         </>
       ) : (
         <p className={styles.pleTableSectionSubtitle}>
-          Card from the event record. Each cell counts {appearancePts} appearance points per roster wrestler listed in
-          that match.
+          {hasDraftedTeams
+            ? `Card from the event record. Non-main matches use ${appearancePts} appearance points per roster wrestler; matches marked main event use main-event appearance points.`
+            : "Card from the event record. Draft must be completed before team projections are shown."}
         </p>
       )}
 
@@ -194,7 +264,7 @@ export default async function PleRtsSlotPage({ params }: Props) {
                         <td className={styles.pleColMatch}>{match.label}</td>
                         {membersByPoints.map((m) => (
                           <td key={m.user_id} className={styles.pleColPoints}>
-                            {pointsGrid[idx]?.[m.user_id] ?? "—"}
+                            {hasDraftedTeams ? (pointsGrid[idx]?.[m.user_id] ?? "—") : "—"}
                           </td>
                         ))}
                       </tr>
@@ -203,7 +273,7 @@ export default async function PleRtsSlotPage({ params }: Props) {
                 </Fragment>
               ))
             )}
-            {hasMatches && membersByPoints.length > 0 && flatMatches.length > 0 && (
+            {hasDraftedTeams && hasMatches && membersByPoints.length > 0 && flatMatches.length > 0 && (
               <tr className={styles.pleTableTotalRow}>
                 <td className={styles.pleColMatch}>Projected total (this event)</td>
                 {membersByPoints.map((m) => (

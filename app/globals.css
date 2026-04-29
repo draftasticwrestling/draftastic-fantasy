@@ -1892,6 +1892,18 @@ body > .site-footer {
   text-align: center;
 }
 
+.wrestlers-champ-card__names--single-line {
+  width: 100%;
+  max-width: 100%;
+  font-size: 17px;
+  line-height: 1.2;
+  min-height: 54px;
+  max-height: 54px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .wrestlers-champ-card__footer {
   margin-top: auto;
   padding-top: 4px;

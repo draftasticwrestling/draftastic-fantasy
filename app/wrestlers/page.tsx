@@ -1,7 +1,6 @@
-import Image from "next/image";
-import Link from "next/link";
 import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
 import WrestlerList from "./WrestlerList";
+import { CurrentChampionsToggle } from "./CurrentChampionsToggle";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
@@ -16,6 +15,7 @@ import { sortByChampionshipDisplayOrder } from "@/lib/championshipDisplayOrder";
 import { collapseTagTeamChampionsForCard } from "@/lib/championshipCardTagChampions";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import type { TitleHistoryItem } from "@/lib/championshipTitleHistory";
+import { isTagTeamTitle } from "@/lib/scoring/tagTeamMembers.js";
 
 /** Allow cached response for 60s to improve repeat visit speed. */
 export const revalidate = 60;
@@ -27,31 +27,6 @@ function read2kRating(row: Record<string, unknown>, key: string): number | null 
   return Number.isNaN(n) ? null : n;
 }
 
-function isMensIcOrUsBelt(src: string | null | undefined): boolean {
-  if (!src) return false;
-  const base = src.toLowerCase().split("?")[0];
-  return (
-    base.endsWith("mens-intercontinental-championship.png") ||
-    base.endsWith("mens-united-states-championship.png")
-  );
-}
-
-/** Women's IC/US art reads larger in the same slot than men's (after boost); cap on this grid only. */
-function isWomensIcOrUsBelt(src: string | null | undefined): boolean {
-  if (!src) return false;
-  const base = src.toLowerCase().split("?")[0];
-  return (
-    base.endsWith("womens-intercontinental-championship.png") ||
-    base.endsWith("womens-united-states-championship.png")
-  );
-}
-
-function champCardBeltClassName(src: string | null | undefined): string | undefined {
-  const parts: string[] = [];
-  if (isMensIcOrUsBelt(src)) parts.push("wrestlers-champ-card__belt--mens-boost");
-  if (isWomensIcOrUsBelt(src)) parts.push("wrestlers-champ-card__belt--womens-ic-us-cap");
-  return parts.length ? parts.join(" ") : undefined;
-}
 
 export const metadata = {
   title: "Wrestlers — Draftastic Fantasy",
@@ -62,7 +37,15 @@ export const metadata = {
 export default async function WrestlersPage() {
   const dataset = await getChampionshipHistoryDataset();
 
-  const { events, reigns, titleHistoryBySlug, wrestlerBySlug, wrestlerByNameKey, wrestlers: wrestlersFromDb } =
+  const {
+    events,
+    reigns,
+    titleHistoryBySlug,
+    wrestlerBySlug,
+    wrestlerByNameKey,
+    tagTeamMembersBySlug,
+    wrestlers: wrestlersFromDb,
+  } =
     dataset;
   const eventsForAgg = events ?? [];
   const pointsBySlug = aggregateWrestlerPoints(
@@ -126,12 +109,29 @@ export default async function WrestlersPage() {
     }))
   );
 
+  function expandTagChampRows(rows: TitleHistoryItem[], title: string): TitleHistoryItem[] {
+    if (!isTagTeamTitle(title) || rows.length !== 1) return rows;
+    const row = rows[0];
+    const key = normalizeWrestlerName(row.championSlug || row.champion || "");
+    const members = tagTeamMembersBySlug.get(key);
+    if (!members || members.length < 2) return rows;
+    return members.map((memberSlug) => {
+      const w = wrestlerBySlug.get(memberSlug) ?? wrestlerByNameKey.get(memberSlug);
+      return {
+        ...row,
+        championSlug: memberSlug,
+        champion: w?.name ?? row.champion,
+        imageUrl: w?.image_url ?? row.imageUrl,
+      };
+    });
+  }
+
   const currentChampionCards = historyCards
     .map((h) => {
       const latest = h.items[0];
       if (!latest) return null;
       const latestWon = latest.wonDate;
-      const rawChamps = h.items.filter((x) => x.wonDate === latestWon);
+      const rawChamps = expandTagChampRows(h.items.filter((x) => x.wonDate === latestWon), h.title);
       const { champions: champs, tagTeamName, hasTeamNameRow } = collapseTagTeamChampionsForCard(
         h.title,
         rawChamps,
@@ -175,69 +175,7 @@ export default async function WrestlersPage() {
           We are still in the process of building out the historical data. Title histories are not complete and may be
           missing data.
         </p>
-        <div className="wrestlers-page-champs-grid">
-          {currentChampionCards.map((card) => {
-            const slug = card.slug;
-            return (
-              <article key={card.slug} className="wrestlers-champ-card">
-                <h3 className="wrestlers-champ-card__title">
-                  <span className="wrestlers-champ-card__title-text">{card.title}</span>
-                </h3>
-                <div className="wrestlers-champ-card__belt" aria-hidden={!card.beltImageUrl}>
-                  {card.beltImageUrl ? (
-                    <Image
-                      src={card.beltImageUrl}
-                      alt=""
-                      width={200}
-                      height={58}
-                      sizes="200px"
-                      loading="lazy"
-                      className={champCardBeltClassName(card.beltImageUrl)}
-                    />
-                  ) : null}
-                </div>
-                <div className="wrestlers-champ-card__avatars">
-                  {card.champs.map((c) => (
-                    <div key={`${card.title}-${c.championSlug || c.champion}`}>
-                      {c.imageUrl ? (
-                        <Image
-                          src={c.imageUrl}
-                          alt={c.champion}
-                          width={52}
-                          height={52}
-                          sizes="52px"
-                          loading="lazy"
-                          className="wrestlers-champ-card__avatar-img"
-                        />
-                      ) : (
-                        <div className="wrestlers-champ-card__avatar-ph" aria-hidden>
-                          ?
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {card.hasTeamNameRow ? (
-                  <div
-                    className={`wrestlers-champ-card__team-name${
-                      card.tagTeamName ? "" : " wrestlers-champ-card__team-name--empty"
-                    }`}
-                  >
-                    {card.tagTeamName ?? "\u00a0"}
-                  </div>
-                ) : null}
-                <div className="wrestlers-champ-card__names">
-                  {card.champs.map((c) => c.champion).join(" & ")}
-                </div>
-                <div className="wrestlers-champ-card__footer">
-                  <Link href={`/championship/${encodeURIComponent(slug)}`} className="wrestlers-champ-title-history-pill">
-                    Title History
-                  </Link>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        <CurrentChampionsToggle cards={currentChampionCards} />
       </section>
 
       {error && (

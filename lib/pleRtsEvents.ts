@@ -1,7 +1,6 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
-import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { classifyEventType, isPLE } from "@/lib/scoring/parsers/eventClassifier.js";
 import type { UpcomingMatch } from "@/lib/pleUpcoming";
 
@@ -10,6 +9,7 @@ export type PleEventRow = {
   name: string;
   date: string;
   location: string | null;
+  updated_at: string | null;
   matches: unknown[];
 };
 
@@ -59,16 +59,36 @@ function parseParticipantSlugs(participants: string | null | undefined): string[
 export async function fetchPleEventsOnDates(dates: string[]): Promise<PleEventRow[]> {
   if (dates.length === 0) return [];
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const primary = await supabase
     .from("events")
-    .select("id, name, date, location, matches")
-    .in("status", [...EVENT_STATUSES_FOR_SCORING])
+    .select("id, name, date, location, updated_at, matches")
     .in("date", dates)
     .order("date", { ascending: true });
 
+  let data = primary.data;
+  let error = primary.error;
+
+  // Be resilient to environments where `events.updated_at` is not present yet.
+  if (error) {
+    const fallback = await supabase
+      .from("events")
+      .select("id, name, date, location, matches")
+      .in("date", dates)
+      .order("date", { ascending: true });
+    data = fallback.data as typeof data;
+    error = fallback.error;
+  }
+
   if (error || !data?.length) return [];
 
-  const rows = data as { id: string; name: string | null; date: string | null; location: string | null; matches: unknown }[];
+  const rows = data as {
+    id: string;
+    name: string | null;
+    date: string | null;
+    location: string | null;
+    updated_at: string | null;
+    matches: unknown;
+  }[];
   const out: PleEventRow[] = [];
   for (const d of dates) {
     const onDay = rows.filter((r) => (r.date ?? "").slice(0, 10) === d);
@@ -80,6 +100,7 @@ export async function fetchPleEventsOnDates(dates: string[]): Promise<PleEventRo
         name: pleRow.name ?? "Event",
         date: (pleRow.date ?? d).slice(0, 10),
         location: pleRow.location ?? null,
+        updated_at: pleRow.updated_at ?? null,
         matches: Array.isArray(pleRow.matches) ? pleRow.matches : [],
       });
     }

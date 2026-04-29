@@ -19,6 +19,15 @@ function displayOrderIndex(title: string): number {
   if (/women'?s?\s+united\s+states|women'?s?\s+u\.?s\.?\s+championship\b/.test(t)) return 7;
   if (/united\s+states|\bu\.?s\.?\s+championship\b/.test(t)) return 6;
 
+  // NXT
+  if (/^nxt\s+championship\b/.test(t)) return 20;
+  if (/^nxt\s+women'?s?\s+championship\b/.test(t)) return 21;
+  if (/^nxt\s+women'?s?\s+north\s+american\b/.test(t)) return 22;
+  if (/^nxt\s+north\s+american\b/.test(t)) return 23;
+  if (/^nxt\s+tag\s+team\b/.test(t)) return 24;
+  if (/^nxt\s+men'?s?\s+speed\b/.test(t)) return 25;
+  if (/^nxt\s+women'?s?\s+speed\b/.test(t)) return 26;
+
   // Row 3
   if (/raw\s+tag/.test(t)) return 8;
   if (/smackdown\s+tag/.test(t)) return 9;
