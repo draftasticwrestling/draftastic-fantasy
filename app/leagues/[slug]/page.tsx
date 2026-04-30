@@ -25,6 +25,7 @@ import { getLeagueEventDayViewerSection } from "@/lib/league/getLeagueEventDayVi
 import { LeagueEventDayRosterCard } from "./LeagueEventDayRosterCard";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import SeasonCompletePlacementModal from "./SeasonCompletePlacementModal";
+import { AdminOwnerPerspectiveSwitcher } from "./AdminOwnerPerspectiveSwitcher";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -109,7 +110,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
     const { supabase, user: currentUser } = await getServerAuth();
 
-    const [membersData, rostersData, wrestlersData, pointsByOwner] = await Promise.all([
+    const [membersData, rostersData, wrestlersData, pointsByOwner, adminProfile] = await Promise.all([
       getLeagueMembers(league.id),
       getRostersForLeague(league.id),
       (async () => {
@@ -126,6 +127,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         }[];
       })(),
       getPointsByOwnerForLeagueWithBonuses(league.id),
+      currentUser
+        ? supabase.from("profiles").select("is_site_admin").eq("id", currentUser.id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
     members = membersData;
     rosters = rostersData;
@@ -181,6 +185,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 12);
 
     const isCommissioner = league.role === "commissioner";
+    const isSiteAdminViewer = Boolean(
+      (adminProfile?.data as { is_site_admin?: boolean | null } | null)?.is_site_admin
+    );
     const currentUserMember = currentUser ? members.find((m) => m.user_id === currentUser.id) : null;
     const commissionerMember = members.find((m) => m.role === "commissioner");
     const creatorLabel = factionDisplayName(commissionerMember, "GM");
@@ -329,6 +336,17 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               <span>Format: {formatLeagueType(league.league_type)}</span>
               <span>Factions: {members.length}{maxTeams ? ` / ${maxTeams}` : ""}</span>
             </p>
+            {isSiteAdminViewer ? (
+              <AdminOwnerPerspectiveSwitcher
+                leagueSlug={slug}
+                members={members.map((m) => ({
+                  user_id: m.user_id,
+                  display_name: m.display_name ?? null,
+                  team_name: m.team_name ?? null,
+                  role: m.role,
+                }))}
+              />
+            ) : null}
             {showAlert && (
               <div className="lm-alert" role="alert">
                 {leagueNotFull ? "Your league is not full." : null}

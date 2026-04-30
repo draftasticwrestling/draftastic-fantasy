@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { getLeaguesForUser } from "@/lib/leagues";
 
 /**
  * GET /api/me/leagues
  * Returns leagues the current user is a member of (slug, name, role).
- * Used by the nav for league switcher and to decide whether to show the lower bar.
+ * Optional `?previewSlug=` for site admins: merge that league for nav (Open league from admin) when not a member.
  */
-export async function GET() {
+export async function GET(req: Request) {
   const leagues = await getLeaguesForUser();
+  const url = new URL(req.url);
+  const previewSlug = (url.searchParams.get("previewSlug") ?? "").trim().toLowerCase();
+
   const payload = leagues.map((l) => ({
     slug: l.slug,
     name: l.name,
@@ -16,5 +21,38 @@ export async function GET() {
     season_slug: (l as { season_slug?: string | null }).season_slug ?? null,
     visibility_type: (l as { visibility_type?: string | null }).visibility_type ?? "private",
   }));
+
+  if (
+    previewSlug &&
+    !payload.some((p) => p.slug === previewSlug) &&
+    (await getIsSiteAdmin())
+  ) {
+    const admin = getAdminClient();
+    if (admin) {
+      const { data } = await admin
+        .from("leagues")
+        .select("slug, name, league_type, season_slug, visibility_type")
+        .eq("slug", previewSlug)
+        .maybeSingle();
+      const row = data as {
+        slug: string;
+        name: string;
+        league_type: string | null;
+        season_slug: string | null;
+        visibility_type: string | null;
+      } | null;
+      if (row?.slug) {
+        payload.push({
+          slug: row.slug,
+          name: row.name,
+          role: "owner",
+          league_type: row.league_type ?? null,
+          season_slug: row.season_slug ?? null,
+          visibility_type: row.visibility_type ?? "private",
+        });
+      }
+    }
+  }
+
   return NextResponse.json({ leagues: payload });
 }

@@ -10,6 +10,7 @@ import type { Profile } from "@/lib/profiles";
 import { siteLogoHref } from "@/lib/siteLogo";
 import { computeFantasyHomeHref, getLeagueSlugFromPath } from "@/lib/fantasyHomeHref";
 import { pleDefaultHref, pleHrefForEntry, pleNavEntriesForSeasonSlug, type PleNavEntry } from "@/lib/pleLeagueMenu";
+import { leagueShowsMatchupsInNav } from "@/lib/leagueNavVisibility";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
@@ -166,7 +167,7 @@ export default function Nav() {
     window.addEventListener("draftastic-profile-updated", onProfileUpdated);
     fetch("/api/me/leagues")
       .then((r) => r.json())
-      .then((data) => {
+      .then((data: { leagues?: LeagueItem[] }) => {
         const list = data?.leagues ?? [];
         setLeagues(list);
         try {
@@ -182,6 +183,29 @@ export default function Nav() {
   }, [user?.id]);
 
   const slugFromPath = getLeagueSlugFromPath(pathname);
+
+  /** Site admins previewing a league from internal admin are not members — merge nav metadata for that slug. */
+  useEffect(() => {
+    if (!user?.id || !profile?.is_site_admin || !slugFromPath) return;
+    let cancelled = false;
+    fetch(`/api/me/leagues?previewSlug=${encodeURIComponent(slugFromPath)}`)
+      .then((r) => r.json())
+      .then((data: { leagues?: LeagueItem[] }) => {
+        if (cancelled) return;
+        const list = data?.leagues ?? [];
+        setLeagues((prev) => {
+          const bySlug = new Map(prev.map((x) => [x.slug, x]));
+          for (const l of list) {
+            bySlug.set(l.slug, l);
+          }
+          return Array.from(bySlug.values());
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, profile?.is_site_admin, slugFromPath]);
   useEffect(() => {
     if (slugFromPath) {
       setLastVisitedSlug(slugFromPath);
@@ -656,7 +680,7 @@ export default function Nav() {
                   Statistics
                 </Link>
               </li>
-              {currentLeague?.league_type !== "season_overall" && (
+              {currentLeague && leagueShowsMatchupsInNav(currentLeague.league_type) && (
                 <li>
                   <Link
                     href={currentLeagueSlug ? `/leagues/${currentLeagueSlug}/matchups` : "#"}
@@ -761,7 +785,7 @@ export default function Nav() {
                     </li>
                   );
                 })}
-              {(hoverPrimary ?? activePrimary) === "matchups" && currentLeague?.league_type !== "season_overall" && (
+              {(hoverPrimary ?? activePrimary) === "matchups" && leagueShowsMatchupsInNav(currentLeague?.league_type) && (
                 <li>
                   <span className="nav-secondary-context">Matchups</span>
                 </li>

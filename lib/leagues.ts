@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { getRosterRulesForLeagueId, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
 import { getDefaultStartEndForSeason, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
@@ -280,6 +281,7 @@ export async function createLeague(params: {
 
 /**
  * Get a league by slug. Returns null if not found or user is not a member.
+ * Site admins who are not members can still load any league (read-only member `owner` role) for support / preview.
  * If draft columns are missing (migration not run), returns league with default draft fields.
  * Wrapped in `cache()` so multiple callers in one RSC request share one auth + DB round-trip.
  */
@@ -324,8 +326,15 @@ export const getLeagueBySlug = cache(
       }
     }
 
-    if (result.error && !league) return null;
-    if (!league) return null;
+    if (!league) {
+      const isAdmin = await getIsSiteAdmin();
+      if (!isAdmin) return null;
+      const admin = getAdminClient();
+      if (!admin) return null;
+      const adminResult = await admin.from("leagues").select(fullSelect).eq("slug", slug).maybeSingle();
+      league = adminResult.data as typeof league;
+      if (!league) return null;
+    }
 
     const { data: member } = await supabase
       .from("league_members")
@@ -334,8 +343,15 @@ export const getLeagueBySlug = cache(
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!member) return null;
-    return { ...league, role: member.role } as League & { role: "commissioner" | "owner" };
+    if (member) {
+      return { ...league, role: member.role } as League & { role: "commissioner" | "owner" };
+    }
+
+    if (await getIsSiteAdmin()) {
+      return { ...league, role: "owner" } as League & { role: "commissioner" | "owner" };
+    }
+
+    return null;
   }
 );
 
