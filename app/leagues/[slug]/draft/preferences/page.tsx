@@ -60,7 +60,7 @@ export default async function DraftPreferencesPage({ params }: Props) {
       };
       let result: { data: Record<string, unknown>[] | null; error: { message?: string } | null } = await supabase
         .from("wrestlers")
-        .select("id, name, gender, status, brand, classification")
+        .select('id, name, gender, "Status", brand, "Classification"')
         .order("name", { ascending: true });
       if (result.error) {
         result = await supabase
@@ -72,7 +72,7 @@ export default async function DraftPreferencesPage({ params }: Props) {
       if (result.error && !rawRows.length) {
         const fallback = await supabase
           .from("wrestlers")
-          .select("id, name, gender, status, brand, classification")
+          .select('id, name, gender, "Status", brand, "Classification"')
           .order("name", { ascending: true });
         rawRows = (fallback.data ?? []) as Record<string, unknown>[];
       }

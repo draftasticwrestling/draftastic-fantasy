@@ -19,14 +19,7 @@ const MIN_DISPLAY_LEN = 3;
 export async function fetchWrestlerAutolinkEntries(
   supabase: SupabaseClient
 ): Promise<WrestlerAutolinkEntry[]> {
-  let result = await supabase
-    .from("wrestlers")
-    .select("id, name")
-    .or("status.is.null,status.neq.Inactive")
-    .order("name", { ascending: true });
-  if (result.error) {
-    result = await supabase.from("wrestlers").select("id, name").order("name", { ascending: true });
-  }
+  const result = await supabase.from("wrestlers").select("id, name").order("name", { ascending: true });
   const rows = result.data ?? [];
   const byNorm = new Map<string, WrestlerAutolinkEntry>();
   for (const r of rows) {

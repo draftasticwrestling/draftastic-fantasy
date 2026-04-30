@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
-import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import {
   getPointsByOwnerForLeagueWithBonuses,
 } from "@/lib/leagueMatchups";
@@ -26,7 +25,6 @@ import { getLeagueEventDayViewerSection } from "@/lib/league/getLeagueEventDayVi
 import { LeagueEventDayRosterCard } from "./LeagueEventDayRosterCard";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import SeasonCompletePlacementModal from "./SeasonCompletePlacementModal";
-import { AdminOwnerPerspectiveSwitcher } from "./AdminOwnerPerspectiveSwitcher";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -111,7 +109,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
     const { supabase, user: currentUser } = await getServerAuth();
 
-    const [membersData, rostersData, wrestlersData, pointsByOwner, isSiteAdminViewer] = await Promise.all([
+    const [membersData, rostersData, wrestlersData, pointsByOwner] = await Promise.all([
       getLeagueMembers(league.id),
       getRostersForLeague(league.id),
       (async () => {
@@ -128,7 +126,6 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         }[];
       })(),
       getPointsByOwnerForLeagueWithBonuses(league.id),
-      getIsSiteAdmin(),
     ]);
     members = membersData;
     rosters = rostersData;
@@ -185,9 +182,6 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
     const isCommissioner = league.role === "commissioner";
     const currentUserMember = currentUser ? members.find((m) => m.user_id === currentUser.id) : null;
-    // Internal-admin preview path can load a league even when viewer is not a member.
-    // In that case, force-enable owner POV tools for support review.
-    const showAdminOwnerPerspectiveTools = isSiteAdminViewer || !currentUserMember;
     const commissionerMember = members.find((m) => m.role === "commissioner");
     const creatorLabel = factionDisplayName(commissionerMember, "GM");
     const maxTeams = league.max_teams ?? 12;
@@ -335,17 +329,6 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               <span>Format: {formatLeagueType(league.league_type)}</span>
               <span>Factions: {members.length}{maxTeams ? ` / ${maxTeams}` : ""}</span>
             </p>
-            {showAdminOwnerPerspectiveTools ? (
-              <AdminOwnerPerspectiveSwitcher
-                leagueSlug={slug}
-                members={members.map((m) => ({
-                  user_id: m.user_id,
-                  display_name: m.display_name ?? null,
-                  team_name: m.team_name ?? null,
-                  role: m.role,
-                }))}
-              />
-            ) : null}
             {showAlert && (
               <div className="lm-alert" role="alert">
                 {leagueNotFull ? "Your league is not full." : null}

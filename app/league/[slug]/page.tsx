@@ -84,7 +84,7 @@ export default async function TeamPage({
       .order("date", { ascending: true }),
     supabase
       .from("championship_history")
-      .select("champion_slug, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
+      .select("champion_slug, champion, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
     getDraftPicksForOwner(EXAMPLE_LEAGUE.slug, DEFAULT_SEASON, slug),
     getHoldingsForOwner(EXAMPLE_LEAGUE.slug, slug),

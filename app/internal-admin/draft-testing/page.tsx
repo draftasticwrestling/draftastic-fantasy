@@ -72,7 +72,7 @@ export default async function DraftTestingPage() {
       .order("date", { ascending: true }),
     supabase
       .from("championship_history")
-      .select("champion_slug, champion, champion_name, title, title_name, won_date, start_date, lost_date, end_date")
+      .select("champion_slug, champion, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
   ]);
 
@@ -86,7 +86,7 @@ export default async function DraftTestingPage() {
   if (wrestlersResult.error && wrestlersRows == null) {
     const withoutStatus = await supabase
       .from("wrestlers")
-      .select('id, name, gender, brand, dob, image_url, status, "Status", classification, "Classification", "2K26 rating", "2K25 rating"')
+      .select('id, name, gender, brand, dob, image_url, "Status", "Classification", "2K26 rating", "2K25 rating"')
       .order("name", { ascending: true });
     if (!withoutStatus.error && withoutStatus.data != null) {
       wrestlersRows = withoutStatus.data as WrestlerRow[];
@@ -97,7 +97,7 @@ export default async function DraftTestingPage() {
   if (wrestlersRows == null || wrestlersRows.length === 0) {
     const with26 = await supabase
       .from("wrestlers")
-      .select('id, name, gender, brand, dob, image_url, status, "Status", classification, "Classification", "2K26 rating"')
+      .select('id, name, gender, brand, dob, image_url, "Status", "Classification", "2K26 rating"')
       .order("name", { ascending: true });
     if (!with26.error && with26.data != null) {
       wrestlersRows = with26.data as WrestlerRow[];
@@ -106,7 +106,7 @@ export default async function DraftTestingPage() {
     } else {
       const with25 = await supabase
         .from("wrestlers")
-        .select('id, name, gender, brand, dob, image_url, status, "Status", classification, "Classification", "2K25 rating"')
+        .select('id, name, gender, brand, dob, image_url, "Status", "Classification", "2K25 rating"')
         .order("name", { ascending: true });
       if (!with25.error && with25.data != null) {
         wrestlersRows = with25.data as WrestlerRow[];
@@ -115,7 +115,7 @@ export default async function DraftTestingPage() {
       } else {
         const noRating = await supabase
           .from("wrestlers")
-          .select('id, name, gender, brand, dob, image_url, status, "Status", classification, "Classification"')
+          .select('id, name, gender, brand, dob, image_url, "Status", "Classification"')
           .order("name", { ascending: true });
         if (!noRating.error && noRating.data != null) {
           wrestlersRows = noRating.data as WrestlerRow[];
@@ -127,7 +127,7 @@ export default async function DraftTestingPage() {
   if (wrestlersRows == null || wrestlersRows.length === 0) {
     const noClassification = await supabase
       .from("wrestlers")
-      .select('id, name, gender, brand, dob, image_url, status, "Status", "2K26 rating", "2K25 rating"')
+      .select('id, name, gender, brand, dob, image_url, "Status", "2K26 rating", "2K25 rating"')
       .order("name", { ascending: true });
     if (!noClassification.error && noClassification.data != null && noClassification.data.length > 0) {
       wrestlersRows = noClassification.data as WrestlerRow[];
@@ -147,19 +147,7 @@ export default async function DraftTestingPage() {
       has2k25 = true;
     }
   }
-  // If Status column doesn't exist, try lowercase (Postgres may store as "status")
-  if (wrestlersRows != null && wrestlersRows.length > 0) {
-    const first = wrestlersRows[0] as Record<string, unknown>;
-    if (first.Status == null && first.status == null) {
-      const withStatus = await supabase
-        .from("wrestlers")
-        .select('id, name, gender, brand, dob, image_url, status, "2K26 rating", "2K25 rating"')
-        .order("name", { ascending: true });
-      if (!withStatus.error && withStatus.data != null && withStatus.data.length > 0) {
-        wrestlersRows = withStatus.data as WrestlerRow[];
-      }
-    }
-  }
+  // Status is read from the canonical quoted "Status" column.
 
   const tableReigns = (rawReigns ?? []) as Array<{
     champion_slug?: string | null;

@@ -1358,8 +1358,8 @@ export async function getTopAvailableWrestlerByPoints(
 
   const needGender = options?.requiredGender ?? null;
   const selectCols = needGender
-    ? 'id, gender, status, "Status", brand, classification, "Classification"'
-    : 'id, status, "Status", brand, classification, "Classification"';
+    ? 'id, gender, "Status", brand, "Classification"'
+    : 'id, "Status", brand, "Classification"';
   let wrestlersRes = await supabase.from("wrestlers").select(selectCols).order("id");
   let list = ((wrestlersRes.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   if (wrestlersRes.error && !list.length) {
@@ -1367,7 +1367,7 @@ export async function getTopAvailableWrestlerByPoints(
     list = ((fallback.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   }
   if (!list.length) {
-    const noClassification = await supabase.from("wrestlers").select(needGender ? "id, gender, status, \"Status\", brand" : 'id, status, "Status", brand').order("id");
+    const noClassification = await supabase.from("wrestlers").select(needGender ? 'id, gender, "Status", brand' : 'id, "Status", brand').order("id");
     list = ((noClassification.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as (DraftPoolRow & { gender?: string | null })[];
   }
   list = list.filter(isDraftableWrestler).filter((w): w is (DraftPoolRow & { id: string; gender?: string | null }) => Boolean(w.id));
@@ -1520,15 +1520,15 @@ export async function getTopAvailableWrestlerForUser(
   let wrestlers: WrestlerRow[] | null = null;
   const wrestlersRes = await supabase
     .from("wrestlers")
-    .select('id, gender, brand, status, "Status", classification, "Classification", "2K26 rating", "2K25 rating"')
+    .select('id, gender, brand, "Status", "Classification", "2K26 rating", "2K25 rating"')
     .order("id");
   let rawWrestlers = wrestlersRes.data as (Record<string, unknown> & { id: string })[] | null;
   if (wrestlersRes.error && (!rawWrestlers || !rawWrestlers.length)) {
-    const fallback = await supabase.from("wrestlers").select('id, gender, brand, status, "Status", classification, "Classification"').order("id");
+    const fallback = await supabase.from("wrestlers").select('id, gender, brand, "Status", "Classification"').order("id");
     rawWrestlers = fallback.data as (Record<string, unknown> & { id: string })[] | null;
   }
   if (!rawWrestlers?.length) {
-    const noClassification = await supabase.from("wrestlers").select('id, gender, brand, status, "Status"').order("id");
+    const noClassification = await supabase.from("wrestlers").select('id, gender, brand, "Status"').order("id");
     rawWrestlers = noClassification.data as (Record<string, unknown> & { id: string })[] | null;
   }
   wrestlers = (rawWrestlers ?? []).map((w) => ({ ...w, ...normalizeWrestlerRowFromApi(w) })).filter(isDraftableWrestler) as WrestlerRow[];
@@ -1878,7 +1878,7 @@ async function findFirstUndraftedAutopickRawSdWrestlerId(
   draftedIds: Set<string>,
   requiredGender: "F" | "M" | null
 ): Promise<string | null> {
-  const selectCols = 'id, name, gender, status, "Status", brand, classification, "Classification"';
+  const selectCols = 'id, name, gender, "Status", brand, "Classification"';
   let wrestlersRes = await admin.from("wrestlers").select(selectCols).order("id");
   let list = ((wrestlersRes.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
     ...r,
@@ -1892,7 +1892,7 @@ async function findFirstUndraftedAutopickRawSdWrestlerId(
     })) as (DraftPoolRow & { id?: string })[];
   }
   if (!list.length) {
-    const noClassification = await admin.from("wrestlers").select('id, name, gender, status, "Status", brand').order("id");
+    const noClassification = await admin.from("wrestlers").select('id, name, gender, "Status", brand').order("id");
     list = ((noClassification.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
       ...r,
       ...normalizeWrestlerRowFromApi(r),
@@ -1926,7 +1926,7 @@ async function pickAutopickLeagueWrestler(
   championsBySlug: Record<string, string[]>,
   eventPointsBySlug?: ReturnType<typeof aggregateWrestlerPoints> | null
 ): Promise<string | null> {
-  const selectCols = 'id, name, gender, status, "Status", brand, classification, "Classification"';
+  const selectCols = 'id, name, gender, "Status", brand, "Classification"';
   let wrestlersRes = await admin.from("wrestlers").select(selectCols).order("id");
   let list = ((wrestlersRes.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
     ...r,
@@ -1940,7 +1940,7 @@ async function pickAutopickLeagueWrestler(
     })) as (DraftPoolRow & { gender?: string | null; id?: string })[];
   }
   if (!list.length) {
-    const noClassification = await admin.from("wrestlers").select('id, name, gender, status, "Status", brand').order("id");
+    const noClassification = await admin.from("wrestlers").select('id, name, gender, "Status", brand').order("id");
     list = ((noClassification.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
       ...r,
       ...normalizeWrestlerRowFromApi(r),
@@ -1999,8 +1999,8 @@ async function getBestAutopickWrestlerAllTimeTotal(
 ): Promise<string | null> {
   const selectCols =
     needGender != null
-      ? 'id, name, gender, status, "Status", brand, classification, "Classification"'
-      : 'id, name, status, "Status", brand, classification, "Classification"';
+      ? 'id, name, gender, "Status", brand, "Classification"'
+      : 'id, name, "Status", brand, "Classification"';
   let wrestlersRes = await admin.from("wrestlers").select(selectCols).order("id");
   let list = ((wrestlersRes.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
     ...r,
@@ -2016,7 +2016,7 @@ async function getBestAutopickWrestlerAllTimeTotal(
   if (!list.length) {
     const noClassification = await admin
       .from("wrestlers")
-      .select(needGender != null ? 'id, name, gender, status, "Status", brand' : 'id, name, status, "Status", brand')
+      .select(needGender != null ? 'id, name, gender, "Status", brand' : 'id, name, "Status", brand')
       .order("id");
     list = ((noClassification.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
       ...r,
@@ -2051,7 +2051,7 @@ async function getAnyUndraftedDraftableWrestlerId(
 ): Promise<string | null> {
   const { data } = await admin
     .from("wrestlers")
-    .select('id, status, "Status", brand, classification, "Classification"')
+    .select('id, "Status", brand, "Classification"')
     .order("id");
   const rows = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
     ...r,
@@ -2073,7 +2073,7 @@ async function getAnyUndraftedAutopickWrestlerId(
 ): Promise<string | null> {
   const { data } = await admin
     .from("wrestlers")
-    .select('id, status, "Status", brand, classification, "Classification"')
+    .select('id, "Status", brand, "Classification"')
     .order("id");
   const rows = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
     ...r,

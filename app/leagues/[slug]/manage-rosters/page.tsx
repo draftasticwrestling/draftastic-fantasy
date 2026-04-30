@@ -39,21 +39,21 @@ export default async function ManageRostersPage({
 
   const primary = await db
     .from("wrestlers")
-    .select('id, name, gender, status, "Status", brand, roster, "Roster", classification, "Classification"')
+    .select('id, name, gender, "Status", brand, roster, "Roster", "Classification"')
     .order("name", { ascending: true });
   if (!primary.error) {
     result = (primary.data ?? []) as Record<string, unknown>[];
   } else {
     const fallback = await db
       .from("wrestlers")
-      .select('id, name, gender, status, "Status", brand, classification, "Classification"')
+      .select('id, name, gender, "Status", brand, "Classification"')
       .order("name", { ascending: true });
     if (!fallback.error) {
       result = (fallback.data ?? []) as Record<string, unknown>[];
     } else {
       const minimal = await db
         .from("wrestlers")
-        .select('id, name, gender, brand, status, "Status"')
+        .select('id, name, gender, brand, "Status"')
         .order("name", { ascending: true });
       result = minimal.error ? [] : ((minimal.data ?? []) as Record<string, unknown>[]);
     }
