@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
-import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
+import { getLeagueBySlug, getLeagueMembersWithAdminFallback } from "@/lib/leagues";
 import { factionDisplayName } from "@/lib/factionName";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
 
@@ -18,9 +19,10 @@ export default async function TeamScoreboardPage({ params }: Props) {
   const { supabase, user } = await getServerAuth();
   if (!user) notFound();
 
-  const members = await getLeagueMembers(league.id);
+  const members = await getLeagueMembersWithAdminFallback(league.id);
   const isMember = members.some((m) => m.user_id === user.id);
-  if (!isMember) notFound();
+  const isSiteAdminViewer = await getIsSiteAdmin();
+  if (!isMember && !isSiteAdminViewer) notFound();
 
   const teamMember = members.find((m) => m.user_id === userId);
   if (!teamMember) notFound();

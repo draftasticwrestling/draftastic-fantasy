@@ -2,10 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import {
   getLeagueBySlug,
   getLeagueMembers,
+  getLeagueMembersWithAdminFallback,
   getRostersForLeague,
+  getRostersForLeagueAdmin,
   getEffectiveLeagueStartDate,
 } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
@@ -118,14 +121,22 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const { supabase, user: currentUser } = await getServerAuth();
   if (!currentUser) notFound();
 
-  const [members, rosters, pointsWithBonuses, teamScoringAudit] = await Promise.all([
-    getLeagueMembers(league.id),
+  const [members, rostersData, pointsWithBonuses, teamScoringAudit] = await Promise.all([
+    getLeagueMembersWithAdminFallback(league.id),
     getRostersForLeague(league.id),
     getPointsByOwnerForLeagueWithBonuses(league.id),
     getTeamScoringAudit(league.id, userId),
   ]);
   const isMember = members.some((m) => m.user_id === currentUser.id);
-  if (!isMember) notFound();
+  const isSiteAdminViewer = await getIsSiteAdmin();
+  if (!isMember && !isSiteAdminViewer) notFound();
+
+  // Admin support preview: if RLS hides league_rosters for non-member admins, fallback to service-role rosters.
+  let rosters = rostersData;
+  if (isSiteAdminViewer && !(rosters[userId]?.length > 0)) {
+    const adminRosters = await getRostersForLeagueAdmin(league.id);
+    if (adminRosters[userId]?.length) rosters = adminRosters;
+  }
 
   const targetMember = members.find((m) => m.user_id === userId);
   if (!targetMember) notFound();
@@ -154,7 +165,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     (
       await supabase
         .from("wrestlers")
-        .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+        .select('id, name, gender, brand, image_url, full_body_image_url, dob, "Status", "2K26 rating", "2K25 rating"')
         .order("name", { ascending: true })
     ).data ?? [];
   const wrestlerNamesMap = Object.fromEntries(wrestlers.map((w) => [w.id, w.name ?? w.id]));
@@ -225,7 +236,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       );
     }
     const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
-    rosterTableRows = fullWrestlers.map((w: { id: string; name: string | null; gender: string | null; brand: string | null; image_url?: string | null; dob?: string | null; Status?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null }) => {
+    rosterTableRows = fullWrestlers.map((w: { id: string; name: string | null; gender: string | null; brand: string | null; image_url?: string | null; full_body_image_url?: string | null; dob?: string | null; Status?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null }) => {
       const slugKey = w.id;
       const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
       const idKey = normalizeWrestlerName(String(w.id));
@@ -253,6 +264,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         gender: w.gender ?? null,
         brand: w.brand ?? null,
         image_url: (w as { image_url?: string }).image_url ?? null,
+        full_body_image_url: (w as { full_body_image_url?: string }).full_body_image_url ?? null,
         dob: (w as { dob?: string }).dob ?? null,
         rating_2k26: read2kRating(w as Record<string, unknown>, "2K26 rating"),
         rating_2k25: read2kRating(w as Record<string, unknown>, "2K25 rating"),
@@ -335,6 +347,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         rating_2k25: w.rating_2k25,
         championBeltImageUrl: w.championBeltImageUrl,
         image_url: w.image_url,
+        full_body_image_url: (w as { full_body_image_url?: string | null }).full_body_image_url ?? null,
       };
     });
     const wrestlerNameByIdForSimple = Object.fromEntries(
@@ -476,29 +489,6 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   );
   if (upcomingFactionCards.length > MAX_UPCOMING_CARDS) {
     upcomingFactionCards = upcomingFactionCards.slice(0, MAX_UPCOMING_CARDS);
-  }
-
-  let upcomingMatchesSource: "upcoming" | "completed" = "upcoming";
-  if (upcomingFactionCards.length === 0) {
-    upcomingMatchesSource = "completed";
-    const { data: completedRows } = await supabase
-      .from("events")
-      .select("id, name, date, location, matches, status")
-      .eq("status", "completed")
-      .order("date", { ascending: false })
-      .order("name", { ascending: true })
-      .limit(24);
-    for (const ev of (completedRows ?? []) as LeagueEventDayRow[]) {
-      eventByIdForFactionCards.set(ev.id, ev);
-      const chunk = buildFactionUpcomingRosterCards(
-        ev,
-        targetRosterWrestlerIds,
-        wrestlerNameByIdForRecent,
-        wrestlerImageById
-      );
-      upcomingFactionCards.push(...chunk);
-      if (upcomingFactionCards.length >= MAX_UPCOMING_CARDS) break;
-    }
   }
 
   upcomingFactionCards.sort((a, b) => {
@@ -651,11 +641,6 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         </div>
         <div>
           <h2 style={{ fontSize: "1.3rem", margin: "0 0 6px", fontWeight: 700 }}>Upcoming Matches</h2>
-          {upcomingMatchesSource === "completed" && upcomingFactionCards.length > 0 ? (
-            <p style={{ margin: "0 0 10px", fontSize: 12, color: "#666" }}>
-              No upcoming schedule found — showing this faction’s most recent completed appearances instead.
-            </p>
-          ) : null}
           {upcomingFactionCards.length > 0 ? (
             <div
               style={{
@@ -815,8 +800,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             </div>
           ) : (
             <p style={{ margin: 0, fontSize: 14, color: "#666" }}>
-              No upcoming scheduled matches were found for this faction, and no completed matches with this roster are
-              available yet.
+              No upcoming matches yet.
             </p>
           )}
         </div>
@@ -854,6 +838,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 rating_2k25: w.rating_2k25,
                 championBeltImageUrl: w.championBeltImageUrl,
                 image_url: w.image_url,
+                full_body_image_url: (w as { full_body_image_url?: string | null }).full_body_image_url ?? null,
               };
             })}
             leagueSlug={slug}

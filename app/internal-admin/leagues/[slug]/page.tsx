@@ -15,6 +15,7 @@ import {
   adminRemoveUserFromLeagueAction,
   adminUnarchiveLeagueAction,
 } from "../actions";
+import { MemberPovQuickNav } from "./MemberPovQuickNav";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -242,6 +243,16 @@ export default async function InternalAdminLeagueDetailPage({
           Could not approve draft. Refresh and try again.
         </p>
       ) : null}
+
+      <MemberPovQuickNav
+        leagueSlug={league.slug}
+        members={members.map((m) => ({
+          user_id: m.user_id,
+          role: m.role,
+          team_name: m.team_name ?? null,
+          display_name: m.display_name ?? null,
+        }))}
+      />
 
       <section style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: "1.05rem", marginBottom: 12 }}>Details</h2>

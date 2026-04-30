@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fragment } from "react";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import {
+  getLeagueBySlug,
+  getLeagueMembers,
+  getLeagueMembersWithAdminFallback,
+  getRostersForLeague,
+  getRostersForLeagueAdmin,
+} from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { factionDisplayName } from "@/lib/factionName";
 import {
@@ -158,12 +164,17 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const [members, pointsByOwner, upcomingEvents, rosters] = await Promise.all([
-    getLeagueMembers(league.id),
+  const [members, pointsByOwner, upcomingEvents, rostersData] = await Promise.all([
+    getLeagueMembersWithAdminFallback(league.id),
     getPointsByOwnerForLeagueWithBonuses(league.id),
     getUpcomingWrestleManiaEvents(),
     getRostersForLeague(league.id),
   ]);
+  let rosters = rostersData;
+  if (Object.keys(rostersData).length === 0 && members.length > 0) {
+    const adminRosters = await getRostersForLeagueAdmin(league.id);
+    if (Object.keys(adminRosters).length > 0) rosters = adminRosters;
+  }
 
   const pointsByUserId = pointsByOwner ?? {};
   const membersByPoints = [...members].sort(

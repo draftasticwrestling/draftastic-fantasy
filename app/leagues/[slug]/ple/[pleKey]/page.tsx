@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fragment } from "react";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import {
+  getLeagueBySlug,
+  getLeagueMembers,
+  getLeagueMembersWithAdminFallback,
+  getRostersForLeague,
+  getRostersForLeagueAdmin,
+} from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { factionDisplayName } from "@/lib/factionName";
 import { ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
@@ -95,15 +101,20 @@ export default async function PleRtsSlotPage({ params }: Props) {
   const leagueDraftStatus = String((league as { draft_status?: string | null }).draft_status ?? "not_started");
   const hasDraftedTeams = leagueDraftStatus === "ready_for_review" || leagueDraftStatus === "completed";
 
-  const [members, pointsByOwner, rosters]: [
+  const [members, pointsByOwner, rostersData]: [
     Awaited<ReturnType<typeof getLeagueMembers>>,
     Awaited<ReturnType<typeof getPointsByOwnerForLeagueWithBonuses>>,
     Awaited<ReturnType<typeof getRostersForLeague>>,
   ] = await Promise.all([
-    getLeagueMembers(league.id),
+    getLeagueMembersWithAdminFallback(league.id),
     getPointsByOwnerForLeagueWithBonuses(league.id),
     hasDraftedTeams ? getRostersForLeague(league.id) : Promise.resolve({} as Awaited<ReturnType<typeof getRostersForLeague>>),
   ]);
+  let rosters = rostersData;
+  if (hasDraftedTeams && Object.keys(rostersData).length === 0 && members.length > 0) {
+    const adminRosters = await getRostersForLeagueAdmin(league.id);
+    if (Object.keys(adminRosters).length > 0) rosters = adminRosters;
+  }
 
   const pointsByUserId = pointsByOwner ?? {};
   const membersByPoints = [...members].sort(

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
-import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
+import { getLeagueBySlug, getLeagueMembersWithAdminFallback } from "@/lib/leagues";
 import { factionDisplayName } from "@/lib/factionName";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
 
@@ -15,7 +16,7 @@ export async function generateMetadata({ params }: Props) {
     const { slug, userId } = await params;
     const league = await getLeagueBySlug(slug);
     if (!league) return { title: "Former roster — Draftastic Fantasy" };
-    const members = await getLeagueMembers(league.id);
+    const members = await getLeagueMembersWithAdminFallback(league.id);
     const m = members.find((x) => x.user_id === userId);
     const name = factionDisplayName(m, "Faction");
     return {
@@ -38,9 +39,10 @@ export default async function TeamFormerRosterPage({ params }: Props) {
     redirect(`/auth/sign-in?next=${encodeURIComponent(next)}`);
   }
 
-  const members = await getLeagueMembers(league.id);
+  const members = await getLeagueMembersWithAdminFallback(league.id);
   const isMember = members.some((m) => m.user_id === user.id);
-  if (!isMember) notFound();
+  const isSiteAdminViewer = await getIsSiteAdmin();
+  if (!isMember && !isSiteAdminViewer) notFound();
 
   const teamMember = members.find((m) => m.user_id === userId);
   if (!teamMember) notFound();

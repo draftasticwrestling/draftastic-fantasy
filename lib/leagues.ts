@@ -531,6 +531,80 @@ export const getLeagueMembers = cache(async (leagueId: string): Promise<LeagueMe
 });
 
 /**
+ * Member list with site-admin fallback:
+ * - Uses normal member-scoped reader first (RLS)
+ * - If empty and viewer is site admin, uses service role to read members for support preview tools
+ */
+export async function getLeagueMembersWithAdminFallback(leagueId: string): Promise<LeagueMember[]> {
+  const fromRls = await getLeagueMembers(leagueId);
+  if (fromRls.length > 0) return fromRls;
+  if (!(await getIsSiteAdmin())) return fromRls;
+
+  const admin = getAdminClient();
+  if (!admin) return fromRls;
+
+  type AdminMemberRow = {
+    id?: string;
+    league_id?: string;
+    user_id: string;
+    role: "commissioner" | "owner";
+    joined_at?: string;
+    team_name?: string | null;
+    faction_emoji?: string | null;
+    manager_avatar_url?: string | null;
+    manager_catchphrase?: string | null;
+  };
+
+  const full = await admin
+    .from("league_members")
+    .select(
+      "id, league_id, user_id, role, joined_at, team_name, faction_emoji, manager_avatar_url, manager_catchphrase"
+    )
+    .eq("league_id", leagueId)
+    .order("joined_at", { ascending: true });
+
+  let rows: AdminMemberRow[] = [];
+  if (full.error) {
+    const fallback = await admin
+      .from("league_members")
+      .select("id, league_id, user_id, role, joined_at, team_name, faction_emoji")
+      .eq("league_id", leagueId)
+      .order("joined_at", { ascending: true });
+    if (fallback.error) return fromRls;
+    rows = (fallback.data ?? []) as AdminMemberRow[];
+  } else {
+    rows = (full.data ?? []) as AdminMemberRow[];
+  }
+  if (rows.length === 0) return fromRls;
+
+  const userIds = [...new Set(rows.map((r) => r.user_id))];
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("id, display_name, avatar_url")
+    .in("id", userIds);
+  const profileByUserId = Object.fromEntries(
+    (profiles ?? []).map((p) => [p.id, p as { display_name: string | null; avatar_url: string | null }])
+  );
+
+  return rows.map((r) => {
+    const p = profileByUserId[r.user_id];
+    return {
+      id: r.id ?? `${leagueId}:${r.user_id}`,
+      league_id: r.league_id ?? leagueId,
+      user_id: r.user_id,
+      role: r.role,
+      joined_at: r.joined_at ?? "",
+      team_name: r.team_name ?? null,
+      faction_emoji: r.faction_emoji ?? null,
+      manager_avatar_url: r.manager_avatar_url ?? null,
+      manager_catchphrase: r.manager_catchphrase ?? null,
+      display_name: p?.display_name ?? null,
+      avatar_url: p?.avatar_url ?? null,
+    };
+  });
+}
+
+/**
  * Get league member user_ids using service role. For use by cron/scheduled jobs (e.g. draft order at 1hr before).
  */
 export async function getLeagueMemberUserIdsForAdmin(leagueId: string): Promise<string[]> {

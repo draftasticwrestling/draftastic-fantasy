@@ -32,6 +32,7 @@ export type RosterCardWrestler = {
   rating_2k25?: number | null;
   championBeltImageUrl?: string | null;
   image_url?: string | null;
+  full_body_image_url?: string | null;
 };
 
 /** Full-body card photo with fallback to headshot URL (same behavior as previous native onError). */
@@ -124,7 +125,7 @@ function WrestlerCard({
   const rating = w.rating_2k26 ?? w.rating_2k25 ?? null;
   const ppm = w.mw > 0 ? w.totalPoints / w.mw : 0;
   const profileHref = `/wrestlers/${encodeURIComponent(w.id)}?league=${encodeURIComponent(leagueSlug)}&from=team`;
-  const fullImageUrl = getWrestlerFullImageUrl(w.id);
+  const fullImageUrl = (w.full_body_image_url ?? "").trim() || getWrestlerFullImageUrl(w.id);
   const displayName = (w.name || w.id).toUpperCase();
   const brandLower = (w.brand ?? "").toLowerCase().trim();
   const isRaw = brandLower === "raw";
