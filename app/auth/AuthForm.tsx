@@ -46,10 +46,13 @@ export function AuthForm({ mode, searchParams }: Props) {
   const next = resolvedParams?.next ?? "/";
   const errorFromUrl = resolvedParams?.error ? ERROR_MESSAGES[resolvedParams.error] ?? resolvedParams.error : null;
 
+  const normalizeEmail = (raw: string) => raw.trim().toLowerCase();
+
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
-    if (!email.trim() || !password) {
+    const emailNorm = normalizeEmail(email);
+    if (!emailNorm || !password) {
       setMessage({ type: "err", text: "Enter your email and password." });
       return;
     }
@@ -65,9 +68,14 @@ export function AuthForm({ mode, searchParams }: Props) {
     const supabase = createClient();
     try {
       if (mode === "sign-in") {
-        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        const { error } = await supabase.auth.signInWithPassword({ email: emailNorm, password });
         if (error) {
-          setMessage({ type: "err", text: error.message });
+          let text = error.message;
+          if (/email not confirmed|confirm your email|not verified/i.test(text)) {
+            text =
+              "Confirm your email before signing in. Check your inbox and spam for the confirmation link. If you never received it, try signing up again or use Forgot password (works after the account exists).";
+          }
+          setMessage({ type: "err", text });
           return;
         }
       } else {
@@ -79,7 +87,7 @@ export function AuthForm({ mode, searchParams }: Props) {
         params.set("ta", acceptedAt);
         if (marketingOptIn) params.set("mo", "1");
         const { error } = await supabase.auth.signUp({
-          email: email.trim(),
+          email: emailNorm,
           password,
           options: {
             data: {

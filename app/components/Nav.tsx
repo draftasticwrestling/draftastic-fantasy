@@ -11,6 +11,7 @@ import { siteLogoHref } from "@/lib/siteLogo";
 import { computeFantasyHomeHref, getLeagueSlugFromPath } from "@/lib/fantasyHomeHref";
 import { pleDefaultHref, pleHrefForEntry, pleNavEntriesForSeasonSlug, type PleNavEntry } from "@/lib/pleLeagueMenu";
 import { leagueShowsMatchupsInNav } from "@/lib/leagueNavVisibility";
+import { resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
@@ -440,7 +441,7 @@ export default function Nav() {
                   {profile?.avatar_url?.trim() ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={profile.avatar_url.trim()}
+                      src={resolveManagerPresetDisplayUrl(profile.avatar_url.trim())}
                       alt=""
                       width={28}
                       height={28}

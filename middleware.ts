@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { oauthLandingNextFromRequestUrl } from "@/lib/auth/oauthCallbackNext";
 import { updateSession } from "@/lib/supabase/middleware";
 import { DRAFTASTIC_MARKETING_LANDING_DOMAIN } from "@/lib/siteDomains";
 
@@ -23,7 +24,7 @@ export async function middleware(request: NextRequest) {
     const callbackUrl = request.nextUrl.clone();
     callbackUrl.pathname = "/auth/callback";
     if (!callbackUrl.searchParams.get("next")) {
-      callbackUrl.searchParams.set("next", `${path}${request.nextUrl.search}`);
+      callbackUrl.searchParams.set("next", oauthLandingNextFromRequestUrl(request.nextUrl));
     }
     return NextResponse.redirect(callbackUrl);
   }

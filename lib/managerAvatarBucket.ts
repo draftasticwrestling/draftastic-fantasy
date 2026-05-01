@@ -1,4 +1,4 @@
-import { isAllowedManagerPresetUrl } from "@/lib/managerAvatarPresets";
+import { isAllowedManagerPresetUrl, resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
 
 /** Supabase Storage bucket for manager profile avatars (public read). */
 export const MANAGER_AVATARS_BUCKET = "manager-avatars";
@@ -71,5 +71,6 @@ export function resolvedManagerAvatarUrl(m: {
   avatar_url?: string | null;
 }): string | null {
   const a = m.manager_avatar_url?.trim() || m.avatar_url?.trim();
-  return a || null;
+  if (!a) return null;
+  return resolveManagerPresetDisplayUrl(a);
 }

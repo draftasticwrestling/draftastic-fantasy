@@ -5,19 +5,44 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MANAGER_AVATARS_BUCKET } from "@/lib/managerAvatarBucket";
 import {
-  isPresetObjectPath,
+  isSqPresetObjectPath,
   managerAvatarPresetPublicUrl,
   presetFilenameToLabel,
+  resolveManagerPresetDisplayUrl,
 } from "@/lib/managerAvatarPresets";
 
 type PresetItem = { objectPath: string; url: string; label: string };
 
+/** Same basename often exists at bucket root and under `presets/`; keep one (prefer root). */
+function dedupePresetItemsByBasename(items: PresetItem[]): PresetItem[] {
+  const byBasename = new Map<string, PresetItem>();
+  for (const item of items) {
+    const basename = item.objectPath.split("/").pop()?.toLowerCase() ?? "";
+    if (!basename) continue;
+    const existing = byBasename.get(basename);
+    if (!existing) {
+      byBasename.set(basename, item);
+      continue;
+    }
+    const tier = (p: string) => (p.startsWith("presets/") ? 1 : 0);
+    const tNew = tier(item.objectPath);
+    const tOld = tier(existing.objectPath);
+    if (tNew < tOld) byBasename.set(basename, item);
+    else if (tNew === tOld && item.objectPath.length < existing.objectPath.length) {
+      byBasename.set(basename, item);
+    }
+  }
+  return [...byBasename.values()];
+}
+
 function urlsEqual(a: string | null | undefined, b: string): boolean {
   if (!a?.trim()) return false;
   try {
-    return new URL(a.trim()).href === new URL(b.trim()).href;
+    const ha = new URL(resolveManagerPresetDisplayUrl(a.trim())).href;
+    const hb = new URL(resolveManagerPresetDisplayUrl(b.trim())).href;
+    return ha === hb;
   } catch {
-    return a.trim() === b.trim();
+    return resolveManagerPresetDisplayUrl(a.trim()) === resolveManagerPresetDisplayUrl(b.trim());
   }
 }
 
@@ -76,7 +101,7 @@ export function ManagerAvatarPresetPicker({
           for (const row of presetsRes.data) {
             if (row.metadata == null || !row.name) continue;
             const objectPath = `presets/${row.name}`;
-            if (!isPresetObjectPath(objectPath)) continue;
+            if (!isSqPresetObjectPath(objectPath)) continue;
             const url = managerAvatarPresetPublicUrl(objectPath);
             byUrl.set(url, {
               objectPath,
@@ -89,7 +114,7 @@ export function ManagerAvatarPresetPicker({
         if (!rootRes.error && rootRes.data) {
           for (const row of rootRes.data) {
             if (row.metadata == null || !row.name) continue;
-            if (!isPresetObjectPath(row.name)) continue;
+            if (!isSqPresetObjectPath(row.name)) continue;
             const objectPath = row.name;
             const url = managerAvatarPresetPublicUrl(objectPath);
             byUrl.set(url, {
@@ -100,7 +125,7 @@ export function ManagerAvatarPresetPicker({
           }
         }
 
-        const next = [...byUrl.values()].sort((a, b) =>
+        const next = dedupePresetItemsByBasename([...byUrl.values()]).sort((a, b) =>
           a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
         );
         setItems(next);
@@ -151,8 +176,8 @@ export function ManagerAvatarPresetPicker({
   if (items.length === 0) {
     return (
       <p style={{ margin: 0, fontSize: 13, color: "#666" }}>
-        No slug-named images found. Add files to the <code>manager-avatars</code> bucket (at the bucket root or under{" "}
-        <code>presets/</code>), using names like <code>stone-cold.png</code>.
+        No square preset images found (filenames must end with <code>-sq</code> before the extension). Add files to the{" "}
+        <code>manager-avatars</code> bucket (root or <code>presets/</code>), e.g. <code>stone-cold-sq.png</code>.
       </p>
     );
   }

@@ -34,9 +34,8 @@ export function ManagerAvatar({
   const r = typeof radius === "number" ? `${radius}px` : radius;
 
   if (trimmed) {
-    /** Standings thumbnails are small; bias crop toward upper area so faces read better on full-body uploads. */
-    const objectPosition =
-      variant === "standings" ? ("50% 22%" as const) : ("50% 50%" as const);
+    /** Preset avatars are square with consistent face framing; center crop everywhere. */
+    const objectPosition = "50% 50%" as const;
     return (
       <Image
         src={trimmed}

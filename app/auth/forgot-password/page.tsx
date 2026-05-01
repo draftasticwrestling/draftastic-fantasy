@@ -12,11 +12,12 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    const emailNorm = email.trim().toLowerCase();
+    if (!emailNorm) return;
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    const { error: err } = await supabase.auth.resetPasswordForEmail(emailNorm, {
       redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password&flow=recovery`,
     });
     setLoading(false);

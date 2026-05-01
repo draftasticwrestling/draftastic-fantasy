@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ManagerAvatarPresetPicker } from "@/app/components/ManagerAvatarPresetPicker";
-import { isAllowedManagerPresetUrl } from "@/lib/managerAvatarPresets";
+import { isAllowedManagerPresetUrl, resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
 
 type Props = {
   initialAvatarUrl: string | null;
@@ -60,7 +60,7 @@ export function AccountAvatarField({ initialAvatarUrl, displayNameForInitial }: 
   };
 
   const initial = (displayNameForInitial.trim().charAt(0) || "?").toUpperCase();
-  const previewSrc = avatarUrl?.trim() || null;
+  const previewSrc = avatarUrl?.trim() ? resolveManagerPresetDisplayUrl(avatarUrl.trim()) : null;
   const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
   const pickerSelected =
     previewSrc && isAllowedManagerPresetUrl(previewSrc, supabaseOrigin) ? previewSrc : null;

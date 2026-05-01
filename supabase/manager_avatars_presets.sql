@@ -1,4 +1,4 @@
--- Curated manager avatars: upload slug-named image files to the public bucket `manager-avatars`
--- (at the bucket root, e.g. `stone-cold.png`, or under `presets/`, e.g. `presets/stone-cold.png`).
+-- Curated manager avatars: square slug-named images only (`*-sq.png`) in public bucket `manager-avatars`
+-- (bucket root, e.g. `stone-cold-sq.png`, or `presets/stone-cold-sq.png`). Do not keep non-sq duplicates.
 -- The app lists these at runtime and validates URLs with lib/managerAvatarPresets.ts (slug filenames + image extensions).
 -- Users cannot INSERT into `presets/` (RLS: first path segment must be auth.uid()); use Dashboard or service role.
