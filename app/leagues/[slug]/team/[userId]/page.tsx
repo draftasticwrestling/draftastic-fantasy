@@ -7,6 +7,7 @@ import {
   getLeagueBySlug,
   getLeagueMembers,
   getLeagueMembersWithAdminFallback,
+  getLeagueMemberForUserAdmin,
   getRostersForLeague,
   getRostersForLeagueAdmin,
   getEffectiveLeagueStartDate,
@@ -91,13 +92,19 @@ type Props = {
   searchParams?: Promise<{ proposeTradeTo?: string; addFa?: string; view?: string; layout?: string }>;
 };
 
+function normalizeTeamUserIdParam(raw: string): string {
+  const t = raw.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t) ? t.toLowerCase() : t;
+}
+
 export async function generateMetadata({ params }: Props) {
   try {
-    const { slug, userId } = await params;
+    const { slug, userId: rawUserId } = await params;
+    const userId = normalizeTeamUserIdParam(rawUserId);
     const league = await getLeagueBySlug(slug);
     if (!league) return { title: "Faction — Draftastic Fantasy" };
     const members = await getLeagueMembers(league.id);
-    const m = members.find((x) => x.user_id === userId);
+    const m = members.find((x) => x.user_id === userId || x.user_id.toLowerCase() === userId);
     const name = factionDisplayName(m, "Faction");
     return {
       title: `${name} — ${league.name} — Draftastic Fantasy`,
@@ -109,7 +116,8 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function TeamUserIdPage({ params, searchParams }: Props) {
-  const { slug, userId } = await params;
+  const { slug, userId: rawUserId } = await params;
+  const userId = normalizeTeamUserIdParam(rawUserId);
   const sp = searchParams ? await searchParams : {};
   const proposeTradeTo = typeof sp.proposeTradeTo === "string" ? sp.proposeTradeTo.trim() : undefined;
   const addFa = typeof sp.addFa === "string" ? sp.addFa.trim() : undefined;
@@ -121,13 +129,15 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const { supabase, user: currentUser } = await getServerAuth();
   if (!currentUser) notFound();
 
-  const [members, rostersData, pointsWithBonuses, teamScoringAudit] = await Promise.all([
+  let [members, rostersData, pointsWithBonuses, teamScoringAudit] = await Promise.all([
     getLeagueMembersWithAdminFallback(league.id),
     getRostersForLeague(league.id),
     getPointsByOwnerForLeagueWithBonuses(league.id),
     getTeamScoringAudit(league.id, userId),
   ]);
-  const isMember = members.some((m) => m.user_id === currentUser.id);
+  const isMember =
+    members.some((m) => m.user_id === currentUser.id) ||
+    members.some((m) => m.user_id.toLowerCase() === currentUser.id.toLowerCase());
   const isSiteAdminViewer = await getIsSiteAdmin();
   if (!isMember && !isSiteAdminViewer) notFound();
 
@@ -138,7 +148,18 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     if (adminRosters[userId]?.length) rosters = adminRosters;
   }
 
-  const targetMember = members.find((m) => m.user_id === userId);
+  let targetMember = members.find(
+    (m) => m.user_id === userId || m.user_id.toLowerCase() === userId.toLowerCase()
+  );
+  if (!targetMember && isSiteAdminViewer) {
+    const fromAdmin = await getLeagueMemberForUserAdmin(league.id, userId);
+    if (fromAdmin) {
+      targetMember = fromAdmin;
+      if (!members.some((m) => m.user_id === fromAdmin.user_id)) {
+        members = [...members, fromAdmin].sort((a, b) => a.joined_at.localeCompare(b.joined_at));
+      }
+    }
+  }
   if (!targetMember) notFound();
 
   const isOwnTeam = currentUser.id === userId;

@@ -364,8 +364,18 @@ export const getLeagueBySlug = cache(
       if (!isAdmin) return null;
       const admin = getAdminClient();
       if (!admin) return null;
-      const adminResult = await admin.from("leagues").select(fullSelect).eq("slug", slug).maybeSingle();
+      let adminResult = await admin.from("leagues").select(fullSelect).eq("slug", slug).maybeSingle();
       league = adminResult.data as typeof league;
+      if (
+        !league &&
+        adminResult.error?.code === "42703" &&
+        /include_nxt/i.test(adminResult.error.message ?? "")
+      ) {
+        adminResult = await admin.from("leagues").select(fullSelectNoIncludeNxt).eq("slug", slug).maybeSingle();
+        if (adminResult.data) {
+          league = { ...adminResult.data, include_nxt: false } as unknown as typeof league;
+        }
+      }
       if (!league) return null;
     }
 
@@ -565,13 +575,15 @@ export const getLeagueMembers = cache(async (leagueId: string): Promise<LeagueMe
 
 /**
  * Member list with site-admin fallback:
- * - Uses normal member-scoped reader first (RLS)
- * - If empty and viewer is site admin, uses service role to read members for support preview tools
+ * - Default: RLS-scoped `league_members` (same as any league member).
+ * - Site admins: when service role is configured, always load the full member list via admin client.
+ *   This matches internal-admin league tools and avoids 404s when RLS returns no rows (admin not in
+ *   league) or, in edge cases, an incomplete list while still appearing "in" the league.
  */
 export async function getLeagueMembersWithAdminFallback(leagueId: string): Promise<LeagueMember[]> {
   const fromRls = await getLeagueMembers(leagueId);
-  if (fromRls.length > 0) return fromRls;
-  if (!(await getIsSiteAdmin())) return fromRls;
+  const isSiteAdmin = await getIsSiteAdmin();
+  if (!isSiteAdmin) return fromRls;
 
   const admin = getAdminClient();
   if (!admin) return fromRls;
@@ -619,7 +631,7 @@ export async function getLeagueMembersWithAdminFallback(leagueId: string): Promi
     (profiles ?? []).map((p) => [p.id, p as { display_name: string | null; avatar_url: string | null }])
   );
 
-  return rows.map((r) => {
+  const fromAdmin = rows.map((r) => {
     const p = profileByUserId[r.user_id];
     return {
       id: r.id ?? `${leagueId}:${r.user_id}`,
@@ -635,6 +647,73 @@ export async function getLeagueMembersWithAdminFallback(leagueId: string): Promi
       avatar_url: p?.avatar_url ?? null,
     };
   });
+
+  return fromAdmin;
+}
+
+/**
+ * Single membership row via service role (site-admin tooling). Returns null if not a member of the league.
+ */
+export async function getLeagueMemberForUserAdmin(leagueId: string, userId: string): Promise<LeagueMember | null> {
+  const admin = getAdminClient();
+  if (!admin) return null;
+
+  type AdminMemberRow = {
+    id?: string;
+    league_id?: string;
+    user_id: string;
+    role: "commissioner" | "owner";
+    joined_at?: string;
+    team_name?: string | null;
+    faction_emoji?: string | null;
+    manager_avatar_url?: string | null;
+    manager_catchphrase?: string | null;
+  };
+
+  let sel = await admin
+    .from("league_members")
+    .select(
+      "id, league_id, user_id, role, joined_at, team_name, faction_emoji, manager_avatar_url, manager_catchphrase"
+    )
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  let row: AdminMemberRow | null = null;
+  if (sel.error) {
+    const fb = await admin
+      .from("league_members")
+      .select("id, league_id, user_id, role, joined_at, team_name, faction_emoji")
+      .eq("league_id", leagueId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (fb.error || !fb.data) return null;
+    row = fb.data as AdminMemberRow;
+  } else {
+    row = sel.data as AdminMemberRow | null;
+  }
+  if (!row) return null;
+
+  const { data: p } = await admin
+    .from("profiles")
+    .select("display_name, avatar_url")
+    .eq("id", userId)
+    .maybeSingle();
+  const prof = p as { display_name: string | null; avatar_url: string | null } | null;
+
+  return {
+    id: row.id ?? `${leagueId}:${row.user_id}`,
+    league_id: row.league_id ?? leagueId,
+    user_id: row.user_id,
+    role: row.role,
+    joined_at: row.joined_at ?? "",
+    team_name: row.team_name ?? null,
+    faction_emoji: row.faction_emoji ?? null,
+    manager_avatar_url: row.manager_avatar_url ?? null,
+    manager_catchphrase: row.manager_catchphrase ?? null,
+    display_name: prof?.display_name ?? null,
+    avatar_url: prof?.avatar_url ?? null,
+  };
 }
 
 /**

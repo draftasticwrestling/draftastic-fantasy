@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
 
 const LEAGUE_LIST_SELECT =
-  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_type, league_type, include_nxt, max_teams, draft_status, created_at, visibility_type, public_status, is_archived, archived_at";
+  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_type, league_type, include_nxt, max_teams, draft_status, draft_order_method, created_at, visibility_type, public_status, is_archived, archived_at";
 
 /** When `include_nxt` migration is not applied yet. */
 const LEAGUE_LIST_SELECT_NO_INCLUDE_NXT = LEAGUE_LIST_SELECT.replace(", include_nxt", "");
@@ -23,6 +23,7 @@ export type SiteAdminLeagueSummary = {
   include_nxt: boolean | null;
   max_teams: number | null;
   draft_status: string | null;
+  draft_order_method: string | null;
   created_at: string;
   /** `public` | `private`; null treated as private for legacy rows */
   visibility_type: string | null;
@@ -166,6 +167,7 @@ export async function siteAdminSearchLeagues(
       ...l,
       draft_type: null,
       include_nxt: false,
+      draft_order_method: null,
       visibility_type: "private",
       public_status: null,
       is_archived: false,
@@ -229,6 +231,7 @@ export async function siteAdminGetLeagueBySlug(
         ...league,
         draft_type: null,
         include_nxt: false,
+        draft_order_method: null,
         visibility_type: "private",
         public_status: null,
         is_archived: false,

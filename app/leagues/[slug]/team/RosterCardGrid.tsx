@@ -35,30 +35,49 @@ export type RosterCardWrestler = {
   full_body_image_url?: string | null;
 };
 
-/** Full-body card photo with fallback to headshot URL (same behavior as previous native onError). */
+function uniqueImageUrls(urls: (string | null | undefined)[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of urls) {
+    const u = String(raw ?? "").trim();
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  return out;
+}
+
+/**
+ * Full-body card art: try each candidate in order (DB URL, then `{slug}-full.png` convention), then headshot.
+ * Avoids losing the storage convention when `full_body_image_url` is stale or wrong but the bucket file exists.
+ */
 function RosterCardWrestlerPhoto({
-  primarySrc,
-  fallbackSrc,
+  fullBodyCandidates,
+  headshotUrl,
 }: {
-  primarySrc: string;
-  fallbackSrc?: string | null;
+  fullBodyCandidates: string[];
+  headshotUrl?: string | null;
 }) {
-  const [src, setSrc] = useState(primarySrc);
-  const [triedFallback, setTriedFallback] = useState(false);
+  const chain = useMemo(() => {
+    const full = uniqueImageUrls(fullBodyCandidates);
+    const hs = String(headshotUrl ?? "").trim();
+    return hs ? [...full, hs] : full;
+  }, [fullBodyCandidates, headshotUrl]);
+
+  const [idx, setIdx] = useState(0);
   const [hidden, setHidden] = useState(false);
+
   const handleError = () => {
-    if (triedFallback) {
-      setHidden(true);
-      return;
-    }
-    setTriedFallback(true);
-    if (fallbackSrc) setSrc(fallbackSrc);
+    if (idx + 1 < chain.length) setIdx((i) => i + 1);
     else setHidden(true);
   };
-  if (hidden) return null;
+
+  const src = chain[idx];
+  if (hidden || !src) return null;
+
   return (
     <Image
-      key={src}
+      key={`${idx}-${src}`}
       src={src}
       alt=""
       fill
@@ -125,7 +144,10 @@ function WrestlerCard({
   const rating = w.rating_2k26 ?? w.rating_2k25 ?? null;
   const ppm = w.mw > 0 ? w.totalPoints / w.mw : 0;
   const profileHref = `/wrestlers/${encodeURIComponent(w.id)}?league=${encodeURIComponent(leagueSlug)}&from=team`;
-  const fullImageUrl = (w.full_body_image_url ?? "").trim() || getWrestlerFullImageUrl(w.id);
+  const fullBodyCandidates = uniqueImageUrls([
+    (w.full_body_image_url ?? "").trim(),
+    getWrestlerFullImageUrl(w.id),
+  ]);
   const displayName = (w.name || w.id).toUpperCase();
   const brandLower = (w.brand ?? "").toLowerCase().trim();
   const isRaw = brandLower === "raw";
@@ -322,7 +344,11 @@ function WrestlerCard({
               overflow: "hidden",
             }}
           >
-            <RosterCardWrestlerPhoto key={w.id} primarySrc={fullImageUrl} fallbackSrc={w.image_url} />
+            <RosterCardWrestlerPhoto
+              key={w.id}
+              fullBodyCandidates={fullBodyCandidates}
+              headshotUrl={w.image_url}
+            />
             {w.championBeltImageUrl && (
               <div
                 style={{

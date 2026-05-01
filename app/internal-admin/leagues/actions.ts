@@ -6,6 +6,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { addWrestlerToRoster, removeWrestlerFromRoster } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { runFullAutopickDraftAtScheduledTime } from "@/lib/leagueDraft";
 
 type Failure = { userId: string; expectedSize: number; actualSize: number; female: number; male: number; minFemale: number; minMale: number };
 
@@ -63,6 +64,68 @@ async function getRosterFailures(leagueId: string): Promise<Failure[]> {
     }
   }
   return failures;
+}
+
+/**
+ * Site admin: run the full autopick for one league immediately (no draft clock / beta window).
+ * Finishes in one request when the service role can complete all picks; otherwise cron advances `in_progress`.
+ * Blocked while any other autopick league is `in_progress` (same rule as cron single-queue).
+ */
+export async function adminRunAutopickDraftAction(formData: FormData): Promise<void> {
+  await requireSiteAdmin();
+  const admin = getAdminClient();
+  const leagueSlug = String(formData.get("leagueSlug") ?? "").trim();
+  const leagueId = String(formData.get("leagueId") ?? "").trim();
+  const base = `/internal-admin/leagues/${encodeURIComponent(leagueSlug || "unknown")}`;
+  if (!admin || !leagueId || !leagueSlug) redirect(`${base}?err=${encodeURIComponent("Missing league.")}`);
+
+  const { count: inProg } = await admin
+    .from("leagues")
+    .select("*", { count: "exact", head: true })
+    .eq("draft_type", "autopick")
+    .eq("draft_status", "in_progress");
+  if ((inProg ?? 0) > 0) {
+    redirect(
+      `${base}?err=${encodeURIComponent(
+        "Another autopick draft is still in progress. Wait for it to finish (or trigger the cron job to advance picks), then try again."
+      )}`
+    );
+  }
+
+  const { data: meta } = await admin
+    .from("leagues")
+    .select("draft_type, draft_status")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const dt = (meta as { draft_type?: string } | null)?.draft_type;
+  const ds = (meta as { draft_status?: string } | null)?.draft_status ?? "not_started";
+  if (dt !== "autopick") {
+    redirect(`${base}?err=${encodeURIComponent("League draft type is not autopick.")}`);
+  }
+  if (ds !== "not_started") {
+    redirect(`${base}?err=${encodeURIComponent(`Draft is already ${ds}. Only not_started can be kicked off from here.`)}`);
+  }
+
+  const result = await runFullAutopickDraftAtScheduledTime(leagueId, { skipScheduledTimeCheck: true });
+  revalidatePath(base);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}`);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}/draft`);
+
+  if (result.error) {
+    redirect(`${base}?err=${encodeURIComponent(result.error)}`);
+  }
+  if (!result.didRun) {
+    redirect(
+      `${base}?err=${encodeURIComponent(
+        "Autopick did not start. Check public league has 3+ teams, pick order exists (or random order is allowed), and DISABLE_AUTOPICK_DRAFT is off."
+      )}`
+    );
+  }
+  redirect(
+    `${base}?ok=${encodeURIComponent(
+      "Autopick run finished this request. Refresh: status should be ready_for_review (or still in_progress if the draft is large—use cron to finish)."
+    )}`
+  );
 }
 
 export async function adminApproveDraftReviewAction(formData: FormData): Promise<void> {

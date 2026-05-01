@@ -52,6 +52,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ ran: 0, orderGenerated: 0, message: "No autopick drafts" });
   }
 
+  const { count: autopickInProgressCount } = await admin
+    .from("leagues")
+    .select("*", { count: "exact", head: true })
+    .eq("draft_type", "autopick")
+    .eq("draft_status", "in_progress");
+
+  const leagueById = new Map((leagues as { id: string }[]).map((l) => [l.id, l]));
+
   let orderGenerated = 0;
   const orderErrors: string[] = [];
 
@@ -109,19 +117,34 @@ export async function GET(request: Request) {
 
   let ran = 0;
   const errors: string[] = [];
-  for (const { id } of due) {
+  /** Run at most one new autopick per invocation so heavy drafts do not pile up (ops run one league at a time). */
+  const blockingInProgress = (autopickInProgressCount ?? 0) > 0;
+  if (due.length > 0 && !blockingInProgress) {
+    const dueSorted = [...due].sort((a, b) => {
+      const la = leagueById.get(a.id) as { draft_date?: string | null; draft_time?: string | null } | undefined;
+      const lb = leagueById.get(b.id) as { draft_date?: string | null; draft_time?: string | null } | undefined;
+      const ma = la ? getScheduledDraftTimeMs(la) : null;
+      const mb = lb ? getScheduledDraftTimeMs(lb) : null;
+      if (ma == null && mb == null) return 0;
+      if (ma == null) return 1;
+      if (mb == null) return -1;
+      return ma - mb;
+    });
+    const next = dueSorted[0];
     const { data: leagueMeta } = await admin
       .from("leagues")
       .select("visibility_type")
-      .eq("id", id)
+      .eq("id", next.id)
       .maybeSingle();
     if ((leagueMeta as { visibility_type?: string | null } | null)?.visibility_type === "public") {
-      await admin.from("leagues").update({ public_status: "active" }).eq("id", id);
+      await admin.from("leagues").update({ public_status: "active" }).eq("id", next.id);
     }
-    const result = await runFullAutopickDraftAtScheduledTime(id);
+    const result = await runFullAutopickDraftAtScheduledTime(next.id);
     if (result.didRun) ran += 1;
-    if (result.error) errors.push(`${id}: ${result.error}`);
+    if (result.error) errors.push(`${next.id}: ${result.error}`);
   }
+
+  const skippedNewStartsBecauseInProgress = blockingInProgress && due.length > 0;
 
   const { data: inProgressAutopick } = await admin
     .from("leagues")
@@ -152,6 +175,7 @@ export async function GET(request: Request) {
     due: due.length,
     orderGenerated,
     advancedInProgress,
+    skippedNewStartsBecauseInProgress: skippedNewStartsBecauseInProgress || undefined,
     errors: errors.length ? errors : undefined,
     orderErrors: orderErrors.length ? orderErrors : undefined,
   });

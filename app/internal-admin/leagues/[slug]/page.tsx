@@ -13,6 +13,7 @@ import {
   adminMoveUserToLeagueAction,
   adminRemoveRosterEntryAction,
   adminRemoveUserFromLeagueAction,
+  adminRunAutopickDraftAction,
   adminUnarchiveLeagueAction,
 } from "../actions";
 import { MemberPovQuickNav } from "./MemberPovQuickNav";
@@ -81,6 +82,10 @@ export default async function InternalAdminLeagueDetailPage({
   if (!detail) notFound();
 
   const { league, members } = detail;
+  const { count: draftOrderRowCount } = await admin
+    .from("league_draft_order")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", league.id);
   const [rosterRowsRes, wrestlersRes] = await Promise.all([
     admin
       .from("league_rosters")
@@ -278,8 +283,26 @@ export default async function InternalAdminLeagueDetailPage({
           <dd style={{ margin: 0 }}>{league.season_slug ?? "—"}</dd>
           <dt style={{ color: "var(--color-text-muted)" }}>Draft date</dt>
           <dd style={{ margin: 0 }}>{league.draft_date ?? "—"}</dd>
+          <dt style={{ color: "var(--color-text-muted)" }}>Draft status</dt>
+          <dd style={{ margin: 0 }}>
+            {league.draft_status === "ready_for_review"
+              ? "Ready for review"
+              : league.draft_status === "in_progress"
+                ? "In progress"
+                : league.draft_status === "completed"
+                  ? "Completed (approved)"
+                  : league.draft_status ?? "not_started"}
+          </dd>
           <dt style={{ color: "var(--color-text-muted)" }}>Draft type</dt>
           <dd style={{ margin: 0 }}>{draftTypeLabel(league.draft_type)}</dd>
+          <dt style={{ color: "var(--color-text-muted)" }}>Pick order</dt>
+          <dd style={{ margin: 0 }}>
+            {(league.draft_order_method ?? "random_one_hour_before") === "manual_by_gm"
+              ? "Manual (GM)"
+              : "Randomize ~1h before draft"}
+            {" · "}
+            <strong>{draftOrderRowCount ?? 0}</strong> slots in <code>league_draft_order</code>
+          </dd>
           <dt style={{ color: "var(--color-text-muted)" }}>Format</dt>
           <dd style={{ margin: 0 }}>
             {league.league_type ?? "—"}
@@ -405,51 +428,100 @@ export default async function InternalAdminLeagueDetailPage({
         </div>
       </section>
       <section style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: "1.05rem", marginBottom: 10 }}>Draft review</h2>
+        <h2 style={{ fontSize: "1.05rem", marginBottom: 10 }}>Run autopick (site admin)</h2>
+        <p style={{ color: "var(--color-text-muted)", marginBottom: 12, fontSize: 14, lineHeight: 1.5 }}>
+          Runs the full autopick in the background (no live draft room). Members do not see rosters until status is{" "}
+          <strong>ready for review</strong> and an admin <strong>approves</strong> below. Only one autopick may be{" "}
+          <strong>in progress</strong> at a time across the site; the scheduled cron also starts at most one new draft
+          per run.
+        </p>
+        {String(league.draft_type ?? "").toLowerCase() === "autopick" && league.draft_status === "not_started" ? (
+          <form action={adminRunAutopickDraftAction} style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 640 }}>
+            <input type="hidden" name="leagueId" value={league.id} />
+            <input type="hidden" name="leagueSlug" value={league.slug} />
+            {(league.draft_order_method ?? "random_one_hour_before") === "manual_by_gm" && (draftOrderRowCount ?? 0) === 0 ? (
+              <p role="alert" style={{ margin: 0, color: "#92400e", fontSize: 14 }}>
+                Pick order is empty. The commissioner must set round-1 / full order before you can run autopick.
+              </p>
+            ) : (
+              <button type="submit" className="admin-article-submit" style={{ width: "fit-content" }}>
+                Run autopick now
+              </button>
+            )}
+          </form>
+        ) : String(league.draft_type ?? "").toLowerCase() === "autopick" && league.draft_status === "in_progress" ? (
+          <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 14 }}>
+            Autopick is in progress. Refresh this page or call the scheduled-drafts cron with <code>CRON_SECRET</code> to
+            advance picks if it does not finish in one request.
+          </p>
+        ) : String(league.draft_type ?? "").toLowerCase() !== "autopick" ? (
+          <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 14 }}>This league is not an autopick league.</p>
+        ) : (
+          <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 14 }}>
+            Autopick has already finished or been approved (status: {league.draft_status ?? "—"}).
+          </p>
+        )}
+      </section>
+
+      <section style={{ marginTop: 28 }}>
+        <h2 style={{ fontSize: "1.05rem", marginBottom: 10 }}>Draft review &amp; approve</h2>
         <p style={{ color: "var(--color-text-muted)", marginBottom: 12 }}>
           Status:{" "}
           <strong>
             {league.draft_status === "ready_for_review" ? "Ready for review" : league.draft_status ?? "not_started"}
           </strong>
         </p>
-        {rosterWarnings.length > 0 && (
-          <div
-            style={{
-              border: "1px solid #e0a400",
-              background: "#fff8e5",
-              color: "#8b5a00",
-              borderRadius: 8,
-              padding: "10px 12px",
-              marginBottom: 12,
-            }}
-          >
-            <p style={{ margin: "0 0 6px", fontWeight: 600 }}>
-              Warning: one or more rosters do not meet size/minimum requirements.
-            </p>
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              {rosterWarnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
-            <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-              You can still approve, but add a note.
-            </p>
-          </div>
+        {league.draft_status === "ready_for_review" ? (
+          <>
+            {rosterWarnings.length > 0 && (
+              <div
+                style={{
+                  border: "1px solid #e0a400",
+                  background: "#fff8e5",
+                  color: "#8b5a00",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  marginBottom: 12,
+                }}
+              >
+                <p style={{ margin: "0 0 6px", fontWeight: 600 }}>
+                  Warning: one or more rosters do not meet size/minimum requirements.
+                </p>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {rosterWarnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+                <p style={{ margin: "8px 0 0", fontSize: 13 }}>
+                  You can still approve, but add a note.
+                </p>
+              </div>
+            )}
+            <form action={adminApproveDraftReviewAction} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 640 }}>
+              <input type="hidden" name="leagueId" value={league.id} />
+              <input type="hidden" name="leagueSlug" value={league.slug} />
+              <textarea
+                name="reviewNote"
+                rows={3}
+                placeholder={rosterWarnings.length > 0 ? "Required note when approving with warnings…" : "Optional review note…"}
+                className="admin-article-input"
+                style={{ width: "100%" }}
+              />
+              <button type="submit" className="admin-article-submit" style={{ width: "fit-content" }}>
+                Approve draft
+              </button>
+            </form>
+          </>
+        ) : league.draft_status === "completed" ? (
+          <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 14 }}>
+            Draft is approved. League members can view rosters and scoring.
+          </p>
+        ) : (
+          <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 14 }}>
+            Approve appears here after autopick completes and status is <strong>ready for review</strong>. Until then,
+            members see empty rosters (admins can still use POV links and roster tools below).
+          </p>
         )}
-        <form action={adminApproveDraftReviewAction} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 640 }}>
-          <input type="hidden" name="leagueId" value={league.id} />
-          <input type="hidden" name="leagueSlug" value={league.slug} />
-          <textarea
-            name="reviewNote"
-            rows={3}
-            placeholder={rosterWarnings.length > 0 ? "Required note when approving with warnings…" : "Optional review note…"}
-            className="admin-article-input"
-            style={{ width: "100%" }}
-          />
-          <button type="submit" className="admin-article-submit" style={{ width: "fit-content" }}>
-            Approve draft
-          </button>
-        </form>
       </section>
 
       <section style={{ marginTop: 28 }}>

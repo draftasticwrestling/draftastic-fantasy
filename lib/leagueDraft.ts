@@ -693,12 +693,13 @@ async function getWrestlerGendersBatch(
 async function getDraftUserState(
   admin: AdminClient,
   leagueId: string,
-  userId: string
+  userId: string,
+  draftRunId: string
 ): Promise<{ consecutive_auto_picks: number; auto_pick_rest_of_draft: boolean }> {
   const { data: row } = await admin
     .from("league_draft_user_state")
     .select("consecutive_auto_picks, auto_pick_rest_of_draft")
-    .eq("league_id", leagueId)
+    .eq("draft_run_id", draftRunId)
     .eq("user_id", userId)
     .maybeSingle();
   const r = row as { consecutive_auto_picks?: number; auto_pick_rest_of_draft?: boolean } | null;
@@ -709,11 +710,16 @@ async function getDraftUserState(
 }
 
 /** After an auto-pick: increment consecutive_auto_picks and set auto_pick_rest_of_draft if >= 3. Uses admin. */
-async function afterAutoPickIncrementState(admin: AdminClient, leagueId: string, userId: string): Promise<void> {
+async function afterAutoPickIncrementState(
+  admin: AdminClient,
+  leagueId: string,
+  userId: string,
+  draftRunId: string
+): Promise<void> {
   const { data: existing } = await admin
     .from("league_draft_user_state")
     .select("consecutive_auto_picks")
-    .eq("league_id", leagueId)
+    .eq("draft_run_id", draftRunId)
     .eq("user_id", userId)
     .maybeSingle();
   const prev = (existing as { consecutive_auto_picks?: number } | null)?.consecutive_auto_picks ?? 0;
@@ -722,18 +728,30 @@ async function afterAutoPickIncrementState(admin: AdminClient, leagueId: string,
     {
       league_id: leagueId,
       user_id: userId,
+      draft_run_id: draftRunId,
       consecutive_auto_picks: next,
       auto_pick_rest_of_draft: next >= CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER,
     },
-    { onConflict: "league_id,user_id" }
+    { onConflict: "draft_run_id,user_id" }
   );
 }
 
 /** After a manual pick: reset consecutive_auto_picks for this user. Uses admin. */
-async function afterManualPickResetState(admin: AdminClient, leagueId: string, userId: string): Promise<void> {
+async function afterManualPickResetState(
+  admin: AdminClient,
+  leagueId: string,
+  userId: string,
+  draftRunId: string
+): Promise<void> {
   await admin.from("league_draft_user_state").upsert(
-    { league_id: leagueId, user_id: userId, consecutive_auto_picks: 0, auto_pick_rest_of_draft: false },
-    { onConflict: "league_id,user_id" }
+    {
+      league_id: leagueId,
+      user_id: userId,
+      draft_run_id: draftRunId,
+      consecutive_auto_picks: 0,
+      auto_pick_rest_of_draft: false,
+    },
+    { onConflict: "draft_run_id,user_id" }
   );
 }
 
@@ -1168,7 +1186,7 @@ export async function makeDraftPick(
   });
   if (pickErr) return { error: pickErr.message };
 
-  await afterManualPickResetState(admin, leagueId, current.user_id);
+  await afterManualPickResetState(admin, leagueId, current.user_id, draftRunId);
 
   const updates: {
     draft_current_pick: number | null;
@@ -2321,7 +2339,7 @@ async function performOneAutoPick(
     }
   }
 
-  await afterAutoPickIncrementState(admin, leagueId, current.user_id);
+  await afterAutoPickIncrementState(admin, leagueId, current.user_id, draftRunId);
 
   const updates: {
     draft_current_pick: number | null;
@@ -2375,7 +2393,17 @@ export async function runAutoPickIfExpired(
   const current = await getCurrentPickUsingAdmin(admin, leagueId);
   if (!current) return { didAutoPick: false };
 
-  const userState = await getDraftUserState(admin, leagueId, current.user_id);
+  const { data: stateOrderRow } = await admin
+    .from("league_draft_order")
+    .select("draft_run_id")
+    .eq("league_id", leagueId)
+    .eq("overall_pick", current.overall_pick)
+    .maybeSingle();
+  const draftRunIdForUserState = (stateOrderRow as { draft_run_id?: string } | null)?.draft_run_id;
+  if (!draftRunIdForUserState) {
+    return { didAutoPick: false, error: "Draft run not found for league_draft_order slot." };
+  }
+  const userState = await getDraftUserState(admin, leagueId, current.user_id, draftRunIdForUserState);
   const skipTimerByOption = options?.skipTimer === true;
   const { data: leagueRow } = await admin
     .from("leagues")
@@ -2471,7 +2499,7 @@ export async function runAutoPickIfExpired(
 
     const { data: nextOrderRow } = await admin
       .from("league_draft_order")
-      .select("overall_pick, user_id")
+      .select("overall_pick, user_id, draft_run_id")
       .eq("league_id", leagueId)
       .eq("overall_pick", nextPick)
       .maybeSingle();
@@ -2490,10 +2518,13 @@ export async function runAutoPickIfExpired(
       continue;
     }
 
+    const nextDraftRunId = (nextOrderRow as { draft_run_id?: string }).draft_run_id;
+    if (!nextDraftRunId) return { didAutoPick: true };
     const nextUserState = await getDraftUserState(
       admin,
       leagueId,
-      (nextOrderRow as { user_id: string }).user_id
+      (nextOrderRow as { user_id: string }).user_id,
+      nextDraftRunId
     );
     if (!nextUserState.auto_pick_rest_of_draft) return { didAutoPick: true };
 
@@ -2527,7 +2558,8 @@ export function getScheduledDraftTimeMs(league: {
  * Uses service role for league fetch so it works without a logged-in user (cron context).
  */
 export async function runFullAutopickDraftAtScheduledTime(
-  leagueId: string
+  leagueId: string,
+  opts?: { /** Site-admin morning run: do not require draft_date / beta window. */ skipScheduledTimeCheck?: boolean }
 ): Promise<{ didRun: boolean; error?: string }> {
   const disabled = process.env.DISABLE_AUTOPICK_DRAFT === "1" || process.env.DISABLE_AUTOPICK_DRAFT === "true";
   if (disabled) return { didRun: false };
@@ -2536,7 +2568,7 @@ export async function runFullAutopickDraftAtScheduledTime(
   if (!admin) return { didRun: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
   const { data: league } = await admin
     .from("leagues")
-    .select("id, draft_date, draft_time, draft_type, draft_status, visibility_type")
+    .select("id, draft_date, draft_time, draft_type, draft_status, visibility_type, draft_order_method")
     .eq("id", leagueId)
     .single();
   if (!league) return { didRun: false };
@@ -2555,10 +2587,20 @@ export async function runFullAutopickDraftAtScheduledTime(
   const scheduledMs = getScheduledDraftTimeMs(league as { draft_date?: string | null; draft_time?: string | null });
   const dueByTime = scheduledMs != null && Date.now() >= scheduledMs;
   const dueByBetaWindow = scheduledMs == null && isInBetaAutopickRunWindow(Date.now());
-  if (!dueByTime && !dueByBetaWindow) return { didRun: false };
+  if (!opts?.skipScheduledTimeCheck && !dueByTime && !dueByBetaWindow) return { didRun: false };
 
   let order = await getDraftOrderUsingAdmin(admin, leagueId);
   if (order.length === 0) {
+    if (
+      opts?.skipScheduledTimeCheck &&
+      (league as { draft_order_method?: string | null }).draft_order_method === "manual_by_gm"
+    ) {
+      return {
+        didRun: false,
+        error:
+          "Pick order is empty. The commissioner must set or generate draft order before autopick can run (manual-by-GM leagues are not auto-shuffled from the admin button).",
+      };
+    }
     const gen = await generateDraftOrderForScheduledDraft(leagueId);
     if (gen.error) return { didRun: false, error: gen.error };
     order = await getDraftOrderUsingAdmin(admin, leagueId);

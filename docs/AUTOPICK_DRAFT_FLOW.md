@@ -53,8 +53,19 @@ This doc describes how the auto-pick draft works so the feature can be verified 
 ### 5. After the draft
 
 - **Draft history** – `league_draft_picks` stores who picked which wrestler at which overall pick.
-- **Rosters** – `league_rosters` is populated as picks are made. Owners see their roster on My Team / Roster.
-- **Draft page** – Shows “Draft complete” and rosters on the right; draft history is available on the draft history page.
+- **Rosters** – `league_rosters` is populated as picks are made.
+- **`draft_status`** – When the last pick is written, autopick sets **`ready_for_review`** (not `completed`).
+- **Member visibility** – `getRostersForLeague` returns **no rows** for non–site-admins while `draft_status === 'ready_for_review'`, so members see **empty rosters** until an admin approves. Site admins still see full rosters (internal tools, POV links).
+- **Admin approval** – Internal Admin → **Leagues** → open league → **Draft review & approve**. Approve sets `draft_status` to **`completed`** and revalidates league paths. Optional review note; if roster rules warnings are present, a note is required before approve.
+- **Draft page** – After approval, members see rosters on My Team / Roster and the draft page reflects completion.
+
+### 6. Morning / ops workflow (one draft at a time)
+
+1. **Prepare** – Autopick league, `draft_status = not_started`, pick order exists (`league_draft_order` non-empty). For **manual-by-GM** order, the commissioner must set order first; the admin “Run autopick now” button will not randomize for you.
+2. **Trigger** – **Internal Admin → league → “Run autopick now”** (no draft clock required), **or** call `GET /api/cron/run-scheduled-drafts` with `x-cron-secret: CRON_SECRET` after scheduled time / beta window rules.
+3. **Concurrency** – While **any** league has autopick **`in_progress`**, the cron job **does not start a second** `not_started` draft; it still advances the in-progress league (up to the existing per-tick pick cap). After that league reaches **`ready_for_review`** or **`completed`**, the next due league can start on a later cron tick. The admin button is blocked the same way if another autopick is `in_progress`.
+4. **Review** – Confirm roster rules in admin league page; **Approve draft** when satisfied.
+5. **Env** – `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`; do not set `DISABLE_AUTOPICK_DRAFT` in production when running autopicks.
 
 ## Quick checklist for “only one team drafting”
 
