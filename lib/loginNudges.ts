@@ -39,7 +39,7 @@ const DEFAULT_CONFIGS: Record<LoginNudgeKey, LoginNudgeConfig> = {
     nudge_key: "no_league_joined",
     enabled: true,
     title: "Create or join a league",
-    body: "You're not in a league yet. Join a public/private league or create your own to get started.",
+    body: "You're not in a league yet. Join a private league with a code from your GM, or create your own to get started.",
     primary_cta_label: "Join a league",
     primary_cta_href: "/leagues/join",
     secondary_cta_label: "Create a league",

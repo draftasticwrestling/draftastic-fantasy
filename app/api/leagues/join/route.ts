@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { joinLeagueWithCode, joinLeagueWithToken, quickJoinOldestPublicLeague } from "@/lib/leagues";
+import { joinLeagueWithCode, joinLeagueWithToken } from "@/lib/leagues";
 
 /**
  * POST /api/leagues/join — join with invite token or permanent league code.
- * Body: { token } or { code } or { public_quick_join: true }.
+ * Body: { token } or { code }.
  */
 export async function POST(request: Request) {
   try {
@@ -12,18 +12,21 @@ export async function POST(request: Request) {
     const code = typeof body.code === "string" ? body.code.trim() : "";
     const publicQuickJoin = body.public_quick_join === true;
 
-    if (!token && !code && !publicQuickJoin) {
-      return NextResponse.json({ error: "token, code, or public_quick_join required" }, { status: 400 });
+    if (publicQuickJoin) {
+      return NextResponse.json(
+        { error: "Joining open public leagues from this page is not available right now. Use a league code or invite link." },
+        { status: 403 },
+      );
     }
-    if ((token ? 1 : 0) + (code ? 1 : 0) + (publicQuickJoin ? 1 : 0) > 1) {
+
+    if (!token && !code) {
+      return NextResponse.json({ error: "token or code required" }, { status: 400 });
+    }
+    if (token && code) {
       return NextResponse.json({ error: "Send only one join method per request" }, { status: 400 });
     }
 
-    const result = publicQuickJoin
-      ? await quickJoinOldestPublicLeague()
-      : code
-        ? await joinLeagueWithCode(code)
-        : await joinLeagueWithToken(token);
+    const result = code ? await joinLeagueWithCode(code) : await joinLeagueWithToken(token);
     if (!result.ok) {
       const err = result.error ?? "Join failed";
       const isFull = /league is full/i.test(err);

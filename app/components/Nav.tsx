@@ -587,7 +587,7 @@ export default function Nav() {
             <ul className="nav-secondary-list">
               <li>
                 <span className="nav-secondary-context">
-                  Quick Join adds you to a public league, or we open a new one for you as GM if every public league is full.
+                  Join a private league with a code from your GM, or create your own league to invite friends.
                 </span>
               </li>
             </ul>

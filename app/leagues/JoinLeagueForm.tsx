@@ -76,35 +76,6 @@ export function JoinLeagueForm({ token, initialCode = "" }: Props) {
     }
   };
 
-  const handleQuickJoinPublic = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/leagues/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ public_quick_join: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Could not join public league.");
-        return;
-      }
-      setJoined(true);
-      if (data.league_slug) {
-        router.push(`/leagues/${data.league_slug}`);
-        router.refresh();
-      } else {
-        router.push("/leagues");
-        router.refresh();
-      }
-    } catch {
-      setError("Request failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (joined) {
     return (
       <p style={{ color: "#166534" }}>Joining… redirecting to the league.</p>
@@ -140,32 +111,7 @@ export function JoinLeagueForm({ token, initialCode = "" }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ padding: 14, border: "1px solid #ddd", borderRadius: 8, background: "#fafafa" }}>
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>Join a Public League</div>
-        <p style={{ margin: "0 0 10px 0", color: "#555", fontSize: 14 }}>
-          Quick Join adds you to the oldest public league that still has room. If every public league is full or none exist
-          yet, we create a new public league and make you the GM so others can Quick Join in.
-        </p>
-        <button
-          type="button"
-          onClick={handleQuickJoinPublic}
-          disabled={loading}
-          style={{
-            padding: "10px 16px",
-            background: "#111827",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            fontSize: 15,
-            fontWeight: 600,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          {loading ? "Joining…" : "Quick Join Public League"}
-        </button>
-      </div>
-
-      <div style={{ fontWeight: 600, marginTop: 4 }}>Join a Private League</div>
+      <div style={{ fontWeight: 600 }}>Join a Private League</div>
       <p style={{ margin: 0, color: "#555", fontSize: 14 }}>
         Ask your GM for the code (format like ABCD-2FGH). Codes do not expire.
       </p>

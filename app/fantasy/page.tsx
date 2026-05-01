@@ -272,8 +272,8 @@ export default async function FantasyHomePage() {
         <h2>My Leagues</h2>
         {leagues.length === 0 ? (
           <p style={{ margin: "8px 0 16px", color: "var(--color-text-muted)" }}>
-            You&apos;re not in any leagues yet. Use <strong>Join a league</strong> for public Quick Join (or a private code), or
-            create your own private league below.
+            You&apos;re not in any leagues yet. Use <strong>Join a league</strong> with a code from your GM, or create your
+            own league below.
           </p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>

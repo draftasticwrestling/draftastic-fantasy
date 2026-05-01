@@ -34,7 +34,7 @@ export default async function LeaguesPage() {
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Leagues</h1>
       <p style={{ color: "#555", marginBottom: 24 }}>
-        Create private leagues for friends or public leagues that auto-fill with Quick Join.
+        Create private leagues for friends or public leagues for your group. New managers join with a code or invite link.
       </p>
 
       <div
@@ -80,7 +80,7 @@ export default async function LeaguesPage() {
             fontWeight: 600,
           }}
         >
-          Quick Join
+          Join a league
         </Link>
       </p>
 
