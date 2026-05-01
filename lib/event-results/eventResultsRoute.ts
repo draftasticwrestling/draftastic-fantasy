@@ -19,7 +19,7 @@ export type EventResultsPageRow = {
   broadcast_start_ts: string | null;
 };
 
-const CANONICAL_SLUG_RE = /^(raw|smackdown|ple)-(\d{4}-\d{2}-\d{2})$/;
+const CANONICAL_SLUG_RE = /^(raw|smackdown|nxt|ple)-(\d{4}-\d{2}-\d{2})$/;
 
 /** Normalize stored date to YYYY-MM-DD for URLs (matches boxscore-style slugs). */
 export function normalizeEventDateForUrl(dateStr: string | null | undefined): string | null {

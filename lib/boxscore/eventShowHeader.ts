@@ -5,13 +5,14 @@
 import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 import { getEventLogoUrl } from "@/lib/howItWorksImages";
 
-export type EventShowFilter = "raw" | "smackdown" | "ple";
+export type EventShowFilter = "raw" | "smackdown" | "nxt" | "ple";
 
 /** Classify event for show filter: raw | smackdown | ple (from name only). */
 export function getEventShowType(event: { name?: string | null } | null | undefined): EventShowFilter {
   const name = (event?.name || "").toLowerCase().trim();
   if (name.includes("raw") && !name.includes("tag team")) return "raw";
   if (name.includes("smackdown") || name.includes("smack down")) return "smackdown";
+  if (name === "nxt" || name.includes("wwe nxt") || name.startsWith("nxt ")) return "nxt";
   return "ple";
 }
 
@@ -123,13 +124,27 @@ export function formatBroadcastDateTime(isoTs: string | null | undefined): strin
 
 export function buildTitleShow(event: { name?: string | null }): string {
   const showType = getEventShowType(event);
-  const showLabel = showType === "raw" ? "Raw" : showType === "smackdown" ? "SmackDown" : null;
+  const showLabel =
+    showType === "raw"
+      ? "Raw"
+      : showType === "smackdown"
+        ? "SmackDown"
+        : showType === "nxt"
+          ? "NXT"
+          : null;
   return showLabel ? `WWE ${showLabel}` : `WWE ${(event.name || "").trim() || "Event"}`;
 }
 
 export function buildBrandPrefix(event: { name?: string | null }): string {
   const showType = getEventShowType(event);
-  const showLabel = showType === "raw" ? "Raw" : showType === "smackdown" ? "SmackDown" : null;
+  const showLabel =
+    showType === "raw"
+      ? "Raw"
+      : showType === "smackdown"
+        ? "SmackDown"
+        : showType === "nxt"
+          ? "NXT"
+          : null;
   return showLabel || (event.name || "").split(" ")[0] || "WWE";
 }
 
@@ -138,6 +153,7 @@ export function getEventResultsCardTitle(event: { name?: string | null }): strin
   const showType = getEventShowType(event);
   if (showType === "raw") return "RAW";
   if (showType === "smackdown") return "SmackDown";
+  if (showType === "nxt") return "NXT";
   const n = (event.name || "").trim();
   return n || "WWE Event";
 }
@@ -159,7 +175,14 @@ export function buildEventHeaderMetaDescription(event: {
   const formattedDate = formatEventHeaderDateLong(event.date);
   const recency = getEventDateRecency(event);
   const showType = getEventShowType(event);
-  const showLabel = showType === "raw" ? "Raw" : showType === "smackdown" ? "SmackDown" : null;
+  const showLabel =
+    showType === "raw"
+      ? "Raw"
+      : showType === "smackdown"
+        ? "SmackDown"
+        : showType === "nxt"
+          ? "NXT"
+          : null;
   const loc = event.location?.trim();
   const locSuffix = loc ? ` in ${loc}` : "";
 

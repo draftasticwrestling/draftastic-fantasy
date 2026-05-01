@@ -24,11 +24,11 @@ export const MENS_BELT_KEYS: BeltKey[] = [
 ];
 
 export const TITLE_POINTS_MENS = [
-  { name: "Undisputed WWE Champion", points: 3 },
-  { name: "Heavy Weight Champion", points: 3 },
-  { name: "Intercontinental Champion", points: 2 },
-  { name: "US Champion", points: 2 },
-  { name: "Tag Team Champion (Per Member)", points: 1 },
+  { name: "Undisputed WWE Champion", points: 12 },
+  { name: "Heavy Weight Champion", points: 12 },
+  { name: "Intercontinental Champion", points: 8 },
+  { name: "US Champion", points: 8 },
+  { name: "Tag Team Champion (Per Member)", points: 4 },
 ];
 
 export const WOMENS_BELT_KEYS: BeltKey[] = [
@@ -40,11 +40,11 @@ export const WOMENS_BELT_KEYS: BeltKey[] = [
 ];
 
 export const TITLE_POINTS_WOMENS = [
-  { name: "WWE Women's Champion", points: 3 },
-  { name: "Women's World Champion", points: 3 },
-  { name: "Intercontinental Champion", points: 2 },
-  { name: "US Champion", points: 2 },
-  { name: "Tag Team Champion (Per Member)", points: 1 },
+  { name: "WWE Women's Champion", points: 12 },
+  { name: "Women's World Champion", points: 12 },
+  { name: "Intercontinental Champion", points: 8 },
+  { name: "US Champion", points: 8 },
+  { name: "Tag Team Champion (Per Member)", points: 4 },
 ];
 
 /** In-match bonuses; same for every championship (belt defense / new champion). */

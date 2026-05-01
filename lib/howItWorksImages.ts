@@ -46,6 +46,7 @@ export type EventLogoKey =
   | "saturday-nights-main-event"
   | "backlash"
   | "evolution"
+  | "clash-in-italy"
   | "clash-in-paris"
   | "wrestlepalooza"
   | "nxt-battleground"
@@ -111,6 +112,7 @@ export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
   "saturday-nights-main-event": `${EVENT_LOGOS_BASE}/Saturday-Nights-Main-Event.png`,
   backlash: `${EVENT_LOGOS_BASE}/Backlash.png`,
   evolution: `${EVENT_LOGOS_BASE}/Evolution.png`,
+  "clash-in-italy": `${EVENT_LOGOS_BASE}/Clash-In-Italy.png`,
   "clash-in-paris": `${EVENT_LOGOS_BASE}/clash-in-paris.png`,
   wrestlepalooza: `${EVENT_LOGOS_BASE}/Wrestlepalooza.png`,
   "nxt-battleground": `${EVENT_LOGOS_BASE}/nxt-battleground.png`,
@@ -137,6 +139,7 @@ export function eventTypeToLogoKey(eventType: string): EventLogoKey | null {
   const t = (eventType || "").toLowerCase().trim();
   if (t === "raw") return "raw";
   if (t === "smackdown") return "smackdown";
+  if (t === "nxt") return "nxt";
   if (t.startsWith("wrestlemania")) return "wrestlemania";
   if (t.startsWith("summerslam")) return "summerslam";
   if (t === "survivor-series") return "survivor-series";
@@ -148,6 +151,7 @@ export function eventTypeToLogoKey(eventType: string): EventLogoKey | null {
   if (t === "saturday-nights-main-event") return "saturday-nights-main-event";
   if (t === "backlash") return "backlash";
   if (t === "evolution") return "evolution";
+  if (t === "clash-in-italy") return "clash-in-italy";
   if (t === "clash-in-paris") return "clash-in-paris";
   if (t === "wrestlepalooza") return "wrestlepalooza";
   if (t === "nxt-battleground") return "nxt-battleground";

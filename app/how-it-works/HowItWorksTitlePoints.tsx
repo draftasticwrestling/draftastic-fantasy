@@ -37,12 +37,14 @@ export function HowItWorksTitlePoints() {
     <section style={{ marginBottom: 40 }}>
       <h2 className={styles.sectionTitle}>Belt Points</h2>
 
-      <h3 className={styles.beltPointsSubheading}>Weekly belt points</h3>
+      <h3 className={styles.beltPointsSubheading}>Monthly belt points (displayed values)</h3>
       <p className={styles.sectionSubtitle}>
-        For <strong>Road to SummerSlam</strong> leagues, title-holder points lock at <strong>11:59 PM PT</strong> (Los Angeles
-        time) at the end of each TV week: after <strong>SmackDown</strong> and before the next <strong>Raw</strong> when there is
-        no PLE that week, or after the last <strong>PLE</strong> in that Monday–Sunday window and before the next Raw when a PLE
-        airs that week. The cutoff uses Pacific time so late shows still count before the lock.
+        The table below shows <strong>monthly-equivalent values</strong> for consistency. In scoring, points are
+        still awarded weekly at <strong>one quarter</strong> of these values. For <strong>Road to SummerSlam</strong> leagues,
+        title-holder points lock at <strong>11:59 PM PT</strong> (Los Angeles time) at the end of each TV week: after{" "}
+        <strong>SmackDown</strong> and before the next <strong>Raw</strong> when there is no PLE that week, or after the last{" "}
+        <strong>PLE</strong> in that Monday–Sunday window and before the next Raw when a PLE airs that week. The cutoff uses
+        Pacific time so late shows still count before the lock.
       </p>
       <div className={styles.titlePointsGrid}>
         <div className={styles.titlePointsThMens}>Men&apos;s Division</div>

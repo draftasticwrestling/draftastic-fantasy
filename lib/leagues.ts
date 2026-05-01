@@ -2,10 +2,16 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getRosterRulesForLeagueId, leagueIncludesNxt, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
-import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
+import {
+  getRosterRulesForLeagueId,
+  leagueIncludesNxt,
+  leagueUsesWeeklyPstBeltHold,
+  ROAD_TO_SUMMERSLAM_SEASON_SLUG,
+} from "@/lib/leagueStructure";
+import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getDefaultStartEndForSeason, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { eventPointsForRosterStint, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import {
   BELT_REIGN_INFERENCE_EVENTS_FROM,
@@ -1333,6 +1339,15 @@ export async function getLeagueScoring(
   const pointsBySlug = aggregateWrestlerPoints(filtered) as PointsBySlug;
   const stints = await getRosterStintsForLeague(leagueId);
   const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
+  const rosterWrestlerIds = [...new Set(stints.map((s) => s.wrestler_id))];
+  const { data: rosterWrestlerRows } = rosterWrestlerIds.length
+    ? await supabase.from("wrestlers").select("id, brand").in("id", rosterWrestlerIds)
+    : { data: [] as Array<{ id: string; brand: string | null }> };
+  const nxtRosterByWrestlerId: Record<string, boolean> = {};
+  for (const w of rosterWrestlerRows ?? []) {
+    nxtRosterByWrestlerId[w.id] = wrestlerRosterFromBrand(w.brand) === "NXT";
+  }
+  const enforceMainRosterOnlyForNxt = (league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
   const pointsByOwner: Record<string, number> = {};
   /** Per owner, points from each wrestler (only while on roster). For team page per-wrestler breakdown. */
   const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
@@ -1354,6 +1369,7 @@ export async function getLeagueScoring(
   );
   for (const event of sortedEvents) {
     const eventDate = (event.date ?? "").toString().slice(0, 10);
+    const eventType = classifyEventType(event.name ?? "", event.id ?? "");
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
       kotrCarryOver
@@ -1412,6 +1428,13 @@ export async function getLeagueScoring(
       }
 
       if (bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
+      if (
+        enforceMainRosterOnlyForNxt &&
+        nxtRosterByWrestlerId[stint.wrestler_id] &&
+        (eventType === EVENT_TYPES.NXT || String(eventType).startsWith("nxt-"))
+      ) {
+        continue;
+      }
 
       const pts = eventPointsForRosterStint(
         eventPoints,

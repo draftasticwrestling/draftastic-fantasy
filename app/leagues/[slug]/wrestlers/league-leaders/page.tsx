@@ -19,12 +19,12 @@ import {
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { factionDisplayName } from "@/lib/factionName";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
-import { isWrestlerStatsCacheUsable, loadWrestlerStatsCacheMaps } from "@/lib/wrestlerStatsCache";
 import {
   adjustRts2026LeagueAggregateBeltPoints,
   beltScoringLastMonthEndInclusive,
@@ -34,6 +34,8 @@ import {
   firstEligibleWeekEndSundayForLeagueStart,
 } from "@/lib/beltWeeklyHold";
 import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import {
   LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM,
@@ -91,66 +93,38 @@ export default async function LeagueLeadersPage({
 
   const startDate = getEffectiveLeagueStartDate(league);
 
-  const [
-    wrestlersResult,
-    cacheMaps,
-    rosters,
-    members,
-    { data: rawReigns },
-    currentFromTable,
-    currentFromChanges,
-  ] = await Promise.all([
-    (async () => {
-      // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
-      const r = await supabase
-        .from("wrestlers")
-        .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
-        .order("name", { ascending: true });
-      return r;
-    })(),
-    loadWrestlerStatsCacheMaps(supabase),
-    getRostersForLeague(league.id),
-    getLeagueMembers(league.id),
-    supabase.from("championship_history").select("*"),
-    getCurrentChampionsFromChampionshipsTable(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
-    getCurrentChampionsFromChanges(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
-  ]);
+  const [wrestlersResult, rosters, members, { data: rawReigns }, currentFromTable, currentFromChanges] =
+    await Promise.all([
+      (async () => {
+        // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
+        const r = await supabase
+          .from("wrestlers")
+          .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+          .order("name", { ascending: true });
+        return r;
+      })(),
+      getRostersForLeague(league.id),
+      getLeagueMembers(league.id),
+      supabase.from("championship_history").select("*"),
+      getCurrentChampionsFromChampionshipsTable(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
+      getCurrentChampionsFromChanges(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
+    ]);
 
   const wrestlers = wrestlersResult.data ?? [];
-  const wrestlersFilteredForCache = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
-  const cacheUsable =
-    cacheMaps != null &&
-    isWrestlerStatsCacheUsable(cacheMaps, wrestlersFilteredForCache.map((w) => w.id));
+  /** Always aggregate from events here — wrestler_stats_cache uses integer columns + different belt windows and skips history when only since-start events are loaded. */
+  const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isPersonaOnlySlug(w.id));
 
-  let eventsAll: { id: string; name: string; date: string; matches?: object[] }[];
-  let eventsSinceStart: typeof eventsAll;
-  let events2025: typeof eventsAll;
-  let events2026: typeof eventsAll;
-
-  if (cacheUsable && cacheMaps) {
-    const { data: sinceStartData } = await supabase
-      .from("events")
-      .select("id, name, date, matches")
-      .in("status", [...EVENT_STATUSES_FOR_SCORING])
-      .gte("date", startDate)
-      .order("date", { ascending: true });
-    eventsSinceStart = (sinceStartData ?? []) as typeof eventsAll;
-    eventsAll = eventsSinceStart;
-    events2025 = [];
-    events2026 = [];
-  } else {
-    const { data: allEventsData } = await supabase
-      .from("events")
-      .select("id, name, date, matches")
-      .in("status", [...EVENT_STATUSES_FOR_SCORING])
-      .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
-      .order("date", { ascending: true })
-      .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT);
-    eventsAll = (allEventsData ?? []) as typeof eventsAll;
-    eventsSinceStart = eventsAll.filter((e) => (e.date ?? "") >= startDate);
-    events2025 = eventsAll.filter((e) => (e.date ?? "") >= "2025-01-01" && (e.date ?? "") <= "2025-12-31");
-    events2026 = eventsAll.filter((e) => (e.date ?? "") >= "2026-01-01" && (e.date ?? "") <= "2026-12-31");
-  }
+  const { data: allEventsData } = await supabase
+    .from("events")
+    .select("id, name, date, matches")
+    .in("status", [...EVENT_STATUSES_FOR_SCORING])
+    .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
+    .order("date", { ascending: true })
+    .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT);
+  const eventsAll = (allEventsData ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
+  const eventsSinceStart = eventsAll.filter((e) => (e.date ?? "") >= startDate);
+  const events2025 = eventsAll.filter((e) => (e.date ?? "") >= "2025-01-01" && (e.date ?? "") <= "2025-12-31");
+  const events2026 = eventsAll.filter((e) => (e.date ?? "") >= "2026-01-01" && (e.date ?? "") <= "2026-12-31");
 
   const memberByUserId = Object.fromEntries((members ?? []).map((m) => [m.user_id, m]));
   const rosterByWrestler: Record<string, { ownerName: string; ownerUserId: string }> = {};
@@ -166,14 +140,21 @@ export default async function LeagueLeadersPage({
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
 
   const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart);
-  const points2025BySlug = cacheUsable ? aggregateWrestlerPoints([]) : aggregateWrestlerPoints(events2025);
-  const points2026BySlug = cacheUsable ? aggregateWrestlerPoints([]) : aggregateWrestlerPoints(events2026);
-  const pointsAllTimeBySlug = cacheUsable ? aggregateWrestlerPoints([]) : aggregateWrestlerPoints(eventsAll);
+  const isNxtEventType = (eventType: string) =>
+    eventType === EVENT_TYPES.NXT || eventType.startsWith("nxt-");
+  const mainRosterOnlyEventsSinceStart = eventsSinceStart.filter((e) => {
+    const t = classifyEventType(e.name ?? "", e.id ?? "");
+    return !isNxtEventType(t);
+  });
+  const pointsBySlugMainRosterOnly = aggregateWrestlerPoints(mainRosterOnlyEventsSinceStart);
+  const points2025BySlug = aggregateWrestlerPoints(events2025);
+  const points2026BySlug = aggregateWrestlerPoints(events2026);
+  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll);
 
   const matchStatsBySlug = aggregateWrestlerMatchStats(eventsSinceStart);
-  const matchStats2025BySlug = cacheUsable ? aggregateWrestlerMatchStats([]) : aggregateWrestlerMatchStats(events2025);
-  const matchStats2026BySlug = cacheUsable ? aggregateWrestlerMatchStats([]) : aggregateWrestlerMatchStats(events2026);
-  const matchStatsAllTimeBySlug = cacheUsable ? aggregateWrestlerMatchStats([]) : aggregateWrestlerMatchStats(eventsAll);
+  const matchStats2025BySlug = aggregateWrestlerMatchStats(events2025);
+  const matchStats2026BySlug = aggregateWrestlerMatchStats(events2026);
+  const matchStatsAllTimeBySlug = aggregateWrestlerMatchStats(eventsAll);
   // All-time unparsed matches (for "matches needing review" indicator on League Leaders)
   const unparsedBySlug = getUnparsedMatchesByWrestler(
     eventsAll as { id: string; name: string; date: string; matches?: object[] }[]
@@ -203,102 +184,41 @@ export default async function LeagueLeadersPage({
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
   const error = wrestlersResult.error;
-  const wrestlersFiltered = wrestlersFilteredForCache;
+  const enforceNxtPendingOnlyForRts = league.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
   const rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
     const idKey = normalizeWrestlerName(String(w.id));
     const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
     // Use slugKey (stable id/slug) first so points match when display name changed (e.g. Natalya → Nattie, slug still natalya)
-    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const pointsAll = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const pointsMainOnly = getPointsForWrestler(pointsBySlugMainRosterOnly, slugKey, nameKey);
+    const isNxtRoster = wrestlerRosterFromBrand(w.brand ?? null) === "NXT";
+    const useMainOnlyForDisplay = enforceNxtPendingOnlyForRts && isNxtRoster;
+    const points = useMainOnlyForDisplay ? pointsMainOnly : pointsAll;
     const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
+    const beltPointsAll = pointsAll.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
+    const totalPointsAll = pointsAll.rsPoints + pointsAll.plePoints + beltPointsAll;
+    const nxtPointsPending = useMainOnlyForDisplay ? Math.max(0, totalPointsAll - totalPoints) : 0;
     const matchStats = getMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
 
-    let points2025: ReturnType<typeof getPointsForWrestler>;
-    let points2026: ReturnType<typeof getPointsForWrestler>;
-    let pointsAllTime: ReturnType<typeof getPointsForWrestler>;
-    let matchStats2025: ReturnType<typeof getMatchStatsForWrestler>;
-    let matchStats2026: ReturnType<typeof getMatchStatsForWrestler>;
-    let matchStatsAllTime: ReturnType<typeof getMatchStatsForWrestler>;
-    let beltPointsAllTime: number;
-    let totalPointsAllTime: number;
-    let beltPoints2025: number;
-    let beltPoints2026: number;
-
-    if (cacheUsable && cacheMaps) {
-      const cAll = cacheMaps.all_time.get(String(slugKey));
-      const c25 = cacheMaps["2025"].get(String(slugKey));
-      const c26 = cacheMaps["2026"].get(String(slugKey));
-      points2025 = {
-        rsPoints: c25?.rs_points ?? 0,
-        plePoints: c25?.ple_points ?? 0,
-        beltPoints: c25?.belt_points ?? 0,
-      };
-      points2026 = {
-        rsPoints: c26?.rs_points ?? 0,
-        plePoints: c26?.ple_points ?? 0,
-        beltPoints: c26?.belt_points ?? 0,
-      };
-      pointsAllTime = {
-        rsPoints: cAll?.rs_points ?? 0,
-        plePoints: cAll?.ple_points ?? 0,
-        beltPoints: cAll?.belt_points ?? 0,
-      };
-      beltPointsAllTime = cAll?.belt_points ?? 0;
-      totalPointsAllTime = cAll?.total_points ?? 0;
-      beltPoints2025 = c25?.belt_points ?? 0;
-      beltPoints2026 = c26?.belt_points ?? 0;
-      matchStats2025 = {
-        mw: c25?.mw ?? 0,
-        win: c25?.win ?? 0,
-        loss: c25?.loss ?? 0,
-        nc: c25?.nc ?? 0,
-        dqw: c25?.dqw ?? 0,
-        dql: c25?.dql ?? 0,
-      };
-      matchStats2026 = {
-        mw: c26?.mw ?? 0,
-        win: c26?.win ?? 0,
-        loss: c26?.loss ?? 0,
-        nc: c26?.nc ?? 0,
-        dqw: c26?.dqw ?? 0,
-        dql: c26?.dql ?? 0,
-      };
-      matchStatsAllTime = {
-        mw: cAll?.mw ?? 0,
-        win: cAll?.win ?? 0,
-        loss: cAll?.loss ?? 0,
-        nc: cAll?.nc ?? 0,
-        dqw: cAll?.dqw ?? 0,
-        dql: cAll?.dql ?? 0,
-      };
-    } else {
-      points2025 = getPointsForWrestler(points2025BySlug, slugKey, nameKey);
-      points2026 = getPointsForWrestler(points2026BySlug, slugKey, nameKey);
-      pointsAllTime = getPointsForWrestler(pointsAllTimeBySlug, slugKey, nameKey);
-      matchStats2025 = getMatchStatsForWrestler(matchStats2025BySlug, slugKey, nameKey);
-      matchStats2026 = getMatchStatsForWrestler(matchStats2026BySlug, slugKey, nameKey);
-      matchStatsAllTime = getMatchStatsForWrestler(matchStatsAllTimeBySlug, slugKey, nameKey);
-      const allTimeParts = allTimeLeadersStylePointBreakdown(pointsAllTimeBySlug, endOfMonthBeltPointsAllTime, slugKey, nameKey);
-      beltPointsAllTime = allTimeParts.beltCombined;
-      totalPointsAllTime = allTimeParts.total;
-      const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
-      const extraBelt2026 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2026, slugKey, nameKey);
-      beltPoints2025 = points2025.beltPoints + extraBelt2025;
-      beltPoints2026 = points2026.beltPoints + extraBelt2026;
-    }
-    const totalPoints2025Row =
-      cacheUsable && cacheMaps
-        ? cacheMaps["2025"].get(String(slugKey))?.total_points ??
-          points2025.rsPoints + points2025.plePoints + beltPoints2025
-        : points2025.rsPoints + points2025.plePoints + beltPoints2025;
-    const totalPoints2026Row =
-      cacheUsable && cacheMaps
-        ? cacheMaps["2026"].get(String(slugKey))?.total_points ??
-          points2026.rsPoints + points2026.plePoints + beltPoints2026
-        : points2026.rsPoints + points2026.plePoints + beltPoints2026;
+    const points2025 = getPointsForWrestler(points2025BySlug, slugKey, nameKey);
+    const points2026 = getPointsForWrestler(points2026BySlug, slugKey, nameKey);
+    const pointsAllTime = getPointsForWrestler(pointsAllTimeBySlug, slugKey, nameKey);
+    const matchStats2025 = getMatchStatsForWrestler(matchStats2025BySlug, slugKey, nameKey);
+    const matchStats2026 = getMatchStatsForWrestler(matchStats2026BySlug, slugKey, nameKey);
+    const matchStatsAllTime = getMatchStatsForWrestler(matchStatsAllTimeBySlug, slugKey, nameKey);
+    const allTimeParts = allTimeLeadersStylePointBreakdown(pointsAllTimeBySlug, endOfMonthBeltPointsAllTime, slugKey, nameKey);
+    const beltPointsAllTime = allTimeParts.beltCombined;
+    const totalPointsAllTime = allTimeParts.total;
+    const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
+    const extraBelt2026 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2026, slugKey, nameKey);
+    const beltPoints2025 = points2025.beltPoints + extraBelt2025;
+    const beltPoints2026 = points2026.beltPoints + extraBelt2026;
+    const totalPoints2025Row = points2025.rsPoints + points2025.plePoints + beltPoints2025;
+    const totalPoints2026Row = points2026.rsPoints + points2026.plePoints + beltPoints2026;
     const fromTable =
       currentFromTable[idKey] ?? currentFromTable[slugKey] ?? (nameKey ? currentFromTable[nameKey] : null);
     const fromChanges =
@@ -322,6 +242,8 @@ export default async function LeagueLeadersPage({
       plePoints: points.plePoints,
       beltPoints,
       totalPoints,
+      nxtPointsPending,
+      nxtRtsLeaguePoints: useMainOnlyForDisplay,
       rsPoints2025: points2025.rsPoints,
       plePoints2025: points2025.plePoints,
       beltPoints2025,
@@ -414,6 +336,12 @@ export default async function LeagueLeadersPage({
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16, fontSize: 13 }}>
         Wrestlers ranked by fantasy points to date. Sorted by highest total first; you can re-sort by any column.
       </p>
+      {enforceNxtPendingOnlyForRts && (
+        <p style={{ color: "#8a6d00", marginBottom: 16, fontSize: 13 }}>
+          (<strong>*</strong>) next to points means NXT event and belt points are included and some or all will not factor into
+          league points.
+        </p>
+      )}
       <WrestlerMatchStatsDisclaimer style={{ marginBottom: 24 }} />
 
       {error && (
@@ -436,6 +364,7 @@ export default async function LeagueLeadersPage({
           wrestlerProfileFrom="league-leaders"
           rosterByWrestler={rosterByWrestler}
           enableViewToggle
+          rtsNxtPointsFootnote={enforceNxtPendingOnlyForRts}
         />
       )}
     </main>

@@ -38,3 +38,11 @@ export function isPastEndOfDayPst(weekEndSundayYmd: string, nowMs: number = Date
   if (!Number.isFinite(endMs)) return false;
   return nowMs > endMs;
 }
+
+/** Last calendar day (YYYY-MM-DD in Los Angeles) of the home-page public-league promo; switch copy the next PT day. */
+export const HUB_HERO_PUBLIC_PROMO_LAST_YMD_LA = "2026-04-30";
+
+/** True from the first instant of May 1, 2026 PT onward (i.e. after 11:59:59 PM PT on April 30, 2026). */
+export function isPastHubHeroPublicPromoEnd(nowMs: number = Date.now()): boolean {
+  return getCivilYmdInPst(nowMs) > HUB_HERO_PUBLIC_PROMO_LAST_YMD_LA;
+}

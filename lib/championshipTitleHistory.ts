@@ -1,6 +1,7 @@
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { getPwbsChampionshipPage, getPwbsDisplayTitleForSlug } from "@/lib/pwbsChampionshipSlug.js";
 import { titleToChampionshipSlug } from "@/lib/championshipPathSlug";
+import { isTagTeamTitle } from "@/lib/scoring/tagTeamMembers.js";
 
 /** Championship history row shape (Pro Wrestling Boxscore / Supabase). */
 export type ChampionshipReignRow = {
@@ -147,12 +148,16 @@ export function buildTitleHistoryByTitle(
     const championSlug = normalizeWrestlerName(rawSlug || (r.champion ?? r.champion_name ?? ""));
     const fromSlug = championSlug ? wrestlerBySlug.get(championSlug) : null;
     const fromName = !fromSlug && r.champion ? wrestlerByNameKey.get(normalizeWrestlerName(r.champion)) : null;
+    const rawChampionLabel = (r.champion ?? r.champion_name ?? "").trim();
+    /** Tag rows: PWBS often stores "Team (A & B)" while slug is one member — don't replace with that member's display name. */
     const championName = (
-      fromSlug?.name ??
-      fromName?.name ??
-      r.champion ??
-      r.champion_name ??
-      championSlug
+      isTagTeamTitle(title) && rawChampionLabel
+        ? rawChampionLabel
+        : fromSlug?.name ??
+          fromName?.name ??
+          r.champion ??
+          r.champion_name ??
+          championSlug
     ).toString();
     const imageUrl = fromSlug?.image_url ?? fromName?.image_url ?? null;
     const d = reignDetailsFromRow(r as Record<string, unknown>);
@@ -212,12 +217,17 @@ export function buildTitleHistoryByChampionshipSlug(
     const championSlug = normalizeWrestlerName(rawSlug || (r.champion ?? r.champion_name ?? ""));
     const fromSlug = championSlug ? wrestlerBySlug.get(championSlug) : null;
     const fromName = !fromSlug && r.champion ? wrestlerByNameKey.get(normalizeWrestlerName(r.champion)) : null;
+    const rawChampionLabel = (r.champion ?? r.champion_name ?? "").trim();
+    /** Tag rows: PWBS often stores "Team (A & B)" while slug is one member — don't replace with that member's display name. */
+    const tagRow = isTagTeamTitle(displayTitle) || isTagTeamTitle(rawTitle);
     const championName = (
-      fromSlug?.name ??
-      fromName?.name ??
-      r.champion ??
-      r.champion_name ??
-      championSlug
+      tagRow && rawChampionLabel
+        ? rawChampionLabel
+        : fromSlug?.name ??
+          fromName?.name ??
+          r.champion ??
+          r.champion_name ??
+          championSlug
     ).toString();
     const imageUrl = fromSlug?.image_url ?? fromName?.image_url ?? null;
     const d = reignDetailsFromRow(r as Record<string, unknown>);
