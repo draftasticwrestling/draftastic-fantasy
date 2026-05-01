@@ -260,18 +260,74 @@ export async function updateLeagueTypeAction(
     return { error: "Invalid league type." };
   }
 
-  if (league_type === "head_to_head" && league.league_type !== "head_to_head") {
+  const isSiteAdmin = await getIsSiteAdmin();
+  if (
+    league_type === "head_to_head" &&
+    league.league_type !== "head_to_head" &&
+    !isSiteAdmin
+  ) {
     return {
       error:
-        "Head-to-Head is not available for new leagues during the Road to SummerSlam beta. Choose Total Season Points.",
+        "Head-to-Head is not available for new leagues during the Road to SummerSlam beta. Choose Total Season Points, or ask a site admin to enable Head-to-Head for testing.",
     };
   }
 
-  const { error } = await supabase.from("leagues").update({ league_type }).eq("id", league.id);
+  const updatePayload: { league_type: string | null; include_nxt?: boolean } = { league_type };
+  if (league_type && league_type !== "head_to_head" && Boolean((league as { include_nxt?: boolean | null }).include_nxt)) {
+    updatePayload.include_nxt = false;
+  }
+  let { error } = await supabase.from("leagues").update(updatePayload).eq("id", league.id);
+  if (error && /include_nxt/i.test(error.message ?? "")) {
+    const retry = await supabase.from("leagues").update({ league_type }).eq("id", league.id);
+    error = retry.error;
+  }
   if (error) return { error: error.message };
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/league-settings`);
   return {};
+}
+
+export async function updateIncludeNxtAction(
+  leagueSlug: string,
+  formData: FormData
+): Promise<{ error?: string }> {
+  const isSiteAdmin = await getIsSiteAdmin();
+  if (!isSiteAdmin) {
+    return { error: "Only site administrators can change the Include NXT setting." };
+  }
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+
+  const { supabase, user } = await getServerAuth();
+  if (!user || league.commissioner_id !== user.id) {
+    return { error: "Only the GM can update this league." };
+  }
+  if ((league.league_type ?? "") !== "head_to_head") {
+    return { error: "Include NXT only applies to Head-to-Head leagues." };
+  }
+
+  const include_nxt =
+    formData.get("include_nxt") === "1" || formData.get("include_nxt") === "on" || formData.get("include_nxt") === "true";
+
+  let { error } = await supabase.from("leagues").update({ include_nxt }).eq("id", league.id);
+  if (error && /include_nxt/i.test(error.message ?? "")) {
+    return { error: "Database is missing the include_nxt column. Apply the latest Supabase migration." };
+  }
+  if (error) return { error: error.message };
+  revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/league-settings`);
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
+  revalidatePath(`/leagues/${leagueSlug}/wrestlers/free-agents`);
+  return {};
+}
+
+export async function updateIncludeNxtFormAction(
+  _prevState: { error?: string } | null,
+  formData: FormData
+): Promise<{ error?: string } | null> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return { error: "League slug is required." };
+  return updateIncludeNxtAction(leagueSlug, formData);
 }
 
 export async function updateLeagueTypeFormAction(

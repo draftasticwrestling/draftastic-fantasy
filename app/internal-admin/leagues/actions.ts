@@ -109,7 +109,9 @@ export async function adminAddRosterEntryAction(formData: FormData): Promise<voi
   const userId = String(formData.get("userId") ?? "");
   const wrestlerId = String(formData.get("wrestlerId") ?? "").trim();
   if (!leagueId || !leagueSlug || !userId || !wrestlerId) return;
-  await addWrestlerToRoster(leagueId, userId, wrestlerId, null, true);
+  await addWrestlerToRoster(leagueId, userId, wrestlerId, null, true, undefined, {
+    skipMainBrandPoolCheck: true,
+  });
   revalidatePath(`/internal-admin/leagues/${encodeURIComponent(leagueSlug)}`);
   revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}`);
 }

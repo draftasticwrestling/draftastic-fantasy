@@ -15,7 +15,13 @@ import { sortByChampionshipDisplayOrder } from "@/lib/championshipDisplayOrder";
 import { collapseTagTeamChampionsForCard } from "@/lib/championshipCardTagChampions";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import type { TitleHistoryItem } from "@/lib/championshipTitleHistory";
-import { isTagTeamTitle } from "@/lib/scoring/tagTeamMembers.js";
+import { supabase } from "@/lib/supabase";
+import { getPwbsChampionshipPage } from "@/lib/pwbsChampionshipSlug.js";
+import {
+  getTagTeamMemberSlugs,
+  isTagTeamTitle,
+  parseTagTeamChampionToMemberSlugs,
+} from "@/lib/scoring/tagTeamMembers.js";
 
 /** Allow cached response for 60s to improve repeat visit speed. */
 export const revalidate = 60;
@@ -27,7 +33,6 @@ function read2kRating(row: Record<string, unknown>, key: string): number | null 
   return Number.isNaN(n) ? null : n;
 }
 
-
 export const metadata = {
   title: "Wrestlers — Draftastic Fantasy",
   description:
@@ -35,6 +40,26 @@ export const metadata = {
 };
 
 export default async function WrestlersPage() {
+  const dedupeChampionRows = (rows: TitleHistoryItem[]): TitleHistoryItem[] => {
+    const byKey = new Map<string, TitleHistoryItem>();
+    for (const row of rows) {
+      const key =
+        normalizeWrestlerName(String(row.championSlug || "").trim()) ||
+        normalizeWrestlerName(String(row.champion || "").trim());
+      if (!key) continue;
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, row);
+        continue;
+      }
+      // Prefer the row with an image/event metadata if duplicates exist for the same champion + date.
+      const score = (r: TitleHistoryItem) =>
+        (r.imageUrl ? 2 : 0) + (r.eventWon ? 1 : 0) + (r.eventLost ? 1 : 0) + (r.defeated ? 1 : 0);
+      if (score(row) > score(existing)) byKey.set(key, row);
+    }
+    return [...byKey.values()];
+  };
+
   const dataset = await getChampionshipHistoryDataset();
 
   const {
@@ -45,8 +70,7 @@ export default async function WrestlersPage() {
     wrestlerByNameKey,
     tagTeamMembersBySlug,
     wrestlers: wrestlersFromDb,
-  } =
-    dataset;
+  } = dataset;
   const eventsForAgg = events ?? [];
   const pointsBySlug = aggregateWrestlerPoints(
     eventsForAgg as Parameters<typeof aggregateWrestlerPoints>[0]
@@ -101,14 +125,6 @@ export default async function WrestlersPage() {
     };
   });
 
-  const historyCards = sortByChampionshipDisplayOrder(
-    [...titleHistoryBySlug.entries()].map(([slug, bucket]) => ({
-      slug,
-      title: bucket.displayTitle,
-      items: [...bucket.items].sort((a, b) => b.wonDate.localeCompare(a.wonDate)),
-    }))
-  );
-
   function expandTagChampRows(rows: TitleHistoryItem[], title: string): TitleHistoryItem[] {
     if (!isTagTeamTitle(title) || rows.length !== 1) return rows;
     const row = rows[0];
@@ -126,12 +142,23 @@ export default async function WrestlersPage() {
     });
   }
 
+  const historyCards = sortByChampionshipDisplayOrder(
+    [...titleHistoryBySlug.entries()].map(([slug, bucket]) => ({
+      slug,
+      title: bucket.displayTitle,
+      items: [...bucket.items].sort((a, b) => b.wonDate.localeCompare(a.wonDate)),
+    }))
+  );
+
   const currentChampionCards = historyCards
     .map((h) => {
       const latest = h.items[0];
       if (!latest) return null;
       const latestWon = latest.wonDate;
-      const rawChamps = expandTagChampRows(h.items.filter((x) => x.wonDate === latestWon), h.title);
+      const rawChamps = expandTagChampRows(
+        dedupeChampionRows(h.items.filter((x) => x.wonDate === latestWon)),
+        h.title
+      );
       const { champions: champs, tagTeamName, hasTeamNameRow } = collapseTagTeamChampionsForCard(
         h.title,
         rawChamps,
@@ -147,6 +174,7 @@ export default async function WrestlersPage() {
         tagTeamName,
         hasTeamNameRow,
         beltImageUrl: getBeltImageUrlForTitle(h.title),
+        hasHistory: true,
       };
     })
     .filter(Boolean) as {
@@ -156,7 +184,133 @@ export default async function WrestlersPage() {
     tagTeamName: string | null;
     hasTeamNameRow: boolean;
     beltImageUrl: string | null;
+    hasHistory: boolean;
   }[];
+
+  // Include titles that are only present in the `championships` current snapshot table
+  // (e.g. newly added titles before full championship_history backfill).
+  const existingTitles = new Set(currentChampionCards.map((c) => c.title.trim().toLowerCase()));
+  const existingSlugs = new Set(currentChampionCards.map((c) => c.slug.trim().toLowerCase()));
+  const { data: championshipRows } = await supabase
+    .from("championships")
+    .select("id, title_name, current_champion, current_champion_slug");
+  const supplementalCards: {
+    slug: string;
+    title: string;
+    champs: TitleHistoryItem[];
+    tagTeamName: string | null;
+    hasTeamNameRow: boolean;
+    beltImageUrl: string | null;
+    hasHistory: boolean;
+  }[] = [];
+  for (const row of (championshipRows ?? []) as {
+    id?: string | null;
+    title_name?: string | null;
+    current_champion?: string | null;
+    current_champion_slug?: string | null;
+  }[]) {
+    const title =
+      (row.title_name ?? "").trim() ||
+      (row.id ?? "").trim().replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    if (!title) continue;
+    if (existingTitles.has(title.toLowerCase())) continue;
+
+    const rawChampion = (row.current_champion ?? "").trim();
+    const rawChampionSlug = (row.current_champion_slug ?? "").trim();
+    const normalizedSlug = rawChampionSlug ? normalizeWrestlerName(rawChampionSlug) : "";
+    const champs: TitleHistoryItem[] = [];
+    const isTag = isTagTeamTitle(title);
+
+    if (isTag) {
+      const memberSlugs =
+        getTagTeamMemberSlugs(normalizedSlug) ??
+        parseTagTeamChampionToMemberSlugs(rawChampion || rawChampionSlug || "");
+      if (memberSlugs?.length) {
+        for (const memberSlug of memberSlugs) {
+          const w =
+            wrestlerBySlug.get(memberSlug) ??
+            wrestlerByNameKey.get(normalizeWrestlerName(memberSlug.replace(/-/g, " ")));
+          const championName = (w?.name ?? memberSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())).trim();
+          champs.push({
+            champion: championName,
+            championSlug: memberSlug,
+            wonDate: "",
+            lostDate: null,
+            imageUrl: w?.image_url ?? null,
+            defeated: null,
+            defeatedSlug: null,
+            eventWon: null,
+            eventLost: null,
+            daysHeldDb: null,
+          });
+        }
+      }
+    }
+
+    if (champs.length === 0) {
+      const key = normalizedSlug || normalizeWrestlerName(rawChampion);
+      if (!key) continue;
+      const w = wrestlerBySlug.get(key) ?? wrestlerByNameKey.get(normalizeWrestlerName(rawChampion));
+      const fallbackName = (rawChampion || key.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())).trim();
+      champs.push({
+        champion: (w?.name ?? fallbackName).trim(),
+        championSlug: key,
+        wonDate: "",
+        lostDate: null,
+        imageUrl: w?.image_url ?? null,
+        defeated: null,
+        defeatedSlug: null,
+        eventWon: null,
+        eventLost: null,
+        daysHeldDb: null,
+      });
+    }
+
+    const page = getPwbsChampionshipPage(title);
+    const fallbackSlug = ((row.id ?? "").trim() || title.toLowerCase().replace(/\s+/g, "-")).trim();
+    const cardSlug = (page?.slug ?? fallbackSlug).toLowerCase();
+    if (existingSlugs.has(cardSlug)) continue;
+    existingSlugs.add(cardSlug);
+    supplementalCards.push({
+      slug: cardSlug,
+      title,
+      champs,
+      tagTeamName: isTag ? (rawChampion || null) : null,
+      hasTeamNameRow: isTag,
+      beltImageUrl: getBeltImageUrlForTitle(title),
+      hasHistory: false,
+    });
+  }
+  if (supplementalCards.length > 0) {
+    currentChampionCards.push(...supplementalCards);
+  }
+
+  const isNxtChampionCard = (card: { slug: string; title: string }) => {
+    if (/^nxt-/i.test(card.slug)) return true;
+    const t = card.title.trim().toLowerCase();
+    return t.startsWith("nxt ") || /\bnxt\b/i.test(card.title);
+  };
+  const NXT_CHAMP_ORDER: string[] = [
+    "nxt-championship",
+    "nxt-womens-championship",
+    "nxt-north-american-championship",
+    "nxt-womens-north-american-championship",
+    "nxt-tag-team-championship",
+    "nxt-mens-speed-championship",
+    "nxt-womens-speed-championship",
+  ];
+  const nxtOrderIndex = new Map(NXT_CHAMP_ORDER.map((slug, i) => [slug, i]));
+  const championCardsForToggle = [
+    ...currentChampionCards.filter((c) => !isNxtChampionCard(c)),
+    ...currentChampionCards
+      .filter((c) => isNxtChampionCard(c))
+      .sort((a, b) => {
+        const ai = nxtOrderIndex.get(a.slug) ?? 999;
+        const bi = nxtOrderIndex.get(b.slug) ?? 999;
+        if (ai !== bi) return ai - bi;
+        return a.title.localeCompare(b.title);
+      }),
+  ];
 
   const error = dataset.error;
   return (
@@ -175,7 +329,7 @@ export default async function WrestlersPage() {
           We are still in the process of building out the historical data. Title histories are not complete and may be
           missing data.
         </p>
-        <CurrentChampionsToggle cards={currentChampionCards} />
+        <CurrentChampionsToggle cards={championCardsForToggle} />
       </section>
 
       {error && (

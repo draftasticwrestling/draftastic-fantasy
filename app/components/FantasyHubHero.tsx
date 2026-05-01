@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { DRAFTASTIC_SCREENSHOTS } from "@/lib/draftasticScreenshots";
+import { isPastHubHeroPublicPromoEnd } from "@/lib/pstCivilTime";
 import { siteLogoHref } from "@/lib/siteLogo";
 
 function HubExpandScreenshot({ src, alt, caption }: { src: string; alt: string; caption: string }) {
@@ -25,7 +26,18 @@ function HubExpandScreenshot({ src, alt, caption }: { src: string; alt: string; 
 
 export default function FantasyHubHero() {
   const [open, setOpen] = useState(false);
+  const [postPromo, setPostPromo] = useState(() => isPastHubHeroPublicPromoEnd());
   const panelId = useId();
+
+  useEffect(() => {
+    if (postPromo) return;
+    const tick = () => {
+      if (isPastHubHeroPublicPromoEnd()) setPostPromo(true);
+    };
+    const id = window.setInterval(tick, 60_000);
+    tick();
+    return () => window.clearInterval(id);
+  }, [postPromo]);
 
   return (
     <section className="hub-hero">
@@ -38,47 +50,57 @@ export default function FantasyHubHero() {
             Turn watching WWE into a competition. Build your roster. Score points from real shows. Prove you know wrestling
             better than your friends.
           </p>
-          <div className="hub-hero-urgency">
-            <p>Public Leagues now available. ACCESS CODE:</p>
-            <p
-              style={{
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                letterSpacing: "0.06em",
-                fontWeight: 800,
-                color: "#4ade80",
-                fontSize: "1.05em",
-              }}
-            >
-              MANIA-42-VEGAS
-            </p>
-            <p>
-              Create or Join a League by April 30th. And don&apos;t forget to set your draft preferences!
-            </p>
-          </div>
-          <div className="hub-hero-actions">
-            <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
-              Create a League
-            </Link>
-            <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
-              Join a League
-            </Link>
-            <Link href="/how-it-works" className="hub-hero-btn hub-hero-btn-outline">
-              How It Works
-            </Link>
-          </div>
-          <button
-            type="button"
-            className="hub-hero-learn-toggle"
-            aria-expanded={open}
-            aria-controls={panelId}
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? "Show less" : "Learn more"}
-          </button>
+          {postPromo ? (
+            <div className="hub-hero-urgency hub-hero-urgency--beta">
+              <p>
+                Beta Leagues now in progress. Check back later for information about how to sign up for the next season.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="hub-hero-urgency">
+                <p>Public Leagues now available. ACCESS CODE:</p>
+                <p
+                  style={{
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                    letterSpacing: "0.06em",
+                    fontWeight: 800,
+                    color: "#4ade80",
+                    fontSize: "1.05em",
+                  }}
+                >
+                  MANIA-42-VEGAS
+                </p>
+                <p>
+                  Create or Join a League by April 30th. And don&apos;t forget to set your draft preferences!
+                </p>
+              </div>
+              <div className="hub-hero-actions">
+                <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
+                  Create a League
+                </Link>
+                <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
+                  Join a League
+                </Link>
+                <Link href="/how-it-works" className="hub-hero-btn hub-hero-btn-outline">
+                  How It Works
+                </Link>
+              </div>
+              <button
+                type="button"
+                className="hub-hero-learn-toggle"
+                aria-expanded={open}
+                aria-controls={panelId}
+                onClick={() => setOpen((v) => !v)}
+              >
+                {open ? "Show less" : "Learn more"}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <div id={panelId} className="hub-hero-expand-wrap" hidden={!open}>
+      <div id={panelId} className="hub-hero-expand-wrap" hidden={!open || postPromo}>
         <div className="hub-hero-expand">
           <section className="hub-hero-expand-section" aria-labelledby="hub-expand-s2">
             <h2 id="hub-expand-s2">Fantasy Wrestling. But Actually Good.</h2>

@@ -67,8 +67,13 @@ const glossarySectionStyle: React.CSSProperties = {
   border: "1px solid var(--color-border, #e9ecef)",
 };
 
+type WrestlerTableLegendProps = {
+  /** Road to SummerSlam: explain * on NXT-brand wrestler point columns. */
+  rtsNxtPointsFootnote?: boolean;
+};
+
 /** Glossary at the bottom of the full wrestler data table (League Leaders, Free Agents, Wrestlers list). */
-export function WrestlerTableLegend() {
+export function WrestlerTableLegend({ rtsNxtPointsFootnote = false }: WrestlerTableLegendProps) {
   return (
     <section style={glossarySectionStyle} aria-label="Glossary">
       <h3 style={glossaryTitleStyle}>Glossary</h3>
@@ -80,6 +85,20 @@ export function WrestlerTableLegend() {
           </li>
         ))}
       </ul>
+      {rtsNxtPointsFootnote && (
+        <p
+          style={{
+            marginTop: 12,
+            marginBottom: 0,
+            fontSize: 11,
+            color: "var(--color-text-muted, #555)",
+            lineHeight: 1.55,
+          }}
+        >
+          <strong>Road to SummerSlam</strong> — (<strong>*</strong>) next to points means NXT event and belt points are included
+          and some or all will not factor into league points.
+        </p>
+      )}
     </section>
   );
 }

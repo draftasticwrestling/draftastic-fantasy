@@ -17,14 +17,18 @@ type ChampionCard = {
   tagTeamName: string | null;
   hasTeamNameRow: boolean;
   beltImageUrl: string | null;
+  /** From full title history vs championships-table snapshot only. */
+  hasHistory?: boolean;
 };
 
 type Props = {
   cards: ChampionCard[];
 };
 
-function isNxtTitle(title: string): boolean {
-  return title.trim().toLowerCase().startsWith("nxt ");
+function isNxtCard(card: { title: string; slug: string }): boolean {
+  if (/^nxt-/i.test(card.slug)) return true;
+  const t = card.title.trim().toLowerCase();
+  return t.startsWith("nxt ") || /\bnxt\b/i.test(card.title);
 }
 
 function isTagTeamCard(title: string): boolean {
@@ -53,7 +57,7 @@ function beltClassName(src: string | null | undefined): string | undefined {
 export function CurrentChampionsToggle({ cards }: Props) {
   const [tab, setTab] = useState<"main" | "nxt">("main");
   const filtered = useMemo(
-    () => cards.filter((c) => (tab === "nxt" ? isNxtTitle(c.title) : !isNxtTitle(c.title))),
+    () => cards.filter((c) => (tab === "nxt" ? isNxtCard(c) : !isNxtCard(c))),
     [cards, tab]
   );
 
@@ -122,16 +126,37 @@ export function CurrentChampionsToggle({ cards }: Props) {
                 </div>
               ))}
             </div>
-            {card.tagTeamName ? <div className="wrestlers-champ-card__team-name">{card.tagTeamName}</div> : null}
+            {card.hasTeamNameRow ? (
+              <div
+                className={`wrestlers-champ-card__team-name${
+                  card.tagTeamName ? "" : " wrestlers-champ-card__team-name--empty"
+                }`}
+              >
+                {card.tagTeamName ?? "\u00a0"}
+              </div>
+            ) : null}
             <div
               className={`wrestlers-champ-card__names${isTagTeamCard(card.title) ? " wrestlers-champ-card__names--single-line" : ""}`}
             >
               {card.champs.map((c) => c.champion).join(" & ")}
             </div>
             <div className="wrestlers-champ-card__footer">
-              <Link href={`/championship/${encodeURIComponent(card.slug)}`} className="wrestlers-champ-title-history-pill">
-                Title History
-              </Link>
+              {card.hasHistory !== false ? (
+                <Link
+                  href={`/championship/${encodeURIComponent(card.slug)}`}
+                  className="wrestlers-champ-title-history-pill"
+                >
+                  Title History
+                </Link>
+              ) : (
+                <span
+                  className="wrestlers-champ-title-history-pill"
+                  style={{ opacity: 0.7, cursor: "default" }}
+                  aria-label="Current champion snapshot"
+                >
+                  Current Snapshot
+                </span>
+              )}
             </div>
           </article>
         ))}

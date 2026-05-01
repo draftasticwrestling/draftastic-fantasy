@@ -39,6 +39,10 @@ export type WrestlerRow = {
   plePoints?: number;
   beltPoints?: number;
   totalPoints?: number;
+  /** Tracked NXT-event points that are intentionally not counted yet (season rules). */
+  nxtPointsPending?: number;
+  /** Road to SummerSlam: NXT-brand row — show * footnote on league-scoped point columns. */
+  nxtRtsLeaguePoints?: boolean;
   /** Points for 2025 only (when points period filter is used). */
   rsPoints2025?: number;
   plePoints2025?: number;
@@ -207,6 +211,34 @@ function calculateAge(dob: string | null | undefined): number | null {
   const m = today.getMonth() - date.getMonth();
   if (m < 0 || (m === 0 && today.getDate() < date.getDate())) age--;
   return age >= 0 ? age : null;
+}
+
+/** Table/card display: up to 2 decimal places, trim trailing zeros (weekly belt = ¼ monthly, etc.). */
+function formatFantasyPoints(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const rounded = Math.round(n * 100) / 100;
+  if (Object.is(rounded, -0)) return "0";
+  if (Number.isInteger(rounded)) return String(rounded);
+  return rounded.toFixed(2).replace(/\.?0+$/, "");
+}
+
+/** Superscript * for RTS league table: NXT-brand wrestlers; tooltip when extra NXT-only points exist. */
+function RtsNxtPointSuffix({ w }: { w: WrestlerRow }) {
+  if (!w.nxtRtsLeaguePoints) return null;
+  const pending = w.nxtPointsPending ?? 0;
+  const title =
+    pending > 0
+      ? `Also tracked from NXT events and belts (not counted in this league): +${formatFantasyPoints(pending)}. Shown value counts Raw, SmackDown, and non-NXT PLEs only.`
+      : "Road to SummerSlam: counts toward the league from Raw, SmackDown, and non-NXT PLEs only. NXT show points are tracked on profiles and event results.";
+  return (
+    <sup
+      title={title}
+      style={{ fontSize: "0.8em", fontWeight: 700, color: "var(--color-text-muted)", marginLeft: 1, cursor: "help" }}
+      aria-hidden
+    >
+      *
+    </sup>
+  );
 }
 
 function byName(a: WrestlerRow, b: WrestlerRow) {
@@ -515,6 +547,8 @@ type WrestlerListProps = {
   variant?: "default" | "boxscore";
   /** Shows a simple table/cards toggle above non-boxscore wrestler views. */
   enableViewToggle?: boolean;
+  /** Show * footnote legend for Road to SummerSlam NXT-brand scoring scope. */
+  rtsNxtPointsFootnote?: boolean;
 };
 
 function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | "team" | null): string {
@@ -594,6 +628,7 @@ export default function WrestlerList({
   hideRosterFilter = false,
   variant = "default",
   enableViewToggle = false,
+  rtsNxtPointsFootnote = false,
 }: WrestlerListProps) {
   const isBoxscore = variant === "boxscore";
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
@@ -1186,7 +1221,8 @@ export default function WrestlerList({
                   </span>
                 )}
                 <span className="wrestler-card-total-points">
-                  {pts.totalPoints} pts
+                  {formatFantasyPoints(pts.totalPoints)}
+                  <RtsNxtPointSuffix w={w} /> pts
                 </span>
               </div>
               <div className="wrestler-card-body">
@@ -1211,7 +1247,10 @@ export default function WrestlerList({
                   )}
                 </span>
                 <span className="wrestler-card-pts">
-                  R/S {pts.rsPoints} · PLE {pts.plePoints} · Belt {pts.beltPoints}
+                  R/S {formatFantasyPoints(pts.rsPoints)}
+                  <RtsNxtPointSuffix w={w} /> · PLE {formatFantasyPoints(pts.plePoints)}
+                  <RtsNxtPointSuffix w={w} /> · Belt {formatFantasyPoints(pts.beltPoints)}
+                  <RtsNxtPointSuffix w={w} />
                 </span>
               </div>
             </Link>
@@ -1334,11 +1373,26 @@ export default function WrestlerList({
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{age != null ? age : "—"}</td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{rating != null ? rating : "—"}</td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{statusText}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{pts.rsPoints}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{pts.plePoints}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{pts.beltPoints}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap", fontWeight: 700 }}>{pts.totalPoints}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ppm}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
+                      {formatFantasyPoints(pts.rsPoints)}
+                      <RtsNxtPointSuffix w={w} />
+                    </td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
+                      {formatFantasyPoints(pts.plePoints)}
+                      <RtsNxtPointSuffix w={w} />
+                    </td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
+                      {formatFantasyPoints(pts.beltPoints)}
+                      <RtsNxtPointSuffix w={w} />
+                    </td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap", fontWeight: 700 }}>
+                      {formatFantasyPoints(pts.totalPoints)}
+                      <RtsNxtPointSuffix w={w} />
+                    </td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
+                      {ppm}
+                      {ppm !== "—" ? <RtsNxtPointSuffix w={w} /> : null}
+                    </td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.mw}</td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.win}</td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{winPct}</td>
@@ -1551,16 +1605,32 @@ export default function WrestlerList({
                   const ms = getMatchStatsForPeriod(w, pointsPeriod);
                   const rowBg = rowIndex % 2 === 0 ? ROW_BG_MAIN : ROW_BG_ALT;
                   const cellStyle: React.CSSProperties = { borderRight: cellBorder, borderBottom: cellBorder, color: "#1a1a1a", background: rowBg, padding: "10px 8px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center" };
+                  const ppmVal = ms.mw > 0 ? ((pts.rsPoints + pts.plePoints) / ms.mw).toFixed(1) : "—";
                   return (
                     <div key={w.id} style={{ gridRow: rowIndex + 3, display: "grid", gridTemplateColumns: scrollCols }}>
                       <div style={cellStyle}>{normalizeGender(w.gender)}</div>
                       <div style={cellStyle}>{age != null ? age : "—"}</div>
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "#c00" }}>{w.rating_2k26 != null ? w.rating_2k26 : w.rating_2k25 != null ? w.rating_2k25 : "—"}</div>
-                      <div style={{ ...cellStyle, fontWeight: 600, borderLeft: SECTION_BORDER }}>{pts.rsPoints}</div>
-                      <div style={{ ...cellStyle, fontWeight: 600 }}>{pts.plePoints}</div>
-                      <div style={{ ...cellStyle, fontWeight: 600 }}>{pts.beltPoints}</div>
-                      <div style={{ ...cellStyle, ...(wrestlerProfileFrom === "team" ? TOT_HIGHLIGHT_STYLE : { fontWeight: 700 }) }}>{pts.totalPoints}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>{ms.mw > 0 ? ((pts.rsPoints + pts.plePoints) / ms.mw).toFixed(1) : "—"}</div>
+                      <div style={{ ...cellStyle, fontWeight: 600, borderLeft: SECTION_BORDER }}>
+                        {formatFantasyPoints(pts.rsPoints)}
+                        <RtsNxtPointSuffix w={w} />
+                      </div>
+                      <div style={{ ...cellStyle, fontWeight: 600 }}>
+                        {formatFantasyPoints(pts.plePoints)}
+                        <RtsNxtPointSuffix w={w} />
+                      </div>
+                      <div style={{ ...cellStyle, fontWeight: 600 }}>
+                        {formatFantasyPoints(pts.beltPoints)}
+                        <RtsNxtPointSuffix w={w} />
+                      </div>
+                      <div style={{ ...cellStyle, ...(wrestlerProfileFrom === "team" ? TOT_HIGHLIGHT_STYLE : { fontWeight: 700 }) }}>
+                        {formatFantasyPoints(pts.totalPoints)}
+                        <RtsNxtPointSuffix w={w} />
+                      </div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>
+                        {ppmVal}
+                        {ppmVal !== "—" ? <RtsNxtPointSuffix w={w} /> : null}
+                      </div>
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderLeft: SECTION_BORDER }}>{ms.mw}</div>
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.win}</div>
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.win / ms.mw) * 100).toFixed(1) : "—"}</div>
@@ -1643,7 +1713,7 @@ export default function WrestlerList({
         </p>
       )}
 
-      {flatList.length > 0 && !isBoxscore && <WrestlerTableLegend />}
+      {flatList.length > 0 && !isBoxscore && <WrestlerTableLegend rtsNxtPointsFootnote={rtsNxtPointsFootnote} />}
 
       <p
         className={`wrestler-list-footer${isBoxscore ? " wrestler-list-footer--boxscore" : ""}`}

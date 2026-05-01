@@ -19,6 +19,12 @@ export type { HubPreviewEventRow };
 
 type WrestlerRow = { id: string; name: string | null; image_url: string | null };
 
+function cleanImageSrc(src: string | null | undefined): string | null {
+  if (typeof src !== "string") return null;
+  const cleaned = src.replace(/[\u0000-\u001F\u007F]/g, "").trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 function formatEventDateBar(dateStr: string | null): string {
   if (!dateStr) return "";
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -70,7 +76,7 @@ function buildWrestlerMap(wrestlerRows: WrestlerRow[]) {
   const wrestlerMap: Record<string, { name: string; image_url: string | null }> = {};
   for (const w of wrestlerRows) {
     const id = String(w.id ?? "").trim();
-    if (id) wrestlerMap[id] = { name: (w.name ?? id).trim(), image_url: w.image_url ?? null };
+    if (id) wrestlerMap[id] = { name: (w.name ?? id).trim(), image_url: cleanImageSrc(w.image_url) };
   }
   return wrestlerMap;
 }

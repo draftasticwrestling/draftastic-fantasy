@@ -139,6 +139,8 @@ type Props = {
   timePerPickSeconds?: number;
   /** When true (e.g. autopick), show the countdown timer to everyone, not just the current picker. */
   showTimerForAll?: boolean;
+  /** Leagues with `include_nxt`: start with Raw, SmackDown, and NXT in the Include roster filters. */
+  defaultIncludeNxtInPool?: boolean;
 };
 
 export function LeagueDraftRoom({
@@ -163,12 +165,17 @@ export function LeagueDraftRoom({
   draftCurrentPickStartedAt,
   timePerPickSeconds = 120,
   showTimerForAll = false,
+  defaultIncludeNxtInPool = false,
 }: Props) {
   const [state, formAction] = useActionState(makeDraftPickWithStateAction, { error: undefined });
   const [tableSort, setTableSort] = useState<"rank" | "name" | "total">("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("allTime");
-  const [includedRosters, setIncludedRosters] = useState<Set<string>>(() => new Set(["Raw", "SmackDown"]));
+  const [includedRosters, setIncludedRosters] = useState<Set<string>>(() => {
+    const s = new Set<string>(["Raw", "SmackDown"]);
+    if (defaultIncludeNxtInPool) s.add("NXT");
+    return s;
+  });
   const [includeMale, setIncludeMale] = useState(true);
   const [includeFemale, setIncludeFemale] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");

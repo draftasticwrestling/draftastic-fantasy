@@ -15,9 +15,21 @@ export const MAX_LEAGUE_TEAMS_BETA = 6;
 /** Season slug from `lib/leagueSeasons` — only this season uses RTS beta roster caps for 3–6 teams. */
 export const ROAD_TO_SUMMERSLAM_SEASON_SLUG = "road-to-summerslam";
 
-/** Weekly PST title-hold belt (Mon–Sun week; lock after last PLE in the week or Sunday after SD) applies only to Road to SummerSlam leagues. */
+/** Road to Survivor Series (admin beta / NXT + H2H testing). */
+export const ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG = "road-to-survivor-series";
+
+/** Weekly PST title-hold belt (Mon–Sun week; lock after last PLE in the week or Sunday after SD). */
 export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefined): boolean {
-  return seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  return (
+    seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG || seasonSlug === ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG
+  );
+}
+
+/** Admin/beta leagues that include NXT in the player pool and scoring. */
+export function leagueIncludesNxt(
+  league: { include_nxt?: boolean | null } | null | undefined
+): boolean {
+  return Boolean(league?.include_nxt);
 }
 
 export type RosterRules = {

@@ -4,6 +4,7 @@ import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { BasicSettingsSection } from "./BasicSettingsSection";
 import { DraftSettingsSection } from "./DraftSettingsSection";
 import { LeagueTypeSection } from "./LeagueTypeSection";
+import { IncludeNxtSection } from "./IncludeNxtSection";
 import { RemoveOwnerSection } from "./RemoveOwnerSection";
 import { DeleteLeagueSection } from "./DeleteLeagueSection";
 import { GmToolsNav } from "./GmToolsNav";
@@ -29,7 +30,8 @@ export default async function LeagueSettingsPage({
   if (!league) notFound();
 
   const isCommissioner = league.role === "commissioner";
-  const isSiteAdmin = isCommissioner ? await getIsSiteAdmin() : false;
+  const isSiteAdmin = await getIsSiteAdmin();
+  const includeNxt = Boolean((league as { include_nxt?: boolean | null }).include_nxt);
   const teamCountOptions = !isSiteAdmin
     ? [3, 4, 5, 6]
     : [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -73,7 +75,14 @@ export default async function LeagueSettingsPage({
             visibilityType={league.visibility_type}
             teamCountOptions={teamCountOptions}
           />
-          <LeagueTypeSection leagueSlug={slug} leagueType={leagueType} />
+          <LeagueTypeSection leagueSlug={slug} leagueType={leagueType} isSiteAdmin={isSiteAdmin} />
+          {isSiteAdmin && leagueType === "head_to_head" ? (
+            <IncludeNxtSection
+              key={`nxt-${slug}-${includeNxt ? "1" : "0"}`}
+              leagueSlug={slug}
+              includeNxt={includeNxt}
+            />
+          ) : null}
           <DraftSettingsSection leagueSlug={slug} draftType={draftType} isPublicLeague={isPublicLeague} />
           {(league.draft_status !== "in_progress" &&
             league.draft_status !== "completed" &&

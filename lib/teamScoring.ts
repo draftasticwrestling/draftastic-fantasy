@@ -31,7 +31,8 @@ import {
   weekEndSundayContaining,
 } from "@/lib/beltWeeklyHold";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
-import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import {
   beltScoringLastMonthEndInclusive,
@@ -177,12 +178,15 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   // can match correctly across team transitions.
   const rosterWrestlerIds = [...new Set(stints.map((s) => s.wrestler_id))];
   const { data: wrestlerRows } = rosterWrestlerIds.length
-    ? await supabase.from("wrestlers").select("id, name").in("id", rosterWrestlerIds)
-    : { data: [] as Array<{ id: string; name: string | null }> };
+    ? await supabase.from("wrestlers").select("id, name, brand").in("id", rosterWrestlerIds)
+    : { data: [] as Array<{ id: string; name: string | null; brand?: string | null }> };
   const wrestlerNameById: Record<string, string> = {};
+  const nxtRosterByWrestlerId: Record<string, boolean> = {};
   for (const w of wrestlerRows ?? []) {
     wrestlerNameById[w.id] = w.name ?? w.id;
+    nxtRosterByWrestlerId[w.id] = wrestlerRosterFromBrand((w as { brand?: string | null }).brand ?? null) === "NXT";
   }
+  const enforceMainRosterOnlyForNxt = (league as { season_slug?: string | null }).season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
 
   const filteredEvents = (events ?? []).filter((e) => {
     const d = String(e.date ?? "").slice(0, 10);
@@ -215,7 +219,10 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
     const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] }) as ScoredEvent;
     const eventType = scored.eventType;
-    const isRS = eventType === EVENT_TYPES.RAW || eventType === EVENT_TYPES.SMACKDOWN;
+    const isRS =
+      eventType === EVENT_TYPES.RAW ||
+      eventType === EVENT_TYPES.SMACKDOWN ||
+      eventType === EVENT_TYPES.NXT;
     const isKOTRPLE =
       eventType === EVENT_TYPES.NIGHT_OF_CHAMPIONS ||
       eventType === EVENT_TYPES.KING_QUEEN_OF_THE_RING;
@@ -318,6 +325,13 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
 
       if (!selectedStint) continue;
       if (selectedStint.user_id !== userId) continue;
+      if (
+        enforceMainRosterOnlyForNxt &&
+        nxtRosterByWrestlerId[selectedStint.wrestler_id] &&
+        (eventType === EVENT_TYPES.NXT || String(eventType).startsWith("nxt-"))
+      ) {
+        continue;
+      }
 
       const wrestlerId = selectedStint.wrestler_id;
       if (!totalsByWrestler[wrestlerId]) totalsByWrestler[wrestlerId] = emptyPoints();

@@ -34,6 +34,8 @@ export async function createLeagueAction(
   const season_slug = (formData.get("season_slug") as string)?.trim() ?? "";
   const team_count = Math.floor(Number(formData.get("team_count")));
   const league_type = (formData.get("league_type") as string)?.trim() ?? "";
+  const include_nxt_raw = formData.get("include_nxt");
+  const include_nxt = include_nxt_raw === "1" || include_nxt_raw === "on";
   const visibility_type_raw = (formData.get("visibility_type") as string)?.trim().toLowerCase() ?? "private";
   const visibility_type = visibility_type_raw === "public" ? "public" : "private";
   const accessCode = (formData.get("access_code") as string)?.trim() ?? "";
@@ -70,6 +72,16 @@ export async function createLeagueAction(
   } else {
     if (!ADMIN_LEAGUE_TYPES.has(league_type)) {
       return { error: "Select a league format." };
+    }
+    if (include_nxt) {
+      if (!isSiteAdmin) {
+        return { error: "Only site administrators can create leagues that include NXT." };
+      }
+      if (league_type !== "head_to_head") {
+        return {
+          error: "Include NXT is only available for Head-to-Head leagues (admin testing).",
+        };
+      }
     }
     if (
       !Number.isFinite(team_count) ||
@@ -109,6 +121,7 @@ export async function createLeagueAction(
     season_slug,
     max_teams: team_count,
     league_type,
+    include_nxt: !enforceStandardRules && include_nxt,
     visibility_type,
   });
   if (error) return { error };

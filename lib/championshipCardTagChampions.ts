@@ -93,6 +93,7 @@ function memberKeyFromSlugs(slugs: string[]): string {
 /** Known WWE team monikers when history only has member rows (e.g. SmackDown Tag). Keys = memberKeyFromSlugs([...]). */
 const TAG_TEAM_MONIKER_BY_MEMBER_KEY: Record<string, string> = {
   "austin-theory|logan-paul": "The Vision",
+  "brad-baylor|ricky-smokes": "The Vanity Project",
   "damian-priest|r-truth": "Damian Priest & R-Truth",
   "jey-uso|jimmy-uso": "The Usos",
   "lash-legend|nia-jax": "The Irresistible Forces",

@@ -29,7 +29,7 @@ import { MakePickForm } from "./MakePickForm";
 import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
 import { CommissionerDraftActions } from "./CommissionerDraftActions";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, leagueIncludesNxt } from "@/lib/leagueStructure";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
@@ -643,6 +643,7 @@ export default async function LeagueDraftPage({ params }: Props) {
                   : (league.time_per_pick_seconds ?? 120)
               }
               showTimerForAll={league.draft_type === "autopick"}
+              defaultIncludeNxtInPool={leagueIncludesNxt(league)}
             />
             </div>
           ) : null}

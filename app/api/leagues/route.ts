@@ -35,6 +35,19 @@ export async function POST(request: Request) {
       typeof body === "object" && body !== null && "access_code" in body
         ? String((body as { access_code?: unknown }).access_code ?? "").trim()
         : "";
+    const league_type_raw =
+      typeof body === "object" && body !== null && "league_type" in body
+        ? String((body as { league_type?: unknown }).league_type ?? "").trim()
+        : "";
+    const max_teams_raw =
+      typeof body === "object" && body !== null && "max_teams" in body
+        ? Number((body as { max_teams?: unknown }).max_teams)
+        : NaN;
+    const include_nxt_raw =
+      typeof body === "object" && body !== null && "include_nxt" in body
+        ? (body as { include_nxt?: unknown }).include_nxt
+        : false;
+    const include_nxt = include_nxt_raw === true || include_nxt_raw === "true" || include_nxt_raw === 1;
 
     const { supabase, user } = await getServerAuth();
     if (!user) {
@@ -48,6 +61,18 @@ export async function POST(request: Request) {
     const isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
 
     if (!isSiteAdmin) {
+      if (include_nxt) {
+        return NextResponse.json(
+          { error: "Only site administrators can set include_nxt." },
+          { status: 403 }
+        );
+      }
+      if (league_type_raw) {
+        return NextResponse.json(
+          { error: "Only site administrators can set league_type via this API." },
+          { status: 403 }
+        );
+      }
       if (!(await leagueCreationAccessIsConfigured())) {
         return NextResponse.json(
           { error: "League creation access codes are not configured yet." },
@@ -63,10 +88,34 @@ export async function POST(request: Request) {
       }
     }
 
+    const ADMIN_TYPES = new Set(["season_overall", "head_to_head", "combo", "legacy"]);
+    const league_type =
+      isSiteAdmin && league_type_raw
+        ? ADMIN_TYPES.has(league_type_raw)
+          ? league_type_raw
+          : null
+        : "season_overall";
+    if (isSiteAdmin && league_type_raw && !league_type) {
+      return NextResponse.json({ error: "Invalid league_type." }, { status: 400 });
+    }
+    if (isSiteAdmin && include_nxt && league_type !== "head_to_head") {
+      return NextResponse.json(
+        { error: "include_nxt requires league_type head_to_head." },
+        { status: 400 }
+      );
+    }
+    const max_teams =
+      isSiteAdmin && Number.isFinite(max_teams_raw)
+        ? Math.min(16, Math.max(3, Math.floor(max_teams_raw)))
+        : undefined;
+
     const { league, error } = await createLeague({
       name,
       season_slug,
       season_year,
+      league_type: isSiteAdmin ? league_type ?? "season_overall" : "season_overall",
+      max_teams,
+      include_nxt: isSiteAdmin && include_nxt,
     });
     if (error) {
       return NextResponse.json({ error }, { status: 400 });
