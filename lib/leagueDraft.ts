@@ -2171,6 +2171,7 @@ async function performOneAutoPick(
   leagueId: string,
   current: { overall_pick: number; user_id: string },
   state: { draft_current_pick: number; total_picks: number },
+  draftTypeForFallback: string | null,
   /** Autopick leagues: simplified picker (Raw/SmackDown roster from `w.brand`, healthy, roster mins, points + champions); live timer uses full prefs. */
   simplifiedAutopick?: boolean,
   /** Preloaded `getCurrentChampionsBySlug` map; avoids N championship queries during batched autopick. */
@@ -2261,6 +2262,15 @@ async function performOneAutoPick(
       requiredGender,
       supabase: admin,
     });
+    if (!wrestlerId && draftTypeForFallback === "autopick") {
+      // When a manager list/strategy is exhausted in autopick, move to best available by all-time totals.
+      wrestlerId = await getBestAutopickWrestlerAllTimeTotal(
+        admin,
+        draftedIds,
+        requiredGender,
+        autopickEventPointsBySlug
+      );
+    }
     if (!wrestlerId) {
       wrestlerId = await getTopAvailableWrestlerByPoints(leagueId, { draftedIds, requiredGender, supabase: admin });
     }
@@ -2476,6 +2486,7 @@ export async function runAutoPickIfExpired(
         draft_current_pick: currentPickNum,
         total_picks: totalPicks,
       },
+      draftType,
       false,
       autopickChampionsBySlug,
       autopickEventPointsBySlug

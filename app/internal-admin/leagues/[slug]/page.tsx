@@ -17,6 +17,7 @@ import {
   adminUnarchiveLeagueAction,
 } from "../actions";
 import { MemberPovQuickNav } from "./MemberPovQuickNav";
+import { RunAutopickSubmitButton } from "./RunAutopickSubmitButton";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -444,9 +445,13 @@ export default async function InternalAdminLeagueDetailPage({
                 Pick order is empty. The commissioner must set round-1 / full order before you can run autopick.
               </p>
             ) : (
-              <button type="submit" className="admin-article-submit" style={{ width: "fit-content" }}>
-                Run autopick now
-              </button>
+              <>
+                <RunAutopickSubmitButton />
+                <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 13 }}>
+                  After you click, this can take ~10-30 seconds for larger leagues. The page will reload with a
+                  success or error banner.
+                </p>
+              </>
             )}
           </form>
         ) : String(league.draft_type ?? "").toLowerCase() === "autopick" && league.draft_status === "in_progress" ? (
