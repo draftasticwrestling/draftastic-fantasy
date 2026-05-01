@@ -2362,6 +2362,8 @@ async function performOneAutoPick(
 /** When true, auto-pick runs without waiting for the per-pick timer (e.g. scheduled full autopick). */
 export type RunAutoPickOptions = {
   skipTimer?: boolean;
+  /** Admin/scheduled full autopick can proceed even when some managers did not fill full preference coverage. */
+  skipCoverageValidation?: boolean;
   /** Max successful picks in this invocation; default MAX_AUTOPICK_PICKS_PER_REQUEST. Draft page uses a lower cap. */
   maxPicksPerInvocation?: number;
 };
@@ -2438,7 +2440,7 @@ export async function runAutoPickIfExpired(
 
   const runBatchAutopick = draftType === "autopick" && skipTimer;
   const pickBudget = options?.maxPicksPerInvocation ?? MAX_AUTOPICK_PICKS_PER_REQUEST;
-  if (draftType === "autopick") {
+  if (draftType === "autopick" && !options?.skipCoverageValidation) {
     const coverage = await validateAutopickPriorityCoverage(admin, leagueId);
     if (!coverage.ok) return { didAutoPick: false, error: coverage.error };
   }
@@ -2632,7 +2634,7 @@ export async function runFullAutopickDraftAtScheduledTime(
     if (!state || state.draft_status === "completed") return { didRun: true };
     if (state.draft_status !== "in_progress") return { didRun: true };
 
-    const result = await runAutoPickIfExpired(leagueId, { skipTimer: true });
+    const result = await runAutoPickIfExpired(leagueId, { skipTimer: true, skipCoverageValidation: true });
     if (result.error) return { didRun: true, error: result.error };
     if (!result.didAutoPick) return { didRun: true };
   }
