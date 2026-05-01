@@ -2562,7 +2562,7 @@ export async function runFullAutopickDraftAtScheduledTime(
   opts?: { /** Site-admin morning run: do not require draft_date / beta window. */ skipScheduledTimeCheck?: boolean }
 ): Promise<{ didRun: boolean; error?: string }> {
   const disabled = process.env.DISABLE_AUTOPICK_DRAFT === "1" || process.env.DISABLE_AUTOPICK_DRAFT === "true";
-  if (disabled) return { didRun: false };
+  if (disabled) return { didRun: false, error: "Autopick disabled by DISABLE_AUTOPICK_DRAFT." };
 
   const admin = getAdminClient();
   if (!admin) return { didRun: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
@@ -2571,11 +2571,14 @@ export async function runFullAutopickDraftAtScheduledTime(
     .select("id, draft_date, draft_time, draft_type, draft_status, visibility_type, draft_order_method, max_teams")
     .eq("id", leagueId)
     .single();
-  if (!league) return { didRun: false };
+  if (!league) return { didRun: false, error: "League not found." };
 
   const draftType = (league as { draft_type?: string }).draft_type ?? null;
   const draftStatus = (league as { draft_status?: string }).draft_status ?? "not_started";
-  if (draftType !== "autopick" || draftStatus !== "not_started") return { didRun: false };
+  if (draftType !== "autopick") return { didRun: false, error: "League draft_type is not autopick." };
+  if (draftStatus !== "not_started") {
+    return { didRun: false, error: `Draft status is ${draftStatus}; expected not_started.` };
+  }
   const memberIds = await getLeagueMemberUserIdsForAdmin(leagueId);
   if ((league as { visibility_type?: string | null }).visibility_type === "public") {
     if (memberIds.length < 3) {
@@ -2596,7 +2599,9 @@ export async function runFullAutopickDraftAtScheduledTime(
   const scheduledMs = getScheduledDraftTimeMs(league as { draft_date?: string | null; draft_time?: string | null });
   const dueByTime = scheduledMs != null && Date.now() >= scheduledMs;
   const dueByBetaWindow = scheduledMs == null && isInBetaAutopickRunWindow(Date.now());
-  if (!opts?.skipScheduledTimeCheck && !dueByTime && !dueByBetaWindow) return { didRun: false };
+  if (!opts?.skipScheduledTimeCheck && !dueByTime && !dueByBetaWindow) {
+    return { didRun: false, error: "Draft is not due yet (scheduled time / beta window not reached)." };
+  }
 
   let order = await getDraftOrderUsingAdmin(admin, leagueId);
   if (order.length === 0) {
