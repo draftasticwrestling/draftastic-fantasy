@@ -5,7 +5,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getLeagueMembers, getRostersForLeague, getRostersForLeagueAdmin, getLeagueMemberUserIdsForAdmin } from "@/lib/leagues";
+import {
+  getLeagueMembers,
+  getLeagueMembersWithAdminFallback,
+  getRostersForLeague,
+  getRostersForLeagueAdmin,
+  getLeagueMemberUserIdsForAdmin,
+} from "@/lib/leagues";
 import {
   getRosterRulesForLeague,
   getRosterRulesForLeagueId,
@@ -40,8 +46,21 @@ import {
 import { bigBoardLabel, getBigBoardPriorityList, isBigBoardId, type BigBoardId } from "@/lib/draftBigBoards";
 import { isInBetaAutopickRunWindow } from "@/lib/betaAutopickSchedule";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 
 const LEAGUE_START_DATE = "2025-05-02";
+
+/** Member-facing routes: starting the draft, manual order, restart, etc. are site-admin-only; GMs only generate random order. */
+async function assertSiteAdminForMemberUi(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<{ error?: string }> {
+  const { data: row } = await supabase.from("profiles").select("is_site_admin").eq("id", userId).maybeSingle();
+  if ((row as { is_site_admin?: boolean | null } | null)?.is_site_admin) return {};
+  return {
+    error: "Only site admins can do this from here. Use the site admin league tools.",
+  };
+}
 
 /** Live snake/linear: `draft_type` is canonical when it is `linear` or `snake` (matches generateDraftOrder). */
 export function effectiveLiveDraftStyle(
@@ -123,16 +142,20 @@ async function loadAutopickEventPointsBySlug(admin: AdminClient): Promise<Return
       .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
       .order("date", { ascending: true })
       .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT),
-    admin.from("wrestlers").select("id, name").order("id"),
+    admin.from("wrestlers").select("id, name, brand").order("id"),
     admin
       .from("wrestler_stats_cache")
       .select("wrestler_id, total_points")
       .eq("season_key", "all_time"),
   ]);
-  const aggregate = aggregateWrestlerPoints(
-    (eventsRes.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
+  const wrestlerRows = ((wrestlersRes.data ?? []) as { id: string; name?: string | null; brand?: string | null }[]) ?? [];
+  const brandBySlugForAgg = brandByWrestlerSlugFromRows(
+    wrestlerRows.map((w) => ({ id: w.id, brand: w.brand ?? null }))
   );
-  const wrestlerRows = ((wrestlersRes.data ?? []) as { id: string; name?: string | null }[]) ?? [];
+  const aggregate = aggregateWrestlerPoints(
+    (eventsRes.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[],
+    brandBySlugForAgg
+  );
   const out = augmentAggregateForAutopickWrestlers(aggregate, wrestlerRows);
   for (const row of (cacheRes.data ?? []) as { wrestler_id?: string | null; total_points?: number | null }[]) {
     const id = row.wrestler_id != null ? String(row.wrestler_id).trim() : "";
@@ -833,7 +856,9 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, commissioner_id, draft_style, draft_type, current_draft_run_id, season_slug, start_date, draft_date, created_at")
+    .select(
+      "id, commissioner_id, draft_style, draft_type, current_draft_run_id, season_slug, start_date, draft_date, created_at, visibility_type"
+    )
     .eq("id", leagueId)
     .single();
 
@@ -993,15 +1018,20 @@ export async function setDraftOrderFromRound1(
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, commissioner_id, draft_style, draft_type, current_draft_run_id, season_slug, start_date, draft_date, created_at")
+    .select(
+      "id, commissioner_id, draft_style, draft_type, current_draft_run_id, season_slug, start_date, draft_date, created_at, visibility_type"
+    )
     .eq("id", leagueId)
     .single();
 
-  if (!league || league.commissioner_id !== user.id) {
-    return { error: "Only the GM can set draft order." };
+  if (!league) {
+    return { error: "League not found." };
   }
 
-  const members = await getLeagueMembers(leagueId);
+  const adminGate = await assertSiteAdminForMemberUi(supabase, user.id);
+  if (adminGate.error) return adminGate;
+
+  const members = await getLeagueMembersWithAdminFallback(leagueId);
   const rules = getRosterRulesForLeague(
     members.length,
     (league as { season_slug?: string | null }).season_slug ?? null
@@ -1063,7 +1093,7 @@ export async function setDraftOrderFromRound1(
 }
 
 /**
- * Start the draft (commissioner only). Sets draft in progress and first pick clock.
+ * Start the draft (site admin only from member UI). Sets draft in progress and first pick clock.
  */
 export async function startDraft(leagueId: string): Promise<{ error?: string }> {
   const supabase = await createClient();
@@ -1072,12 +1102,15 @@ export async function startDraft(leagueId: string): Promise<{ error?: string }> 
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, commissioner_id, draft_current_pick, visibility_type")
+    .select("id, draft_current_pick, visibility_type")
     .eq("id", leagueId)
     .single();
-  if (!league || league.commissioner_id !== user.id) {
-    return { error: "Only the GM can start the draft." };
+  if (!league) {
+    return { error: "League not found." };
   }
+
+  const adminGate = await assertSiteAdminForMemberUi(supabase, user.id);
+  if (adminGate.error) return adminGate;
 
   const { count } = await supabase
     .from("league_draft_order")
@@ -1416,7 +1449,11 @@ export async function getTopAvailableWrestlerByPoints(
     .gte("date", LEAGUE_START_DATE)
     .order("date", { ascending: true });
   const events = eventsRes.data ?? [];
-  const pointsBySlug = aggregateWrestlerPoints(events as { id: string; name: string; date: string; matches?: object[] }[]);
+  const { data: allBrandRowsForSimple } = await supabase.from("wrestlers").select("id, brand");
+  const pointsBySlug = aggregateWrestlerPoints(
+    events as { id: string; name: string; date: string; matches?: object[] }[],
+    brandByWrestlerSlugFromRows((allBrandRowsForSimple ?? []) as { id: string; brand: string | null }[])
+  );
   let bestId: string | null = null;
   let bestTotal = -1;
   for (const w of list) {
@@ -1586,6 +1623,13 @@ export async function getTopAvailableWrestlerForUser(
     isMainBrandWrestlerRosterForLeague((w as { brand?: string | null }).brand, poolOptionsForUser)
   ) as WrestlerRow[];
 
+  const brandBySlugForPoints = brandByWrestlerSlugFromRows(
+    (wrestlers ?? []).map((w) => ({
+      id: w.id,
+      brand: (w as { brand?: string | null }).brand ?? null,
+    }))
+  );
+
   const wrestlerById = new Map((wrestlers ?? []).map((x) => [x.id, x]));
   const rosterBrandCounts: Record<string, number> = {
     Raw: 0,
@@ -1609,9 +1653,18 @@ export async function getTopAvailableWrestlerForUser(
       supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2026-01-01").order("date", { ascending: true }),
       supabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").order("date", { ascending: true }),
     ]);
-    const pts2025 = aggregateWrestlerPoints((events2025.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[]);
-    const pts2026 = aggregateWrestlerPoints((events2026.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[]);
-    const ptsAll = aggregateWrestlerPoints((eventsAll.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[]);
+    const pts2025 = aggregateWrestlerPoints(
+      (events2025.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[],
+      brandBySlugForPoints
+    );
+    const pts2026 = aggregateWrestlerPoints(
+      (events2026.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[],
+      brandBySlugForPoints
+    );
+    const ptsAll = aggregateWrestlerPoints(
+      (eventsAll.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[],
+      brandBySlugForPoints
+    );
     const pointsByPeriod: Record<string, Record<string, { rsPoints: number; plePoints: number; beltPoints: number }>> = {
       "2026": pts2026,
       "2025": pts2025,
@@ -1726,7 +1779,10 @@ export async function getTopAvailableWrestlerForUser(
     .gte("date", LEAGUE_START_DATE)
     .order("date", { ascending: true });
   const events = eventsRes.data;
-  const pointsBySlug = aggregateWrestlerPoints((events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]);
+  const pointsBySlug = aggregateWrestlerPoints(
+    (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[],
+    brandBySlugForPoints
+  );
   const available: WrestlerWithStats[] = [];
   for (const w of wrestlers ?? []) {
     const row = w as { id: string; gender?: string | null; brand?: string | null; "2K26 rating"?: number | null; "2K25 rating"?: number | null };
@@ -2277,6 +2333,14 @@ async function performOneAutoPick(
     if (!wrestlerId) {
       wrestlerId = await getBestAutopickWrestlerAllTimeTotal(admin, draftedIds, null);
     }
+    if (!wrestlerId && draftTypeForFallback === "autopick") {
+      // Autopick should not stall when preference/points pools are exhausted.
+      wrestlerId = await getAnyUndraftedAutopickWrestlerId(admin, draftedIds);
+    }
+    if (!wrestlerId && draftTypeForFallback === "autopick") {
+      // Final safety net: pick any undrafted non-blocklisted wrestler so the draft can finish.
+      wrestlerId = await getAnyUndraftedNonBlocklistedForAutopickEmergency(admin, draftedIds);
+    }
     if (!wrestlerId) {
       wrestlerId = await getAnyUndraftedDraftableWrestlerId(admin, draftedIds);
     }
@@ -2649,6 +2713,77 @@ export async function runFullAutopickDraftAtScheduledTime(
     if (result.error) return { didRun: true, error: result.error };
     if (!result.didAutoPick) return { didRun: true };
   }
+}
+
+/**
+ * Site admin only (caller must verify): draft must not have started and no picks recorded.
+ */
+async function siteAdminAssertDraftOrderEditable(leagueId: string): Promise<{ error?: string }> {
+  const admin = getAdminClient();
+  if (!admin) return { error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+
+  const { data: league, error: leagueErr } = await admin
+    .from("leagues")
+    .select("draft_type, draft_status")
+    .eq("id", leagueId)
+    .maybeSingle();
+  if (leagueErr || !league) return { error: "League not found." };
+
+  const draftType = String((league as { draft_type?: string }).draft_type ?? "").toLowerCase();
+  if (draftType === "offline") {
+    return { error: "Offline leagues do not use an on-site draft order." };
+  }
+
+  const ds = (league as { draft_status?: string }).draft_status ?? "not_started";
+  if (ds !== "not_started") {
+    return { error: `Draft order can only be changed before the draft starts (current status: ${ds}).` };
+  }
+
+  const { count, error: pickErr } = await admin
+    .from("league_draft_picks")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", leagueId);
+  if (pickErr) return { error: pickErr.message };
+  if ((count ?? 0) > 0) {
+    return {
+      error:
+        "Cannot change draft order while picks exist. Use the GM restart-draft flow on the member draft page, or resolve picks first.",
+    };
+  }
+
+  return {};
+}
+
+/**
+ * Site admin: delete all `league_draft_order` rows (e.g. before a manual order or new random draw).
+ */
+export async function siteAdminClearDraftOrder(leagueId: string): Promise<{ error?: string }> {
+  const pre = await siteAdminAssertDraftOrderEditable(leagueId);
+  if (pre.error) return pre;
+
+  const admin = getAdminClient();
+  if (!admin) return { error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+
+  await admin.from("league_draft_order").delete().eq("league_id", leagueId);
+  const { error: updateErr } = await admin
+    .from("leagues")
+    .update({
+      draft_status: "not_started",
+      draft_current_pick: null,
+      draft_current_pick_started_at: null,
+    })
+    .eq("id", leagueId);
+  if (updateErr) return { error: updateErr.message };
+  return {};
+}
+
+/**
+ * Site admin: random snake/linear full order for current members (same algorithm as scheduled draft-order job).
+ */
+export async function siteAdminRedrawDraftOrder(leagueId: string): Promise<{ error?: string }> {
+  const pre = await siteAdminAssertDraftOrderEditable(leagueId);
+  if (pre.error) return pre;
+  return generateDraftOrderForScheduledDraft(leagueId);
 }
 
 /**

@@ -12,6 +12,7 @@ import {
 import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getDefaultStartEndForSeason, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { eventPointsForRosterStint, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import {
@@ -1525,7 +1526,10 @@ export async function getLeagueScoring(
     return true;
   });
 
-  const pointsBySlug = aggregateWrestlerPoints(filtered) as PointsBySlug;
+  const { data: wrestlerBrandRows } = await supabase.from("wrestlers").select("id, brand");
+  const brandBySlug = brandByWrestlerSlugFromRows((wrestlerBrandRows ?? []) as { id: string; brand: string | null }[]);
+
+  const pointsBySlug = aggregateWrestlerPoints(filtered, brandBySlug) as PointsBySlug;
   const stints = await getRosterStintsForLeague(leagueId);
   const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
   const rosterWrestlerIds = [...new Set(stints.map((s) => s.wrestler_id))];
@@ -1561,7 +1565,8 @@ export async function getLeagueScoring(
     const eventType = classifyEventType(event.name ?? "", event.id ?? "");
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
-      kotrCarryOver
+      kotrCarryOver,
+      brandBySlug
     );
     kotrCarryOver = updatedCarryOver;
     const bestStintByWrestlerId: Record<string, typeof stints[number]> = {};

@@ -4,6 +4,7 @@ import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import {
   getDraftOrder,
   getLeagueDraftState,
@@ -115,8 +116,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           : await runAutoPickIfExpired(league.id, { maxPicksPerInvocation: MAX_AUTOPICK_PICKS_DRAFT_PAGE });
     if (autoResult.didAutoPick) redirect(`/leagues/${slug}/draft`);
 
-    // Do not auto-start autopick on page load: let the commissioner change draft order after
-    // restart if needed, then click "Begin draft". Scheduled autopick is started by cron only.
+    // Do not auto-start autopick on page load. Beginning/restarting the draft is site-admin-only; cron handles scheduled runs.
 
     const skipHeavyDraftPool =
       isAutopickInProgress || draftStatusEarly === "completed" || draftStatusEarly === "ready_for_review";
@@ -229,18 +229,22 @@ export default async function LeagueDraftPage({ params }: Props) {
             const start = getEffectiveLeagueStartDate(league);
             const ALL_TIME_FROM = "2020-01-01";
             const ALL_TIME_LIMIT = 10000;
-            const [sinceStart, events2025, events2026, eventsAll] = await Promise.all([
+            const [sinceStart, events2025, events2026, eventsAll, brandRes] = await Promise.all([
               serverSupabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", start).order("date", { ascending: true }),
               serverSupabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2025-01-01").lte("date", "2025-12-31").order("date", { ascending: true }),
               serverSupabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", "2026-01-01").order("date", { ascending: true }),
               serverSupabase.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", ALL_TIME_FROM).order("date", { ascending: true }).limit(ALL_TIME_LIMIT),
+              serverSupabase.from("wrestlers").select("id, brand"),
             ]);
             const cast = (d: unknown[]) => d as { id: string; name: string; date: string; matches?: object[] }[];
+            const brandBySlugDraft = brandByWrestlerSlugFromRows(
+              (brandRes.data ?? []) as { id: string; brand: string | null }[]
+            );
             return {
-              pointsBySlug: aggregateWrestlerPoints(cast(sinceStart.data ?? [])),
-              points2025BySlug: aggregateWrestlerPoints(cast(events2025.data ?? [])),
-              points2026BySlug: aggregateWrestlerPoints(cast(events2026.data ?? [])),
-              pointsAllTimeBySlug: aggregateWrestlerPoints(cast(eventsAll.data ?? [])),
+              pointsBySlug: aggregateWrestlerPoints(cast(sinceStart.data ?? []), brandBySlugDraft),
+              points2025BySlug: aggregateWrestlerPoints(cast(events2025.data ?? []), brandBySlugDraft),
+              points2026BySlug: aggregateWrestlerPoints(cast(events2026.data ?? []), brandBySlugDraft),
+              pointsAllTimeBySlug: aggregateWrestlerPoints(cast(eventsAll.data ?? []), brandBySlugDraft),
             };
           })(),
     ]);
@@ -528,6 +532,7 @@ export default async function LeagueDraftPage({ params }: Props) {
               <p style={{ marginBottom: 16 }}>
                 No pick order yet. The GM must click once below to randomize the full snake order for all managers. This cannot be undone;
                 if the GM skips it, a random order is created automatically when autopick runs during {BETA_AUTOPICK_DRAFT_WINDOW_LABEL}.
+                Starting the draft, restarting, and undoing picks are handled from the site admin panel.
               </p>
               {isCommissioner && <GenerateDraftOrderForm leagueSlug={slug} />}
             </>
@@ -542,12 +547,13 @@ export default async function LeagueDraftPage({ params }: Props) {
               ? "Pick order is locked in (snake). Autopick runs during the beta window — you do not start the draft manually."
               : "Draft order is listed below for reference."}
           </p>
-          {!isCommissioner && league.draft_type === "autopick" && (
+          {!isSiteAdmin && league.draft_type === "autopick" && (
             <p style={{ marginBottom: 24, fontSize: 14, color: "#666" }}>
-              Waiting for the scheduled autopick run. You can still set preferences until the deadline in League draft details.
+              A site admin starts the draft from the site admin panel when it is time. You can still set preferences until the deadline in
+              League draft details.
             </p>
           )}
-          {isCommissioner && league.draft_type === "autopick" && (
+          {isSiteAdmin && league.draft_type === "autopick" && (
             <form action={startDraftFromFormAction} style={{ marginBottom: 16 }}>
               <input type="hidden" name="league_slug" value={slug} />
               <button type="submit" className="app-button">
@@ -609,6 +615,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           {!isAutopickRunning ? (
             <div style={{ marginTop: draftStatus === "completed" || isReviewPending ? 28 : 0 }}>
             <LeagueDraftRoom
+              siteAdminRecoveryHintForAutopickConflict={!isSiteAdmin}
               autopickError={autoResult?.error ?? null}
               order={order}
               picksHistory={picksHistory}
@@ -647,7 +654,7 @@ export default async function LeagueDraftPage({ params }: Props) {
             />
             </div>
           ) : null}
-          {(draftStatus === "in_progress" || draftStatus === "completed" || isReviewPending) && isCommissioner && (
+          {(draftStatus === "in_progress" || draftStatus === "completed" || isReviewPending) && isSiteAdmin && (
             <div style={{ marginTop: 24 }}>
               <CommissionerDraftActions leagueSlug={slug} canClearLastPick={picksHistory.length > 0} />
             </div>

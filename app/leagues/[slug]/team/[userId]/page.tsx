@@ -35,6 +35,7 @@ import {
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
@@ -189,6 +190,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         .select('id, name, gender, brand, image_url, full_body_image_url, dob, "Status", "2K26 rating", "2K25 rating"')
         .order("name", { ascending: true })
     ).data ?? [];
+  const brandBySlugTeamPage = brandByWrestlerSlugFromRows(
+    wrestlers.map((w) => ({
+      id: w.id,
+      brand: (w as { brand?: string | null }).brand ?? null,
+    }))
+  );
   const wrestlerNamesMap = Object.fromEntries(wrestlers.map((w) => [w.id, w.name ?? w.id]));
   const wrestlerImageUrl: Record<string, string | null> = Object.fromEntries(
     wrestlers.map((w) => [w.id, w.image_url ?? null])
@@ -233,8 +240,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     );
     const inferredReigns = inferReignsFromEvents(eventsAll ?? []);
     const reigns = mergeReigns(tableReigns, [...inferredReigns, ...changesReigns]) as ChampionshipReign[];
-    const pointsBySlugSinceStart = aggregateWrestlerPoints(eventsSinceStart ?? []);
-    const pointsBySlugAllTime = aggregateWrestlerPoints(eventsAll ?? []);
+    const pointsBySlugSinceStart = aggregateWrestlerPoints(eventsSinceStart ?? [], brandBySlugTeamPage);
+    const pointsBySlugAllTime = aggregateWrestlerPoints(eventsAll ?? [], brandBySlugTeamPage);
     const matchStatsBySlugSinceStart = aggregateWrestlerMatchStats(eventsSinceStart ?? []);
     const matchStatsBySlugAllTime = aggregateWrestlerMatchStats(eventsAll ?? []);
     const todayYmd = new Date().toISOString().slice(0, 10);

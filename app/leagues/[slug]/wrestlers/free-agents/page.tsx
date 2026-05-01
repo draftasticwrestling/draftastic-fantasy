@@ -4,8 +4,8 @@ import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStat
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
-import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
-import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
+import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerMatchStats } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeEndOfMonthBeltPoints,
   computeHybridBeltHoldBySlugForCalendarYear,
@@ -13,13 +13,19 @@ import {
   computeWeeklyBeltHoldPointsAccumulated,
   firstLegacyCalendarMonthEndEligibleForLeagueStart,
   getCurrentChampionsBySlug,
-  getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import {
+  mergeCurrentChampionTitleStrings,
+  mergeGetCurrentChampionFromMap,
+  mergeGetMatchStatsForWrestler,
+  mergeGetMonthlyBeltForWrestler,
+  mergeGetPointsForWrestler,
+} from "@/lib/scoring/draftAliasListMerge";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
-import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
+import { getListPersonaFootnote, isHiddenCanonicalListSlug } from "@/lib/scoring/personaResolution.js";
 import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
@@ -36,6 +42,7 @@ import { leagueIncludesNxt, leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEAS
 import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -107,6 +114,12 @@ export default async function WrestlersFreeAgentsPage({
   ]);
 
   const wrestlers = wrestlersResult.data ?? [];
+  const brandBySlug = brandByWrestlerSlugFromRows(
+    (wrestlers ?? []).map((w) => ({
+      id: w.id,
+      brand: (w as { brand?: string | null }).brand ?? null,
+    }))
+  );
   const error = wrestlersResult.error;
   const onRosterIds = new Set<string>();
   for (const entries of Object.values(rosters ?? {})) {
@@ -131,17 +144,17 @@ export default async function WrestlersFreeAgentsPage({
   const inferredReigns = inferReignsFromEvents(eventsAll);
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
 
-  const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart);
+  const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart, brandBySlug);
   const isNxtEventType = (eventType: string) =>
     eventType === EVENT_TYPES.NXT || eventType.startsWith("nxt-");
   const mainRosterOnlyEventsSinceStart = eventsSinceStart.filter((e) => {
     const t = classifyEventType(e.name ?? "", e.id ?? "");
     return !isNxtEventType(t);
   });
-  const pointsBySlugMainRosterOnly = aggregateWrestlerPoints(mainRosterOnlyEventsSinceStart);
-  const points2025BySlug = aggregateWrestlerPoints(events2025);
-  const points2026BySlug = aggregateWrestlerPoints(events2026);
-  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll);
+  const pointsBySlugMainRosterOnly = aggregateWrestlerPoints(mainRosterOnlyEventsSinceStart, brandBySlug);
+  const points2025BySlug = aggregateWrestlerPoints(events2025, brandBySlug);
+  const points2026BySlug = aggregateWrestlerPoints(events2026, brandBySlug);
+  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll, brandBySlug);
   const matchStatsBySlug = aggregateWrestlerMatchStats(eventsSinceStart);
   const matchStats2025BySlug = aggregateWrestlerMatchStats(events2025);
   const matchStats2026BySlug = aggregateWrestlerMatchStats(events2026);
@@ -172,7 +185,7 @@ export default async function WrestlersFreeAgentsPage({
 
   const poolOpts = { includeNxt: leagueIncludesNxt(league) };
   const wrestlersFiltered = (wrestlers ?? [])
-    .filter((w) => !isPersonaOnlySlug(w.id) && !onRosterIds.has(String(w.id).toLowerCase()))
+    .filter((w) => !isHiddenCanonicalListSlug(w.id) && !onRosterIds.has(String(w.id).toLowerCase()))
     .filter((w) => isMainBrandWrestlerRosterForLeague(w.brand, poolOpts));
   const enforceNxtPendingOnlyForRts = league.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
   const rows = wrestlersFiltered.map((w) => {
@@ -181,28 +194,28 @@ export default async function WrestlersFreeAgentsPage({
     const idKey = normalizeWrestlerName(String(w.id));
     const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
     // Use slugKey (stable id/slug) first so points match when display name changed (e.g. Natalya → Nattie, slug still natalya)
-    const pointsAll = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
-    const pointsMainOnly = getPointsForWrestler(pointsBySlugMainRosterOnly, slugKey, nameKey);
+    const pointsAll = mergeGetPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const pointsMainOnly = mergeGetPointsForWrestler(pointsBySlugMainRosterOnly, slugKey, nameKey);
     const isNxtRoster = wrestlerRosterFromBrand(w.brand ?? null) === "NXT";
     const useMainOnlyForDisplay = enforceNxtPendingOnlyForRts && isNxtRoster;
     const points = useMainOnlyForDisplay ? pointsMainOnly : pointsAll;
-    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
+    const extraBelt = mergeGetMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const beltPointsAll = pointsAll.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const totalPointsAll = pointsAll.rsPoints + pointsAll.plePoints + beltPointsAll;
     const nxtPointsPending = useMainOnlyForDisplay ? Math.max(0, totalPointsAll - totalPoints) : 0;
-    const matchStats = getMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
+    const matchStats = mergeGetMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
 
-    const points2025 = getPointsForWrestler(points2025BySlug, slugKey, nameKey);
-    const points2026 = getPointsForWrestler(points2026BySlug, slugKey, nameKey);
-    const pointsAllTime = getPointsForWrestler(pointsAllTimeBySlug, slugKey, nameKey);
-    const matchStats2025 = getMatchStatsForWrestler(matchStats2025BySlug, slugKey, nameKey);
-    const matchStats2026 = getMatchStatsForWrestler(matchStats2026BySlug, slugKey, nameKey);
-    const matchStatsAllTime = getMatchStatsForWrestler(matchStatsAllTimeBySlug, slugKey, nameKey);
-    const extraBeltAllTime = getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey);
-    const extraBelt2025 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
-    const extraBelt2026 = getMonthlyBeltForWrestler(endOfMonthBeltPoints2026, slugKey, nameKey);
+    const points2025 = mergeGetPointsForWrestler(points2025BySlug, slugKey, nameKey);
+    const points2026 = mergeGetPointsForWrestler(points2026BySlug, slugKey, nameKey);
+    const pointsAllTime = mergeGetPointsForWrestler(pointsAllTimeBySlug, slugKey, nameKey);
+    const matchStats2025 = mergeGetMatchStatsForWrestler(matchStats2025BySlug, slugKey, nameKey);
+    const matchStats2026 = mergeGetMatchStatsForWrestler(matchStats2026BySlug, slugKey, nameKey);
+    const matchStatsAllTime = mergeGetMatchStatsForWrestler(matchStatsAllTimeBySlug, slugKey, nameKey);
+    const extraBeltAllTime = mergeGetMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey);
+    const extraBelt2025 = mergeGetMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
+    const extraBelt2026 = mergeGetMonthlyBeltForWrestler(endOfMonthBeltPoints2026, slugKey, nameKey);
     const beltPointsAllTime = pointsAllTime.beltPoints + extraBeltAllTime;
     const totalPointsAllTime = pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
     const beltPoints2025 = points2025.beltPoints + extraBelt2025;
@@ -210,11 +223,30 @@ export default async function WrestlersFreeAgentsPage({
     const totalPoints2025Row = points2025.rsPoints + points2025.plePoints + beltPoints2025;
     const totalPoints2026Row = points2026.rsPoints + points2026.plePoints + beltPoints2026;
     const fromTable =
-      currentFromTable[idKey] ?? currentFromTable[slugKey] ?? (nameKey ? currentFromTable[nameKey] : null);
+      currentFromTable[idKey] ?? mergeGetCurrentChampionFromMap(currentFromTable, slugKey, nameKey) ?? null;
     const fromChanges =
-      currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
-    const titlesFromHistory =
-      currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
+      currentFromChanges[idKey] ?? mergeGetCurrentChampionFromMap(currentFromChanges, slugKey, nameKey) ?? null;
+    const directChampTitles =
+      currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[idKey] ?? null;
+    const aliasChampTitles = mergeCurrentChampionTitleStrings(
+      currentChampionsBySlug,
+      slugKey,
+      nameKey
+    );
+    const titlesFromHistory: string[] = (() => {
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const list of [directChampTitles, aliasChampTitles]) {
+        if (!list) continue;
+        for (const t of list) {
+          if (t && !seen.has(t)) {
+            seen.add(t);
+            out.push(t);
+          }
+        }
+      }
+      return out;
+    })();
     const primaryTitle = (fromTable ?? fromChanges) ? (fromTable ?? fromChanges)!.title : (titlesFromHistory[0] ?? null);
     const titles = primaryTitle ? [primaryTitle] : titlesFromHistory;
     const raw = w as Record<string, unknown>;
@@ -269,7 +301,7 @@ export default async function WrestlersFreeAgentsPage({
       ncAllTime: matchStatsAllTime.nc,
       dqwAllTime: matchStatsAllTime.dqw,
       dqlAllTime: matchStatsAllTime.dql,
-      personaDisplay: getPersonasForDisplay(w.id) ?? null,
+      personaDisplay: getListPersonaFootnote(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
       championBeltImageUrl: primaryTitle ? getBeltImageUrlForTitle(primaryTitle, w.gender) : null,

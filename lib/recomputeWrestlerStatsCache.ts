@@ -8,9 +8,10 @@ import {
   getMonthlyBeltForWrestler,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 
 type EventRow = { id: string; name: string; date: string; matches?: object[] | undefined };
-type WrestlerRow = { id: string; name?: string | null };
+type WrestlerRow = { id: string; name?: string | null; brand?: string | null };
 type ChampionshipReign = Record<string, unknown>;
 
 const ALL_TIME_FROM = "2025-01-01";
@@ -28,7 +29,7 @@ function inRange(date: string, from: string, to: string | null): boolean {
 
 export async function recomputeWrestlerStatsCache(supabase: SupabaseClient) {
   const [wrestlersRes, eventsRes, reignsRes] = await Promise.all([
-    supabase.from("wrestlers").select("id, name"),
+    supabase.from("wrestlers").select("id, name, brand"),
     supabase
       .from("events")
       .select("id, name, date, matches")
@@ -42,6 +43,7 @@ export async function recomputeWrestlerStatsCache(supabase: SupabaseClient) {
   if (reignsRes.error) throw reignsRes.error;
 
   const wrestlers = (wrestlersRes.data ?? []) as WrestlerRow[];
+  const brandBySlug = brandByWrestlerSlugFromRows(wrestlers.map((w) => ({ id: w.id, brand: w.brand ?? null })));
   const eventsAll = ((eventsRes.data ?? []) as Array<{ id: string; name: string; date: string; matches?: object[] | null }>).map((e) => ({
     id: e.id,
     name: e.name,
@@ -55,7 +57,7 @@ export async function recomputeWrestlerStatsCache(supabase: SupabaseClient) {
 
   for (const season of SEASONS) {
     const seasonEvents = eventsAll.filter((e) => inRange(e.date, season.from, season.to));
-    const pointsBySlug = aggregateWrestlerPoints(seasonEvents);
+    const pointsBySlug = aggregateWrestlerPoints(seasonEvents, brandBySlug);
     const statsBySlug = aggregateWrestlerMatchStats(seasonEvents);
     const beltBySlug =
       season.key === "all_time"

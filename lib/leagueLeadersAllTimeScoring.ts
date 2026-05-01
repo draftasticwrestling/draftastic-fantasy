@@ -1,12 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
-  computeHybridPublicBeltHoldBySlug,
-  getMonthlyBeltForWrestler,
-  inferReignsFromEvents,
-  mergeReigns,
-} from "@/lib/scoring/endOfMonthBeltPoints.js";
+  mergeGetMonthlyBeltForWrestler,
+  mergeGetPointsForWrestler,
+} from "@/lib/scoring/draftAliasListMerge";
+import { computeHybridPublicBeltHoldBySlug, inferReignsFromEvents, mergeReigns } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 
 /** Events window for League Leaders “all-time” scoring (matches league-leaders page). */
 export const LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM = "2020-01-01";
@@ -31,7 +31,7 @@ type EventRow = { id: string; name: string; date: string; matches?: object[] };
 export async function loadLeagueLeadersAllTimeScoringBundle(
   db: Pick<SupabaseClient, "from">
 ): Promise<LeagueLeadersAllTimeScoringBundle> {
-  const [{ data: rawReigns }, { data: allEventsData }] = await Promise.all([
+  const [{ data: rawReigns }, { data: allEventsData }, { data: brandRows }] = await Promise.all([
     db.from("championship_history").select("*"),
     db
       .from("events")
@@ -40,12 +40,16 @@ export async function loadLeagueLeadersAllTimeScoringBundle(
       .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
       .order("date", { ascending: true })
       .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT),
+    db.from("wrestlers").select("id, brand"),
   ]);
   const eventsAll = (allEventsData ?? []) as EventRow[];
   const tableReigns = (rawReigns ?? []) as Parameters<typeof mergeReigns>[0];
   const inferredReigns = inferReignsFromEvents(eventsAll);
   const reigns = mergeReigns(tableReigns, inferredReigns);
-  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll);
+  const pointsAllTimeBySlug = aggregateWrestlerPoints(
+    eventsAll,
+    brandByWrestlerSlugFromRows((brandRows ?? []) as { id: string; brand: string | null }[])
+  );
   const endOfMonthBeltPointsAllTime = computeHybridPublicBeltHoldBySlug(reigns);
   return { pointsAllTimeBySlug, endOfMonthBeltPointsAllTime };
 }
@@ -61,11 +65,13 @@ export function allTimeLeadersStylePointBreakdown(
   slugKey: string,
   nameKey: string
 ): { rs: number; ple: number; beltCombined: number; total: number } {
-  const p = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
+  const p = mergeGetPointsForWrestler(pointsBySlug, slugKey, nameKey);
   const rs = finiteNum(p.rsPoints);
   const ple = finiteNum(p.plePoints);
   const beltBase = finiteNum(p.beltPoints);
-  const extraBelt = finiteNum(getMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey));
+  const extraBelt = finiteNum(
+    mergeGetMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey)
+  );
   const beltCombined = beltBase + extraBelt;
   return { rs, ple, beltCombined, total: rs + ple + beltCombined };
 }

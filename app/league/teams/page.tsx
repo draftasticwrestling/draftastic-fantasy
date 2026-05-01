@@ -11,6 +11,7 @@ import {
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 
 const LEAGUE_START_DATE = "2025-05-02";
 
@@ -49,14 +50,20 @@ export default async function LeagueTeamsPage() {
       .from("championship_history")
       .select("champion_slug, champion, title, title_name, won_date, start_date, lost_date, end_date")
       .order("won_date", { ascending: true }),
-    supabase.from("wrestlers").select("id, name"),
+    supabase.from("wrestlers").select("id, name, brand"),
     ...LEAGUE_MEMBERS.map((m) => getRosterForMember(m.slug)),
   ]);
 
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
   const inferredReigns = inferReignsFromEvents(events ?? []);
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
-  const pointsBySlug = aggregateWrestlerPoints(events ?? []);
+  const brandBySlug = brandByWrestlerSlugFromRows(
+    ((wrestlers ?? []) as { id: string; brand?: string | null }[]).map((w) => ({
+      id: w.id,
+      brand: w.brand ?? null,
+    }))
+  );
+  const pointsBySlug = aggregateWrestlerPoints(events ?? [], brandBySlug);
   const endOfMonthBeltBySlug = computeHybridPublicBeltHoldBySlug(reigns);
 
   const ownerTotals: Record<string, number> = {};

@@ -10,6 +10,7 @@ import {
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { isDraftableWrestler, isDraftableWrestlerForDraftTesting, normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
 import { TestDraft } from "./TestDraft";
 
@@ -224,9 +225,18 @@ export default async function DraftTestingPage() {
     };
   });
 
-  const points2025Raw = aggregateWrestlerPoints(events2025 ?? []) as PointsBySlug;
-  const points2026Raw = aggregateWrestlerPoints(events2026 ?? []) as PointsBySlug;
-  const pointsAllRaw = aggregateWrestlerPoints(eventsAll ?? []) as PointsBySlug;
+  const brandBySlugDraftTesting = brandByWrestlerSlugFromRows(
+    draftableRows.map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: String(r.id ?? ""),
+        brand: r.brand != null && r.brand !== "" ? String(r.brand) : null,
+      };
+    })
+  );
+  const points2025Raw = aggregateWrestlerPoints(events2025 ?? [], brandBySlugDraftTesting) as PointsBySlug;
+  const points2026Raw = aggregateWrestlerPoints(events2026 ?? [], brandBySlugDraftTesting) as PointsBySlug;
+  const pointsAllRaw = aggregateWrestlerPoints(eventsAll ?? [], brandBySlugDraftTesting) as PointsBySlug;
 
   // Add monthly hold points to belt points so table shows combined (match + monthly) like profile
   function addMonthlyToPoints(

@@ -114,6 +114,8 @@ export type WrestlerPoolDiagnostic = {
 } | null;
 
 type Props = {
+  /** Non-site-admin viewers: autopick conflict hint points at site admin, not GM restart. */
+  siteAdminRecoveryHintForAutopickConflict?: boolean;
   /** When set, auto-pick failed (e.g. missing service role key); show so user knows why draft is stuck. */
   autopickError?: string | null;
   order: { overall_pick: number; user_id: string }[];
@@ -144,6 +146,7 @@ type Props = {
 };
 
 export function LeagueDraftRoom({
+  siteAdminRecoveryHintForAutopickConflict = false,
   autopickError = null,
   order,
   picksHistory,
@@ -395,7 +398,14 @@ export function LeagueDraftRoom({
           <p style={{ margin: 0, fontWeight: 600, color: "var(--color-red, #b91c1c)" }}>
             Auto-pick failed: {autopickError}{" "}
             {/duplicate key|unique constraint/i.test(autopickError) || /roster full/i.test(autopickError) ? (
-              <>Refresh once—this often clears after concurrent picks settle. If it keeps happening, use Restart draft (GM) after checking rosters.</>
+              <>
+                Refresh once—this often clears after concurrent picks settle. If it keeps happening,
+                {siteAdminRecoveryHintForAutopickConflict ? (
+                  <> ask a site admin to check the draft from the site admin panel.</>
+                ) : (
+                  <> use Restart draft (site admin tools) after checking rosters.</>
+                )}
+              </>
             ) : (
               <>
                 Refresh the page to try again. If the problem continues, the GM may need to set SUPABASE_SERVICE_ROLE_KEY in Netlify.

@@ -6,7 +6,11 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { addWrestlerToRoster, removeWrestlerFromRoster } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
-import { runFullAutopickDraftAtScheduledTime } from "@/lib/leagueDraft";
+import {
+  runFullAutopickDraftAtScheduledTime,
+  siteAdminClearDraftOrder,
+  siteAdminRedrawDraftOrder,
+} from "@/lib/leagueDraft";
 
 type Failure = { userId: string; expectedSize: number; actualSize: number; female: number; male: number; minFemale: number; minMale: number };
 
@@ -126,6 +130,38 @@ export async function adminRunAutopickDraftAction(formData: FormData): Promise<v
       "Autopick run finished this request. Refresh: status should be ready_for_review (or still in_progress if the draft is large—use cron to finish)."
     )}`
   );
+}
+
+export async function adminClearDraftOrderAction(formData: FormData): Promise<void> {
+  await requireSiteAdmin();
+  const leagueSlug = String(formData.get("leagueSlug") ?? "").trim();
+  const leagueId = String(formData.get("leagueId") ?? "").trim();
+  const base = `/internal-admin/leagues/${encodeURIComponent(leagueSlug || "unknown")}`;
+  if (!leagueId || !leagueSlug) redirect(`${base}?err=${encodeURIComponent("Missing league.")}`);
+
+  const result = await siteAdminClearDraftOrder(leagueId);
+  revalidatePath(base);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}`);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}/draft`);
+
+  if (result.error) redirect(`${base}?err=${encodeURIComponent(result.error)}`);
+  redirect(`${base}?ok=${encodeURIComponent("Draft order cleared.")}`);
+}
+
+export async function adminRedrawDraftOrderAction(formData: FormData): Promise<void> {
+  await requireSiteAdmin();
+  const leagueSlug = String(formData.get("leagueSlug") ?? "").trim();
+  const leagueId = String(formData.get("leagueId") ?? "").trim();
+  const base = `/internal-admin/leagues/${encodeURIComponent(leagueSlug || "unknown")}`;
+  if (!leagueId || !leagueSlug) redirect(`${base}?err=${encodeURIComponent("Missing league.")}`);
+
+  const result = await siteAdminRedrawDraftOrder(leagueId);
+  revalidatePath(base);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}`);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}/draft`);
+
+  if (result.error) redirect(`${base}?err=${encodeURIComponent(result.error)}`);
+  redirect(`${base}?ok=${encodeURIComponent("New random draft order generated.")}`);
 }
 
 export async function adminApproveDraftReviewAction(formData: FormData): Promise<void> {

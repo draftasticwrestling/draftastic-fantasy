@@ -58,6 +58,7 @@ import {
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler, getUnparsedMatchesByWrestler, getUnparsedMatchesForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { buildWrestlerMap, type WrestlerRow } from "@/lib/boxscore/normalizeWrestlerForCard";
 import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
@@ -270,16 +271,18 @@ export default async function WrestlerProfilePage({
       ? Promise.resolve({ data: [] as { tag_team_id: string }[], error: null as null })
       : db.from("tag_team_members").select("tag_team_id").in("wrestler_slug", wrestlerSlugsForTagTeams);
 
-  const [reignsResult, tagTeamResult, changeRowsResult, currentFromTable, currentFromChanges] = await Promise.all([
-    db.from("championship_history").select("*"),
-    tagTeamMembersQuery,
-    db
-      .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
-      .select("championship_type, champion, champion_slug, date")
-      .order("date", { ascending: true }),
-    getCurrentChampionsFromChampionshipsTable(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
-    getCurrentChampionsFromChanges(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
-  ]);
+  const [reignsResult, tagTeamResult, changeRowsResult, currentFromTable, currentFromChanges, brandRowsResult] =
+    await Promise.all([
+      db.from("championship_history").select("*"),
+      tagTeamMembersQuery,
+      db
+        .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
+        .select("championship_type, champion, champion_slug, date")
+        .order("date", { ascending: true }),
+      getCurrentChampionsFromChampionshipsTable(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
+      getCurrentChampionsFromChanges(db).catch(() => ({}) as Record<string, { title: string; wonDate: string }>),
+      db.from("wrestlers").select("id, brand"),
+    ]);
   const tagTeamIds = tagTeamResult.error
     ? []
     : [
@@ -307,8 +310,12 @@ export default async function WrestlerProfilePage({
   );
   const reigns = mergeReigns(tableReigns, [...inferredReigns, ...changesReigns]) as ChampionshipReignRow[];
 
+  const brandBySlugProfile = brandByWrestlerSlugFromRows(
+    (brandRowsResult.data ?? []) as { id: string; brand: string | null }[]
+  );
   const pointsBySlug = aggregateWrestlerPoints(
-    (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
+    (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[],
+    brandBySlugProfile
   );
   const matchStatsBySlug = aggregateWrestlerMatchStats(
     (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]

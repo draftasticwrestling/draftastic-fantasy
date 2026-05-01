@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import {
   generateDraftOrder,
   setDraftOrderFromRound1,
@@ -72,7 +73,7 @@ export async function generateDraftOrderWithStateAction(
   return {};
 }
 
-/** Commissioner only: set draft order from round 1 order (when draft_order_method is manual_by_gm). */
+/** Site admin only: set draft order from round 1 order (when draft_order_method is manual_by_gm). */
 export async function setDraftOrderAction(
   leagueSlug: string,
   round1UserIds: string[]
@@ -90,7 +91,7 @@ export async function setDraftOrderAction(
   return {};
 }
 
-/** Commissioner only: start the draft (begin pick clock). */
+/** Site admin only: start the draft (begin pick clock). */
 export async function startDraftAction(leagueSlug: string): Promise<{ error?: string }> {
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
@@ -157,13 +158,16 @@ export async function makeDraftPickWithStateAction(
   return makeDraftPickAction(leagueSlug, formData);
 }
 
-/** Commissioner only: clear draft order so a new order can be generated. */
+/** Site admin only: clear draft order so a new order can be generated. */
 export async function clearDraftOrderAction(leagueSlug: string): Promise<{ error?: string }> {
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const { supabase, user } = await getServerAuth();
-  if (!user || league.commissioner_id !== user.id) return { error: "Only the GM can clear the draft order." };
+  const { user } = await getServerAuth();
+  if (!user) return { error: "Not authenticated." };
+  if (!(await getIsSiteAdmin())) {
+    return { error: "Only site admins can clear draft order. Use the site admin league tools." };
+  }
   const result = await clearDraftOrder(league.id);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);
@@ -180,13 +184,16 @@ export async function clearDraftOrderFromFormAction(formData: FormData): Promise
   redirect(`/leagues/${leagueSlug}/draft`);
 }
 
-/** Commissioner only: restart draft (clear all picks and rosters; keeps draft order). */
+/** Site admin only: restart draft (clear all picks and rosters; keeps draft order). */
 export async function restartDraftAction(leagueSlug: string): Promise<{ error?: string }> {
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const { supabase, user } = await getServerAuth();
-  if (!user || league.commissioner_id !== user.id) return { error: "Only the GM can restart the draft." };
+  const { user } = await getServerAuth();
+  if (!user) return { error: "Not authenticated." };
+  if (!(await getIsSiteAdmin())) {
+    return { error: "Only site admins can restart the draft. Use the site admin league tools." };
+  }
   const result = await restartDraft(league.id);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);
@@ -194,13 +201,16 @@ export async function restartDraftAction(leagueSlug: string): Promise<{ error?: 
   return {};
 }
 
-/** Commissioner only: undo the last pick. */
+/** Site admin only: undo the last pick. */
 export async function clearLastPickAction(leagueSlug: string): Promise<{ error?: string }> {
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const { supabase, user } = await getServerAuth();
-  if (!user || league.commissioner_id !== user.id) return { error: "Only the GM can clear a pick." };
+  const { user } = await getServerAuth();
+  if (!user) return { error: "Not authenticated." };
+  if (!(await getIsSiteAdmin())) {
+    return { error: "Only site admins can undo a pick. Use the site admin league tools." };
+  }
   const result = await clearLastPick(league.id);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);

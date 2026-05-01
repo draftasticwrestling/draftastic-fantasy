@@ -2,18 +2,24 @@ import { supabase } from "@/lib/supabase";
 import { EXAMPLE_LEAGUE } from "@/lib/league";
 import WrestlerList from "../../wrestlers/WrestlerList";
 import type { WrestlerRow } from "../../wrestlers/WrestlerList";
-import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
-import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
+import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerMatchStats } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeHybridPublicBeltHoldBySlug,
   getCurrentChampionsBySlug,
-  getMonthlyBeltForWrestler,
   inferReignsFromEvents,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import {
+  mergeCurrentChampionTitleStrings,
+  mergeGetMatchStatsForWrestler,
+  mergeGetMonthlyBeltForWrestler,
+  mergeGetPointsForWrestler,
+} from "@/lib/scoring/draftAliasListMerge";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
-import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
+import { getListPersonaFootnote, isHiddenCanonicalListSlug } from "@/lib/scoring/personaResolution.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 
 const LEAGUE_START_DATE = "2025-05-02";
 
@@ -77,7 +83,14 @@ export default async function LeagueFreeAgentsPage() {
   const inferredReigns = inferReignsFromEvents(events ?? []);
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
-  const pointsBySlug = aggregateWrestlerPoints(events ?? []);
+  const wrestlersForBrands = wrestlersResult.data ?? [];
+  const brandBySlug = brandByWrestlerSlugFromRows(
+    wrestlersForBrands.map((w) => ({
+      id: (w as { id: string }).id,
+      brand: (w as { brand?: string | null }).brand ?? null,
+    }))
+  );
+  const pointsBySlug = aggregateWrestlerPoints(events ?? [], brandBySlug);
   const matchStatsBySlug = aggregateWrestlerMatchStats(events ?? []);
   const endOfMonthBeltBySlug = computeHybridPublicBeltHoldBySlug(reigns);
 
@@ -88,19 +101,36 @@ export default async function LeagueFreeAgentsPage() {
   const freeAgentsRaw = (
     (wrestlers ?? [])
       .filter((w: { id: string }) => !assignedIds.has((w.id as string).toLowerCase()))
-      .filter((w: { id: string }) => !isPersonaOnlySlug(w.id))
+      .filter((w: { id: string }) => !isHiddenCanonicalListSlug(w.id))
   ) as { id: string; name: string | null; gender: string | null; brand: string | null; image_url?: string | null; dob?: string | null }[];
 
   const rows: WrestlerRow[] = freeAgentsRaw.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
-    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
-    const matchStats = getMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
-    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltBySlug, slugKey, nameKey);
+    const idKey = normalizeWrestlerName(String(slugKey));
+    const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
+    const points = mergeGetPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const matchStats = mergeGetMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
+    const extraBelt = mergeGetMonthlyBeltForWrestler(endOfMonthBeltBySlug, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
-    const titles =
-      currentChampionsBySlug[w.id] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
+    const directChamp =
+      currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[idKey] ?? null;
+    const aliasChamp = mergeCurrentChampionTitleStrings(currentChampionsBySlug, slugKey, nameKey);
+    const titles: string[] = (() => {
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const list of [directChamp, aliasChamp]) {
+        if (!list) continue;
+        for (const t of list) {
+          if (t && !seen.has(t)) {
+            seen.add(t);
+            out.push(t);
+          }
+        }
+      }
+      return out;
+    })();
     return {
       id: w.id,
       name: w.name ?? null,
@@ -120,7 +150,7 @@ export default async function LeagueFreeAgentsPage() {
       nc: matchStats.nc,
       dqw: matchStats.dqw,
       dql: matchStats.dql,
-      personaDisplay: getPersonasForDisplay(w.id) ?? null,
+      personaDisplay: getListPersonaFootnote(w.id) ?? null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
     };
   });

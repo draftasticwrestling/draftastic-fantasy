@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembersWithAdminFallback } from "@/lib/leagues";
 import { getDraftPicksHistory } from "@/lib/leagueDraft";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { DraftHistoryView } from "./DraftHistoryView";
@@ -39,7 +39,7 @@ export default async function DraftHistoryPage({ params }: Props) {
   if (!league) notFound();
 
   const [members, picks] = await Promise.all([
-    getLeagueMembers(league.id),
+    getLeagueMembersWithAdminFallback(league.id),
     getDraftPicksHistory(league.id),
   ]);
 

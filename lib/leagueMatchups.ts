@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getRosterStintsForLeague, getLeagueScoring, getWrestlerDisplayNamesByIds } from "@/lib/leagues";
 import { getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { eventPointsForRosterStint, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import {
   rosterStintActiveForEvent,
@@ -129,6 +130,8 @@ export async function getPointsByOwnerForLeagueForWeek(
   });
   const stints = await getRosterStintsForLeague(leagueId);
   const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
+  const { data: brandRowsWeek } = await supabase.from("wrestlers").select("id, brand");
+  const brandBySlugWeek = brandByWrestlerSlugFromRows(brandRowsWeek ?? []);
   const pointsByOwner: Record<string, number> = {};
   let kotrCarryOver: Record<string, number> = {};
   for (const event of allInRange) {
@@ -143,7 +146,8 @@ export async function getPointsByOwnerForLeagueForWeek(
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
-      kotrCarryOver
+      kotrCarryOver,
+      brandBySlugWeek
     );
     kotrCarryOver = updatedCarryOver;
     if (!inWeek) continue;
@@ -214,6 +218,8 @@ export async function getPointsByOwnerByWrestlerForWeek(
   });
   const stints = await getRosterStintsForLeague(leagueId);
   const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
+  const { data: brandRowsBreakdown } = await supabase.from("wrestlers").select("id, brand");
+  const brandBySlugBreakdown = brandByWrestlerSlugFromRows(brandRowsBreakdown ?? []);
   const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let kotrCarryOver: Record<string, number> = {};
   for (const event of allInRange) {
@@ -228,7 +234,8 @@ export async function getPointsByOwnerByWrestlerForWeek(
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
     const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
       event,
-      kotrCarryOver
+      kotrCarryOver,
+      brandBySlugBreakdown
     );
     kotrCarryOver = updatedCarryOver;
     if (!inWeek) continue;

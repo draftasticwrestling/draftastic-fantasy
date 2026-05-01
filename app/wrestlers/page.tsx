@@ -1,15 +1,21 @@
 import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
 import WrestlerList from "./WrestlerList";
 import { CurrentChampionsToggle } from "./CurrentChampionsToggle";
-import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
-import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
+import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { aggregateWrestlerMatchStats } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
   computeHybridPublicBeltHoldBySlug,
   getCurrentChampionsBySlug,
-  getMonthlyBeltForWrestler,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import {
+  mergeCurrentChampionTitleStrings,
+  mergeGetMatchStatsForWrestler,
+  mergeGetMonthlyBeltForWrestler,
+  mergeGetPointsForWrestler,
+} from "@/lib/scoring/draftAliasListMerge";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
-import { isPersonaOnlySlug, getPersonasForDisplay } from "@/lib/scoring/personaResolution.js";
+import { getListPersonaFootnote, isHiddenCanonicalListSlug } from "@/lib/scoring/personaResolution.js";
+import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import { sortByChampionshipDisplayOrder } from "@/lib/championshipDisplayOrder";
 import { collapseTagTeamChampionsForCard } from "@/lib/championshipCardTagChampions";
@@ -72,8 +78,12 @@ export default async function WrestlersPage() {
     wrestlers: wrestlersFromDb,
   } = dataset;
   const eventsForAgg = events ?? [];
+  const brandBySlug = brandByWrestlerSlugFromRows(
+    (wrestlersFromDb ?? []).map((w) => ({ id: w.id, brand: w.brand ?? null }))
+  );
   const pointsBySlug = aggregateWrestlerPoints(
-    eventsForAgg as Parameters<typeof aggregateWrestlerPoints>[0]
+    eventsForAgg as Parameters<typeof aggregateWrestlerPoints>[0],
+    brandBySlug
   );
   const matchStatsBySlug = aggregateWrestlerMatchStats(
     eventsForAgg as Parameters<typeof aggregateWrestlerMatchStats>[0]
@@ -82,21 +92,34 @@ export default async function WrestlersPage() {
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
   const wrestlers = wrestlersFromDb;
-  const wrestlersFiltered = wrestlers.filter((w) => !isPersonaOnlySlug(w.id));
+  const wrestlersFiltered = wrestlers.filter((w) => !isHiddenCanonicalListSlug(w.id));
   const rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
+    const idKey = normalizeWrestlerName(String(slugKey));
     const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
-    const points = getPointsForWrestler(pointsBySlug, slugKey, nameKey);
-    const matchStats = getMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
-    const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
+    const points = mergeGetPointsForWrestler(pointsBySlug, slugKey, nameKey);
+    const matchStats = mergeGetMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
+    const extraBelt = mergeGetMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
-    const titles =
-      currentChampionsBySlug[canonicalKey] ??
-      currentChampionsBySlug[slugKey] ??
-      (nameKey ? currentChampionsBySlug[nameKey] : null) ??
-      [];
+    const directChamp =
+      currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[idKey] ?? null;
+    const aliasChamp = mergeCurrentChampionTitleStrings(currentChampionsBySlug, slugKey, nameKey);
+    const titles: string[] = (() => {
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const list of [directChamp, aliasChamp]) {
+        if (!list) continue;
+        for (const t of list) {
+          if (t && !seen.has(t)) {
+            seen.add(t);
+            out.push(t);
+          }
+        }
+      }
+      return out;
+    })();
     const raw = w as Record<string, unknown>;
     return {
       id: w.id,
@@ -118,7 +141,7 @@ export default async function WrestlersPage() {
       nc: matchStats.nc,
       dqw: matchStats.dqw,
       dql: matchStats.dql,
-      personaDisplay: getPersonasForDisplay(w.id) ?? null,
+      personaDisplay: getListPersonaFootnote(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
       championBeltImageUrl: titles.length > 0 ? getBeltImageUrlForTitle(titles[0], w.gender) : null,

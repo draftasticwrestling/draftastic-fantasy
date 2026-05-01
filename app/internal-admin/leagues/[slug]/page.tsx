@@ -9,8 +9,10 @@ import {
   adminApproveDraftReviewAction,
   adminArchiveLeagueAction,
   adminBulkMoveMembersAction,
+  adminClearDraftOrderAction,
   adminDeleteLeagueAction,
   adminMoveUserToLeagueAction,
+  adminRedrawDraftOrderAction,
   adminRemoveRosterEntryAction,
   adminRemoveUserFromLeagueAction,
   adminRunAutopickDraftAction,
@@ -83,10 +85,22 @@ export default async function InternalAdminLeagueDetailPage({
   if (!detail) notFound();
 
   const { league, members } = detail;
-  const { count: draftOrderRowCount } = await admin
-    .from("league_draft_order")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", league.id);
+  const [{ count: draftOrderRowCount }, { count: draftPickCount }] = await Promise.all([
+    admin
+      .from("league_draft_order")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", league.id),
+    admin
+      .from("league_draft_picks")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", league.id),
+  ]);
+  const draftTypeLc = String(league.draft_type ?? "").toLowerCase();
+  const showDraftOrderAdminTools = draftTypeLc !== "offline";
+  const canEditDraftOrderAdmin =
+    showDraftOrderAdminTools &&
+    (league.draft_status ?? "not_started") === "not_started" &&
+    (draftPickCount ?? 0) === 0;
   const [rosterRowsRes, wrestlersRes] = await Promise.all([
     admin
       .from("league_rosters")
@@ -139,6 +153,15 @@ export default async function InternalAdminLeagueDetailPage({
         {" · "}
         <Link href={`/leagues/${encodeURIComponent(league.slug)}`} className="app-link" target="_blank" rel="noopener noreferrer">
           Open league (member UI)
+        </Link>
+        {" · "}
+        <Link
+          href={`/leagues/${encodeURIComponent(league.slug)}/draft`}
+          className="app-link"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open draft page (member UI)
         </Link>
       </p>
 
@@ -315,6 +338,47 @@ export default async function InternalAdminLeagueDetailPage({
           <dd style={{ margin: 0 }}>{league.created_at}</dd>
         </dl>
       </section>
+
+      {showDraftOrderAdminTools ? (
+        <section style={{ marginBottom: 28 }}>
+          <h2 style={{ fontSize: "1.05rem", marginBottom: 10 }}>Draft order (site admin)</h2>
+          <p style={{ color: "var(--color-text-muted)", marginBottom: 12, fontSize: 14, lineHeight: 1.5 }}>
+            Before the draft starts only: clear all pick slots, or build a new random snake order from current members
+            (same logic as the pre-draft randomizer). After picks exist, use the GM &quot;restart draft&quot; flow on the member
+            draft page instead.
+          </p>
+          {canEditDraftOrderAdmin ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start" }}>
+              <form action={adminClearDraftOrderAction}>
+                <input type="hidden" name="leagueId" value={league.id} />
+                <input type="hidden" name="leagueSlug" value={league.slug} />
+                <button type="submit" className="admin-article-submit">
+                  Clear draft order
+                </button>
+              </form>
+              <form action={adminRedrawDraftOrderAction}>
+                <input type="hidden" name="leagueId" value={league.id} />
+                <input type="hidden" name="leagueSlug" value={league.slug} />
+                <button type="submit" className="admin-article-submit">
+                  Randomize draft order (new draw)
+                </button>
+              </form>
+            </div>
+          ) : (
+            <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 14 }}>
+              {(draftPickCount ?? 0) > 0
+                ? "Disabled: this league already has draft picks."
+                : league.draft_status !== "not_started"
+                  ? `Disabled while draft status is ${league.draft_status ?? "—"} (not not_started).`
+                  : "Draft order tools unavailable."}
+            </p>
+          )}
+          <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--color-text-muted)" }}>
+            Current: <strong>{draftOrderRowCount ?? 0}</strong> order rows · <strong>{draftPickCount ?? 0}</strong> picks
+            recorded
+          </p>
+        </section>
+      ) : null}
 
       <section>
         <h2 style={{ fontSize: "1.05rem", marginBottom: 12 }}>Members ({members.length})</h2>
