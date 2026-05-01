@@ -2568,7 +2568,7 @@ export async function runFullAutopickDraftAtScheduledTime(
   if (!admin) return { didRun: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
   const { data: league } = await admin
     .from("leagues")
-    .select("id, draft_date, draft_time, draft_type, draft_status, visibility_type, draft_order_method")
+    .select("id, draft_date, draft_time, draft_type, draft_status, visibility_type, draft_order_method, max_teams")
     .eq("id", leagueId)
     .single();
   if (!league) return { didRun: false };
@@ -2576,11 +2576,20 @@ export async function runFullAutopickDraftAtScheduledTime(
   const draftType = (league as { draft_type?: string }).draft_type ?? null;
   const draftStatus = (league as { draft_status?: string }).draft_status ?? "not_started";
   if (draftType !== "autopick" || draftStatus !== "not_started") return { didRun: false };
+  const memberIds = await getLeagueMemberUserIdsForAdmin(leagueId);
   if ((league as { visibility_type?: string | null }).visibility_type === "public") {
-    const memberIds = await getLeagueMemberUserIdsForAdmin(leagueId);
     if (memberIds.length < 3) {
       await admin.from("leagues").update({ public_status: "awaiting_minimum" }).eq("id", leagueId);
       return { didRun: false, error: "Public leagues need at least 3 teams before draft can start." };
+    }
+  }
+
+  // Admin "Run autopick now": if league isn't full, lock max_teams to current member count.
+  if (opts?.skipScheduledTimeCheck) {
+    const maxTeams = Number((league as { max_teams?: number | null }).max_teams ?? 0);
+    if (Number.isFinite(maxTeams) && maxTeams > 0 && memberIds.length > 0 && memberIds.length < maxTeams) {
+      const { error: resizeErr } = await admin.from("leagues").update({ max_teams: memberIds.length }).eq("id", leagueId);
+      if (resizeErr) return { didRun: false, error: resizeErr.message };
     }
   }
 
@@ -2591,16 +2600,6 @@ export async function runFullAutopickDraftAtScheduledTime(
 
   let order = await getDraftOrderUsingAdmin(admin, leagueId);
   if (order.length === 0) {
-    if (
-      opts?.skipScheduledTimeCheck &&
-      (league as { draft_order_method?: string | null }).draft_order_method === "manual_by_gm"
-    ) {
-      return {
-        didRun: false,
-        error:
-          "Pick order is empty. The commissioner must set or generate draft order before autopick can run (manual-by-GM leagues are not auto-shuffled from the admin button).",
-      };
-    }
     const gen = await generateDraftOrderForScheduledDraft(leagueId);
     if (gen.error) return { didRun: false, error: gen.error };
     order = await getDraftOrderUsingAdmin(admin, leagueId);
