@@ -14,7 +14,7 @@ create table if not exists public.site_login_nudges (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint site_login_nudges_key_check
-    check (nudge_key in ('missing_draft_prefs', 'no_league_joined', 'big_boards_updated'))
+    check (nudge_key in ('missing_draft_prefs', 'no_league_joined'))
 );
 
 create index if not exists idx_site_login_nudges_key on public.site_login_nudges(nudge_key);
@@ -40,16 +40,6 @@ insert into public.site_login_nudges (
   secondary_cta_href
 )
 values
-  (
-    'big_boards_updated',
-    true,
-    'BIG BOARDS UPDATED',
-    'Much has changed since WrestleMania, with releases and call ups, so our Big Boards have changed as well! Check out the updates and make sure you like your draft order. Drafts begin May 1st!',
-    null,
-    null,
-    null,
-    null
-  ),
   (
     'missing_draft_prefs',
     true,

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { FantasyHomeLink } from "@/app/components/FantasyHomeLink";
+import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
 import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
 import FantasyHubHero from "@/app/components/FantasyHubHero";
+import { getAdsenseSlotHubHome } from "@/lib/adsenseConfig";
 
 /** Cache homepage shell and revalidate frequently to reduce SSR compute. */
 export const revalidate = 120;
@@ -18,6 +20,8 @@ export const metadata = {
  * `/constant-contact-callback` only (see docs/CONSTANT_CONTACT_SETUP.md).
  */
 export default async function HubHomePage() {
+  const adsSlotHub = getAdsenseSlotHubHome();
+
   return (
     <>
       <FantasyHubHero />
@@ -37,6 +41,8 @@ export default async function HubHomePage() {
           <HubLatestHeadlinesSection headlineVariant="hub" />
         </div>
       </div>
+
+      <AdsenseDisplayAd slot={adsSlotHub} className="hub-adsense-slot" />
     </>
   );
 }

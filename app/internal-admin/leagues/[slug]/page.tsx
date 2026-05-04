@@ -18,6 +18,7 @@ import {
   adminRunAutopickDraftAction,
   adminUnarchiveLeagueAction,
 } from "../actions";
+import { getLeagueTransactionStats } from "@/lib/leagueTransactionStats";
 import { MemberPovQuickNav } from "./MemberPovQuickNav";
 import { RunAutopickSubmitButton } from "./RunAutopickSubmitButton";
 
@@ -85,7 +86,7 @@ export default async function InternalAdminLeagueDetailPage({
   if (!detail) notFound();
 
   const { league, members } = detail;
-  const [{ count: draftOrderRowCount }, { count: draftPickCount }] = await Promise.all([
+  const [{ count: draftOrderRowCount }, { count: draftPickCount }, transactionStats] = await Promise.all([
     admin
       .from("league_draft_order")
       .select("*", { count: "exact", head: true })
@@ -94,6 +95,7 @@ export default async function InternalAdminLeagueDetailPage({
       .from("league_draft_picks")
       .select("*", { count: "exact", head: true })
       .eq("league_id", league.id),
+    getLeagueTransactionStats(admin, league.id),
   ]);
   const draftTypeLc = String(league.draft_type ?? "").toLowerCase();
   const showDraftOrderAdminTools = draftTypeLc !== "offline";
@@ -196,6 +198,24 @@ export default async function InternalAdminLeagueDetailPage({
             (cap {league.max_teams})
           </>
         ) : null}
+      </p>
+      <p style={{ color: "var(--color-text-muted)", marginBottom: 20, fontSize: 14, lineHeight: 1.55 }}>
+        <strong style={{ color: "var(--color-text)" }}>Transactions</strong>
+        {transactionStats ? (
+          <>
+            {" "}
+            · FA signings <span style={{ fontFamily: "monospace" }}>{transactionStats.faSignings}</span>
+            {" · "}
+            drops <span style={{ fontFamily: "monospace" }}>{transactionStats.drops}</span>
+            {" · "}
+            completed trades <span style={{ fontFamily: "monospace" }}>{transactionStats.completedTrades}</span>
+            {" · "}
+            roster log events{" "}
+            <span style={{ fontFamily: "monospace" }}>{transactionStats.faSignings + transactionStats.drops}</span>
+          </>
+        ) : (
+          <> · (could not load counts)</>
+        )}
       </p>
       {review === "approved" ? (
         <p

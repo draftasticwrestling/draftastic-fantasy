@@ -11,6 +11,8 @@ type Nudge = {
   body: string;
   primaryCta: { label: string; href: string } | null;
   secondaryCta: { label: string; href: string } | null;
+  /** From server: `once` = show at most one time ever in this browser after dismiss. */
+  persist?: "daily" | "once";
 };
 
 /** YYYY-MM-DD in the user's local timezone — used to show each nudge at most once per day. */
@@ -43,6 +45,31 @@ function markNudgeSeenToday(nudgeKey: string): void {
   }
 }
 
+function nudgeDismissedForeverKey(nudgeKey: string): string {
+  return `draftastic-login-nudge-dismissed-forever:${nudgeKey}`;
+}
+
+function wasNudgeDismissedForever(nudgeKey: string): boolean {
+  try {
+    return localStorage.getItem(nudgeDismissedForeverKey(nudgeKey)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markNudgeDismissedForever(nudgeKey: string): void {
+  try {
+    localStorage.setItem(nudgeDismissedForeverKey(nudgeKey), "1");
+  } catch {
+    // no-op
+  }
+}
+
+function shouldShowNudge(n: Nudge): boolean {
+  if (n.persist === "once") return !wasNudgeDismissedForever(n.key);
+  return !wasNudgeSeenToday(n.key);
+}
+
 export default function LoginNudges() {
   const [loaded, setLoaded] = useState(false);
   const [nudges, setNudges] = useState<Nudge[]>([]);
@@ -55,8 +82,8 @@ export default function LoginNudges() {
       .then((data) => {
         if (cancelled) return;
         const list = Array.isArray(data?.nudges) ? (data.nudges as Nudge[]) : [];
-        // At most once per calendar day (local) per nudge; persists across visits/sessions.
-        const filtered = list.filter((n) => !wasNudgeSeenToday(n.key));
+        // Default: at most once per calendar day (local). `persist: once` = one lifetime dismiss per browser.
+        const filtered = list.filter(shouldShowNudge);
         setNudges(filtered);
         setLoaded(true);
       })
@@ -72,7 +99,8 @@ export default function LoginNudges() {
 
   const dismiss = () => {
     if (!current) return;
-    markNudgeSeenToday(current.key);
+    if (current.persist === "once") markNudgeDismissedForever(current.key);
+    else markNudgeSeenToday(current.key);
     setIdx((v) => v + 1);
   };
 

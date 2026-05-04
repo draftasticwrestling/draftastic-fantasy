@@ -3,7 +3,10 @@ import "server-only";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 
-export type LoginNudgeKey = "missing_draft_prefs" | "no_league_joined" | "big_boards_updated";
+export type LoginNudgeKey = "missing_draft_prefs" | "no_league_joined";
+
+/** Shown once per browser (localStorage) when rules match; not configurable in admin. */
+export type DynamicLoginNudgeKey = "post_draft_roster_check";
 
 export type LoginNudgeConfig = {
   nudge_key: LoginNudgeKey;
@@ -17,11 +20,13 @@ export type LoginNudgeConfig = {
 };
 
 export type UserLoginNudge = {
-  key: LoginNudgeKey;
+  key: LoginNudgeKey | DynamicLoginNudgeKey;
   title: string;
   body: string;
   primaryCta: { label: string; href: string } | null;
   secondaryCta: { label: string; href: string } | null;
+  /** `once` = dismiss forever in this browser (see LoginNudges). Default daily cap. */
+  persist?: "daily" | "once";
 };
 
 const DEFAULT_CONFIGS: Record<LoginNudgeKey, LoginNudgeConfig> = {
@@ -44,16 +49,6 @@ const DEFAULT_CONFIGS: Record<LoginNudgeKey, LoginNudgeConfig> = {
     primary_cta_href: "/leagues/join",
     secondary_cta_label: "Create a league",
     secondary_cta_href: "/leagues/new",
-  },
-  big_boards_updated: {
-    nudge_key: "big_boards_updated",
-    enabled: true,
-    title: "BIG BOARDS UPDATED",
-    body: "Much has changed since WrestleMania, with releases and call ups, so our Big Boards have changed as well! Check out the updates and make sure you like your draft order. Drafts begin May 1st!",
-    primary_cta_label: null,
-    primary_cta_href: null,
-    secondary_cta_label: null,
-    secondary_cta_href: null,
   },
 };
 
@@ -81,11 +76,7 @@ export async function getLoginNudgeConfigs(): Promise<Record<LoginNudgeKey, Logi
     ...DEFAULT_CONFIGS,
   };
   for (const raw of data as LoginNudgeConfig[]) {
-    if (
-      raw.nudge_key !== "missing_draft_prefs" &&
-      raw.nudge_key !== "no_league_joined" &&
-      raw.nudge_key !== "big_boards_updated"
-    ) {
+    if (raw.nudge_key !== "missing_draft_prefs" && raw.nudge_key !== "no_league_joined") {
       continue;
     }
     out[raw.nudge_key] = {
@@ -128,6 +119,7 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
     league_id: string;
     leagues?: { slug?: string | null; draft_status?: string | null; is_archived?: boolean | null } | null;
   }>;
+  /** Leagues where the draft is not fully finished — prefs still matter (excludes completed + ready_for_review). */
   const eligibleLeagueRows = leagueRows.filter((row) => {
     const isArchived = Boolean(row.leagues?.is_archived);
     if (isArchived) return false;
@@ -141,25 +133,15 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
     if (slug) slugByLeagueId.set(row.league_id, slug);
   }
 
+  const completedDraftRows = leagueRows.filter((row) => {
+    if (Boolean(row.leagues?.is_archived)) return false;
+    return String(row.leagues?.draft_status ?? "") === "completed";
+  });
+  const firstCompletedSlug =
+    completedDraftRows.map((r) => r.leagues?.slug).find((s) => s && String(s).trim().length > 0) ?? null;
+
   const configs = await getLoginNudgeConfigs();
   const nudges: UserLoginNudge[] = [];
-
-  const bigBoardsCfg = configs.big_boards_updated;
-  if (bigBoardsCfg.enabled) {
-    nudges.push({
-      key: bigBoardsCfg.nudge_key,
-      title: bigBoardsCfg.title,
-      body: bigBoardsCfg.body,
-      primaryCta:
-        bigBoardsCfg.primary_cta_label && bigBoardsCfg.primary_cta_href
-          ? { label: bigBoardsCfg.primary_cta_label, href: bigBoardsCfg.primary_cta_href }
-          : null,
-      secondaryCta:
-        bigBoardsCfg.secondary_cta_label && bigBoardsCfg.secondary_cta_href
-          ? { label: bigBoardsCfg.secondary_cta_label, href: bigBoardsCfg.secondary_cta_href }
-          : null,
-    });
-  }
 
   // Only show "no league joined" when the user truly has no memberships.
   if (leagueRows.length === 0) {
@@ -215,6 +197,20 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
             : null,
       });
     }
+  }
+
+  if (completedDraftRows.length > 0) {
+    const rosterHref = firstCompletedSlug
+      ? `/leagues/${encodeURIComponent(firstCompletedSlug)}/faction`
+      : "/leagues";
+    nudges.push({
+      key: "post_draft_roster_check",
+      title: "Check your roster!",
+      body: "Your draft is complete and your roster is ready. Backlash is less than a week away!",
+      primaryCta: { label: "View roster", href: rosterHref },
+      secondaryCta: null,
+      persist: "once",
+    });
   }
 
   return nudges;

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { createClient } from "@/lib/supabase/server";
+import { getLeagueTransactionStats } from "@/lib/leagueTransactionStats";
 import { BasicSettingsSection } from "./BasicSettingsSection";
 import { DraftSettingsSection } from "./DraftSettingsSection";
 import { LeagueTypeSection } from "./LeagueTypeSection";
@@ -8,6 +10,7 @@ import { IncludeNxtSection } from "./IncludeNxtSection";
 import { RemoveOwnerSection } from "./RemoveOwnerSection";
 import { DeleteLeagueSection } from "./DeleteLeagueSection";
 import { GmToolsNav } from "./GmToolsNav";
+import { LeagueTransactionStatsSection } from "./LeagueTransactionStatsSection";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 
 const OFFLINE_DRAFT_SHEET_EXPORT_URL =
@@ -36,6 +39,9 @@ export default async function LeagueSettingsPage({
     ? [3, 4, 5, 6]
     : [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
   const members = isCommissioner ? await getLeagueMembers(league.id) : [];
+  const transactionStats = isCommissioner
+    ? await getLeagueTransactionStats(await createClient(), league.id)
+    : null;
 
   const draftType = league.draft_type ?? (league.draft_style as "snake" | "linear" | undefined) ?? "autopick";
   const isPublicLeague = String(league.visibility_type ?? "").toLowerCase() === "public";
@@ -66,6 +72,7 @@ export default async function LeagueSettingsPage({
       {isCommissioner ? (
         <>
           <GmToolsNav leagueSlug={slug} />
+          <LeagueTransactionStatsSection stats={transactionStats} />
           <BasicSettingsSection
             key={`basic-${slug}-${maxTeams ?? ""}-${league.name}-${autoReactivate}`}
             leagueSlug={slug}

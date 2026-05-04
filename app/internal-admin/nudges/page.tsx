@@ -127,16 +127,17 @@ export default async function InternalAdminNudgesPage({ searchParams }: Props) {
       ) : null}
 
       <div style={{ display: "grid", gap: 14 }}>
-        <NudgeForm
-          nudgeKey="big_boards_updated"
-          title="Nudge: Big Boards updated"
-          description="Shown to all logged-in users after sign-in to announce refreshed Big Board rankings."
-          defaults={configs.big_boards_updated}
-        />
+        <section style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: 14 }}>
+          <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: "1.05rem" }}>Post-draft roster reminder</h2>
+          <p style={{ marginTop: 0, color: "var(--color-text-muted)" }}>
+            Users in at least one league with a <strong>completed</strong> draft see a one-time &quot;Check your roster&quot; nudge
+            (dismissed permanently in that browser). Copy is fixed in code, not editable here.
+          </p>
+        </section>
         <NudgeForm
           nudgeKey="missing_draft_prefs"
           title="Nudge: Missing draft preferences"
-          description="Shown when a user is in one or more leagues and has not saved draft preferences for all of them."
+          description="Shown when a user is in one or more leagues whose draft is not finished yet (excludes completed and ready-for-review) and they have not saved draft preferences for all of those leagues."
           defaults={configs.missing_draft_prefs}
         />
         <NudgeForm

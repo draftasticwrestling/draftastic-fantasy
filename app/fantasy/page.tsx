@@ -1,8 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
+import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeaguesForUser } from "@/lib/leagues";
 import { getHubHomeHref } from "@/lib/hubHomeHref";
+import { getAdsenseSlotFantasy } from "@/lib/adsenseConfig";
 import { siteLogoHref } from "@/lib/siteLogo";
 
 const IMG = "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/draftastic-screenshots";
@@ -15,6 +17,7 @@ export const metadata = {
 export default async function FantasyHomePage() {
   const { supabase, user } = await getServerAuth();
   const hubHomeHref = await getHubHomeHref();
+  const adsSlotFantasy = getAdsenseSlotFantasy();
 
   if (!user) {
     return (
@@ -239,6 +242,8 @@ export default async function FantasyHomePage() {
             </ul>
           </div>
         </section>
+
+        <AdsenseDisplayAd slot={adsSlotFantasy} />
       </>
     );
   }
@@ -351,6 +356,8 @@ export default async function FantasyHomePage() {
           <li><Link href="/account">Account</Link> — profile and settings</li>
         </ul>
       </div>
+
+      <AdsenseDisplayAd slot={adsSlotFantasy} />
     </main>
   );
 }

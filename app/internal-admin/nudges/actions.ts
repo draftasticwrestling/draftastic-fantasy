@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { getAdminClient } from "@/lib/supabase/admin";
 
-const ALLOWED_KEYS = new Set(["missing_draft_prefs", "no_league_joined", "big_boards_updated"]);
+const ALLOWED_KEYS = new Set(["missing_draft_prefs", "no_league_joined"]);
 
 function done(message: string): never {
   revalidatePath("/internal-admin/nudges");
