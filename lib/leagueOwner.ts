@@ -11,6 +11,7 @@ import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 import { removeWrestlerFromRoster } from "@/lib/leagues";
 import { addWrestlerToRoster } from "@/lib/leagues";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
+import { assertFaSigningAllowedForLeague } from "@/lib/freeAgentSigningLimits";
 
 function normalizeGender(g: string | null | undefined): "F" | "M" | null {
   if (g == null || typeof g !== "string") return null;
@@ -1608,6 +1609,16 @@ export async function createFreeAgentProposal(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.id !== userId) return { error: "Not authenticated." };
+
+  const { data: leagueMeta } = await supabase.from("leagues").select("season_slug").eq("id", leagueId).maybeSingle();
+  const cap = await assertFaSigningAllowedForLeague(
+    supabase,
+    leagueId,
+    userId,
+    (leagueMeta as { season_slug?: string | null } | null)?.season_slug
+  );
+  if (cap.error) return cap;
+
   const { error } = await supabase.from("league_free_agent_proposals").insert({
     league_id: leagueId,
     user_id: userId,
@@ -1648,6 +1659,19 @@ export async function respondToFreeAgentProposal(
     .eq("id", proposalId);
   if (updateErr) return { error: updateErr.message };
   if (approve) {
+    const { data: leagueMetaApprove } = await supabase
+      .from("leagues")
+      .select("season_slug")
+      .eq("id", proposal.league_id)
+      .maybeSingle();
+    const capApprove = await assertFaSigningAllowedForLeague(
+      supabase,
+      proposal.league_id,
+      proposal.user_id,
+      (leagueMetaApprove as { season_slug?: string | null } | null)?.season_slug
+    );
+    if (capApprove.error) return capApprove;
+
     if (proposal.drop_wrestler_id) {
       const dropRes = await removeWrestlerFromRoster(proposal.league_id, proposal.user_id, proposal.drop_wrestler_id);
       if (dropRes.error) return dropRes;
@@ -1757,6 +1781,15 @@ export async function addFreeAgentImmediate(
   if (!member) return { error: "You are not in this league." };
   const eventLock = await getInEventLockMessage(supabase);
   if (eventLock) return { error: eventLock };
+
+  const { data: leagueMetaFa } = await supabase.from("leagues").select("season_slug").eq("id", leagueId).maybeSingle();
+  const capFa = await assertFaSigningAllowedForLeague(
+    supabase,
+    leagueId,
+    user.id,
+    (leagueMetaFa as { season_slug?: string | null } | null)?.season_slug
+  );
+  if (capFa.error) return capFa;
 
   const widToAdd = wrestlerId.trim();
   const widToDrop = dropWrestlerId?.trim() || null;

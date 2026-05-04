@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FA_MOVES_PER_WEEK } from "@/lib/publicLeagueRosterRules";
+import { FA_SIGNINGS_PER_WEEK } from "@/lib/publicLeagueRosterRules";
 import { RTS_BETA_ROSTER_RULES_3_TO_6 } from "@/lib/leagueStructure";
 import {
   GENERAL_RULES,
@@ -105,12 +105,14 @@ export function HowItWorksRoadToSummerSlam() {
           agents, as long as you stay within roster size and gender minimums.
         </p>
         <p style={{ marginBottom: 0, lineHeight: 1.65, color: "#333" }}>
-          <strong>Total Season Points — Road to SummerSlam:</strong> Each manager may make up to{" "}
+          <strong>Total Season Points — Road to SummerSlam:</strong> Each faction may complete up to{" "}
           <strong>
-            {FA_MOVES_PER_WEEK} free agent moves per week
+            {FA_SIGNINGS_PER_WEEK} free agent signings per week
           </strong>
-          . A <strong>week</strong> is <strong>Monday through Sunday</strong> (one calendar week). Signings, drops, and
-          combined drop-and-add moves all count toward this weekly limit.
+          . A <strong>week</strong> is <strong>Monday through Sunday in Pacific Time</strong> (America/Los_Angeles), so the
+          cap follows WWE show nights in the US and does not reset at midnight UTC. Only <strong>signings</strong> count toward
+          this cap (including a swap where you drop someone to
+          add a free agent). Standalone drops do not count. <strong>Trades are unlimited.</strong>
         </p>
       </section>
 
