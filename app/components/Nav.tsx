@@ -677,6 +677,7 @@ export default function Nav() {
               <li onMouseEnter={(e) => handlePrimaryEnter("wrestlers", e)}>
                 <Link
                   href={wrestlersSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/wrestlers/league-leaders` : "#")}
+                  prefetch={false}
                   className={`nav-primary-link ${activePrimary === "wrestlers" ? "is-active" : ""}`}
                 >
                   Statistics
@@ -810,7 +811,7 @@ export default function Nav() {
                   const isActive = pathname === href || pathname.startsWith(href + "/");
                   return (
                     <li key={href}>
-                      <Link href={href} className={`nav-secondary-link ${isActive ? "is-active" : ""}`}>
+                      <Link href={href} prefetch={false} className={`nav-secondary-link ${isActive ? "is-active" : ""}`}>
                         {label}
                       </Link>
                     </li>
@@ -868,6 +869,7 @@ export default function Nav() {
                 </Link>
                 <Link
                   href={`/leagues/${currentLeagueSlug}/wrestlers/league-leaders`}
+                  prefetch={false}
                   className={`nav-fantasy-mobile-tab ${fantasyMobileTab === "wrestlers" ? "is-active" : ""}`}
                 >
                   Wrestlers

@@ -14,6 +14,8 @@ export type EngagementEventName =
   | "page.free_agents_view"
   | "page.league_leaders_view"
   | "page.logged_in_view"
+  | "page.news_article_view"
+  | "page.event_results_view"
   | "session.logged_in_start";
 
 type Payload = {

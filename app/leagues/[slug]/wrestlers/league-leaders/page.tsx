@@ -2,7 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
+import {
+  getLeagueBySlug,
+  getLeagueMembers,
+  getRostersForLeague,
+  getEffectiveLeagueStartDate,
+  type LeagueMember,
+  type LeagueRosterEntry,
+} from "@/lib/leagues";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
@@ -62,6 +69,19 @@ function read2kRating(row: Record<string, unknown>, key: string): number | null 
   return Number.isNaN(n) ? null : n;
 }
 
+/** Row shape for League Leaders wrestler select (explicit for TS when using defensive try/catch). */
+type LeagueLeadersWrestlerRow = {
+  id: string;
+  name: string | null;
+  gender: string | null;
+  brand: string | null;
+  image_url: string | null;
+  dob: string | null;
+  Status?: string | null;
+  "2K26 rating"?: number | null;
+  "2K25 rating"?: number | null;
+};
+
 type ChampionshipReign = {
   champion_slug?: string | null;
   champion_id?: string | null;
@@ -117,21 +137,30 @@ export default async function LeagueLeadersPage({
   const [wrestlersResult, rosters, members, { data: rawReigns }, currentFromTable, currentFromChanges] =
     await Promise.all([
       (async () => {
-        // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
-        const r = await supabase
-          .from("wrestlers")
-          .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
-          .order("name", { ascending: true });
-        return r;
+        try {
+          // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
+          return await supabase
+            .from("wrestlers")
+            .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+            .order("name", { ascending: true });
+        } catch {
+          return { data: null, error: { message: "Network error loading wrestlers" } as { message: string } };
+        }
       })(),
-      getRostersForLeague(league.id),
-      getLeagueMembers(league.id),
-      supabase.from("championship_history").select("*"),
+      getRostersForLeague(league.id).catch((): Record<string, LeagueRosterEntry[]> => ({})),
+      getLeagueMembers(league.id).catch((): LeagueMember[] => []),
+      (async () => {
+        try {
+          return await supabase.from("championship_history").select("*");
+        } catch {
+          return { data: null };
+        }
+      })(),
       getCurrentChampionsFromChampionshipsTable(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
       getCurrentChampionsFromChanges(supabase).catch((): Record<string, CurrentChampionFromChanges> => ({})),
     ]);
 
-  const wrestlers = wrestlersResult.data ?? [];
+  const wrestlers = (wrestlersResult.data ?? []) as LeagueLeadersWrestlerRow[];
   const brandBySlug = brandByWrestlerSlugFromRows(
     (wrestlers ?? []).map((w) => ({
       id: w.id,
@@ -141,21 +170,29 @@ export default async function LeagueLeadersPage({
   /** Always aggregate from events here — wrestler_stats_cache uses integer columns + different belt windows and skips history when only since-start events are loaded. */
   const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isHiddenCanonicalListSlug(w.id));
 
-  const { data: allEventsData } = await supabase
-    .from("events")
-    .select("id, name, date, matches")
-    .in("status", [...EVENT_STATUSES_FOR_SCORING])
-    .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
-    .order("date", { ascending: true })
-    .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT);
-  const eventsAll = (allEventsData ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
+  let allEventsData: { id: string; name: string; date: string; matches?: object[] }[] | null = null;
+  try {
+    const ev = await supabase
+      .from("events")
+      .select("id, name, date, matches")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
+      .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
+      .order("date", { ascending: true })
+      .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT);
+    allEventsData = (ev.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
+  } catch {
+    allEventsData = [];
+  }
+  const eventsAll = allEventsData ?? [];
   const eventsSinceStart = eventsAll.filter((e) => (e.date ?? "") >= startDate);
   const events2025 = eventsAll.filter((e) => (e.date ?? "") >= "2025-01-01" && (e.date ?? "") <= "2025-12-31");
   const events2026 = eventsAll.filter((e) => (e.date ?? "") >= "2026-01-01" && (e.date ?? "") <= "2026-12-31");
 
-  const memberByUserId = Object.fromEntries((members ?? []).map((m) => [m.user_id, m]));
+  const membersList: LeagueMember[] = members ?? [];
+  const rostersByUser: Record<string, LeagueRosterEntry[]> = rosters ?? {};
+  const memberByUserId = Object.fromEntries(membersList.map((m) => [m.user_id, m]));
   const rosterByWrestler: Record<string, { ownerName: string; ownerUserId: string }> = {};
-  for (const [uid, entries] of Object.entries(rosters ?? {})) {
+  for (const [uid, entries] of Object.entries(rostersByUser)) {
     const ownerName = factionDisplayName(memberByUserId[uid], "Manager");
     for (const e of entries) {
       rosterByWrestler[e.wrestler_id] = { ownerName, ownerUserId: uid };
@@ -163,8 +200,13 @@ export default async function LeagueLeadersPage({
   }
 
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
-  const inferredReigns = inferReignsFromEvents(eventsAll);
-  const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
+  let reigns: ChampionshipReign[];
+  try {
+    const inferredReigns = inferReignsFromEvents(eventsAll);
+    reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
+  } catch {
+    reigns = tableReigns;
+  }
 
   const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart, brandBySlug);
   const isNxtEventType = (eventType: string) =>

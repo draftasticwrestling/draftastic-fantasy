@@ -90,6 +90,15 @@ export default async function InternalAdminEngagementPage({
     .limit(50000);
   const { data: rawEvents } = season ? await eventsQuery.eq("season_slug", season) : await eventsQuery;
   const rows = (rawEvents ?? []) as Row[];
+
+  /** Logged-in views of news articles and event results (no season_slug; not filtered by season picker). */
+  const { data: rawContentViews } = await admin
+    .from("engagement_events")
+    .select("event_name, user_id, occurred_at, path")
+    .in("event_name", ["page.news_article_view", "page.event_results_view"])
+    .order("occurred_at", { ascending: false })
+    .limit(50000);
+  const contentRows = (rawContentViews ?? []) as Row[];
   const sortKey = String(sortParam || "total");
   const sortDir: "asc" | "desc" = dirParam === "asc" ? "asc" : "desc";
 
@@ -113,6 +122,10 @@ export default async function InternalAdminEngagementPage({
     leadersViews: count(rows, "page.league_leaders_view"),
     loggedInViews: count(rows, "page.logged_in_view"),
     sessionStarts: count(rows, "session.logged_in_start"),
+    articleViews: count(contentRows, "page.news_article_view"),
+    articleViewsUnique: uniqUsers(contentRows, (r) => r.event_name === "page.news_article_view"),
+    resultsViews: count(contentRows, "page.event_results_view"),
+    resultsViewsUnique: uniqUsers(contentRows, (r) => r.event_name === "page.event_results_view"),
     dau: uniqUsers(rowsDay),
     wau: uniqUsers(rowsWeek),
     mau: uniqUsers(rowsMonth),
@@ -143,7 +156,10 @@ export default async function InternalAdminEngagementPage({
   const eventUserIds = Array.from(
     new Set(rows.map((r) => r.user_id).filter((id): id is string => Boolean(id)))
   );
-  const allUserIds = Array.from(new Set([...seasonUserIds, ...eventUserIds]));
+  const contentEventUserIds = Array.from(
+    new Set(contentRows.map((r) => r.user_id).filter((id): id is string => Boolean(id)))
+  );
+  const allUserIds = Array.from(new Set([...seasonUserIds, ...eventUserIds, ...contentEventUserIds]));
 
   const memberNameByUser = new Map<string, string>();
   for (const m of seasonMembers) {
@@ -168,6 +184,8 @@ export default async function InternalAdminEngagementPage({
     leadersViews: number;
     loggedInViews: number;
     sessionStarts: number;
+    articleViews: number;
+    resultsViews: number;
     lastSeen: string | null;
   };
 
@@ -190,6 +208,8 @@ export default async function InternalAdminEngagementPage({
       leadersViews: 0,
       loggedInViews: 0,
       sessionStarts: 0,
+      articleViews: 0,
+      resultsViews: 0,
       lastSeen: null,
     };
     userAggMap.set(userId, created);
@@ -213,6 +233,14 @@ export default async function InternalAdminEngagementPage({
     if (r.event_name === "page.logged_in_view") agg.loggedInViews += 1;
     if (r.event_name === "session.logged_in_start") agg.sessionStarts += 1;
   }
+  for (const r of contentRows) {
+    if (!r.user_id) continue;
+    const agg = ensureUserAgg(r.user_id);
+    agg.total += 1;
+    if (!agg.lastSeen || r.occurred_at > agg.lastSeen) agg.lastSeen = r.occurred_at;
+    if (r.event_name === "page.news_article_view") agg.articleViews += 1;
+    if (r.event_name === "page.event_results_view") agg.resultsViews += 1;
+  }
 
   const userRows = Array.from(userAggMap.values());
   const noEngagementCount = userRows.filter((u) => u.total === 0).length;
@@ -232,6 +260,10 @@ export default async function InternalAdminEngagementPage({
         return u.tradesExecuted;
       case "loggedInViews":
         return u.loggedInViews;
+      case "articleViews":
+        return u.articleViews;
+      case "resultsViews":
+        return u.resultsViews;
       case "lastSeen":
         return u.lastSeen ?? "";
       default:
@@ -264,18 +296,34 @@ export default async function InternalAdminEngagementPage({
       drops: number;
       tradesExecuted: number;
       loggedInViews: number;
+      articleViews: number;
+      resultsViews: number;
     }
   >();
+  const emptyDay = () => ({
+    signIns: 0,
+    faAdds: 0,
+    drops: 0,
+    tradesExecuted: 0,
+    loggedInViews: 0,
+    articleViews: 0,
+    resultsViews: 0,
+  });
   for (const r of rows) {
     const day = r.occurred_at.slice(0, 10);
-    const bucket =
-      dailyByDate.get(day) ??
-      { signIns: 0, faAdds: 0, drops: 0, tradesExecuted: 0, loggedInViews: 0 };
+    const bucket = dailyByDate.get(day) ?? emptyDay();
     if (r.event_name === "auth.sign_in") bucket.signIns += 1;
     if (r.event_name === "league.fa_add") bucket.faAdds += 1;
     if (r.event_name === "league.drop") bucket.drops += 1;
     if (r.event_name === "league.trade_executed") bucket.tradesExecuted += 1;
     if (r.event_name === "page.logged_in_view") bucket.loggedInViews += 1;
+    dailyByDate.set(day, bucket);
+  }
+  for (const r of contentRows) {
+    const day = r.occurred_at.slice(0, 10);
+    const bucket = dailyByDate.get(day) ?? emptyDay();
+    if (r.event_name === "page.news_article_view") bucket.articleViews += 1;
+    if (r.event_name === "page.event_results_view") bucket.resultsViews += 1;
     dailyByDate.set(day, bucket);
   }
   const dailyRows = Array.from(dailyByDate.entries())
@@ -292,7 +340,8 @@ export default async function InternalAdminEngagementPage({
       </p>
       <h1 style={{ marginTop: 0, marginBottom: 8 }}>Season engagement</h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
-        Logged-in behavior and in-league action tracking for the selected season.
+        Logged-in behavior and in-league action tracking for the selected season. Article and Results metrics count all
+        logged-in views (not scoped to the season).
       </p>
 
       <form method="get" style={{ marginBottom: 18, display: "flex", gap: 10, alignItems: "center" }}>
@@ -321,6 +370,14 @@ export default async function InternalAdminEngagementPage({
           ["My Faction views", String(kpi.myFactionViews)],
           ["Free Agents views", String(kpi.freeAgentsViews)],
           ["League Leaders views", String(kpi.leadersViews)],
+          [
+            "Article views",
+            `${kpi.articleViews} (${kpi.articleViewsUnique} users)`,
+          ],
+          [
+            "Results views",
+            `${kpi.resultsViews} (${kpi.resultsViewsUnique} users)`,
+          ],
           ["Logged-in page views", String(kpi.loggedInViews)],
           ["Logged-in sessions", String(kpi.sessionStarts)],
           ["DAU / WAU / MAU", `${kpi.dau} / ${kpi.wau} / ${kpi.mau}`],
@@ -362,6 +419,8 @@ export default async function InternalAdminEngagementPage({
                 <th style={{ padding: "8px 6px" }}>Drops</th>
                 <th style={{ padding: "8px 6px" }}>Trades executed</th>
                 <th style={{ padding: "8px 6px" }}>Logged-in page views</th>
+                <th style={{ padding: "8px 6px" }}>Article views</th>
+                <th style={{ padding: "8px 6px" }}>Results views</th>
               </tr>
             </thead>
             <tbody>
@@ -373,11 +432,13 @@ export default async function InternalAdminEngagementPage({
                   <td style={{ padding: "8px 6px" }}>{r.drops}</td>
                   <td style={{ padding: "8px 6px" }}>{r.tradesExecuted}</td>
                   <td style={{ padding: "8px 6px" }}>{r.loggedInViews}</td>
+                  <td style={{ padding: "8px 6px" }}>{r.articleViews}</td>
+                  <td style={{ padding: "8px 6px" }}>{r.resultsViews}</td>
                 </tr>
               ))}
               {dailyRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: "12px 6px", color: "var(--color-text-muted)" }}>
+                  <td colSpan={8} style={{ padding: "12px 6px", color: "var(--color-text-muted)" }}>
                     No engagement events recorded for this season yet.
                   </td>
                 </tr>
@@ -411,6 +472,8 @@ export default async function InternalAdminEngagementPage({
                 <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("drops")}>Drops</Link></th>
                 <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("tradesExecuted")}>Trades executed</Link></th>
                 <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("loggedInViews")}>Logged-in views</Link></th>
+                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("articleViews")}>Articles</Link></th>
+                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("resultsViews")}>Results</Link></th>
                 <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("lastSeen")}>Last seen</Link></th>
               </tr>
             </thead>
@@ -434,6 +497,8 @@ export default async function InternalAdminEngagementPage({
                   <td style={{ padding: "8px 6px" }}>{u.drops}</td>
                   <td style={{ padding: "8px 6px" }}>{u.tradesExecuted}</td>
                   <td style={{ padding: "8px 6px" }}>{u.loggedInViews}</td>
+                  <td style={{ padding: "8px 6px" }}>{u.articleViews}</td>
+                  <td style={{ padding: "8px 6px" }}>{u.resultsViews}</td>
                   <td style={{ padding: "8px 6px", color: "var(--color-text-muted)" }}>
                     {u.lastSeen ? `${u.lastSeen.slice(0, 10)} ${u.lastSeen.slice(11, 16)}Z` : "—"}
                   </td>
@@ -441,7 +506,7 @@ export default async function InternalAdminEngagementPage({
               ))}
               {userRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: "12px 6px", color: "var(--color-text-muted)" }}>
+                  <td colSpan={10} style={{ padding: "12px 6px", color: "var(--color-text-muted)" }}>
                     No season members found.
                   </td>
                 </tr>

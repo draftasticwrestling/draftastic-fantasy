@@ -15,6 +15,14 @@ function normalizePath(value: unknown): string {
   return raw.startsWith("/") ? raw : `/${raw}`;
 }
 
+/** Pathname only; no query. */
+function classifyContentViews(path: string): { newsArticle: boolean; eventResults: boolean } {
+  const p = path.split("?")[0]?.replace(/\/+$/, "") || "/";
+  const newsArticle = /^\/news\/[^/]+/.test(p);
+  const eventResults = p === "/event-results" || p.startsWith("/event-results/");
+  return { newsArticle, eventResults };
+}
+
 export async function POST(request: Request) {
   const { supabase, user } = await getServerAuth();
   if (!user) return NextResponse.json({ ok: true });
@@ -47,6 +55,26 @@ export async function POST(request: Request) {
     seasonSlug,
     path,
   });
+
+  const { newsArticle, eventResults } = classifyContentViews(path);
+  if (newsArticle) {
+    await recordEngagementEvent({
+      eventName: "page.news_article_view",
+      userId: user.id,
+      leagueId: null,
+      seasonSlug: null,
+      path,
+    });
+  }
+  if (eventResults) {
+    await recordEngagementEvent({
+      eventName: "page.event_results_view",
+      userId: user.id,
+      leagueId: null,
+      seasonSlug: null,
+      path,
+    });
+  }
 
   if (body.newSession === true) {
     await recordEngagementEvent({
