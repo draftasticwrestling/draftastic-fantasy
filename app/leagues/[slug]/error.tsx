@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function LeagueError({
   reset,
@@ -8,11 +9,16 @@ export default function LeagueError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const pathname = usePathname() ?? "";
+  const match = pathname.match(/^\/leagues\/([^/]+)/);
+  const leagueSlug = match?.[1] ? decodeURIComponent(match[1]) : null;
+  const backHref = leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}` : "/leagues";
+
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 640, margin: "0 auto" }}>
       <p style={{ marginBottom: 24 }}>
-        <Link href="/leagues" style={{ color: "#1a73e8", textDecoration: "none" }}>
-          ← My leagues
+        <Link href={backHref} style={{ color: "#1a73e8", textDecoration: "none" }}>
+          ← League
         </Link>
       </p>
       <h1 style={{ fontSize: "1.25rem", marginBottom: 16 }}>Something went wrong</h1>
@@ -36,7 +42,7 @@ export default function LeagueError({
           Try again
         </button>
         <Link
-          href="/leagues"
+          href={backHref}
           style={{
             padding: "8px 16px",
             color: "#1a73e8",
@@ -44,7 +50,7 @@ export default function LeagueError({
             fontSize: 14,
           }}
         >
-          Back to My leagues
+          Back to League
         </Link>
       </div>
     </main>

@@ -53,6 +53,7 @@ import {
   LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT,
   allTimeLeadersStylePointBreakdown,
 } from "@/lib/leagueLeadersAllTimeScoring";
+import { recordEngagementEvent } from "@/lib/engagementEvents";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -96,10 +97,19 @@ export default async function LeagueLeadersPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const { supabase } = await getServerAuth();
+  const { supabase, user } = await getServerAuth();
   const league = await getLeagueBySlug(slug);
   if (!league) {
     redirect("/leagues");
+  }
+  if (user) {
+    void recordEngagementEvent({
+      eventName: "page.league_leaders_view",
+      userId: user.id,
+      leagueId: league.id,
+      seasonSlug: league.season_slug ?? null,
+      path: `/leagues/${slug}/wrestlers/league-leaders`,
+    });
   }
 
   const startDate = getEffectiveLeagueStartDate(league);

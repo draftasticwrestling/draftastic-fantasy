@@ -91,13 +91,13 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
   const fallback = (
     <main className="app-page">
       <p style={{ marginBottom: 24 }}>
-        <Link href="/leagues" className="app-link">← My leagues</Link>
+        <Link href={`/leagues/${slug}`} className="app-link">← League</Link>
       </p>
       <h1 style={{ fontSize: "1.25rem", marginBottom: 16, color: "var(--color-text)" }}>Something went wrong</h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
         We couldn’t load this league. You may need to sign in, or the league may not exist.
       </p>
-      <Link href="/leagues" className="app-link">Back to My leagues</Link>
+      <Link href={`/leagues/${slug}`} className="app-link">Back to League</Link>
     </main>
   );
 

@@ -343,6 +343,9 @@ export async function getDraftPreferencesForAllMembers(
       if (hasPreferencesNonAutopick && prefs) {
         if (listLen > 0) summary = `Priority list: ${listLen} wrestlers · ${DEFAULT_AUTOPICK_DESCRIPTION}`;
       }
+    } else if (!prefs) {
+      hasPreferencesDisplay = false;
+      summary = `Not set. The Default Big Board will be used at draft time. ${DEFAULT_AUTOPICK_DESCRIPTION}`;
     } else if (!isCustom) {
       hasPreferencesDisplay = true;
       const boardId: BigBoardId =

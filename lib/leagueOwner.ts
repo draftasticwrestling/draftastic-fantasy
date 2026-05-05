@@ -12,6 +12,7 @@ import { removeWrestlerFromRoster } from "@/lib/leagues";
 import { addWrestlerToRoster } from "@/lib/leagues";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 import { assertFaSigningAllowedForLeague } from "@/lib/freeAgentSigningLimits";
+import { recordEngagementEvent } from "@/lib/engagementEvents";
 
 function normalizeGender(g: string | null | undefined): "F" | "M" | null {
   if (g == null || typeof g !== "string") return null;
@@ -47,12 +48,25 @@ type LeagueActivityInsert = {
  */
 async function insertLeagueActivityRow(userClient: SupabaseClient, row: LeagueActivityInsert): Promise<void> {
   const { error } = await userClient.from("league_activity").insert(row);
-  if (!error) return;
+  if (!error) {
+    await recordEngagementEvent({
+      eventName: row.activity_type === "fa_add" ? "league.fa_add" : "league.drop",
+      userId: row.user_id,
+      leagueId: row.league_id,
+    });
+    return;
+  }
   const admin = getAdminClient();
   if (admin) {
     const { error: e2 } = await admin.from("league_activity").insert(row);
     if (e2) {
       console.error("[league_activity] insert failed (user then admin):", error.message, "|", e2.message);
+    } else {
+      await recordEngagementEvent({
+        eventName: row.activity_type === "fa_add" ? "league.fa_add" : "league.drop",
+        userId: row.user_id,
+        leagueId: row.league_id,
+      });
     }
     return;
   }
@@ -537,6 +551,12 @@ export async function createTradeProposal(
     const { error: itemsErr } = await supabase.from("league_trade_proposal_items").insert(itemRows);
     if (itemsErr) return { error: itemsErr.message };
   }
+  await recordEngagementEvent({
+    eventName: "league.trade_proposed",
+    userId: fromUserId,
+    leagueId,
+    metadata: { proposalId: proposal.id, toUserId },
+  });
   return { id: proposal.id };
 }
 
@@ -1199,6 +1219,12 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
     .from("league_trade_proposals")
     .update({ executed_at: new Date().toISOString() })
     .eq("id", proposalId);
+  await recordEngagementEvent({
+    eventName: "league.trade_executed",
+    userId: proposal.from_user_id,
+    leagueId: proposal.league_id,
+    metadata: { proposalId, toUserId: proposal.to_user_id },
+  });
   return {};
 }
 

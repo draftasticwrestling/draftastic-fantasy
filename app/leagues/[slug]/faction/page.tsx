@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { recordEngagementEvent } from "@/lib/engagementEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,14 @@ export default async function LeagueFactionSimpleEntryPage({ params }: Props) {
   const members = await getLeagueMembers(league.id);
   const isMember = members.some((m) => m.user_id === user.id);
   if (!isMember) notFound();
+
+  await recordEngagementEvent({
+    eventName: "page.my_faction_view",
+    userId: user.id,
+    leagueId: league.id,
+    seasonSlug: league.season_slug ?? null,
+    path: `/leagues/${slug}/faction`,
+  });
 
   redirect(`/leagues/${slug}/team/${encodeURIComponent(user.id)}?view=simple`);
 }

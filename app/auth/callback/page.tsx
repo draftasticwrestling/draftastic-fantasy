@@ -107,6 +107,12 @@ export default function AuthCallbackPage() {
         return;
       }
 
+      await fetch("/api/engagement/sign-in", {
+        method: "POST",
+        credentials: "same-origin",
+        keepalive: true,
+      }).catch(() => {});
+
       if (intent.isSignup) {
         setHint("Saving your profile…");
         const res = await fetch("/api/auth/complete-signup", {

@@ -37,6 +37,14 @@ export default function InternalAdminHomePage() {
           </Link>
         </li>
         <li>
+          <Link href="/internal-admin/engagement" className={styles.cardLink}>
+            <span className={styles.cardTitle}>Season engagement</span>
+            <span className={styles.cardDesc}>
+              Sign-ins, roster moves, trade activity, logged-in sessions, and key page-visit trends.
+            </span>
+          </Link>
+        </li>
+        <li>
           <Link href="/internal-admin/events" className={styles.cardLink}>
             <span className={styles.cardTitle}>Events</span>
             <span className={styles.cardDesc}>Inspect boxscore events and raw matches JSON (read-only).</span>

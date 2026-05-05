@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import EventListBar from "./EventListBar";
 import Nav from "./Nav";
@@ -15,6 +16,24 @@ type RootShellProps = {
 export default function RootShell({ children, recentEvents }: RootShellProps) {
   const pathname = usePathname() ?? "";
   const isInternalAdminShell = pathname.startsWith("/internal-admin");
+
+  useEffect(() => {
+    if (typeof window === "undefined" || isInternalAdminShell) return;
+
+    const SESSION_KEY = "draftastic_logged_in_session_last_seen_ms";
+    const now = Date.now();
+    const lastSeenMs = Number(window.localStorage.getItem(SESSION_KEY) ?? "0");
+    const newSession = !Number.isFinite(lastSeenMs) || now - lastSeenMs > 30 * 60 * 1000;
+    window.localStorage.setItem(SESSION_KEY, String(now));
+
+    fetch("/api/engagement/page-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      keepalive: true,
+      body: JSON.stringify({ path: pathname, newSession }),
+    }).catch(() => {});
+  }, [pathname, isInternalAdminShell]);
 
   if (isInternalAdminShell) return <>{children}</>;
 

@@ -341,6 +341,10 @@ export default async function LeagueDraftPage({ params }: Props) {
     }
 
     const isReviewPending = draftStatus === "ready_for_review";
+    const canSeeAllDraftReadiness = isCommissioner || isSiteAdmin;
+    const readinessRows = canSeeAllDraftReadiness
+      ? allMembersPrefs
+      : allMembersPrefs.filter((entry) => Boolean(user?.id && entry.user_id === user.id));
     const showDraftRoom =
       (draftStatus === "in_progress" || draftStatus === "completed" || isReviewPending) &&
       order.length > 0 &&
@@ -445,7 +449,7 @@ export default async function LeagueDraftPage({ params }: Props) {
         </Link>
       </section>
 
-      {draftStatus === "not_started" && leagueDraftType === "autopick" && allMembersPrefs.length > 0 && (
+      {draftStatus === "not_started" && leagueDraftType === "autopick" && readinessRows.length > 0 && (
         <section
           aria-labelledby="auto-draft-readiness-heading"
           style={{
@@ -460,15 +464,16 @@ export default async function LeagueDraftPage({ params }: Props) {
             Auto-draft readiness
           </h2>
           <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
-            Before the draft runs at the scheduled time, confirm each manager has set preferences. If not set, the default is used.
+            {canSeeAllDraftReadiness
+              ? "Before the draft runs at the scheduled time, confirm each manager has set preferences. If not set, the default is used."
+              : "Your readiness is shown below. Only the GM and site admins can view other managers' draft-preference readiness."}
             {" "}
             <strong style={{ color: "var(--color-text)" }}>
-              Strategy details (board choice, list length, etc.) are shown only on your own row
-            </strong>{" "}
-            so the GM and other managers can see who is ready without an unfair scouting advantage.
+              Strategy details (board choice, list length, etc.) are shown only on your own row.
+            </strong>
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
-            {allMembersPrefs.map((entry) => {
+            {readinessRows.map((entry) => {
               const isOwnRow = Boolean(user?.id && entry.user_id === user.id);
               return (
               <li
