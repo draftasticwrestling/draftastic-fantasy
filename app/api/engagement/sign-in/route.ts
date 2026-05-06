@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
+import { processDailyLoginXp } from "@/lib/xp/processDailyLoginXp";
 
 export async function POST() {
   const { supabase, user } = await getServerAuth();
@@ -25,5 +26,6 @@ export async function POST() {
     seasonSlug,
     path: "/auth/callback",
   });
+  await processDailyLoginXp(user.id);
   return NextResponse.json({ ok: true });
 }

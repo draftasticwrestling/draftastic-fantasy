@@ -49,6 +49,9 @@ import {
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
 import { generateJoinCode, INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode";
+import { awardUserXp } from "@/lib/xp/awardUserXp";
+import { XP_AMOUNTS } from "@/lib/xp/xpReasons";
+import { awardLeagueJoinXp } from "@/lib/xp/leagueJoinAward";
 import {
   beltScoringLastMonthEndInclusive,
   legacySeasonEndBeltSnapshotYmd,
@@ -297,6 +300,14 @@ export async function createLeague(params: {
     league_id: league.id,
     user_id: user.id,
     role: "commissioner",
+  });
+
+  void awardUserXp({
+    userId: user.id,
+    delta: XP_AMOUNTS.league_started,
+    reason: "league_started",
+    idempotencyKey: `league_started:${league.id}`,
+    metadata: { leagueId: league.id, slug: league.slug },
   });
 
   return { league: league as League };
@@ -923,6 +934,8 @@ export async function joinLeagueWithToken(token: string): Promise<{
   const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
   if (result.ok && result.league_slug) {
     await syncPublicLeagueStatusBySlug(result.league_slug);
+    const { data: { user: u } } = await supabase.auth.getUser();
+    if (u?.id) await awardLeagueJoinXp(u.id, result.league_slug);
   }
   return result;
 }
@@ -942,6 +955,8 @@ export async function joinLeagueWithCode(code: string): Promise<{
   const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
   if (result.ok && result.league_slug) {
     await syncPublicLeagueStatusBySlug(result.league_slug);
+    const { data: { user: u } } = await supabase.auth.getUser();
+    if (u?.id) await awardLeagueJoinXp(u.id, result.league_slug);
   }
   return result;
 }
@@ -958,6 +973,10 @@ export async function quickJoinOldestPublicLeague(): Promise<{
   const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
   if (result.ok && result.league_slug) {
     await syncPublicLeagueStatusBySlug(result.league_slug);
+    const {
+      data: { user: u },
+    } = await supabase.auth.getUser();
+    if (u?.id) await awardLeagueJoinXp(u.id, result.league_slug);
     return result;
   }
 

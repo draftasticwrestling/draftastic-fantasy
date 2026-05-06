@@ -4,6 +4,7 @@ import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getProfile } from "@/lib/profiles";
 import { AccountAvatarField } from "./AccountAvatarField";
 import { AccountForm } from "./AccountForm";
+import { AccountXpSection } from "./AccountXpSection";
 
 export const metadata = {
   title: "Account — Draftastic Fantasy",
@@ -91,6 +92,7 @@ export default async function AccountPage({
       <p style={{ color: "#555", marginBottom: 24 }}>
         Your display name is shown in the header and will be used in leagues. Your email is not shared with other users.
       </p>
+      <AccountXpSection userId={user.id} />
       <AccountForm
         userId={user.id}
         initialDisplayName={profile?.display_name ?? ""}

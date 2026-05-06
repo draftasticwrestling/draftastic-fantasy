@@ -13,6 +13,8 @@ import { addWrestlerToRoster } from "@/lib/leagues";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 import { assertFaSigningAllowedForLeague } from "@/lib/freeAgentSigningLimits";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
+import { awardUserXp } from "@/lib/xp/awardUserXp";
+import { XP_AMOUNTS } from "@/lib/xp/xpReasons";
 
 function normalizeGender(g: string | null | undefined): "F" | "M" | null {
   if (g == null || typeof g !== "string") return null;
@@ -47,18 +49,27 @@ type LeagueActivityInsert = {
  * fall back to service role if needed. Logs failures — roster mutations already succeeded.
  */
 async function insertLeagueActivityRow(userClient: SupabaseClient, row: LeagueActivityInsert): Promise<void> {
-  const { error } = await userClient.from("league_activity").insert(row);
+  const { data: inserted, error } = await userClient.from("league_activity").insert(row).select("id").maybeSingle();
   if (!error) {
     await recordEngagementEvent({
       eventName: row.activity_type === "fa_add" ? "league.fa_add" : "league.drop",
       userId: row.user_id,
       leagueId: row.league_id,
     });
+    if (row.activity_type === "fa_add" && inserted && (inserted as { id?: string }).id) {
+      void awardUserXp({
+        userId: row.user_id,
+        delta: XP_AMOUNTS.free_agent_move,
+        reason: "free_agent_move",
+        idempotencyKey: `fa_add:${(inserted as { id: string }).id}`,
+        metadata: { leagueId: row.league_id, wrestlerId: row.wrestler_id },
+      });
+    }
     return;
   }
   const admin = getAdminClient();
   if (admin) {
-    const { error: e2 } = await admin.from("league_activity").insert(row);
+    const { data: ins2, error: e2 } = await admin.from("league_activity").insert(row).select("id").maybeSingle();
     if (e2) {
       console.error("[league_activity] insert failed (user then admin):", error.message, "|", e2.message);
     } else {
@@ -67,6 +78,15 @@ async function insertLeagueActivityRow(userClient: SupabaseClient, row: LeagueAc
         userId: row.user_id,
         leagueId: row.league_id,
       });
+      if (row.activity_type === "fa_add" && ins2 && (ins2 as { id?: string }).id) {
+        void awardUserXp({
+          userId: row.user_id,
+          delta: XP_AMOUNTS.free_agent_move,
+          reason: "free_agent_move",
+          idempotencyKey: `fa_add:${(ins2 as { id: string }).id}`,
+          metadata: { leagueId: row.league_id, wrestlerId: row.wrestler_id },
+        });
+      }
     }
     return;
   }
@@ -1224,6 +1244,22 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
     userId: proposal.from_user_id,
     leagueId: proposal.league_id,
     metadata: { proposalId, toUserId: proposal.to_user_id },
+  });
+  const fromUid = (proposal as { from_user_id: string }).from_user_id;
+  const toUid = (proposal as { to_user_id: string }).to_user_id;
+  void awardUserXp({
+    userId: fromUid,
+    delta: XP_AMOUNTS.trade_executed,
+    reason: "trade_executed",
+    idempotencyKey: `trade_executed:${proposalId}:${fromUid}`,
+    metadata: { proposalId, leagueId: proposal.league_id },
+  });
+  void awardUserXp({
+    userId: toUid,
+    delta: XP_AMOUNTS.trade_executed,
+    reason: "trade_executed",
+    idempotencyKey: `trade_executed:${proposalId}:${toUid}`,
+    metadata: { proposalId, leagueId: proposal.league_id },
   });
   return {};
 }

@@ -33,6 +33,21 @@ export default function RootShell({ children, recentEvents }: RootShellProps) {
       keepalive: true,
       body: JSON.stringify({ path: pathname, newSession }),
     }).catch(() => {});
+
+    const utcDay = new Date().toISOString().slice(0, 10);
+    const xpDayKey = "draftastic_xp_daily_award_utc";
+    try {
+      if (window.localStorage.getItem(xpDayKey) !== utcDay) {
+        window.localStorage.setItem(xpDayKey, utcDay);
+        fetch("/api/xp/daily-login", {
+          method: "POST",
+          credentials: "same-origin",
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch {
+      /* ignore */
+    }
   }, [pathname, isInternalAdminShell]);
 
   if (isInternalAdminShell) return <>{children}</>;
