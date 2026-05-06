@@ -26,7 +26,15 @@ import { LeagueEventDayRosterCard } from "./LeagueEventDayRosterCard";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import SeasonCompletePlacementModal from "./SeasonCompletePlacementModal";
 import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
+import { getXpLevelUpFlavor } from "@/lib/xp/xpLevelUpFlavor";
+import { getXpLevelInfo } from "@/lib/xp/xpLevels";
+import type { LeagueHomeXpBannerKind } from "@/lib/xp/leagueHomeXpBannerKind";
+import { resolveLeagueHomeXpBanner } from "@/lib/xp/resolveLeagueHomeXpBanner";
 import XpStatusStrip from "@/app/components/XpStatusStrip";
+import { LeagueLevelUpBanner } from "./LeagueLevelUpBanner";
+import { getLeagueHomeLeaderboards } from "@/lib/weeklyLeaderboards";
+import { isLeagueHomeTop10Visible } from "@/lib/leagueHomeLeaderboardsGate";
+import { LeagueHomeSidebarTop10 } from "./LeagueHomeSidebarTop10";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -68,11 +76,13 @@ export async function generateMetadata({ params }: Props) {
 export default async function LeagueDetailPage({ params, searchParams }: Props) {
   let slug: string;
   let showInviteModal = false;
+  let testXpBanner = false;
   try {
     const resolved = await params;
     slug = resolved.slug;
     const search = searchParams ? await searchParams : {};
     showInviteModal = search?.invite === "1";
+    testXpBanner = search?.test_xp_banner === "1";
   } catch {
     return (
       <main className="app-page">
@@ -138,6 +148,23 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const membersByPoints = [...members].sort(
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
     );
+    const showTop10 = isLeagueHomeTop10Visible();
+    const leaderboardData = showTop10
+      ? await getLeagueHomeLeaderboards({
+          leagueId: league.id,
+          members: membersByPoints,
+          pointsByUserId,
+        })
+      : { weekStart: null as string | null, weeklyTop10: [], seasonTop10: [] };
+
+    let levelUpCelebration: Awaited<ReturnType<typeof resolveLeagueHomeXpBanner>>["celebration"] = null;
+    let xpBannerKind: LeagueHomeXpBannerKind | null = null;
+    if (currentUser?.id) {
+      const xpBanner = await resolveLeagueHomeXpBanner(currentUser.id, supabase);
+      levelUpCelebration = xpBanner.celebration;
+      xpBannerKind = xpBanner.kind;
+    }
+
     const xpByUserId = await getXpDisplayByUserIds(membersByPoints.map((m) => m.user_id));
     const seasonSubtitle =
       (league.season_slug && (getSeasonBySlug(league.season_slug)?.name ?? league.season_slug)) || null;
@@ -185,6 +212,22 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
     const isCommissioner = league.role === "commissioner";
     const currentUserMember = currentUser ? members.find((m) => m.user_id === currentUser.id) : null;
+
+    if (
+      testXpBanner &&
+      process.env.NODE_ENV === "development" &&
+      currentUserMember?.display_name?.trim().toLowerCase() === "kayfabe king"
+    ) {
+      const info = getXpLevelInfo(2400);
+      levelUpCelebration = {
+        level: info.level,
+        title: info.title,
+        label: info.label,
+        flavor: getXpLevelUpFlavor(info.level),
+      };
+      xpBannerKind = "level_up";
+    }
+
     const commissionerMember = members.find((m) => m.role === "commissioner");
     const creatorLabel = factionDisplayName(commissionerMember, "GM");
     const maxTeams = league.max_teams ?? 12;
@@ -240,6 +283,12 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         pointsByUserId={pointsByUserId}
         currentUserId={currentUser?.id ?? null}
         xpByUserId={xpByUserId}
+        showTop10Leaderboards={showTop10}
+        weeklyTop10={leaderboardData.weeklyTop10}
+        seasonTop10={leaderboardData.seasonTop10}
+        latestWeekStart={leaderboardData.weekStart}
+        levelUpCelebration={levelUpCelebration}
+        xpBannerKind={xpBannerKind}
       />
 
       <div className="lm-league-page-desktop">
@@ -299,6 +348,14 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               </Link>
             )}
           </div>
+          {showTop10 ? (
+            <LeagueHomeSidebarTop10
+              leagueSlug={slug}
+              weekStart={leaderboardData.weekStart}
+              weeklyTop10={leaderboardData.weeklyTop10}
+              seasonTop10={leaderboardData.seasonTop10}
+            />
+          ) : null}
           <div className="lm-card lm-card--quick-links">
             <h2 className="lm-card-title">Quick Links</h2>
             <ul className="lm-quick-links">
@@ -317,6 +374,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         </aside>
 
         <div className="lm-main">
+          <LeagueLevelUpBanner celebration={levelUpCelebration} bannerKind={xpBannerKind} />
+
           {/* Top card: League name, subnav, meta, alert, actions */}
           <div className="lm-card lm-league-card">
             <h1 className="lm-card-title" style={{ fontSize: "1.35rem", marginBottom: 8 }}>{league.name}</h1>

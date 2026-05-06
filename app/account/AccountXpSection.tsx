@@ -4,7 +4,7 @@ import { XP_LEVELS } from "@/lib/xp/xpLevels";
 import XpStatusStrip from "@/app/components/XpStatusStrip";
 
 export async function AccountXpSection({ userId }: { userId: string }) {
-  await refreshFantasyPointsTiersForUser(userId);
+  await refreshFantasyPointsTiersForUser(userId, { force: true });
   const xp = await getUserXpForProfile(userId);
   if (!xp) return null;
 

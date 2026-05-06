@@ -4,7 +4,12 @@ import type { LeagueMember } from "@/lib/leagues";
 import { pleDefaultHref } from "@/lib/pleLeagueMenu";
 import { ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import type { XpDisplay } from "@/lib/xp/getXpDisplayByUserIds";
+import type { LevelUpCelebration } from "@/lib/xp/xpLevelUpFlavor";
+import type { LeagueHomeXpBannerKind } from "@/lib/xp/leagueHomeXpBannerKind";
+import { LeagueLevelUpBanner } from "./LeagueLevelUpBanner";
 import { LeagueMobileStandingsTable } from "./LeagueMobileStandingsTable";
+import type { LeaderboardDisplayRow } from "@/lib/weeklyLeaderboards";
+import { LeagueHomeSidebarTop10 } from "./LeagueHomeSidebarTop10";
 
 type Props = {
   leagueSlug: string;
@@ -16,6 +21,12 @@ type Props = {
   pointsByUserId: Record<string, number>;
   currentUserId: string | null;
   xpByUserId?: Record<string, XpDisplay>;
+  showTop10Leaderboards: boolean;
+  weeklyTop10: LeaderboardDisplayRow[];
+  seasonTop10: LeaderboardDisplayRow[];
+  latestWeekStart: string | null;
+  levelUpCelebration?: LevelUpCelebration | null;
+  xpBannerKind?: LeagueHomeXpBannerKind | null;
 };
 
 const menuItemStyle: CSSProperties = {
@@ -41,6 +52,12 @@ export function LeagueHomeMobileLeagueView({
   pointsByUserId,
   currentUserId,
   xpByUserId,
+  showTop10Leaderboards,
+  weeklyTop10,
+  seasonTop10,
+  latestWeekStart,
+  levelUpCelebration = null,
+  xpBannerKind = null,
 }: Props) {
   const base = `/leagues/${encodeURIComponent(leagueSlug)}`;
   const pleHref = pleDefaultHref(leagueSlug, seasonSlug);
@@ -60,6 +77,12 @@ export function LeagueHomeMobileLeagueView({
 
   return (
     <div className="league-home-mobile">
+      {levelUpCelebration ? (
+        <div className="league-home-mobile__section" style={{ marginBottom: 12 }}>
+          <LeagueLevelUpBanner celebration={levelUpCelebration} bannerKind={xpBannerKind} />
+        </div>
+      ) : null}
+
       <div className="league-home-mobile__section" style={{ marginBottom: 10 }}>
         <h2
           className="league-home-mobile__h2"
@@ -120,6 +143,17 @@ export function LeagueHomeMobileLeagueView({
           xpByUserId={xpByUserId}
         />
       </div>
+
+      {showTop10Leaderboards ? (
+        <div className="league-home-mobile__section" style={{ marginTop: 12 }}>
+          <LeagueHomeSidebarTop10
+            leagueSlug={leagueSlug}
+            weekStart={latestWeekStart}
+            weeklyTop10={weeklyTop10}
+            seasonTop10={seasonTop10}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

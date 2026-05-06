@@ -45,6 +45,14 @@ export default function InternalAdminHomePage() {
           </Link>
         </li>
         <li>
+          <Link href="/internal-admin/weekly-leaderboards" className={styles.cardLink}>
+            <span className={styles.cardTitle}>Weekly leaderboards & XP</span>
+            <span className={styles.cardDesc}>
+              Snapshot coverage, weekly-high and per-50 XP ledger tail, SQL verification pack, and league home Top 10 preview.
+            </span>
+          </Link>
+        </li>
+        <li>
           <Link href="/internal-admin/events" className={styles.cardLink}>
             <span className={styles.cardTitle}>Events</span>
             <span className={styles.cardDesc}>Inspect boxscore events and raw matches JSON (read-only).</span>

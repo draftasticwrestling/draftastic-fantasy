@@ -9,6 +9,14 @@
  *   npx tsx scripts/backfill-user-xp-from-history.ts --league-id=<uuid>[,uuid...]
  *   npx tsx scripts/backfill-user-xp-from-history.ts --placements-file=./scripts/xp-placements-backfill.json
  *
+ * Daily engagement (from engagement_events): runs after league/trade/FA unless you pass
+ *   --skip-daily-engagement
+ * Optional lower bound on event time:
+ *   --engage-from=YYYY-MM-DD
+ * Ledger grants use the same idempotency keys as production; dry-run logs each grant but
+ * does not write. In a real run, dailyGrants / streakMilestoneGrants count rows newly
+ * inserted (skips already-present keys).
+ *
  * Placements JSON shape:
  *   { "placements": [
  *       { "userId": "uuid", "leagueId": "uuid", "seasonKey": "road-to-summerslam-2026",
@@ -23,6 +31,7 @@ import { applyXpGrant } from "../lib/xp/applyXpGrant";
 import { applyLeaguePlacementXp, type LeagueTeamCount } from "../lib/xp/leaguePlacementGrants";
 import { XP_AMOUNTS } from "../lib/xp/xpReasons";
 import { getPointsByOwnerForLeagueWithBonuses } from "../lib/leagueMatchups";
+import { backfillEngagementDailyXp } from "../lib/xp/backfillEngagementDailyXp";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -33,6 +42,8 @@ type Args = {
   leagueIds: Set<string> | null;
   placementsFile: string | null;
   autoPlacements: boolean;
+  skipDailyEngagement: boolean;
+  engageFrom: string | null;
 };
 
 function printHelp(): void {
@@ -43,6 +54,8 @@ function printHelp(): void {
   npm run xp:backfill-history -- --league-id=<uuid>[,uuid...]
   npm run xp:backfill-history -- --placements-file=./path.json
   npm run xp:backfill-history -- --auto-placements
+  npm run xp:backfill-history -- --skip-daily-engagement
+  npm run xp:backfill-history -- --engage-from=2025-01-01
 
   Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
   Scope with --user-id and/or --league-id when backfilling test accounts only.`);
@@ -54,6 +67,8 @@ function parseArgs(argv: string[]): Args {
   let leagueIds: Set<string> | null = null;
   let placementsFile: string | null = null;
   let autoPlacements = false;
+  let skipDailyEngagement = false;
+  let engageFrom: string | null = null;
   for (const a of argv) {
     if (a === "--help" || a === "-h") {
       printHelp();
@@ -70,9 +85,13 @@ function parseArgs(argv: string[]): Args {
       placementsFile = a.slice("--placements-file=".length).trim() || null;
     } else if (a === "--auto-placements") {
       autoPlacements = true;
+    } else if (a === "--skip-daily-engagement") {
+      skipDailyEngagement = true;
+    } else if (a.startsWith("--engage-from=")) {
+      engageFrom = a.slice("--engage-from=".length).trim() || null;
     }
   }
-  return { dryRun, userIds, leagueIds, placementsFile, autoPlacements };
+  return { dryRun, userIds, leagueIds, placementsFile, autoPlacements, skipDailyEngagement, engageFrom };
 }
 
 function wantUser(userId: string, filter: Set<string> | null): boolean {
@@ -311,7 +330,17 @@ async function main() {
     }
   }
 
-  console.log("Done.", counts);
+  let engagement: Awaited<ReturnType<typeof backfillEngagementDailyXp>> | null = null;
+  if (!args.skipDailyEngagement) {
+    engagement = await backfillEngagementDailyXp(admin, {
+      dryRun: args.dryRun,
+      userIds: args.userIds,
+      fromDate: args.engageFrom,
+      log,
+    });
+  }
+
+  console.log("Done.", { ...counts, engagement });
 }
 
 main().catch((e) => {
