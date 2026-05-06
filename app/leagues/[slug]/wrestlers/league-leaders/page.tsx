@@ -217,7 +217,7 @@ export default async function LeagueLeadersPage({
     reigns = tableReigns;
   }
 
-  const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart);
+  const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart, brandBySlug);
   const isNxtEventType = (eventType: string) =>
     eventType === EVENT_TYPES.NXT || eventType.startsWith("nxt-");
   const mainRosterOnlyEventsSinceStart = eventsSinceStart.filter((e) => {
@@ -240,9 +240,9 @@ export default async function LeagueLeadersPage({
   const pointsBySlugMainRosterOnly2025 = aggregateWrestlerPoints(mainRosterOnlyEvents2025, brandBySlug);
   const pointsBySlugMainRosterOnly2026 = aggregateWrestlerPoints(mainRosterOnlyEvents2026, brandBySlug);
   const pointsBySlugMainRosterOnlyAllTime = aggregateWrestlerPoints(mainRosterOnlyEventsAllTime, brandBySlug);
-  const points2025BySlug = aggregateWrestlerPoints(events2025);
-  const points2026BySlug = aggregateWrestlerPoints(events2026);
-  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll);
+  const points2025BySlug = aggregateWrestlerPoints(events2025, brandBySlug);
+  const points2026BySlug = aggregateWrestlerPoints(events2026, brandBySlug);
+  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll, brandBySlug);
 
   const matchStatsBySlug = aggregateWrestlerMatchStats(eventsSinceStart);
   const matchStatsMainOnlyBySlug = aggregateWrestlerMatchStats(mainRosterOnlyEventsSinceStart);

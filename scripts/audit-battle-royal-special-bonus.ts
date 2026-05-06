@@ -46,11 +46,13 @@ async function main() {
   }> = [];
 
   for (const event of rows) {
-    const scored = scoreEvent(event);
+    const scored = scoreEvent(event) as {
+      matches?: Array<{ isPromo?: boolean; wrestlerPoints?: unknown[] }>;
+    };
     const rawMatches = (event.matches ?? []) as Array<Record<string, unknown>>;
     for (let i = 0; i < rawMatches.length; i += 1) {
       const raw = rawMatches[i] ?? {};
-      const scoredMatch = scored.matches[i];
+      const scoredMatch = scored.matches?.[i];
       if (!scoredMatch || scoredMatch.isPromo || !Array.isArray(scoredMatch.wrestlerPoints)) continue;
       const isTarget = isRoyalRumbleMatch(raw) || (isBattleRoyal(raw) && !isRoyalRumbleMatch(raw));
       if (!isTarget) continue;
