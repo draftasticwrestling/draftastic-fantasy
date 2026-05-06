@@ -10,7 +10,7 @@ import {
   type LeagueMember,
   type LeagueRosterEntry,
 } from "@/lib/leagues";
-import WrestlerList from "@/app/wrestlers/WrestlerList";
+import WrestlerList, { type WrestlerRow } from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   aggregateWrestlerMatchStats,
@@ -97,6 +97,8 @@ type ChampionshipReign = {
 
 /** Allow cached response per league for 5 minutes to reduce repeated heavy queries. */
 export const revalidate = 300;
+/** Hosts that honor this (e.g. Vercel / some Netlify Next runtimes) get more time for heavy aggregates. */
+export const maxDuration = 120;
 
 export async function generateMetadata({
   params,
@@ -132,6 +134,13 @@ export default async function LeagueLeadersPage({
     });
   }
 
+  const enforceNxtPendingOnlyForRts = league.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  let rows: WrestlerRow[] = [];
+  let rosterByWrestler: Record<string, { ownerName: string; ownerUserId: string }> = {};
+  let error: { message: string } | null = null;
+  let computeFailed = false;
+
+  try {
   const startDate = getEffectiveLeagueStartDate(league);
 
   const [wrestlersResult, rosters, members, { data: rawReigns }, currentFromTable, currentFromChanges] =
@@ -191,7 +200,7 @@ export default async function LeagueLeadersPage({
   const membersList: LeagueMember[] = members ?? [];
   const rostersByUser: Record<string, LeagueRosterEntry[]> = rosters ?? {};
   const memberByUserId = Object.fromEntries(membersList.map((m) => [m.user_id, m]));
-  const rosterByWrestler: Record<string, { ownerName: string; ownerUserId: string }> = {};
+  rosterByWrestler = {};
   for (const [uid, entries] of Object.entries(rostersByUser)) {
     const ownerName = factionDisplayName(memberByUserId[uid], "Manager");
     for (const e of entries) {
@@ -252,9 +261,8 @@ export default async function LeagueLeadersPage({
   const endOfMonthBeltPoints2026 = computeHybridBeltHoldBySlugForCalendarYear(reigns, 2026);
   const currentChampionsBySlug = getCurrentChampionsBySlug(reigns);
 
-  const error = wrestlersResult.error;
-  const enforceNxtPendingOnlyForRts = league.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
-  const rows = wrestlersFiltered.map((w) => {
+  error = wrestlersResult.error ? { message: wrestlersResult.error.message ?? "Unknown error" } : null;
+  rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
     const idKey = normalizeWrestlerName(String(w.id));
@@ -375,6 +383,13 @@ export default async function LeagueLeadersPage({
       unparsedCount,
     };
   });
+  } catch (err) {
+    console.error("[league-leaders] aggregation failed", err);
+    computeFailed = true;
+    rows = [];
+    rosterByWrestler = {};
+    error = null;
+  }
 
   return (
     <main className="app-page" style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -432,13 +447,23 @@ export default async function LeagueLeadersPage({
       )}
       <WrestlerMatchStatsDisclaimer style={{ marginBottom: 24 }} />
 
+      {computeFailed && (
+        <p style={{ color: "var(--color-red)", marginBottom: 16, fontSize: 14 }}>
+          Statistics didn&apos;t finish loading in time (server timeout or a temporary error).{" "}
+          <Link href={`/leagues/${slug}/wrestlers/league-leaders`} prefetch={false} className="app-link">
+            Try this page again
+          </Link>{" "}
+          or open League Leaders from the Statistics menu once more.
+        </p>
+      )}
+
       {error && (
         <p style={{ color: "var(--color-red)", marginBottom: 16 }}>
           Error loading wrestlers: {error.message}
         </p>
       )}
 
-      {rows.length === 0 && !error && (
+      {rows.length === 0 && !error && !computeFailed && (
         <p style={{ color: "var(--color-text-muted)" }}>No wrestlers in the database yet.</p>
       )}
 

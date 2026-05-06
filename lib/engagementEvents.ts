@@ -15,6 +15,7 @@ export type EngagementEventName =
   | "page.league_leaders_view"
   | "page.logged_in_view"
   | "page.news_article_view"
+  | "page.news_article_dwell"
   | "page.event_results_view"
   | "session.logged_in_start";
 

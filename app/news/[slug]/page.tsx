@@ -8,6 +8,7 @@ import { getPublishedArticleBySlug } from "@/lib/articles";
 import { createClient } from "@/lib/supabase/server";
 import { ArticleMarkdown } from "@/app/components/articles/ArticleMarkdown";
 import { ArticleSeriesFooter } from "@/app/components/articles/ArticleSeriesFooter";
+import { ArticleViewAnalytics } from "@/app/components/articles/ArticleViewAnalytics";
 
 export const revalidate = 120;
 
@@ -64,6 +65,7 @@ export default async function NewsArticlePage({
 
   return (
     <main className="app-page news-article-page">
+      <ArticleViewAnalytics slug={slug} />
       <p style={{ marginBottom: 16 }}>
         <Link href="/news" className="app-link">← News</Link>
       </p>

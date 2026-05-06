@@ -16,11 +16,10 @@ function normalizePath(value: unknown): string {
 }
 
 /** Pathname only; no query. */
-function classifyContentViews(path: string): { newsArticle: boolean; eventResults: boolean } {
+function classifyContentViews(path: string): { eventResults: boolean } {
   const p = path.split("?")[0]?.replace(/\/+$/, "") || "/";
-  const newsArticle = /^\/news\/[^/]+/.test(p);
   const eventResults = p === "/event-results" || p.startsWith("/event-results/");
-  return { newsArticle, eventResults };
+  return { eventResults };
 }
 
 export async function POST(request: Request) {
@@ -56,16 +55,7 @@ export async function POST(request: Request) {
     path,
   });
 
-  const { newsArticle, eventResults } = classifyContentViews(path);
-  if (newsArticle) {
-    await recordEngagementEvent({
-      eventName: "page.news_article_view",
-      userId: user.id,
-      leagueId: null,
-      seasonSlug: null,
-      path,
-    });
-  }
+  const { eventResults } = classifyContentViews(path);
   if (eventResults) {
     await recordEngagementEvent({
       eventName: "page.event_results_view",
