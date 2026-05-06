@@ -43,6 +43,16 @@ export type WrestlerRow = {
   nxtPointsPending?: number;
   /** Road to SummerSlam: NXT-brand row — show * footnote on league-scoped point columns. */
   nxtRtsLeaguePoints?: boolean;
+  /** Selected period includes NXT points for this wrestler. */
+  hasNxtPointsSinceStart?: boolean;
+  hasNxtPoints2025?: boolean;
+  hasNxtPoints2026?: boolean;
+  hasNxtPointsAllTime?: boolean;
+  /** Selected period includes NXT match stats for this wrestler. */
+  hasNxtStatsSinceStart?: boolean;
+  hasNxtStats2025?: boolean;
+  hasNxtStats2026?: boolean;
+  hasNxtStatsAllTime?: boolean;
   /** Points for 2025 only (when points period filter is used). */
   rsPoints2025?: number;
   plePoints2025?: number;
@@ -233,6 +243,44 @@ function RtsNxtPointSuffix({ w }: { w: WrestlerRow }) {
   return (
     <sup
       title={title}
+      style={{ fontSize: "0.8em", fontWeight: 700, color: "var(--color-text-muted)", marginLeft: 1, cursor: "help" }}
+      aria-hidden
+    >
+      *
+    </sup>
+  );
+}
+
+function hasNxtPointsInPeriod(w: WrestlerRow, period: PointsPeriod): boolean {
+  if (period === "2025") return Boolean(w.hasNxtPoints2025);
+  if (period === "2026") return Boolean(w.hasNxtPoints2026);
+  if (period === "allTime") return Boolean(w.hasNxtPointsAllTime);
+  return Boolean(w.hasNxtPointsSinceStart);
+}
+
+function hasNxtStatsInPeriod(w: WrestlerRow, period: PointsPeriod): boolean {
+  if (period === "2025") return Boolean(w.hasNxtStats2025);
+  if (period === "2026") return Boolean(w.hasNxtStats2026);
+  if (period === "allTime") return Boolean(w.hasNxtStatsAllTime);
+  return Boolean(w.hasNxtStatsSinceStart);
+}
+
+function NxtInclusionSuffix({
+  w,
+  period,
+  mode,
+}: {
+  w: WrestlerRow;
+  period: PointsPeriod;
+  mode: "points" | "stats" | "ppm";
+}) {
+  const points = hasNxtPointsInPeriod(w, period);
+  const stats = hasNxtStatsInPeriod(w, period);
+  const show = mode === "points" ? points : mode === "stats" ? stats : points || stats;
+  if (!show) return null;
+  return (
+    <sup
+      title="Includes NXT event contributions in this period."
       style={{ fontSize: "0.8em", fontWeight: 700, color: "var(--color-text-muted)", marginLeft: 1, cursor: "help" }}
       aria-hidden
     >
@@ -1222,6 +1270,7 @@ export default function WrestlerList({
                 )}
                 <span className="wrestler-card-total-points">
                   {formatFantasyPoints(pts.totalPoints)}
+                  <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                   <RtsNxtPointSuffix w={w} /> pts
                 </span>
               </div>
@@ -1248,8 +1297,11 @@ export default function WrestlerList({
                 </span>
                 <span className="wrestler-card-pts">
                   R/S {formatFantasyPoints(pts.rsPoints)}
+                  <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                   <RtsNxtPointSuffix w={w} /> · PLE {formatFantasyPoints(pts.plePoints)}
+                  <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                   <RtsNxtPointSuffix w={w} /> · Belt {formatFantasyPoints(pts.beltPoints)}
+                  <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                   <RtsNxtPointSuffix w={w} />
                 </span>
               </div>
@@ -1375,33 +1427,38 @@ export default function WrestlerList({
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{statusText}</td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                       {formatFantasyPoints(pts.rsPoints)}
+                      <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                       <RtsNxtPointSuffix w={w} />
                     </td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                       {formatFantasyPoints(pts.plePoints)}
+                      <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                       <RtsNxtPointSuffix w={w} />
                     </td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                       {formatFantasyPoints(pts.beltPoints)}
+                      <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                       <RtsNxtPointSuffix w={w} />
                     </td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap", fontWeight: 700 }}>
                       {formatFantasyPoints(pts.totalPoints)}
+                      <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                       <RtsNxtPointSuffix w={w} />
                     </td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                       {ppm}
+                      {ppm !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="ppm" /> : null}
                       {ppm !== "—" ? <RtsNxtPointSuffix w={w} /> : null}
                     </td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.mw}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.win}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{winPct}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.loss}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{lossPct}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.nc}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dqw}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dql}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{dqPct}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.mw}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.win}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{winPct}{winPct !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.loss}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{lossPct}{lossPct !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.nc}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dqw}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dql}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{dqPct}{dqPct !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</td>
                   </tr>
                 );
               })}
@@ -1613,33 +1670,38 @@ export default function WrestlerList({
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "#c00" }}>{w.rating_2k26 != null ? w.rating_2k26 : w.rating_2k25 != null ? w.rating_2k25 : "—"}</div>
                       <div style={{ ...cellStyle, fontWeight: 600, borderLeft: SECTION_BORDER }}>
                         {formatFantasyPoints(pts.rsPoints)}
+                        <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                         <RtsNxtPointSuffix w={w} />
                       </div>
                       <div style={{ ...cellStyle, fontWeight: 600 }}>
                         {formatFantasyPoints(pts.plePoints)}
+                        <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                         <RtsNxtPointSuffix w={w} />
                       </div>
                       <div style={{ ...cellStyle, fontWeight: 600 }}>
                         {formatFantasyPoints(pts.beltPoints)}
+                        <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                         <RtsNxtPointSuffix w={w} />
                       </div>
                       <div style={{ ...cellStyle, ...(wrestlerProfileFrom === "team" ? TOT_HIGHLIGHT_STYLE : { fontWeight: 700 }) }}>
                         {formatFantasyPoints(pts.totalPoints)}
+                        <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
                         <RtsNxtPointSuffix w={w} />
                       </div>
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>
                         {ppmVal}
+                        {ppmVal !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="ppm" /> : null}
                         {ppmVal !== "—" ? <RtsNxtPointSuffix w={w} /> : null}
                       </div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderLeft: SECTION_BORDER }}>{ms.mw}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.win}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.win / ms.mw) * 100).toFixed(1) : "—"}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.loss}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.loss / ms.mw) * 100).toFixed(1) : "—"}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.nc}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dqw}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dql}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>{ms.mw > 0 ? (((ms.dqw + ms.dql) / ms.mw) * 100).toFixed(1) : "—"}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderLeft: SECTION_BORDER }}>{ms.mw}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.win}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.win / ms.mw) * 100).toFixed(1) : "—"}{ms.mw > 0 ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.loss}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.loss / ms.mw) * 100).toFixed(1) : "—"}{ms.mw > 0 ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.nc}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dqw}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dql}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>{ms.mw > 0 ? (((ms.dqw + ms.dql) / ms.mw) * 100).toFixed(1) : "—"}{ms.mw > 0 ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</div>
                     </div>
                   );
                 })}
