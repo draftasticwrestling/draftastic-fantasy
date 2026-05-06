@@ -217,7 +217,7 @@ export default async function LeagueLeadersPage({
     reigns = tableReigns;
   }
 
-  const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart, brandBySlug);
+  const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart);
   const isNxtEventType = (eventType: string) =>
     eventType === EVENT_TYPES.NXT || eventType.startsWith("nxt-");
   const mainRosterOnlyEventsSinceStart = eventsSinceStart.filter((e) => {
@@ -225,14 +225,33 @@ export default async function LeagueLeadersPage({
     return !isNxtEventType(t);
   });
   const pointsBySlugMainRosterOnly = aggregateWrestlerPoints(mainRosterOnlyEventsSinceStart, brandBySlug);
-  const points2025BySlug = aggregateWrestlerPoints(events2025, brandBySlug);
-  const points2026BySlug = aggregateWrestlerPoints(events2026, brandBySlug);
-  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll, brandBySlug);
+  const mainRosterOnlyEvents2025 = events2025.filter((e) => {
+    const t = classifyEventType(e.name ?? "", e.id ?? "");
+    return !isNxtEventType(t);
+  });
+  const mainRosterOnlyEvents2026 = events2026.filter((e) => {
+    const t = classifyEventType(e.name ?? "", e.id ?? "");
+    return !isNxtEventType(t);
+  });
+  const mainRosterOnlyEventsAllTime = eventsAll.filter((e) => {
+    const t = classifyEventType(e.name ?? "", e.id ?? "");
+    return !isNxtEventType(t);
+  });
+  const pointsBySlugMainRosterOnly2025 = aggregateWrestlerPoints(mainRosterOnlyEvents2025, brandBySlug);
+  const pointsBySlugMainRosterOnly2026 = aggregateWrestlerPoints(mainRosterOnlyEvents2026, brandBySlug);
+  const pointsBySlugMainRosterOnlyAllTime = aggregateWrestlerPoints(mainRosterOnlyEventsAllTime, brandBySlug);
+  const points2025BySlug = aggregateWrestlerPoints(events2025);
+  const points2026BySlug = aggregateWrestlerPoints(events2026);
+  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll);
 
   const matchStatsBySlug = aggregateWrestlerMatchStats(eventsSinceStart);
+  const matchStatsMainOnlyBySlug = aggregateWrestlerMatchStats(mainRosterOnlyEventsSinceStart);
   const matchStats2025BySlug = aggregateWrestlerMatchStats(events2025);
+  const matchStats2025MainOnlyBySlug = aggregateWrestlerMatchStats(mainRosterOnlyEvents2025);
   const matchStats2026BySlug = aggregateWrestlerMatchStats(events2026);
+  const matchStats2026MainOnlyBySlug = aggregateWrestlerMatchStats(mainRosterOnlyEvents2026);
   const matchStatsAllTimeBySlug = aggregateWrestlerMatchStats(eventsAll);
+  const matchStatsAllTimeMainOnlyBySlug = aggregateWrestlerMatchStats(mainRosterOnlyEventsAllTime);
   // All-time unparsed matches (for "matches needing review" indicator on League Leaders)
   const unparsedBySlug = getUnparsedMatchesByWrestler(
     eventsAll as { id: string; name: string; date: string; matches?: object[] }[]
@@ -270,23 +289,30 @@ export default async function LeagueLeadersPage({
     // Use slugKey (stable id/slug) first so points match when display name changed (e.g. Natalya → Nattie, slug still natalya)
     const pointsAll = mergeGetPointsForWrestler(pointsBySlug, slugKey, nameKey);
     const pointsMainOnly = mergeGetPointsForWrestler(pointsBySlugMainRosterOnly, slugKey, nameKey);
+    const points = pointsAll;
     const isNxtRoster = wrestlerRosterFromBrand(w.brand ?? null) === "NXT";
     const useMainOnlyForDisplay = enforceNxtPendingOnlyForRts && isNxtRoster;
-    const points = useMainOnlyForDisplay ? pointsMainOnly : pointsAll;
     const extraBelt = mergeGetMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, nameKey);
     const beltPoints = points.beltPoints + extraBelt;
     const beltPointsAll = pointsAll.beltPoints + extraBelt;
     const totalPoints = points.rsPoints + points.plePoints + beltPoints;
     const totalPointsAll = pointsAll.rsPoints + pointsAll.plePoints + beltPointsAll;
-    const nxtPointsPending = useMainOnlyForDisplay ? Math.max(0, totalPointsAll - totalPoints) : 0;
+    const nxtPointsPending = Math.max(0, totalPointsAll - (pointsMainOnly.rsPoints + pointsMainOnly.plePoints + (pointsMainOnly.beltPoints + extraBelt)));
     const matchStats = mergeGetMatchStatsForWrestler(matchStatsBySlug, slugKey, nameKey);
 
     const points2025 = mergeGetPointsForWrestler(points2025BySlug, slugKey, nameKey);
+    const points2025MainOnly = mergeGetPointsForWrestler(pointsBySlugMainRosterOnly2025, slugKey, nameKey);
     const points2026 = mergeGetPointsForWrestler(points2026BySlug, slugKey, nameKey);
+    const points2026MainOnly = mergeGetPointsForWrestler(pointsBySlugMainRosterOnly2026, slugKey, nameKey);
     const pointsAllTime = mergeGetPointsForWrestler(pointsAllTimeBySlug, slugKey, nameKey);
+    const pointsAllTimeMainOnly = mergeGetPointsForWrestler(pointsBySlugMainRosterOnlyAllTime, slugKey, nameKey);
     const matchStats2025 = mergeGetMatchStatsForWrestler(matchStats2025BySlug, slugKey, nameKey);
+    const matchStats2025MainOnly = mergeGetMatchStatsForWrestler(matchStats2025MainOnlyBySlug, slugKey, nameKey);
     const matchStats2026 = mergeGetMatchStatsForWrestler(matchStats2026BySlug, slugKey, nameKey);
+    const matchStats2026MainOnly = mergeGetMatchStatsForWrestler(matchStats2026MainOnlyBySlug, slugKey, nameKey);
     const matchStatsAllTime = mergeGetMatchStatsForWrestler(matchStatsAllTimeBySlug, slugKey, nameKey);
+    const matchStatsMainOnly = mergeGetMatchStatsForWrestler(matchStatsMainOnlyBySlug, slugKey, nameKey);
+    const matchStatsAllTimeMainOnly = mergeGetMatchStatsForWrestler(matchStatsAllTimeMainOnlyBySlug, slugKey, nameKey);
     const allTimeParts = allTimeLeadersStylePointBreakdown(pointsAllTimeBySlug, endOfMonthBeltPointsAllTime, slugKey, nameKey);
     const beltPointsAllTime = allTimeParts.beltCombined;
     const totalPointsAllTime = allTimeParts.total;
@@ -295,7 +321,9 @@ export default async function LeagueLeadersPage({
     const beltPoints2025 = points2025.beltPoints + extraBelt2025;
     const beltPoints2026 = points2026.beltPoints + extraBelt2026;
     const totalPoints2025Row = points2025.rsPoints + points2025.plePoints + beltPoints2025;
+    const totalPoints2025MainOnly = points2025MainOnly.rsPoints + points2025MainOnly.plePoints + (points2025MainOnly.beltPoints + extraBelt2025);
     const totalPoints2026Row = points2026.rsPoints + points2026.plePoints + beltPoints2026;
+    const totalPoints2026MainOnly = points2026MainOnly.rsPoints + points2026MainOnly.plePoints + (points2026MainOnly.beltPoints + extraBelt2026);
     const fromTable =
       currentFromTable[idKey] ?? mergeGetCurrentChampionFromMap(currentFromTable, slugKey, nameKey) ?? null;
     const fromChanges =
@@ -376,6 +404,44 @@ export default async function LeagueLeadersPage({
       ncAllTime: matchStatsAllTime.nc,
       dqwAllTime: matchStatsAllTime.dqw,
       dqlAllTime: matchStatsAllTime.dql,
+      hasNxtPointsSinceStart: Math.abs(totalPoints - (pointsMainOnly.rsPoints + pointsMainOnly.plePoints + (pointsMainOnly.beltPoints + extraBelt))) > 0.0001,
+      hasNxtPoints2025: Math.abs(totalPoints2025Row - totalPoints2025MainOnly) > 0.0001,
+      hasNxtPoints2026: Math.abs(totalPoints2026Row - totalPoints2026MainOnly) > 0.0001,
+      hasNxtPointsAllTime:
+        Math.abs(
+          totalPointsAllTime -
+            (pointsAllTimeMainOnly.rsPoints +
+              pointsAllTimeMainOnly.plePoints +
+              (pointsAllTimeMainOnly.beltPoints + mergeGetMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey)))
+        ) > 0.0001,
+      hasNxtStatsSinceStart:
+        matchStats.mw !== matchStatsMainOnly.mw ||
+        matchStats.win !== matchStatsMainOnly.win ||
+        matchStats.loss !== matchStatsMainOnly.loss ||
+        matchStats.nc !== matchStatsMainOnly.nc ||
+        matchStats.dqw !== matchStatsMainOnly.dqw ||
+        matchStats.dql !== matchStatsMainOnly.dql,
+      hasNxtStats2025:
+        matchStats2025.mw !== matchStats2025MainOnly.mw ||
+        matchStats2025.win !== matchStats2025MainOnly.win ||
+        matchStats2025.loss !== matchStats2025MainOnly.loss ||
+        matchStats2025.nc !== matchStats2025MainOnly.nc ||
+        matchStats2025.dqw !== matchStats2025MainOnly.dqw ||
+        matchStats2025.dql !== matchStats2025MainOnly.dql,
+      hasNxtStats2026:
+        matchStats2026.mw !== matchStats2026MainOnly.mw ||
+        matchStats2026.win !== matchStats2026MainOnly.win ||
+        matchStats2026.loss !== matchStats2026MainOnly.loss ||
+        matchStats2026.nc !== matchStats2026MainOnly.nc ||
+        matchStats2026.dqw !== matchStats2026MainOnly.dqw ||
+        matchStats2026.dql !== matchStats2026MainOnly.dql,
+      hasNxtStatsAllTime:
+        matchStatsAllTime.mw !== matchStatsAllTimeMainOnly.mw ||
+        matchStatsAllTime.win !== matchStatsAllTimeMainOnly.win ||
+        matchStatsAllTime.loss !== matchStatsAllTimeMainOnly.loss ||
+        matchStatsAllTime.nc !== matchStatsAllTimeMainOnly.nc ||
+        matchStatsAllTime.dqw !== matchStatsAllTimeMainOnly.dqw ||
+        matchStatsAllTime.dql !== matchStatsAllTimeMainOnly.dql,
       personaDisplay: getListPersonaFootnote(w.id) ?? null,
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
@@ -439,10 +505,9 @@ export default async function LeagueLeadersPage({
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16, fontSize: 13 }}>
         Wrestlers ranked by fantasy points to date. Sorted by highest total first; you can re-sort by any column.
       </p>
-      {enforceNxtPendingOnlyForRts && (
+      {rows.some((r) => r.hasNxtPointsSinceStart || r.hasNxtPoints2025 || r.hasNxtPoints2026 || r.hasNxtPointsAllTime || r.hasNxtStatsSinceStart || r.hasNxtStats2025 || r.hasNxtStats2026 || r.hasNxtStatsAllTime) && (
         <p style={{ color: "#8a6d00", marginBottom: 16, fontSize: 13 }}>
-          (<strong>*</strong>) next to points means NXT event and belt points are included and some or all will not factor into
-          league points.
+          (<strong>*</strong>) indicates the selected period includes NXT-earned points and/or match stats for that wrestler.
         </p>
       )}
       <WrestlerMatchStatsDisclaimer style={{ marginBottom: 24 }} />
