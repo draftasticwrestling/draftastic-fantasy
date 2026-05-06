@@ -3,12 +3,14 @@ import { ManagerAvatar } from "@/app/components/ManagerAvatar";
 import { factionStandingsLabel, truncateFactionDisplay } from "@/lib/factionName";
 import type { LeagueMember } from "@/lib/leagues";
 import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
+import type { XpDisplay } from "@/lib/xp/getXpDisplayByUserIds";
 
 type Props = {
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
   leagueSlug: string;
   currentUserId?: string | null;
+  xpByUserId?: Record<string, XpDisplay>;
 };
 
 export function LeagueMobileStandingsTable({
@@ -16,6 +18,7 @@ export function LeagueMobileStandingsTable({
   pointsByUserId,
   leagueSlug,
   currentUserId = null,
+  xpByUserId,
 }: Props) {
   const base = `/leagues/${encodeURIComponent(leagueSlug)}`;
 
@@ -53,6 +56,8 @@ export function LeagueMobileStandingsTable({
           {members.map((m, idx) => {
             const nameLine = factionStandingsLabel(m);
             const ownerLine = `Manager · ${truncateFactionDisplay(m.display_name?.trim() || "—")}`;
+            const xpLabel = xpByUserId?.[m.user_id]?.label;
+            const catchphrase = m.manager_catchphrase?.trim() ?? "";
             const pts = pointsByUserId[m.user_id] ?? 0;
             const isSelf = currentUserId != null && m.user_id === currentUserId;
             const hasCustom = !!m.team_name?.trim();
@@ -104,13 +109,29 @@ export function LeagueMobileStandingsTable({
                           fontWeight: 600,
                           fontSize: 11,
                           textDecoration: "none",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          textTransform: hasCustom ? "uppercase" : "none",
+                          lineHeight: 1.25,
                         }}
                       >
-                        {nameLine}
+                        <span
+                          style={{
+                            display: "inline",
+                            textTransform: hasCustom ? "uppercase" : "none",
+                          }}
+                        >
+                          {nameLine}
+                        </span>
+                        {catchphrase ? (
+                          <span
+                            style={{
+                              fontStyle: "italic",
+                              fontWeight: 500,
+                              color: "var(--color-amber-600, #d97706)",
+                              marginLeft: 4,
+                            }}
+                          >
+                            “{catchphrase}”
+                          </span>
+                        ) : null}
                       </Link>
                       <span
                         className="league-home-mobile-owner"
@@ -125,6 +146,12 @@ export function LeagueMobileStandingsTable({
                         }}
                       >
                         {ownerLine}
+                        {xpLabel ? (
+                          <>
+                            {" · "}
+                            <span style={{ color: "var(--color-link, #2563eb)" }}>{xpLabel}</span>
+                          </>
+                        ) : null}
                       </span>
                     </div>
                   </div>

@@ -3334,6 +3334,64 @@ body > .site-footer {
   margin: 0 0 12px;
 }
 
+.lm-myteam-xp {
+  margin: 0 0 12px;
+  max-width: 360px;
+}
+
+.lm-myteam-xp-title {
+  font-weight: 700;
+  letter-spacing: 0.1px;
+}
+
+.xp-status-strip {
+  border: 1px solid rgba(26, 115, 232, 0.28);
+  background: linear-gradient(180deg, rgba(238, 246, 255, 0.82), rgba(232, 242, 255, 0.62));
+  border-radius: 12px;
+  padding: 9px 11px;
+  max-width: 360px;
+}
+
+.xp-status-strip__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.xp-status-strip__xp {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e3a6d;
+  letter-spacing: 0.15px;
+}
+
+.xp-status-strip__bar {
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(19, 59, 115, 0.16);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.18);
+}
+
+.xp-status-strip__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1a73e8, #4fb3ff);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.24) inset;
+}
+
+.xp-status-strip__bottom {
+  margin-top: 7px;
+}
+
+.xp-status-strip__level {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2a44;
+}
+
 .lm-myteam-catchphrase-row {
   display: flex;
   align-items: flex-start;

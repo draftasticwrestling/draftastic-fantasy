@@ -4,6 +4,7 @@ import { ManagerAvatar } from "@/app/components/ManagerAvatar";
 import { factionStandingsLabel, truncateFactionDisplay } from "@/lib/factionName";
 import type { LeagueMember } from "@/lib/leagues";
 import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
+import type { XpDisplay } from "@/lib/xp/getXpDisplayByUserIds";
 
 const sectionStyle = {
   borderRadius: 16,
@@ -40,6 +41,7 @@ type Props = {
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
   leagueSlug: string;
+  xpByUserId?: Record<string, XpDisplay>;
   /** Optional extra content per row (e.g. Remove button). Same length as members. */
   rowExtras?: (ReactNode | null)[];
 };
@@ -48,6 +50,7 @@ export function LeagueStandingsTable({
   members,
   pointsByUserId,
   leagueSlug,
+  xpByUserId,
   rowExtras = [],
 }: Props) {
   return (
@@ -75,6 +78,8 @@ export function LeagueStandingsTable({
           const pts = pointsByUserId[m.user_id] ?? 0;
           const isLeader = idx === 0;
           const extra = rowExtras[idx] ?? null;
+          const xpLabel = xpByUserId?.[m.user_id]?.label;
+          const catchphrase = m.manager_catchphrase?.trim() ?? "";
           return (
             <li
               key={m.id}
@@ -152,12 +157,37 @@ export function LeagueStandingsTable({
                         fontSize: 15,
                         textTransform: hasCustomTeamName ? "uppercase" : "none",
                         letterSpacing: 0.6,
-                        whiteSpace: "nowrap",
-                        textOverflow: "ellipsis",
-                        overflow: "hidden",
+                        lineHeight: 1.25,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "baseline",
+                        gap: "2px 8px",
+                        minWidth: 0,
                       }}
+                      title={catchphrase ? `${teamLabel} “${catchphrase}”` : teamLabel}
                     >
-                      {teamLabel}
+                      <span
+                        style={{
+                          whiteSpace: "nowrap",
+                          textOverflow: "ellipsis",
+                          overflow: "hidden",
+                          minWidth: 0,
+                          maxWidth: "100%",
+                        }}
+                      >
+                        {teamLabel}
+                      </span>
+                      {catchphrase ? (
+                        <span
+                          style={{
+                            fontStyle: "italic",
+                            color: "rgba(251,191,36,0.95)",
+                            fontWeight: 500,
+                          }}
+                        >
+                          “{catchphrase}”
+                        </span>
+                      ) : null}
                     </div>
                     <div
                       style={{
@@ -169,23 +199,16 @@ export function LeagueStandingsTable({
                         overflow: "hidden",
                       }}
                       title={
-                        m.manager_catchphrase?.trim()
-                          ? `Manager · ${managerDisplay} “${m.manager_catchphrase.trim()}”`
-                          : undefined
+                        xpLabel
+                          ? `Manager · ${managerDisplay} · ${xpLabel}`
+                          : `Manager · ${managerDisplay}`
                       }
                     >
                       Manager · {managerDisplay}
-                      {m.manager_catchphrase?.trim() ? (
+                      {xpLabel ? (
                         <>
-                          {" "}
-                          <span
-                            style={{
-                              fontStyle: "italic",
-                              color: "rgba(251,191,36,0.95)",
-                            }}
-                          >
-                            “{m.manager_catchphrase.trim()}”
-                          </span>
+                          {" · "}
+                          <span style={{ color: "rgba(147,197,253,0.95)" }}>{xpLabel}</span>
                         </>
                       ) : null}
                     </div>

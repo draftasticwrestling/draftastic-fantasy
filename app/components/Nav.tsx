@@ -12,6 +12,7 @@ import { computeFantasyHomeHref, getLeagueSlugFromPath } from "@/lib/fantasyHome
 import { pleDefaultHref, pleHrefForEntry, pleNavEntriesForSeasonSlug, type PleNavEntry } from "@/lib/pleLeagueMenu";
 import { leagueShowsMatchupsInNav } from "@/lib/leagueNavVisibility";
 import { resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
+import { getXpLevelInfo } from "@/lib/xp/xpLevels";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
@@ -101,6 +102,7 @@ export default function Nav() {
   const [leagueSwitcherOpen, setLeagueSwitcherOpen] = useState(false);
   const [hoverPrimary, setHoverPrimary] = useState<"my-team" | "league" | "wrestlers" | "matchups" | "ple" | "draft" | "gm-tools" | null>(null);
   const [lastVisitedSlug, setLastVisitedSlug] = useState<string | null>(null);
+  const [accountHoverTitle, setAccountHoverTitle] = useState<string>("");
   const adminRef = useRef<HTMLDivElement>(null);
   const leagueSwitcherRef = useRef<HTMLDivElement>(null);
   const leagueSwitcherButtonRef = useRef<HTMLButtonElement>(null);
@@ -153,6 +155,7 @@ export default function Nav() {
     if (!user?.id) {
       setProfile(null);
       setLeagues([]);
+      setAccountHoverTitle("");
       return;
     }
     const supabase = createClient();
@@ -165,6 +168,25 @@ export default function Nav() {
         .then(({ data }) => setProfile(data as Profile | null));
     };
     loadProfile();
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("user_xp_state")
+          .select("total_xp")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        const xp = Math.max(0, Number((data as { total_xp?: number } | null)?.total_xp ?? 0));
+        const level = getXpLevelInfo(xp);
+        const lines = [
+          user.email?.trim() || "",
+          `${xp.toLocaleString()} XP`,
+          level.label,
+        ].filter(Boolean);
+        setAccountHoverTitle(lines.join("\n"));
+      } catch {
+        setAccountHoverTitle(user.email?.trim() || "");
+      }
+    })();
     const onProfileUpdated = () => loadProfile();
     window.addEventListener("draftastic-profile-updated", onProfileUpdated);
     fetch("/api/me/leagues")
@@ -436,7 +458,7 @@ export default function Nav() {
                 <Link
                   href="/account"
                   className="nav-header-link nav-header-account"
-                  title={user.email ?? undefined}
+                  title={accountHoverTitle || user.email || undefined}
                   style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
                 >
                   {profile?.avatar_url?.trim() ? (
@@ -530,7 +552,12 @@ export default function Nav() {
           <div className="nav-mobile-panel-actions">
             {user ? (
               <>
-                <Link href="/account" className="nav-mobile-panel-link" onClick={closeMobileMenu} title={user.email ?? undefined}>
+                <Link
+                  href="/account"
+                  className="nav-mobile-panel-link"
+                  onClick={closeMobileMenu}
+                  title={accountHoverTitle || user.email || undefined}
+                >
                   {profile?.display_name?.trim() || user.email || "Signed in"}
                 </Link>
                 <button type="button" onClick={() => { handleSignOut(); closeMobileMenu(); }} className="nav-mobile-panel-btn">

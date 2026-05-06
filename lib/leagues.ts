@@ -1,4 +1,5 @@
-import { cache } from "react";
+import { cache as reactCache } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -48,6 +49,11 @@ import {
   CHAMPIONSHIP_CHANGES_TABLE_NAME,
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
+
+const cacheFn: <T extends (...args: never[]) => unknown>(fn: T) => T =
+  typeof reactCache === "function"
+    ? (reactCache as <T extends (...args: never[]) => unknown>(fn: T) => T)
+    : ((fn) => fn);
 import { generateJoinCode, INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode";
 import { awardUserXp } from "@/lib/xp/awardUserXp";
 import { XP_AMOUNTS } from "@/lib/xp/xpReasons";
@@ -319,7 +325,7 @@ export async function createLeague(params: {
  * If draft columns are missing (migration not run), returns league with default draft fields.
  * Wrapped in `cache()` so multiple callers in one RSC request share one auth + DB round-trip.
  */
-export const getLeagueBySlug = cache(
+export const getLeagueBySlug = cacheFn(
   async (slug: string): Promise<(League & { role: "commissioner" | "owner" }) | null> => {
     const { supabase, user } = await getServerAuth();
     if (!user) return null;
@@ -461,7 +467,7 @@ export async function getLeaguesForUser(): Promise<LeagueWithRole[]> {
  * Get members of a league with display names. Caller must be a member.
  * Cached per request so layouts + pages that both load members hit the DB once.
  */
-export const getLeagueMembers = cache(async (leagueId: string): Promise<LeagueMember[]> => {
+export const getLeagueMembers = cacheFn(async (leagueId: string): Promise<LeagueMember[]> => {
   const { supabase } = await getServerAuth();
   type Row = {
     id: string;
@@ -1067,7 +1073,7 @@ export type LeagueRosterStint = {
  * Get current roster entries for a league (released_at IS NULL), keyed by user_id.
  * Cached per request when several modules load rosters for the same league.
  */
-export const getRostersForLeague = cache(
+export const getRostersForLeague = cacheFn(
   async (leagueId: string): Promise<Record<string, LeagueRosterEntry[]>> => {
     const { supabase, user } = await getServerAuth();
     const { data: leagueRow } = await supabase
@@ -1138,7 +1144,7 @@ export async function getRostersForLeagueAdmin(
  * Get all roster stints for a league (active and released) for acquisition-window scoring.
  * Cached per request — matchup code often reads stints several times for the same league.
  */
-export const getRosterStintsForLeague = cache(
+export const getRosterStintsForLeague = cacheFn(
   async (leagueId: string): Promise<LeagueRosterStint[]> => {
     const { supabase } = await getServerAuth();
     const { data, error } = await supabase
@@ -1229,7 +1235,7 @@ function getSundayOfWeek(weekStart: string): string {
  * Returns acquired_at and released_at on each entry for matchup display (add date / drop date).
  * Ordered by acquired_at per user.
  */
-export const getRostersForLeagueForWeek = cache(
+export const getRostersForLeagueForWeek = cacheFn(
   async (
     leagueId: string,
     weekStartMonday: string
@@ -1494,13 +1500,14 @@ function utcLastDayOfMonthContaining(ymd: string): string {
  * See docs/PUBLIC_LEAGUES_SCORING.md "Points attribution: trades, drops, and free agents".
  */
 export async function getLeagueScoring(
-  leagueId: string
+  leagueId: string,
+  supabaseOverride?: SupabaseClient
 ): Promise<{
   pointsBySlug: PointsBySlug;
   pointsByOwner: Record<string, number>;
   pointsByOwnerByWrestler: Record<string, Record<string, number>>;
 }> {
-  const { supabase } = await getServerAuth();
+  const supabase = supabaseOverride ?? (await getServerAuth()).supabase;
   const { data: league } = await supabase
     .from("leagues")
     .select("id, start_date, end_date, draft_date, season_slug")
@@ -1549,8 +1556,55 @@ export async function getLeagueScoring(
   const brandBySlug = brandByWrestlerSlugFromRows((wrestlerBrandRows ?? []) as { id: string; brand: string | null }[]);
 
   const pointsBySlug = aggregateWrestlerPoints(filtered, brandBySlug) as PointsBySlug;
-  const stints = await getRosterStintsForLeague(leagueId);
-  const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
+  const stints = supabaseOverride
+    ? ((
+        await supabase
+          .from("league_rosters")
+          .select(
+            "user_id, wrestler_id, contract, acquired_at, released_at, acquired_at_ts, released_at_ts"
+          )
+          .eq("league_id", leagueId)
+          .order("acquired_at", { ascending: true })
+      ).data ?? []
+      ).map((r) => {
+        const row = r as {
+          user_id: string;
+          wrestler_id: string;
+          contract: string | null;
+          acquired_at: string;
+          released_at: string | null;
+          acquired_at_ts?: string | null;
+          released_at_ts?: string | null;
+        };
+        return {
+          user_id: row.user_id,
+          wrestler_id: row.wrestler_id,
+          contract: row.contract,
+          acquired_at: String(row.acquired_at ?? "").slice(0, 10),
+          released_at: row.released_at ? String(row.released_at).slice(0, 10) : null,
+          acquired_at_ts: row.acquired_at_ts ? String(row.acquired_at_ts) : null,
+          released_at_ts: row.released_at_ts ? String(row.released_at_ts) : null,
+        };
+      })
+    : await getRosterStintsForLeague(leagueId);
+  let wrestlerDisplayNames: Record<string, string> = {};
+  if (supabaseOverride) {
+    const ids = [...new Set(stints.map((s) => s.wrestler_id).filter(Boolean))];
+    if (ids.length) {
+      const { data: wrestlerNames } = await supabase
+        .from("wrestlers")
+        .select("id, name")
+        .in("id", ids);
+      wrestlerDisplayNames = Object.fromEntries(
+        (wrestlerNames ?? []).map((w) => {
+          const row = w as { id: string; name: string | null };
+          return [row.id, row.name ?? row.id];
+        })
+      );
+    }
+  } else {
+    wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
+  }
   const rosterWrestlerIds = [...new Set(stints.map((s) => s.wrestler_id))];
   const { data: rosterWrestlerRows } = rosterWrestlerIds.length
     ? await supabase.from("wrestlers").select("id, brand").in("id", rosterWrestlerIds)

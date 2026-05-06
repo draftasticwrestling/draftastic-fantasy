@@ -1,0 +1,18 @@
+{
+  "placements": [
+    {
+      "userId": "a7d23655-163c-4726-9435-fee99693d51f",
+      "leagueId": "db53e145-46e0-4e23-960b-7ca507fd59a0",
+      "seasonKey": "road-to-summerslam-2026",
+      "placement": 1,
+      "teamCount": 6
+    },
+    {
+      "userId": "427d44a2-018c-469d-977d-df63bdaf9b99",
+      "leagueId": "db53e145-46e0-4e23-960b-7ca507fd59a0",
+      "seasonKey": "road-to-summerslam-2026",
+      "placement": 2,
+      "teamCount": 6
+    }
+  ]
+}

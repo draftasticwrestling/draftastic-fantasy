@@ -25,6 +25,8 @@ import { getLeagueEventDayViewerSection } from "@/lib/league/getLeagueEventDayVi
 import { LeagueEventDayRosterCard } from "./LeagueEventDayRosterCard";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import SeasonCompletePlacementModal from "./SeasonCompletePlacementModal";
+import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
+import XpStatusStrip from "@/app/components/XpStatusStrip";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -136,6 +138,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const membersByPoints = [...members].sort(
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
     );
+    const xpByUserId = await getXpDisplayByUserIds(membersByPoints.map((m) => m.user_id));
     const seasonSubtitle =
       (league.season_slug && (getSeasonBySlug(league.season_slug)?.name ?? league.season_slug)) || null;
 
@@ -236,6 +239,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         members={membersByPoints}
         pointsByUserId={pointsByUserId}
         currentUserId={currentUser?.id ?? null}
+        xpByUserId={xpByUserId}
       />
 
       <div className="lm-league-page-desktop">
@@ -281,6 +285,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                 leagueSlug={slug}
                 initialCatchphrase={currentUserMember.manager_catchphrase?.trim() ?? ""}
               />
+            ) : null}
+            {currentUser && currentUserMember ? (
+              <XpStatusStrip totalXp={xpByUserId[currentUser.id]?.totalXp ?? 0} className="lm-myteam-xp" />
             ) : null}
             {currentUser ? (
               <Link href={`/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}`} className="lm-card-title lm-card-link">
@@ -476,6 +483,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               members={membersByPoints}
               pointsByUserId={pointsByUserId}
               leagueSlug={slug}
+              xpByUserId={xpByUserId}
             />
           </div>
 

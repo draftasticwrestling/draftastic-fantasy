@@ -62,6 +62,8 @@ import {
   firstEligibleWeekEndSundayForLeagueStart,
 } from "@/lib/beltWeeklyHold";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
+import XpStatusStrip from "@/app/components/XpStatusStrip";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 10000;
@@ -182,6 +184,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   }
   const rosterEntries = rosters[userId] ?? [];
   const totalPoints = pointsWithBonuses[userId] ?? 0;
+  const xpByUserId = await getXpDisplayByUserIds([userId]);
+  const targetXp = xpByUserId[userId];
 
   const wrestlers =
     (
@@ -657,6 +661,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 {totalPoints} pts
               </span>
             </p>
+            {targetXp ? <XpStatusStrip totalXp={targetXp.totalXp} /> : null}
             <p style={{ margin: 0 }}>
               <Link
                 href={`/leagues/${slug}/team/${encodeURIComponent(userId)}/scoreboard`}

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getRosterStintsForLeague, getLeagueScoring, getWrestlerDisplayNamesByIds } from "@/lib/leagues";
 import { getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
@@ -91,11 +92,12 @@ export function getWeeksInRange(leagueStart: string, leagueEnd: string): string[
  * Only events in the week and in league range count; KOTR carryover uses all league events in order. */
 export async function getPointsByOwnerForLeagueForWeek(
   leagueId: string,
-  weekStartMonday: string
+  weekStartMonday: string,
+  supabaseOverride?: SupabaseClient
 ): Promise<Record<string, number>> {
   const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
   const weekEndSunday = getSundayOfWeek(weekStartMonday);
-  const supabase = await createClient();
+  const supabase = supabaseOverride ?? (await createClient());
   const { data: league } = await supabase
     .from("leagues")
     .select("id, start_date, end_date, draft_date")
@@ -128,8 +130,52 @@ export async function getPointsByOwnerForLeagueForWeek(
     const d = (e.date ?? "").toString().slice(0, 10);
     return (!leagueStart || d >= leagueStart) && (!leagueEnd || d <= leagueEnd);
   });
-  const stints = await getRosterStintsForLeague(leagueId);
-  const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
+  const stints = supabaseOverride
+    ? ((
+        await supabase
+          .from("league_rosters")
+          .select(
+            "user_id, wrestler_id, contract, acquired_at, released_at, acquired_at_ts, released_at_ts"
+          )
+          .eq("league_id", leagueId)
+          .order("acquired_at", { ascending: true })
+      ).data ?? []
+      ).map((r) => {
+        const row = r as {
+          user_id: string;
+          wrestler_id: string;
+          contract: string | null;
+          acquired_at: string;
+          released_at: string | null;
+          acquired_at_ts?: string | null;
+          released_at_ts?: string | null;
+        };
+        return {
+          user_id: row.user_id,
+          wrestler_id: row.wrestler_id,
+          contract: row.contract,
+          acquired_at: String(row.acquired_at ?? "").slice(0, 10),
+          released_at: row.released_at ? String(row.released_at).slice(0, 10) : null,
+          acquired_at_ts: row.acquired_at_ts ? String(row.acquired_at_ts) : null,
+          released_at_ts: row.released_at_ts ? String(row.released_at_ts) : null,
+        };
+      })
+    : await getRosterStintsForLeague(leagueId);
+  let wrestlerDisplayNames: Record<string, string> = {};
+  if (supabaseOverride) {
+    const ids = [...new Set(stints.map((s) => s.wrestler_id).filter(Boolean))];
+    if (ids.length) {
+      const { data: wrestlers } = await supabase.from("wrestlers").select("id, name").in("id", ids);
+      wrestlerDisplayNames = Object.fromEntries(
+        (wrestlers ?? []).map((w) => {
+          const row = w as { id: string; name: string | null };
+          return [row.id, row.name ?? row.id];
+        })
+      );
+    }
+  } else {
+    wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
+  }
   const { data: brandRowsWeek } = await supabase.from("wrestlers").select("id, brand");
   const brandBySlugWeek = brandByWrestlerSlugFromRows(brandRowsWeek ?? []);
   const pointsByOwner: Record<string, number> = {};
@@ -291,9 +337,10 @@ const BELT_RETAIN_POINTS = 4;
  * Other seasons: legacy full-tier points on each calendar month-end that falls in the matchup week.
  */
 export async function getLeagueWeeklyMatchups(
-  leagueId: string
+  leagueId: string,
+  supabaseOverride?: SupabaseClient
 ): Promise<WeeklyMatchupResult[]> {
-  const supabase = await createClient();
+  const supabase = supabaseOverride ?? (await createClient());
   const { data: league } = await supabase
     .from("leagues")
     .select("id, start_date, end_date, draft_date, league_type, season_slug")
@@ -383,15 +430,61 @@ export async function getLeagueWeeklyMatchups(
   const results: WeeklyMatchupResult[] = [];
   let beltHolder: string | null = null;
   const today = new Date().toISOString().slice(0, 10);
-  const stints = includeMonthlyBeltInMatchup ? await getRosterStintsForLeague(leagueId) : [];
+  const stints = includeMonthlyBeltInMatchup
+    ? supabaseOverride
+      ? ((
+          await supabase
+            .from("league_rosters")
+            .select(
+              "user_id, wrestler_id, contract, acquired_at, released_at, acquired_at_ts, released_at_ts"
+            )
+            .eq("league_id", leagueId)
+            .order("acquired_at", { ascending: true })
+        ).data ?? []
+        ).map((r) => {
+          const row = r as {
+            user_id: string;
+            wrestler_id: string;
+            contract: string | null;
+            acquired_at: string;
+            released_at: string | null;
+            acquired_at_ts?: string | null;
+            released_at_ts?: string | null;
+          };
+          return {
+            user_id: row.user_id,
+            wrestler_id: row.wrestler_id,
+            contract: row.contract,
+            acquired_at: String(row.acquired_at ?? "").slice(0, 10),
+            released_at: row.released_at ? String(row.released_at).slice(0, 10) : null,
+            acquired_at_ts: row.acquired_at_ts ? String(row.acquired_at_ts) : null,
+            released_at_ts: row.released_at_ts ? String(row.released_at_ts) : null,
+          };
+        })
+      : await getRosterStintsForLeague(leagueId)
+    : [];
   const monthlyBeltNameByWrestler =
     includeMonthlyBeltInMatchup && stints.length > 0
-      ? await getWrestlerDisplayNamesByIds([...new Set(stints.map((s) => s.wrestler_id))])
+      ? supabaseOverride
+        ? Object.fromEntries(
+            (
+              (
+                await supabase
+                  .from("wrestlers")
+                  .select("id, name")
+                  .in("id", [...new Set(stints.map((s) => s.wrestler_id).filter(Boolean))])
+              ).data ?? []
+            ).map((w) => {
+              const row = w as { id: string; name: string | null };
+              return [row.id, row.name ?? row.id];
+            })
+          )
+        : await getWrestlerDisplayNamesByIds([...new Set(stints.map((s) => s.wrestler_id))])
       : {};
 
   for (const weekStart of weeks) {
     const weekEnd = getSundayOfWeek(weekStart);
-    let pointsByUserId = await getPointsByOwnerForLeagueForWeek(leagueId, weekStart);
+    let pointsByUserId = await getPointsByOwnerForLeagueForWeek(leagueId, weekStart, supabase);
 
     if (includeMonthlyBeltInMatchup && reigns.length > 0) {
       if (useWeeklyBelt) {
@@ -675,9 +768,10 @@ export async function getMonthlyBeltBySlugForWeek(
 
 /** Total bonus points per owner (weekly win +15 and belt +5/+4) for standings. */
 export async function getWeeklyBonusesByOwner(
-  leagueId: string
+  leagueId: string,
+  supabaseOverride?: SupabaseClient
 ): Promise<Record<string, number>> {
-  const matchups = await getLeagueWeeklyMatchups(leagueId);
+  const matchups = await getLeagueWeeklyMatchups(leagueId, supabaseOverride);
   const bonuses: Record<string, number> = {};
   for (const m of matchups) {
     if (m.winnerUserId) {
@@ -806,9 +900,10 @@ export function getCurrentWeekStart(leagueStart: string, leagueEnd: string): str
 
 /** Standings points = event points + weekly win (+15) and belt (+5 win / +4 retain) bonuses. */
 export async function getPointsByOwnerForLeagueWithBonuses(
-  leagueId: string
+  leagueId: string,
+  supabaseOverride?: SupabaseClient
 ): Promise<Record<string, number>> {
-  const supabase = await createClient();
+  const supabase = supabaseOverride ?? (await createClient());
   const { data: league } = await supabase
     .from("leagues")
     .select("league_type")
@@ -816,13 +911,13 @@ export async function getPointsByOwnerForLeagueWithBonuses(
     .maybeSingle();
   const leagueType = (league as { league_type?: string | null } | null)?.league_type ?? null;
 
-  const scoring = await getLeagueScoring(leagueId);
+  const scoring = await getLeagueScoring(leagueId, supabase);
   // Season-overall leagues should use pure event points (no weekly matchup bonuses).
   if (leagueType === "season_overall") {
     return scoring.pointsByOwner ?? {};
   }
 
-  const bonuses = await getWeeklyBonusesByOwner(leagueId);
+  const bonuses = await getWeeklyBonusesByOwner(leagueId, supabase);
   const base = scoring.pointsByOwner ?? {};
   const out: Record<string, number> = {};
   const allIds = new Set([...Object.keys(base), ...Object.keys(bonuses)]);

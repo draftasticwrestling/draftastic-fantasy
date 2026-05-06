@@ -1,6 +1,6 @@
 import "server-only";
 
-import { cache } from "react";
+import { cache as reactCache } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,7 +14,12 @@ export type ServerAuth = {
  * Use this anywhere you would otherwise call `createClient()` then `auth.getUser()`
  * so parallel layouts/pages dedupe the Auth round-trip.
  */
-export const getServerAuth = cache(async (): Promise<ServerAuth> => {
+const cacheFn: <T extends (...args: never[]) => unknown>(fn: T) => T =
+  typeof reactCache === "function"
+    ? (reactCache as <T extends (...args: never[]) => unknown>(fn: T) => T)
+    : ((fn) => fn);
+
+export const getServerAuth = cacheFn(async (): Promise<ServerAuth> => {
   const supabase = await createClient();
   const {
     data: { user },

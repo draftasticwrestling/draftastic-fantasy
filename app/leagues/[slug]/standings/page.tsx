@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
+import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
 import { LeagueMobileStandingsTable } from "../LeagueMobileStandingsTable";
 import { LeagueStandingsTable } from "../LeagueStandingsTable";
 
@@ -40,6 +41,7 @@ export default async function StandingsPage({
   const membersByPoints = [...members].sort(
     (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
   );
+  const xpByUserId = await getXpDisplayByUserIds(membersByPoints.map((m) => m.user_id));
 
   return (
     <main className="app-page">
@@ -56,6 +58,7 @@ export default async function StandingsPage({
             pointsByUserId={pointsByUserId}
             leagueSlug={slug}
             currentUserId={user?.id ?? null}
+            xpByUserId={xpByUserId}
           />
         </div>
       </div>
@@ -84,6 +87,7 @@ export default async function StandingsPage({
             members={membersByPoints}
             pointsByUserId={pointsByUserId}
             leagueSlug={slug}
+            xpByUserId={xpByUserId}
           />
         </div>
       </div>

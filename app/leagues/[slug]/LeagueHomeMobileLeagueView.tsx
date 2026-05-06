@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import type { LeagueMember } from "@/lib/leagues";
 import { pleDefaultHref } from "@/lib/pleLeagueMenu";
 import { ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import type { XpDisplay } from "@/lib/xp/getXpDisplayByUserIds";
 import { LeagueMobileStandingsTable } from "./LeagueMobileStandingsTable";
 
 type Props = {
@@ -14,6 +15,7 @@ type Props = {
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
   currentUserId: string | null;
+  xpByUserId?: Record<string, XpDisplay>;
 };
 
 const menuItemStyle: CSSProperties = {
@@ -38,6 +40,7 @@ export function LeagueHomeMobileLeagueView({
   members,
   pointsByUserId,
   currentUserId,
+  xpByUserId,
 }: Props) {
   const base = `/leagues/${encodeURIComponent(leagueSlug)}`;
   const pleHref = pleDefaultHref(leagueSlug, seasonSlug);
@@ -114,6 +117,7 @@ export function LeagueHomeMobileLeagueView({
           pointsByUserId={pointsByUserId}
           leagueSlug={leagueSlug}
           currentUserId={currentUserId}
+          xpByUserId={xpByUserId}
         />
       </div>
     </div>
