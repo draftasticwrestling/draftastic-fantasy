@@ -66,7 +66,7 @@ import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
 import XpStatusStrip from "@/app/components/XpStatusStrip";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
-const ALL_TIME_EVENTS_LIMIT = 10000;
+const ALL_TIME_EVENTS_LIMIT = 3000;
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];

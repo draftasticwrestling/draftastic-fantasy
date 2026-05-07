@@ -67,7 +67,7 @@ type ChampionshipReign = {
 
 /** Match profile: all-time uses events from this date; high limit so we don't hit Supabase 1k default. */
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
-const ALL_TIME_EVENTS_LIMIT = 10000;
+const ALL_TIME_EVENTS_LIMIT = 3000;
 
 /** Allow cached response per league for 5 minutes to reduce repeated heavy queries. */
 export const revalidate = 300;

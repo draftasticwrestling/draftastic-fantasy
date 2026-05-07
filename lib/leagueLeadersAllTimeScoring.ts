@@ -10,7 +10,7 @@ import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 
 /** Events window for League Leaders “all-time” scoring (matches league-leaders page). */
 export const LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM = "2020-01-01";
-export const LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT = 10000;
+export const LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT = 3000;
 /** First week-ending Sunday for weekly title-hold points in the all-time column (matches league-leaders page). */
 export const LEAGUE_LEADERS_ALL_TIME_FIRST_WEEK_END_SUNDAY = "2026-04-26";
 

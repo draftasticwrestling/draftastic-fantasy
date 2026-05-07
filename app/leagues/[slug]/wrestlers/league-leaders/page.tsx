@@ -119,8 +119,32 @@ export default async function LeagueLeadersPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const { supabase, user } = await getServerAuth();
-  const league = await getLeagueBySlug(slug);
+  let supabase: Awaited<ReturnType<typeof getServerAuth>>["supabase"];
+  let user: Awaited<ReturnType<typeof getServerAuth>>["user"];
+  let league: Awaited<ReturnType<typeof getLeagueBySlug>>;
+
+  try {
+    const auth = await getServerAuth();
+    supabase = auth.supabase;
+    user = auth.user;
+    league = await getLeagueBySlug(slug);
+  } catch (err) {
+    console.error("[league-leaders] failed to initialize", err);
+    return (
+      <main className="app-page" style={{ maxWidth: 900, margin: "0 auto" }}>
+        <p style={{ marginBottom: 24 }}>
+          <Link href={`/leagues/${slug}`} className="app-link">← League</Link>
+        </p>
+        <h1 style={{ fontSize: "1.25rem", marginBottom: 12 }}>League Leaders temporarily unavailable</h1>
+        <p style={{ color: "var(--color-text-muted)", marginBottom: 14 }}>
+          We hit a temporary loading error. Please retry in a few seconds.
+        </p>
+        <Link href={`/leagues/${slug}/wrestlers/league-leaders`} className="app-link" prefetch={false}>
+          Retry League Leaders
+        </Link>
+      </main>
+    );
+  }
   if (!league) {
     redirect("/leagues");
   }
