@@ -5,7 +5,8 @@ import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getRostersForLe
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
-  getMatchupsForWeek,
+  getXpSeededMemberUserIds,
+  getScheduledMatchupsForWeek,
   getWeeksInRange,
   getCurrentWeekStart,
   getSundayOfWeek,
@@ -152,6 +153,10 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     getLeagueMembers(league.id),
     getLeagueWeeklyMatchups(league.id),
   ]);
+  const seededMemberUserIds = await getXpSeededMemberUserIds(
+    members.map((m) => m.user_id),
+    supabase
+  );
   const isMember = user && members.some((m) => m.user_id === user.id);
   if (!isMember) notFound();
 
@@ -175,7 +180,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     weekNumber: idx + 1,
   }));
 
-  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
+  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
 
   let pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let wrestlerNames: Record<string, string> = {};
@@ -218,10 +223,15 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     : null;
   const weekMatchups =
     selectedWeekStart && members.length >= 3
-      ? getMatchupsForWeek(
-          members.map((m) => m.user_id),
-          members.length
-        )
+      ? getScheduledMatchupsForWeek({
+          weekStart: selectedWeekStart,
+          weekStarts: weeks,
+          memberUserIds: members.map((m) => m.user_id),
+          seededMemberUserIds,
+          maxTeams: league.max_teams ?? null,
+          draftStatus: league.draft_status ?? null,
+          weeklyResults: matchups,
+        })
       : [];
 
   function totalForUser(userId: string): number {

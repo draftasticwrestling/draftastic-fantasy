@@ -62,6 +62,23 @@ export const RTS_BETA_ROSTER_RULES_3_TO_6: Record<number, RosterRules> = {
 };
 
 /**
+ * Include-NXT leagues need deeper rosters because the draft/scoring pool expands.
+ * Applies to both Head-to-Head and Total Season Points when `include_nxt` is true.
+ */
+export const INCLUDE_NXT_ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
+  3: { rosterSize: 13, minFemale: 4, minMale: 5 },
+  4: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  5: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  6: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  7: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  8: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  9: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  10: { rosterSize: 10, minFemale: 3, minMale: 3 },
+  11: { rosterSize: 10, minFemale: 3, minMale: 3 },
+  12: { rosterSize: 9, minFemale: 3, minMale: 3 },
+};
+
+/**
  * @deprecated Use LEGACY_ROSTER_RULES_BY_TEAMS + RTS_BETA_ROSTER_RULES_3_TO_6 via getRosterRulesForLeague.
  * Merged view for debugging/docs only — do not use for new code.
  */
@@ -94,9 +111,16 @@ export const ACTIVE_PER_EVENT_BY_ROSTER_SIZE: Record<number, number> = {
  *   For 3–6 teams, legacy uses the same rules as a 7-team league (roster 10 / mins 4F+4M).
  * - 7–12 teams: same legacy ladder for every season.
  */
-export function getRosterRulesForLeague(teamCount: number, seasonSlug?: string | null): RosterRules | null {
+export function getRosterRulesForLeague(
+  teamCount: number,
+  seasonSlug?: string | null,
+  includeNxt?: boolean | null
+): RosterRules | null {
   if (teamCount < MIN_LEAGUE_TEAMS || teamCount > MAX_LEAGUE_TEAMS) {
     return null;
+  }
+  if (includeNxt) {
+    return INCLUDE_NXT_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
   }
   const isRoadToSummerSlam = seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
   if (isRoadToSummerSlam && teamCount >= 3 && teamCount <= 6) {
@@ -116,11 +140,12 @@ export async function getRosterRulesForLeagueId(
 ): Promise<RosterRules | null> {
   const [{ count }, { data: league }] = await Promise.all([
     supabase.from("league_members").select("*", { count: "exact", head: true }).eq("league_id", leagueId),
-    supabase.from("leagues").select("season_slug").eq("id", leagueId).maybeSingle(),
+    supabase.from("leagues").select("season_slug, include_nxt").eq("id", leagueId).maybeSingle(),
   ]);
   const teamCount = count ?? 0;
   const seasonSlug = (league as { season_slug?: string | null } | null)?.season_slug ?? null;
-  return getRosterRulesForLeague(teamCount, seasonSlug);
+  const includeNxt = (league as { include_nxt?: boolean | null } | null)?.include_nxt ?? false;
+  return getRosterRulesForLeague(teamCount, seasonSlug, includeNxt);
 }
 
 /**

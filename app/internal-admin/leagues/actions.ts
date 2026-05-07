@@ -32,7 +32,7 @@ async function getRosterFailures(leagueId: string): Promise<Failure[]> {
     admin.from("wrestlers").select("id, gender"),
   ]);
   const memberIds = ((members ?? []) as { user_id: string }[]).map((m) => m.user_id);
-  const rules = getRosterRulesForLeague(memberIds.length, (league as { season_slug?: string | null } | null)?.season_slug ?? null);
+  const rules = getRosterRulesForLeague(memberIds.length, (league as { season_slug?: string | null } | null)?.season_slug ?? null, Boolean((league as { include_nxt?: boolean | null } | null)?.include_nxt));
   if (!rules) return [];
   const genderById = new Map<string, "F" | "M" | null>();
   for (const w of (genders ?? []) as { id: string; gender: string | null }[]) {

@@ -126,7 +126,7 @@ export default async function InternalAdminLeagueDetailPage({
     list.push(r.wrestler_id);
     rosterByUser.set(r.user_id, list);
   }
-  const rules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
+  const rules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
   const rosterWarnings: string[] = [];
   if (rules) {
     for (const m of members) {

@@ -39,7 +39,7 @@ export default async function FactionActionsPage({ params, searchParams }: Props
   const currentMember = members.find((m) => m.user_id === user.id);
   if (!currentMember) notFound();
 
-  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
+  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
   const rosterEntries = rosters[user.id] ?? [];
   const myRosterIds = new Set(rosterEntries.map((e) => e.wrestler_id));
 

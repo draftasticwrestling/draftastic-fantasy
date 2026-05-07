@@ -5,7 +5,9 @@ import { getLeagueBySlug, getLeagueMembers, getRostersForLeagueForWeek } from "@
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
-  getMatchupsForWeek,
+  getXpSeededMemberUserIds,
+  getScheduledMatchupsForWeek,
+  getWeeksInRange,
   getSundayOfWeek,
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
@@ -48,6 +50,10 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
     getPointsByOwnerByWrestlerForWeek(league.id, weekStartDecoded),
     getMonthlyBeltBySlugForWeek(league.id, weekStartDecoded),
   ]);
+  const seededMemberUserIds = await getXpSeededMemberUserIds(
+    members.map((m) => m.user_id),
+    supabase
+  );
   const wrestlerIds = [
     ...new Set(
       Object.values(rosters)
@@ -72,14 +78,22 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   const wrestlerNames: Record<string, string> = Object.fromEntries(
     (wrestlersRows.data ?? []).map((w) => [w.id, w.name ?? w.id])
   );
-  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
+  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
   const maxRosterLen = Math.max(0, ...Object.values(rosters).map((a) => a.length));
   const maxSlots = Math.max(rosterRules?.rosterSize ?? 12, maxRosterLen);
 
-  const weekMatchups = getMatchupsForWeek(
-    members.map((m) => m.user_id),
-    members.length
-  );
+  const leagueStart = (league.draft_date || league.start_date) ?? "";
+  const leagueEnd = league.end_date ?? "";
+  const weekStarts = leagueStart && leagueEnd ? getWeeksInRange(leagueStart, leagueEnd) : [];
+  const weekMatchups = getScheduledMatchupsForWeek({
+    weekStart: weekStartDecoded,
+    weekStarts,
+    memberUserIds: members.map((m) => m.user_id),
+    seededMemberUserIds,
+    maxTeams: league.max_teams ?? null,
+    draftStatus: league.draft_status ?? null,
+    weeklyResults: matchups,
+  });
 
   function totalForUser(userId: string): number {
     const eventPts = weekMatchup.pointsByUserId[userId] ?? 0;

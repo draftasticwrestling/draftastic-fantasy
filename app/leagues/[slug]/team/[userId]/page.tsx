@@ -208,7 +208,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     teamScoringAudit.activeStints.map((s) => [s.wrestler_id, s.acquired_at ?? null])
   );
 
-  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
+  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
   const rosterWrestlers = rosterEntries.map((e) => {
     const w = wrestlers.find((x) => x.id === e.wrestler_id) as { id: string; name: string | null; gender?: string | null } | undefined;
     return { id: e.wrestler_id, name: w?.name ?? e.wrestler_id, gender: w?.gender ?? null };
@@ -1108,7 +1108,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                     .join(", ")}
                 </span>
                 {(() => {
-                  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
+                  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
                   const myRosterIds = (rosters[currentUser.id] ?? []).map((e) => e.wrestler_id);
                   const giveCount = p.items.filter((i) => i.direction === "give").length; // recipient receives
                   const receiveCount = p.items.filter((i) => i.direction === "receive").length; // recipient gives

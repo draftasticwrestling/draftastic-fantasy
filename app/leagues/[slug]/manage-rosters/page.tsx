@@ -32,7 +32,7 @@ export default async function ManageRostersPage({
   if (!league) notFound();
   const members = await getLeagueMembers(league.id);
   const rosters = await getRostersForLeague(league.id);
-  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
+  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
 
   const db = getAdminClient() ?? publicSupabase;
   let result: Record<string, unknown>[] | null = null;

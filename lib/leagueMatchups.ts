@@ -814,6 +814,209 @@ export function getMatchupsForWeek(
   return out;
 }
 
+export async function getXpSeededMemberUserIds(
+  memberUserIds: string[],
+  supabaseOverride?: SupabaseClient
+): Promise<string[]> {
+  const ids = [...new Set(memberUserIds)].filter(Boolean);
+  if (ids.length === 0) return [];
+  const fallback = [...ids].sort((a, b) => a.localeCompare(b));
+  const supabase = supabaseOverride ?? (await createClient());
+  const { data, error } = await supabase
+    .from("user_xp_state")
+    .select("user_id, total_xp")
+    .in("user_id", ids);
+  if (error) return fallback;
+  const xpByUserId = new Map<string, number>();
+  for (const row of (data ?? []) as Array<{ user_id?: string | null; total_xp?: number | null }>) {
+    const uid = row.user_id ?? "";
+    if (!uid) continue;
+    xpByUserId.set(uid, Number(row.total_xp ?? 0));
+  }
+  return [...ids].sort((a, b) => {
+    const axp = xpByUserId.get(a) ?? 0;
+    const bxp = xpByUserId.get(b) ?? 0;
+    if (bxp !== axp) return bxp - axp;
+    return a.localeCompare(b);
+  });
+}
+
+function getRoundRobinH2HForWeek(memberUserIds: string[], roundIndex: number): WeekMatchup[] {
+  if (memberUserIds.length < 4 || memberUserIds.length % 2 !== 0) return [];
+  const ids = [...memberUserIds].sort((a, b) => a.localeCompare(b));
+  const n = ids.length;
+  const rounds = n - 1;
+  if (rounds <= 0) return [];
+  const r = ((roundIndex % rounds) + rounds) % rounds;
+  const arr = [...ids];
+  for (let i = 0; i < r; i++) {
+    const moved = arr.pop();
+    if (!moved) break;
+    arr.splice(1, 0, moved);
+  }
+  const out: WeekMatchup[] = [];
+  for (let i = 0; i < n / 2; i++) {
+    out.push({ type: "h2h", userIds: [arr[i]!, arr[n - 1 - i]!] });
+  }
+  return out;
+}
+
+function winnerByPointsThenSeed(
+  pointsByUserId: Record<string, number>,
+  a: string,
+  b: string,
+  seededOrder: string[]
+): string {
+  const pa = pointsByUserId[a] ?? 0;
+  const pb = pointsByUserId[b] ?? 0;
+  if (pa > pb) return a;
+  if (pb > pa) return b;
+  return seededOrder.indexOf(a) <= seededOrder.indexOf(b) ? a : b;
+}
+
+function buildRegularSeasonSeedsForEightTeamLeague(
+  memberUserIds: string[],
+  regularSeasonWeekStarts: string[],
+  weeklyResults: WeeklyMatchupResult[]
+): string[] {
+  const rounds = regularSeasonWeekStarts.map((_, i) => getRoundRobinH2HForWeek(memberUserIds, i));
+  const wlt: Record<string, { w: number; l: number; t: number }> = Object.fromEntries(
+    memberUserIds.map((id) => [id, { w: 0, l: 0, t: 0 }])
+  );
+  const pointsTotal: Record<string, number> = Object.fromEntries(memberUserIds.map((id) => [id, 0]));
+  for (let i = 0; i < regularSeasonWeekStarts.length; i++) {
+    const weekStart = regularSeasonWeekStarts[i]!;
+    const weekResult = weeklyResults.find((r) => r.weekStart === weekStart);
+    if (!weekResult) continue;
+    for (const id of memberUserIds) pointsTotal[id] = (pointsTotal[id] ?? 0) + (weekResult.pointsByUserId[id] ?? 0);
+    for (const mu of rounds[i] ?? []) {
+      const [a, b] = mu.userIds;
+      const pa = weekResult.pointsByUserId[a] ?? 0;
+      const pb = weekResult.pointsByUserId[b] ?? 0;
+      if (pa > pb) {
+        wlt[a]!.w++;
+        wlt[b]!.l++;
+      } else if (pb > pa) {
+        wlt[b]!.w++;
+        wlt[a]!.l++;
+      } else {
+        wlt[a]!.t++;
+        wlt[b]!.t++;
+      }
+    }
+  }
+  return [...memberUserIds].sort((a, b) => {
+    const wa = wlt[a]!;
+    const wb = wlt[b]!;
+    if (wb.w !== wa.w) return wb.w - wa.w;
+    if (wa.l !== wb.l) return wa.l - wb.l;
+    if (wb.t !== wa.t) return wb.t - wa.t;
+    if ((pointsTotal[b] ?? 0) !== (pointsTotal[a] ?? 0)) return (pointsTotal[b] ?? 0) - (pointsTotal[a] ?? 0);
+    return a.localeCompare(b);
+  });
+}
+
+export function getScheduledMatchupsForWeek(params: {
+  weekStart: string;
+  weekStarts: string[];
+  memberUserIds: string[];
+  seededMemberUserIds?: string[];
+  maxTeams: number | null | undefined;
+  draftStatus: string | null | undefined;
+  weeklyResults: WeeklyMatchupResult[];
+}): WeekMatchup[] {
+  const {
+    weekStart,
+    weekStarts,
+    memberUserIds,
+    seededMemberUserIds,
+    maxTeams,
+    draftStatus,
+    weeklyResults,
+  } = params;
+  if (!weekStarts.includes(weekStart) || memberUserIds.length < 3) return [];
+  if (maxTeams != null && memberUserIds.length !== maxTeams) return [];
+  if ((draftStatus ?? "not_started") !== "completed") return [];
+  const baseOrder =
+    seededMemberUserIds && seededMemberUserIds.length === memberUserIds.length
+      ? seededMemberUserIds
+      : memberUserIds;
+
+  const idx = weekStarts.indexOf(weekStart);
+  if (idx < 0) return [];
+  if (memberUserIds.length !== 8 || weekStarts.length < 11) {
+    return getMatchupsForWeek(baseOrder, baseOrder.length);
+  }
+
+  // Weeks 1-8: seven-round robin, then week 8 repeats week 1 pairings.
+  if (idx < 7) return getRoundRobinH2HForWeek(baseOrder, idx);
+  if (idx === 7) return getRoundRobinH2HForWeek(baseOrder, 0);
+
+  const week8Start = weekStarts[7]!;
+  const week8Ended = getSundayOfWeek(week8Start) < new Date().toISOString().slice(0, 10);
+  if (!week8Ended) return [];
+
+  const regularSeasonWeeks = weekStarts.slice(0, 8);
+  const seeds = buildRegularSeasonSeedsForEightTeamLeague(baseOrder, regularSeasonWeeks, weeklyResults);
+  if (seeds.length !== 8) return [];
+
+  // Week 9: quarterfinals (1v8, 4v5, 2v7, 3v6)
+  if (idx === 8) {
+    return [
+      { type: "h2h", userIds: [seeds[0]!, seeds[7]!] },
+      { type: "h2h", userIds: [seeds[3]!, seeds[4]!] },
+      { type: "h2h", userIds: [seeds[1]!, seeds[6]!] },
+      { type: "h2h", userIds: [seeds[2]!, seeds[5]!] },
+    ];
+  }
+
+  const week9Start = weekStarts[8]!;
+  const week9Ended = getSundayOfWeek(week9Start) < new Date().toISOString().slice(0, 10);
+  if (!week9Ended) return [];
+  const week9 = weeklyResults.find((r) => r.weekStart === week9Start);
+  if (!week9) return [];
+  const qf1w = winnerByPointsThenSeed(week9.pointsByUserId, seeds[0]!, seeds[7]!, seeds);
+  const qf2w = winnerByPointsThenSeed(week9.pointsByUserId, seeds[3]!, seeds[4]!, seeds);
+  const qf3w = winnerByPointsThenSeed(week9.pointsByUserId, seeds[1]!, seeds[6]!, seeds);
+  const qf4w = winnerByPointsThenSeed(week9.pointsByUserId, seeds[2]!, seeds[5]!, seeds);
+  const qf1l = qf1w === seeds[0] ? seeds[7]! : seeds[0]!;
+  const qf2l = qf2w === seeds[3] ? seeds[4]! : seeds[3]!;
+  const qf3l = qf3w === seeds[1] ? seeds[6]! : seeds[1]!;
+  const qf4l = qf4w === seeds[2] ? seeds[5]! : seeds[2]!;
+
+  // Week 10: semifinals for championship + placement bracket.
+  if (idx === 9) {
+    return [
+      { type: "h2h", userIds: [qf1w, qf2w] },
+      { type: "h2h", userIds: [qf3w, qf4w] },
+      { type: "h2h", userIds: [qf1l, qf2l] },
+      { type: "h2h", userIds: [qf3l, qf4l] },
+    ];
+  }
+
+  const week10Start = weekStarts[9]!;
+  const week10Ended = getSundayOfWeek(week10Start) < new Date().toISOString().slice(0, 10);
+  if (!week10Ended) return [];
+  const week10 = weeklyResults.find((r) => r.weekStart === week10Start);
+  if (!week10) return [];
+  const sf1w = winnerByPointsThenSeed(week10.pointsByUserId, qf1w, qf2w, seeds);
+  const sf2w = winnerByPointsThenSeed(week10.pointsByUserId, qf3w, qf4w, seeds);
+  const sf1l = sf1w === qf1w ? qf2w : qf1w;
+  const sf2l = sf2w === qf3w ? qf4w : qf3w;
+  const sf3w = winnerByPointsThenSeed(week10.pointsByUserId, qf1l, qf2l, seeds);
+  const sf4w = winnerByPointsThenSeed(week10.pointsByUserId, qf3l, qf4l, seeds);
+  const sf3l = sf3w === qf1l ? qf2l : qf1l;
+  const sf4l = sf4w === qf3l ? qf4l : qf3l;
+
+  // Week 11: finals for 1/2, 3/4, 5/6, 7/8.
+  return [
+    { type: "h2h", userIds: [sf1w, sf2w] },
+    { type: "h2h", userIds: [sf1l, sf2l] },
+    { type: "h2h", userIds: [sf3w, sf4w] },
+    { type: "h2h", userIds: [sf3l, sf4l] },
+  ];
+}
+
 export type MatchupWlt = { w: number; l: number; t: number };
 
 /**

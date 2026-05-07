@@ -144,7 +144,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     wrestlersResult = wrestlersData;
     const pointsByUserId = pointsByOwner ?? {};
 
-    const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null);
+    const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
     const membersByPoints = [...members].sort(
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
     );
