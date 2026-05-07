@@ -56,11 +56,11 @@ import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import {
-  LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM,
   LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT,
   allTimeLeadersStylePointBreakdown,
 } from "@/lib/leagueLeadersAllTimeScoring";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
+import { isWrestlerStatsCacheUsable, loadWrestlerStatsCacheMaps } from "@/lib/wrestlerStatsCache";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -200,26 +200,31 @@ export default async function LeagueLeadersPage({
       brand: (w as { brand?: string | null }).brand ?? null,
     }))
   );
-  /** Always aggregate from events here — wrestler_stats_cache uses integer columns + different belt windows and skips history when only since-start events are loaded. */
   const wrestlersFiltered = (wrestlers ?? []).filter((w) => !isHiddenCanonicalListSlug(w.id));
+  const statsCacheMaps = await loadWrestlerStatsCacheMaps(supabase);
+  const cacheUsable = Boolean(
+    statsCacheMaps &&
+      isWrestlerStatsCacheUsable(
+        statsCacheMaps,
+        wrestlersFiltered.map((w) => String(w.id))
+      )
+  );
 
-  let allEventsData: { id: string; name: string; date: string; matches?: object[] }[] | null = null;
+  let sinceStartEventsData: { id: string; name: string; date: string; matches?: object[] }[] | null = null;
   try {
     const ev = await supabase
       .from("events")
       .select("id, name, date, matches")
       .in("status", [...EVENT_STATUSES_FOR_SCORING])
-      .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
+      .gte("date", startDate)
       .order("date", { ascending: true })
-      .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT);
-    allEventsData = (ev.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
+      .limit(Math.min(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT, 2000));
+    sinceStartEventsData = (ev.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
   } catch {
-    allEventsData = [];
+    sinceStartEventsData = [];
   }
-  const eventsAll = allEventsData ?? [];
-  const eventsSinceStart = eventsAll.filter((e) => (e.date ?? "") >= startDate);
-  const events2025 = eventsAll.filter((e) => (e.date ?? "") >= "2025-01-01" && (e.date ?? "") <= "2025-12-31");
-  const events2026 = eventsAll.filter((e) => (e.date ?? "") >= "2026-01-01" && (e.date ?? "") <= "2026-12-31");
+  const eventsSinceStart = sinceStartEventsData ?? [];
+  const eventsAll = eventsSinceStart;
 
   const membersList: LeagueMember[] = members ?? [];
   const rostersByUser: Record<string, LeagueRosterEntry[]> = rosters ?? {};
@@ -249,33 +254,39 @@ export default async function LeagueLeadersPage({
     return !isNxtEventType(t);
   });
   const pointsBySlugMainRosterOnly = aggregateWrestlerPoints(mainRosterOnlyEventsSinceStart, brandBySlug);
-  const mainRosterOnlyEvents2025 = events2025.filter((e) => {
-    const t = classifyEventType(e.name ?? "", e.id ?? "");
-    return !isNxtEventType(t);
-  });
-  const mainRosterOnlyEvents2026 = events2026.filter((e) => {
-    const t = classifyEventType(e.name ?? "", e.id ?? "");
-    return !isNxtEventType(t);
-  });
-  const mainRosterOnlyEventsAllTime = eventsAll.filter((e) => {
-    const t = classifyEventType(e.name ?? "", e.id ?? "");
-    return !isNxtEventType(t);
-  });
-  const pointsBySlugMainRosterOnly2025 = aggregateWrestlerPoints(mainRosterOnlyEvents2025, brandBySlug);
-  const pointsBySlugMainRosterOnly2026 = aggregateWrestlerPoints(mainRosterOnlyEvents2026, brandBySlug);
-  const pointsBySlugMainRosterOnlyAllTime = aggregateWrestlerPoints(mainRosterOnlyEventsAllTime, brandBySlug);
-  const points2025BySlug = aggregateWrestlerPoints(events2025, brandBySlug);
-  const points2026BySlug = aggregateWrestlerPoints(events2026, brandBySlug);
-  const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll, brandBySlug);
+  const toPointsMap = (
+    map: Map<string, { rs_points: number; ple_points: number; belt_points: number }>
+  ): Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> =>
+    Object.fromEntries(
+      [...map.entries()].map(([k, v]) => [
+        k,
+        { rsPoints: Number(v.rs_points ?? 0), plePoints: Number(v.ple_points ?? 0), beltPoints: Number(v.belt_points ?? 0) },
+      ])
+    );
+  const toMatchStatsMap = (
+    map: Map<string, { mw: number; win: number; loss: number; nc: number; dqw: number; dql: number }>
+  ): Record<string, { mw: number; win: number; loss: number; nc: number; dqw: number; dql: number }> =>
+    Object.fromEntries(
+      [...map.entries()].map(([k, v]) => [
+        k,
+        { mw: Number(v.mw ?? 0), win: Number(v.win ?? 0), loss: Number(v.loss ?? 0), nc: Number(v.nc ?? 0), dqw: Number(v.dqw ?? 0), dql: Number(v.dql ?? 0) },
+      ])
+    );
+  const points2025BySlug = cacheUsable && statsCacheMaps ? toPointsMap(statsCacheMaps["2025"]) : pointsBySlug;
+  const points2026BySlug = cacheUsable && statsCacheMaps ? toPointsMap(statsCacheMaps["2026"]) : pointsBySlug;
+  const pointsAllTimeBySlug = cacheUsable && statsCacheMaps ? toPointsMap(statsCacheMaps.all_time) : pointsBySlug;
+  const pointsBySlugMainRosterOnly2025 = points2025BySlug;
+  const pointsBySlugMainRosterOnly2026 = points2026BySlug;
+  const pointsBySlugMainRosterOnlyAllTime = pointsAllTimeBySlug;
 
   const matchStatsBySlug = aggregateWrestlerMatchStats(eventsSinceStart);
   const matchStatsMainOnlyBySlug = aggregateWrestlerMatchStats(mainRosterOnlyEventsSinceStart);
-  const matchStats2025BySlug = aggregateWrestlerMatchStats(events2025);
-  const matchStats2025MainOnlyBySlug = aggregateWrestlerMatchStats(mainRosterOnlyEvents2025);
-  const matchStats2026BySlug = aggregateWrestlerMatchStats(events2026);
-  const matchStats2026MainOnlyBySlug = aggregateWrestlerMatchStats(mainRosterOnlyEvents2026);
-  const matchStatsAllTimeBySlug = aggregateWrestlerMatchStats(eventsAll);
-  const matchStatsAllTimeMainOnlyBySlug = aggregateWrestlerMatchStats(mainRosterOnlyEventsAllTime);
+  const matchStats2025BySlug = cacheUsable && statsCacheMaps ? toMatchStatsMap(statsCacheMaps["2025"]) : matchStatsBySlug;
+  const matchStats2025MainOnlyBySlug = matchStats2025BySlug;
+  const matchStats2026BySlug = cacheUsable && statsCacheMaps ? toMatchStatsMap(statsCacheMaps["2026"]) : matchStatsBySlug;
+  const matchStats2026MainOnlyBySlug = matchStats2026BySlug;
+  const matchStatsAllTimeBySlug = cacheUsable && statsCacheMaps ? toMatchStatsMap(statsCacheMaps.all_time) : matchStatsBySlug;
+  const matchStatsAllTimeMainOnlyBySlug = matchStatsAllTimeBySlug;
   // All-time unparsed matches (for "matches needing review" indicator on League Leaders)
   const unparsedBySlug = getUnparsedMatchesByWrestler(
     eventsAll as { id: string; name: string; date: string; matches?: object[] }[]
@@ -337,13 +348,20 @@ export default async function LeagueLeadersPage({
     const matchStatsAllTime = mergeGetMatchStatsForWrestler(matchStatsAllTimeBySlug, slugKey, nameKey);
     const matchStatsMainOnly = mergeGetMatchStatsForWrestler(matchStatsMainOnlyBySlug, slugKey, nameKey);
     const matchStatsAllTimeMainOnly = mergeGetMatchStatsForWrestler(matchStatsAllTimeMainOnlyBySlug, slugKey, nameKey);
-    const allTimeParts = allTimeLeadersStylePointBreakdown(pointsAllTimeBySlug, endOfMonthBeltPointsAllTime, slugKey, nameKey);
+    const allTimeParts = cacheUsable
+      ? {
+          rs: pointsAllTime.rsPoints,
+          ple: pointsAllTime.plePoints,
+          beltCombined: pointsAllTime.beltPoints,
+          total: pointsAllTime.rsPoints + pointsAllTime.plePoints + pointsAllTime.beltPoints,
+        }
+      : allTimeLeadersStylePointBreakdown(pointsAllTimeBySlug, endOfMonthBeltPointsAllTime, slugKey, nameKey);
     const beltPointsAllTime = allTimeParts.beltCombined;
     const totalPointsAllTime = allTimeParts.total;
     const extraBelt2025 = mergeGetMonthlyBeltForWrestler(endOfMonthBeltPoints2025, slugKey, nameKey);
     const extraBelt2026 = mergeGetMonthlyBeltForWrestler(endOfMonthBeltPoints2026, slugKey, nameKey);
-    const beltPoints2025 = points2025.beltPoints + extraBelt2025;
-    const beltPoints2026 = points2026.beltPoints + extraBelt2026;
+    const beltPoints2025 = cacheUsable ? points2025.beltPoints : points2025.beltPoints + extraBelt2025;
+    const beltPoints2026 = cacheUsable ? points2026.beltPoints : points2026.beltPoints + extraBelt2026;
     const totalPoints2025Row = points2025.rsPoints + points2025.plePoints + beltPoints2025;
     const totalPoints2025MainOnly = points2025MainOnly.rsPoints + points2025MainOnly.plePoints + (points2025MainOnly.beltPoints + extraBelt2025);
     const totalPoints2026Row = points2026.rsPoints + points2026.plePoints + beltPoints2026;
