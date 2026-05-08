@@ -329,6 +329,10 @@ const WEEKLY_WIN_BONUS = 15;
 const BELT_WIN_POINTS = 5;
 const BELT_RETAIN_POINTS = 4;
 
+export function leagueUsesOwnerMatchupBonuses(leagueType: string | null | undefined): boolean {
+  return leagueType === "combo" || leagueType === null;
+}
+
 /**
  * All weekly matchups for a league. Winner = most event points that week (tie = no winner).
  * Draftastic Championship: first week winner gets +5; same holder next week +4 retain; new winner +5.
@@ -354,6 +358,7 @@ export async function getLeagueWeeklyMatchups(
 
   const leagueType = (league as { league_type?: string | null }).league_type ?? null;
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
+  const useOwnerMatchupBonuses = leagueUsesOwnerMatchupBonuses(leagueType);
   const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug);
   const includeMonthlyBeltInMatchup =
     leagueType === "head_to_head" ||
@@ -604,7 +609,7 @@ export async function getLeagueWeeklyMatchups(
     let beltPoints = 0;
     let weeklyWinPoints = 0;
 
-    if (!weekNotOver) {
+    if (!weekNotOver && useOwnerMatchupBonuses) {
       const userIds = Object.keys(pointsByUserId);
       const maxPoints = Math.max(0, ...Object.values(pointsByUserId));
       const winners = userIds.filter((id) => pointsByUserId[id] === maxPoints && maxPoints > 0);
@@ -1028,6 +1033,9 @@ export function computeMatchupWltByUserId(
   leagueType: string | null | undefined,
   memberUserIds: string[],
   weeklyResults: WeeklyMatchupResult[],
+  opts?: {
+    matchupResolver?: (week: WeeklyMatchupResult) => WeekMatchup[];
+  }
 ): Record<string, MatchupWlt> {
   const out: Record<string, MatchupWlt> = {};
   for (const id of memberUserIds) {
@@ -1043,7 +1051,7 @@ export function computeMatchupWltByUserId(
   for (const week of weeklyResults) {
     if (week.weekEnd >= today) continue;
 
-    const matchups = getMatchupsForWeek(memberUserIds, n);
+    const matchups = opts?.matchupResolver ? opts.matchupResolver(week) : getMatchupsForWeek(memberUserIds, n);
     for (const mu of matchups) {
       if (mu.type === "h2h") {
         const [a, b] = mu.userIds;
@@ -1115,8 +1123,8 @@ export async function getPointsByOwnerForLeagueWithBonuses(
   const leagueType = (league as { league_type?: string | null } | null)?.league_type ?? null;
 
   const scoring = await getLeagueScoring(leagueId, supabase);
-  // Season-overall leagues should use pure event points (no weekly matchup bonuses).
-  if (leagueType === "season_overall") {
+  // Season-overall and pure H2H leagues should use pure event points (no owner matchup bonus points).
+  if (leagueType === "season_overall" || !leagueUsesOwnerMatchupBonuses(leagueType)) {
     return scoring.pointsByOwner ?? {};
   }
 

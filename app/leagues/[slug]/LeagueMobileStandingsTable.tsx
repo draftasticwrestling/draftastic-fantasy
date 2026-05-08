@@ -8,6 +8,8 @@ import type { XpDisplay } from "@/lib/xp/getXpDisplayByUserIds";
 type Props = {
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
+  recordByUserId?: Record<string, { w: number; l: number; t: number }>;
+  showRecordOnly?: boolean;
   leagueSlug: string;
   currentUserId?: string | null;
   xpByUserId?: Record<string, XpDisplay>;
@@ -16,6 +18,8 @@ type Props = {
 export function LeagueMobileStandingsTable({
   members,
   pointsByUserId,
+  recordByUserId,
+  showRecordOnly = false,
   leagueSlug,
   currentUserId = null,
   xpByUserId,
@@ -48,7 +52,7 @@ export function LeagueMobileStandingsTable({
               className="league-home-mobile-th"
               style={{ width: "22%", textAlign: "right", padding: "6px 6px", borderBottom: "1px solid var(--color-border)" }}
             >
-              Total Pts
+              {showRecordOnly ? "Record" : "Total Pts"}
             </th>
           </tr>
         </thead>
@@ -59,6 +63,7 @@ export function LeagueMobileStandingsTable({
             const xpLabel = xpByUserId?.[m.user_id]?.label;
             const catchphrase = m.manager_catchphrase?.trim() ?? "";
             const pts = pointsByUserId[m.user_id] ?? 0;
+            const rec = recordByUserId?.[m.user_id] ?? { w: 0, l: 0, t: 0 };
             const isSelf = currentUserId != null && m.user_id === currentUserId;
             const hasCustom = !!m.team_name?.trim();
             return (
@@ -166,7 +171,7 @@ export function LeagueMobileStandingsTable({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {pts}
+                  {showRecordOnly ? `${rec.w}-${rec.l}-${rec.t}` : pts}
                 </td>
               </tr>
             );

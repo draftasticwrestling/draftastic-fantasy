@@ -396,6 +396,7 @@ export default async function WrestlersFreeAgentsPage({
           wrestlerProfileFrom="free-agents"
           enableViewToggle
           rtsNxtPointsFootnote={enforceNxtPendingOnlyForRts}
+          includeNxtInDefaultRosterFilter={Boolean(league.include_nxt)}
         />
       )}
     </main>

@@ -14,7 +14,7 @@ import { ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import {
   isRtsPlePathKey,
   pleHrefForEntry,
-  pleNavEntriesForSeasonSlug,
+  pleNavEntriesForLeagueWindow,
   rtsPleDatesForPathKey,
   rtsPleDisplayTitle,
 } from "@/lib/pleLeagueMenu";
@@ -94,7 +94,14 @@ export default async function PleRtsSlotPage({ params }: Props) {
   if (!league) notFound();
 
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
+  const leagueStart = (league as { start_date?: string | null }).start_date ?? null;
+  const leagueEnd = (league as { end_date?: string | null }).end_date ?? null;
   if (seasonSlug !== ROAD_TO_SUMMERSLAM_SEASON_SLUG) notFound();
+  const inLeagueWindow = rtsPleDatesForPathKey(pleKey).some((d) => {
+    if (!leagueStart || !leagueEnd) return true;
+    return d >= leagueStart && d <= leagueEnd;
+  });
+  if (!inLeagueWindow) notFound();
 
   const dates = rtsPleDatesForPathKey(pleKey);
   const eventRows = await fetchPleEventsOnDates(dates);
@@ -183,7 +190,7 @@ export default async function PleRtsSlotPage({ params }: Props) {
       : dates.map((d) => formatPleDate(d)).join(" · ");
   const locationLine =
     eventRows.map((e) => e.location?.trim()).filter(Boolean).join(" · ") || "Location TBD";
-  const pleOptions = pleNavEntriesForSeasonSlug(seasonSlug).map((entry) => ({
+  const pleOptions = pleNavEntriesForLeagueWindow(seasonSlug, leagueStart, leagueEnd).map((entry) => ({
     href: pleHrefForEntry(slug, entry),
     label: entry.label,
   }));

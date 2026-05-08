@@ -34,6 +34,29 @@ export function pleNavEntriesForSeasonSlug(seasonSlug: string | null | undefined
   return [...WRESTLEMANIA_ONLY];
 }
 
+function pleEntryIntersectsLeagueWindow(
+  entry: PleNavEntry,
+  leagueStart: string | null | undefined,
+  leagueEnd: string | null | undefined
+): boolean {
+  if (entry.kind !== "rts") return true;
+  const start = String(leagueStart ?? "").slice(0, 10);
+  const end = String(leagueEnd ?? "").slice(0, 10);
+  if (!start || !end) return true;
+  const dates = rtsPleDatesForPathKey(entry.pathKey);
+  return dates.some((d) => d >= start && d <= end);
+}
+
+export function pleNavEntriesForLeagueWindow(
+  seasonSlug: string | null | undefined,
+  leagueStart: string | null | undefined,
+  leagueEnd: string | null | undefined
+): PleNavEntry[] {
+  return pleNavEntriesForSeasonSlug(seasonSlug).filter((entry) =>
+    pleEntryIntersectsLeagueWindow(entry, leagueStart, leagueEnd)
+  );
+}
+
 export function pleHrefForEntry(leagueSlug: string, entry: PleNavEntry): string {
   if (entry.kind === "wrestlemania") {
     return `/leagues/${encodeURIComponent(leagueSlug)}/ple/wrestlemania`;
@@ -41,8 +64,13 @@ export function pleHrefForEntry(leagueSlug: string, entry: PleNavEntry): string 
   return `/leagues/${encodeURIComponent(leagueSlug)}/ple/${encodeURIComponent(entry.pathKey)}`;
 }
 
-export function pleDefaultHref(leagueSlug: string, seasonSlug: string | null | undefined): string {
-  const items = pleNavEntriesForSeasonSlug(seasonSlug);
+export function pleDefaultHref(
+  leagueSlug: string,
+  seasonSlug: string | null | undefined,
+  leagueStart?: string | null,
+  leagueEnd?: string | null
+): string {
+  const items = pleNavEntriesForLeagueWindow(seasonSlug, leagueStart, leagueEnd);
   if (items.length === 0) return `/leagues/${encodeURIComponent(leagueSlug)}`;
   if (seasonSlug !== ROAD_TO_SUMMERSLAM_SEASON_SLUG) {
     return pleHrefForEntry(leagueSlug, items[0]!);

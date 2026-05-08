@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import EventListBar from "./EventListBar";
 import Nav from "./Nav";
 import PageLayout from "./PageLayout";
@@ -64,6 +65,13 @@ export default function RootShell({ children, recentEvents }: RootShellProps) {
       <LoginNudges />
       <footer className="site-footer">
         <p className="site-footer-copy">© 2026 Draftastic Wrestling. All rights reserved.</p>
+        <p className="site-footer-disclaimer" style={{ marginBottom: 8 }}>
+          <Link href="/faq" className="app-link">FAQ</Link>
+          {" · "}
+          <Link href="/privacy" className="app-link">Privacy</Link>
+          {" · "}
+          <Link href="/terms" className="app-link">Terms</Link>
+        </p>
         <p className="site-footer-disclaimer">
           WWE, Raw, SmackDown, and all related logos and trademarks are the property of World Wrestling Entertainment, Inc. This site is not affiliated with or endorsed by WWE.
         </p>

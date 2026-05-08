@@ -40,6 +40,8 @@ const headerPointsStyle = {
 type Props = {
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
+  recordByUserId?: Record<string, { w: number; l: number; t: number }>;
+  showRecordOnly?: boolean;
   leagueSlug: string;
   xpByUserId?: Record<string, XpDisplay>;
   /** Optional extra content per row (e.g. Remove button). Same length as members. */
@@ -49,6 +51,8 @@ type Props = {
 export function LeagueStandingsTable({
   members,
   pointsByUserId,
+  recordByUserId,
+  showRecordOnly = false,
   leagueSlug,
   xpByUserId,
   rowExtras = [],
@@ -57,7 +61,7 @@ export function LeagueStandingsTable({
     <section style={{ ...sectionStyle, marginTop: 0 }}>
       <header style={headerStyle}>
         <h2 style={headerTitleStyle}>Factions</h2>
-        <span style={headerPointsStyle}>Total points</span>
+        <span style={headerPointsStyle}>{showRecordOnly ? "Record" : "Total points"}</span>
       </header>
       <ul
         style={{
@@ -76,6 +80,7 @@ export function LeagueStandingsTable({
             (m.display_name?.trim() || "Unknown").trim() || "Unknown"
           );
           const pts = pointsByUserId[m.user_id] ?? 0;
+          const rec = recordByUserId?.[m.user_id] ?? { w: 0, l: 0, t: 0 };
           const isLeader = idx === 0;
           const extra = rowExtras[idx] ?? null;
           const xpLabel = xpByUserId?.[m.user_id]?.label;
@@ -222,8 +227,10 @@ export function LeagueStandingsTable({
                       color: "#f97373",
                     }}
                   >
-                    {pts}
-                    <span style={{ fontSize: 11, marginLeft: 4, opacity: 0.8 }}>pts</span>
+                    {showRecordOnly ? `${rec.w}-${rec.l}-${rec.t}` : pts}
+                    {!showRecordOnly ? (
+                      <span style={{ fontSize: 11, marginLeft: 4, opacity: 0.8 }}>pts</span>
+                    ) : null}
                   </span>
                   {extra}
                 </span>

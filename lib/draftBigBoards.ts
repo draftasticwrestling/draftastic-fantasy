@@ -8,6 +8,14 @@ import { AUTOPICK_REQUIRED_PRIORITY_COUNT } from "@/lib/draftPriorityRequirement
 export const BIG_BOARD_IDS = ["default", "dillster", "km_punk", "kayfabe_king"] as const;
 export type BigBoardId = (typeof BIG_BOARD_IDS)[number];
 
+export function getAvailableBigBoardIdsForLeague(params: {
+  includeNxt?: boolean | null;
+}): BigBoardId[] {
+  // Current curated boards are season-overall style pools and do not include NXT coverage.
+  if (params.includeNxt) return [];
+  return [...BIG_BOARD_IDS];
+}
+
 export const DRAFT_BIG_BOARDS: Record<
   BigBoardId,
   { label: string; description: string; wrestlerIds: readonly string[] }

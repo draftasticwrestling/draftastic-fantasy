@@ -19,7 +19,7 @@ import {
   isDraftableWrestler,
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
-import { AUTOPICK_REQUIRED_PRIORITY_COUNT } from "@/lib/draftPriorityRequirements";
+import { getAutopickRequiredPriorityCount } from "@/lib/draftPriorityRequirements";
 import {
   BETA_AUTOPICK_DRAFT_WINDOW_LABEL,
   BETA_AUTOPICK_FIRST_EVENT_LABEL,
@@ -294,9 +294,10 @@ export default async function LeagueDraftPage({ params }: Props) {
     const prefSrc = userDraftPrefs?.strategy_options as { priorityListSource?: string } | undefined;
     const customPrefs = prefSrc?.priorityListSource === "custom";
     const listLen = userDraftPrefs?.priority_list?.length ?? 0;
+    const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(Boolean(league.include_nxt));
     const hasAutoDraftSettingsSaved =
       league.draft_type === "autopick"
-        ? !customPrefs || listLen >= AUTOPICK_REQUIRED_PRIORITY_COUNT
+        ? !customPrefs || listLen >= autopickRequiredPriorityCount
         : userDraftPrefs != null &&
           (userDraftPrefs.priority_list?.length > 0 || userDraftPrefs.strategy_options != null);
 

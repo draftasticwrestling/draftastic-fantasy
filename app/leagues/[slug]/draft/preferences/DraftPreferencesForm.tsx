@@ -6,9 +6,8 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { saveDraftPreferencesFormAction } from "../actions";
 import {
-  AUTOPICK_LIST_EXHAUSTED_TIE_BREAK,
   AUTOPICK_REQUIRED_FEMALE_COUNT,
-  AUTOPICK_REQUIRED_PRIORITY_COUNT,
+  AUTOPICK_LIST_EXHAUSTED_TIE_BREAK,
 } from "@/lib/draftPriorityRequirements";
 import { BIG_BOARD_IDS, DRAFT_BIG_BOARDS, getBigBoardPriorityList, type BigBoardId } from "@/lib/draftBigBoards";
 
@@ -16,8 +15,6 @@ const OTHER_BIG_BOARD_IDS = BIG_BOARD_IDS.filter((id): id is BigBoardId => id !=
 import { normalizeDraftPoolGender } from "@/lib/wrestlerDraftGender";
 
 const MIN_PRIORITY = 10;
-const MAX_PRIORITY = 50;
-
 /** Case-insensitive id key so priority_list slugs match DB `wrestlers.id` casing. */
 function wrestlerIdKey(id: string | null | undefined): string {
   return String(id ?? "").trim().toLowerCase();
@@ -119,6 +116,8 @@ type Props = {
   initialListSource?: "custom" | BigBoardId;
   /** When true, show Big Board shortcuts and require 50+ / 16+ female for a custom list. */
   isAutopickLeague?: boolean;
+  autopickRequiredPriorityCount?: number;
+  availableBigBoardIds?: BigBoardId[];
   disabled?: boolean;
 };
 
@@ -128,13 +127,23 @@ export function DraftPreferencesForm({
   initialPriorityList,
   initialListSource = "custom",
   isAutopickLeague = false,
+  autopickRequiredPriorityCount = 50,
+  availableBigBoardIds = [...BIG_BOARD_IDS],
   disabled = false,
 }: Props) {
-  const minPreferred = isAutopickLeague ? AUTOPICK_REQUIRED_PRIORITY_COUNT : MIN_PRIORITY;
-  const [listSource, setListSource] = useState<"custom" | BigBoardId>(() =>
-    isAutopickLeague ? initialListSource : "custom"
+  const minPreferred = isAutopickLeague ? autopickRequiredPriorityCount : MIN_PRIORITY;
+  const availableBoardSet = useMemo(() => new Set<BigBoardId>(availableBigBoardIds), [availableBigBoardIds]);
+  const hasProvidedBoards = availableBigBoardIds.length > 0;
+  const availableOtherBoardIds = useMemo(
+    () => OTHER_BIG_BOARD_IDS.filter((id) => availableBoardSet.has(id)),
+    [availableBoardSet]
   );
-  const defaultBoardIds = getBigBoardPriorityList("default") ?? [];
+  const [listSource, setListSource] = useState<"custom" | BigBoardId>(() =>
+    isAutopickLeague && initialListSource !== "custom" && availableBoardSet.has(initialListSource)
+      ? initialListSource
+      : "custom"
+  );
+  const defaultBoardIds = availableBoardSet.has("default") ? getBigBoardPriorityList("default") ?? [] : [];
   const [priorityList, setPriorityList] = useState<string[]>(initialPriorityList);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -197,7 +206,7 @@ export function DraftPreferencesForm({
   };
 
   const addWrestlerById = (id: string) => {
-    if (!id || priorityListContainsId(priorityList, id) || priorityList.length >= MAX_PRIORITY) return;
+    if (!id || priorityListContainsId(priorityList, id)) return;
     markCustomOnListEdit();
     const canonical = optionForPriorityId(wrestlerLookup, id)?.id ?? id;
     setPriorityList((prev) => [...prev, canonical]);
@@ -300,18 +309,12 @@ export function DraftPreferencesForm({
       return;
     }
 
-    if (priorityList.length > MAX_PRIORITY) {
-      e.preventDefault();
-      setMessage({ type: "error", text: `At most ${MAX_PRIORITY} wrestlers on the priority list.` });
-      return;
-    }
-
     if (isAutopickLeague) {
-      if (priorityList.length < AUTOPICK_REQUIRED_PRIORITY_COUNT) {
+      if (priorityList.length < autopickRequiredPriorityCount) {
         e.preventDefault();
         setMessage({
           type: "error",
-          text: `Autopick needs at least ${AUTOPICK_REQUIRED_PRIORITY_COUNT} wrestlers on your list (currently ${priorityList.length}).`,
+          text: `Autopick needs at least ${autopickRequiredPriorityCount} wrestlers on your list (currently ${priorityList.length}).`,
         });
         return;
       }
@@ -334,7 +337,7 @@ export function DraftPreferencesForm({
       e.preventDefault();
       setMessage({
         type: "error",
-        text: `Preferred wrestlers list must have between ${MIN_PRIORITY} and ${MAX_PRIORITY} wrestlers when set.`,
+        text: `Preferred wrestlers list must have at least ${MIN_PRIORITY} wrestlers when set.`,
       });
     }
   };
@@ -344,7 +347,7 @@ export function DraftPreferencesForm({
       <input type="hidden" name="league_slug" value={leagueSlug} />
       <input type="hidden" name="list_source" value={listSource} />
       <input ref={priorityListInputRef} type="hidden" name="priority_list" defaultValue={JSON.stringify(priorityList)} />
-      {isAutopickLeague && (
+      {isAutopickLeague && hasProvidedBoards && (
         <section>
           <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
             Priority list source
@@ -377,10 +380,10 @@ export function DraftPreferencesForm({
                 <span style={{ color: "var(--color-text-muted)" }}> — {defaultBoardIds.length} wrestlers (recommended default)</span>
               </span>
             </label>
-            {OTHER_BIG_BOARD_IDS.map((id) => {
+            {availableOtherBoardIds.map((id) => {
               const board = DRAFT_BIG_BOARDS[id];
               const ids = getBigBoardPriorityList(id);
-              const ready = Boolean(ids && ids.length >= AUTOPICK_REQUIRED_PRIORITY_COUNT);
+              const ready = Boolean(ids && ids.length >= autopickRequiredPriorityCount);
               return (
                 <label
                   key={id}
@@ -409,7 +412,7 @@ export function DraftPreferencesForm({
                     {!ready ? (
                       <span style={{ color: "var(--color-text-muted)" }}>
                         {" "}
-                        — not available yet (needs {AUTOPICK_REQUIRED_PRIORITY_COUNT}+ IDs in code).
+                        — not available yet (needs {autopickRequiredPriorityCount}+ IDs in code).
                       </span>
                     ) : (
                       <span style={{ color: "var(--color-text-muted)" }}> — {board.wrestlerIds.length} wrestlers</span>
@@ -430,7 +433,7 @@ export function DraftPreferencesForm({
                 style={{ width: 18, height: 18, marginTop: 2 }}
               />
               <span>
-                <strong>My own list</strong> — rank at least {AUTOPICK_REQUIRED_PRIORITY_COUNT} wrestlers (include at least{" "}
+                <strong>My own list</strong> — rank at least {autopickRequiredPriorityCount} wrestlers (include at least{" "}
                 {AUTOPICK_REQUIRED_FEMALE_COUNT} female).
               </span>
             </label>
@@ -485,6 +488,17 @@ export function DraftPreferencesForm({
           )}
         </section>
       )}
+      {isAutopickLeague && !hasProvidedBoards && (
+        <section>
+          <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
+            Priority list source
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 0 }}>
+            This league uses a custom draft pool, so provided Big Boards are disabled. Use <strong>My own list</strong>{" "}
+            for your auto-draft preferences.
+          </p>
+        </section>
+      )}
       <section>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
           Preferred wrestlers {isAutopickLeague ? "(autopick)" : "(optional)"}
@@ -492,12 +506,13 @@ export function DraftPreferencesForm({
         <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 12 }}>
           {isAutopickLeague ? (
             <>
-              When &quot;My own list&quot; is selected, add <strong>{AUTOPICK_REQUIRED_PRIORITY_COUNT}+</strong> wrestlers in order (at least{" "}
+              When &quot;My own list&quot; is selected, add <strong>{autopickRequiredPriorityCount}+</strong> wrestlers in
+              order (at least{" "}
               <strong>{AUTOPICK_REQUIRED_FEMALE_COUNT}</strong> female). When a Big Board is selected, use the preview above, then save.
             </>
           ) : (
             <>
-              You can list 10–50 wrestlers in ranked order of preference. Auto-pick will choose the highest-ranked
+              You can list 10 or more wrestlers in ranked order of preference. Auto-pick will choose the highest-ranked
               available wrestler from this list. Once none from your list are available, the tie-break is the same for
               everyone: {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK} Leave empty to rely on that tie-break only.
             </>
@@ -641,8 +656,7 @@ export function DraftPreferencesForm({
               {priorityList.length > 0 &&
                 priorityList.length < minPreferred &&
                 "Add at least " + (minPreferred - priorityList.length) + " more to save this list, or remove all."}
-              {priorityList.length >= minPreferred && priorityList.length <= MAX_PRIORITY && " List is valid."}
-              {priorityList.length > MAX_PRIORITY && " Maximum is " + MAX_PRIORITY + "."}
+              {priorityList.length >= minPreferred && " List is valid."}
             </p>
           </div>
         )}

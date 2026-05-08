@@ -276,11 +276,15 @@ function NxtInclusionSuffix({
 }) {
   const points = hasNxtPointsInPeriod(w, period);
   const stats = hasNxtStatsInPeriod(w, period);
-  const show = mode === "points" ? points : mode === "stats" ? stats : points || stats;
+  const show = points;
   if (!show) return null;
   return (
     <sup
-      title="Includes NXT event contributions in this period."
+      title={
+        mode === "stats" && stats
+          ? "This wrestler has NXT match stats in this period; * indicates NXT points are included."
+          : "Includes NXT event point contributions in this period."
+      }
       style={{ fontSize: "0.8em", fontWeight: 700, color: "var(--color-text-muted)", marginLeft: 1, cursor: "help" }}
       aria-hidden
     >
@@ -597,6 +601,8 @@ type WrestlerListProps = {
   enableViewToggle?: boolean;
   /** Show * footnote legend for Road to SummerSlam NXT-brand scoring scope. */
   rtsNxtPointsFootnote?: boolean;
+  /** When true, Include filter defaults to Raw + SmackDown + NXT. */
+  includeNxtInDefaultRosterFilter?: boolean;
 };
 
 function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | "team" | null): string {
@@ -677,13 +683,17 @@ export default function WrestlerList({
   variant = "default",
   enableViewToggle = false,
   rtsNxtPointsFootnote = false,
+  includeNxtInDefaultRosterFilter = false,
 }: WrestlerListProps) {
   const isBoxscore = variant === "boxscore";
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
   const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
   const [search, setSearch] = useState("");
   const [includedRosters, setIncludedRosters] = useState<Set<string>>(
-    () => (hideRosterFilter ? new Set(ALL_ROSTER_VALUES) : new Set(["Raw", "SmackDown"]))
+    () =>
+      hideRosterFilter
+        ? new Set(ALL_ROSTER_VALUES)
+        : new Set(includeNxtInDefaultRosterFilter ? ["Raw", "SmackDown", "NXT"] : ["Raw", "SmackDown"])
   );
   const [includeMale, setIncludeMale] = useState(true);
   const [includeFemale, setIncludeFemale] = useState(true);

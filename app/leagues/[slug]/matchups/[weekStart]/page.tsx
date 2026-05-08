@@ -5,6 +5,7 @@ import { getLeagueBySlug, getLeagueMembers, getRostersForLeagueForWeek } from "@
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
+  leagueUsesOwnerMatchupBonuses,
   getXpSeededMemberUserIds,
   getScheduledMatchupsForWeek,
   getWeeksInRange,
@@ -72,6 +73,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   const weekMatchup = matchup;
 
   const weekEnd = getSundayOfWeek(weekStartDecoded);
+  const ownerBonusRules = leagueUsesOwnerMatchupBonuses(league.league_type ?? null);
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const teamLabel = (m: { team_name?: string | null; display_name?: string | null }) =>
     factionDisplayName(m, "Unknown");
@@ -97,9 +99,9 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
 
   function totalForUser(userId: string): number {
     const eventPts = weekMatchup.pointsByUserId[userId] ?? 0;
-    const winBonus = weekMatchup.winnerUserId === userId ? 15 : 0;
+    const winBonus = ownerBonusRules && weekMatchup.winnerUserId === userId ? 15 : 0;
     const beltBonus =
-      weekMatchup.beltHolderUserId === userId ? (weekMatchup.beltRetained ? 4 : 5) : 0;
+      ownerBonusRules && weekMatchup.beltHolderUserId === userId ? (weekMatchup.beltRetained ? 4 : 5) : 0;
     return eventPts + winBonus + beltBonus;
   }
 
@@ -127,8 +129,11 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
           Matchup {matchups.findIndex((m) => m.weekStart === weekStartDecoded) + 1} ({formatWeekRange(weekStartDecoded, weekEnd)})
         </h1>
         <div style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
-          Week runs Monday–Sunday. Event points + weekly win (+15) and belt (+5/+4) bonuses.
-          {(league.league_type === "head_to_head" || league.league_type === "combo" || league.league_type == null) &&
+          {ownerBonusRules
+            ? "Week runs Monday–Sunday. Event points + weekly win (+15) and belt (+5/+4) bonuses."
+            : "Week runs Monday–Sunday. Matchups use event points only (no owner bonus points)."}
+          {ownerBonusRules &&
+            (league.league_type === "head_to_head" || league.league_type === "combo" || league.league_type == null) &&
             " Weekly title-hold (belt) points are included once that Sunday has ended in PT (Los Angeles time)."}
         </div>
       </div>

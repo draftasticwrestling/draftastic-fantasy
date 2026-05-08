@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
-import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
+import {
+  computeMatchupWltByUserId,
+  getLeagueWeeklyMatchups,
+  getPointsByOwnerForLeagueWithBonuses,
+  getScheduledMatchupsForWeek,
+  getWeeksInRange,
+  getXpSeededMemberUserIds,
+} from "@/lib/leagueMatchups";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
 import { LeagueMobileStandingsTable } from "../LeagueMobileStandingsTable";
@@ -32,15 +39,45 @@ export default async function StandingsPage({
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const [members, pointsByOwner] = await Promise.all([
+  const [members, pointsByOwner, weeklyMatchups] = await Promise.all([
     getLeagueMembers(league.id),
     getPointsByOwnerForLeagueWithBonuses(league.id),
+    getLeagueWeeklyMatchups(league.id),
   ]);
   const { user } = await getServerAuth();
   const pointsByUserId = pointsByOwner ?? {};
-  const membersByPoints = [...members].sort(
-    (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
-  );
+  const isHeadToHeadRecordStandings = (league.league_type ?? null) === "head_to_head";
+  const weekStarts = getWeeksInRange((league.draft_date || league.start_date) ?? "", league.end_date ?? "");
+  const seededMemberUserIds = await getXpSeededMemberUserIds(members.map((m) => m.user_id));
+  const wltByUserId = isHeadToHeadRecordStandings
+    ? computeMatchupWltByUserId(
+        league.league_type ?? null,
+        members.map((m) => m.user_id),
+        weeklyMatchups,
+        {
+          matchupResolver: (week) =>
+            getScheduledMatchupsForWeek({
+              weekStart: week.weekStart,
+              weekStarts,
+              memberUserIds: members.map((m) => m.user_id),
+              seededMemberUserIds,
+              maxTeams: league.max_teams ?? null,
+              draftStatus: league.draft_status ?? null,
+              weeklyResults: weeklyMatchups,
+            }),
+        }
+      )
+    : {};
+  const membersByPoints = [...members].sort((a, b) => {
+    if (isHeadToHeadRecordStandings) {
+      const wa = wltByUserId[a.user_id] ?? { w: 0, l: 0, t: 0 };
+      const wb = wltByUserId[b.user_id] ?? { w: 0, l: 0, t: 0 };
+      if (wb.w !== wa.w) return wb.w - wa.w;
+      if (wa.l !== wb.l) return wa.l - wb.l;
+      if (wb.t !== wa.t) return wb.t - wa.t;
+    }
+    return (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0);
+  });
   const xpByUserId = await getXpDisplayByUserIds(membersByPoints.map((m) => m.user_id));
 
   return (
@@ -56,6 +93,8 @@ export default async function StandingsPage({
           <LeagueMobileStandingsTable
             members={membersByPoints}
             pointsByUserId={pointsByUserId}
+            recordByUserId={wltByUserId}
+            showRecordOnly={isHeadToHeadRecordStandings}
             leagueSlug={slug}
             currentUserId={user?.id ?? null}
             xpByUserId={xpByUserId}
@@ -86,6 +125,8 @@ export default async function StandingsPage({
           <LeagueStandingsTable
             members={membersByPoints}
             pointsByUserId={pointsByUserId}
+            recordByUserId={wltByUserId}
+            showRecordOnly={isHeadToHeadRecordStandings}
             leagueSlug={slug}
             xpByUserId={xpByUserId}
           />

@@ -17,7 +17,20 @@ import {
   MAX_AUTOPICK_PICKS_DRAFT_PAGE,
   DEFAULT_DRAFT_STRATEGY_OPTIONS,
 } from "@/lib/leagueDraft";
-import { getBigBoardPriorityList, isBigBoardId } from "@/lib/draftBigBoards";
+import { getAutopickRequiredPriorityCount } from "@/lib/draftPriorityRequirements";
+import {
+  getAvailableBigBoardIdsForLeague,
+  getBigBoardPriorityList,
+  isBigBoardId,
+  type BigBoardId,
+} from "@/lib/draftBigBoards";
+
+function isAvailableBigBoardId(
+  id: string | null | undefined,
+  availableBigBoardIds: BigBoardId[]
+): id is BigBoardId {
+  return Boolean(id) && isBigBoardId(id) && availableBigBoardIds.includes(id);
+}
 
 export async function generateDraftOrderAction(
   leagueSlug: string,
@@ -232,7 +245,7 @@ export async function clearLastPickFromFormAction(formData: FormData): Promise<v
   await clearLastPickAction(leagueSlug);
 }
 
-/** Save a user's auto-draft preferences (optional priority_list 10-50; strategy is fixed defaults). */
+/** Save a user's auto-draft preferences (optional priority_list 10+; strategy is fixed defaults). */
 export async function saveDraftPreferencesAction(
   leagueSlug: string,
   payload: {
@@ -244,6 +257,9 @@ export async function saveDraftPreferencesAction(
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
+  const availableBigBoardIds = getAvailableBigBoardIdsForLeague({
+    includeNxt: Boolean(league.include_nxt),
+  });
   const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated." };
   const { data: member } = await supabase
@@ -267,7 +283,7 @@ export async function saveDraftPreferencesAction(
   let priorityListSource: string = "custom";
   if (payload.priorityListSource === "custom") {
     priorityListSource = "custom";
-  } else if (payload.priorityListSource && isBigBoardId(payload.priorityListSource)) {
+  } else if (isAvailableBigBoardId(payload.priorityListSource, availableBigBoardIds)) {
     priorityListSource = payload.priorityListSource;
   }
 
@@ -295,17 +311,23 @@ export async function saveDraftPreferencesFormAction(
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
+  const availableBigBoardIds = getAvailableBigBoardIdsForLeague({
+    includeNxt: Boolean(league.include_nxt),
+  });
+  const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(Boolean(league.include_nxt));
 
   const rawListSource = (formData.get("list_source") as string)?.trim();
   const listSource =
     league.draft_type === "autopick"
-      ? rawListSource === "custom" || isBigBoardId(rawListSource)
+      ? rawListSource === "custom" || isAvailableBigBoardId(rawListSource, availableBigBoardIds)
         ? rawListSource
-        : "default"
+        : availableBigBoardIds.includes("default")
+          ? "default"
+          : "custom"
       : rawListSource || "custom";
   let priority_list: string[] = [];
 
-  if (league.draft_type === "autopick" && isBigBoardId(listSource)) {
+  if (league.draft_type === "autopick" && isAvailableBigBoardId(listSource, availableBigBoardIds)) {
     const boardList = getBigBoardPriorityList(listSource);
     if (!boardList) {
       return {
@@ -325,8 +347,15 @@ export async function saveDraftPreferencesFormAction(
       }
     }
   }
+  if (league.draft_type === "autopick" && listSource === "custom" && priority_list.length < autopickRequiredPriorityCount) {
+    return {
+      error: `Autopick needs at least ${autopickRequiredPriorityCount} wrestlers on your list (currently ${priority_list.length}).`,
+    };
+  }
   const priorityListSource =
-    listSource === "custom" || isBigBoardId(listSource) ? listSource : "custom";
+    listSource === "custom" || isAvailableBigBoardId(listSource, availableBigBoardIds)
+      ? listSource
+      : "custom";
 
   const result = await saveDraftPreferencesAction(leagueSlug, {
     priority_list,

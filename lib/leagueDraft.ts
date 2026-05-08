@@ -36,7 +36,7 @@ import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBran
 import {
   AUTOPICK_LIST_EXHAUSTED_TIE_BREAK,
   AUTOPICK_REQUIRED_FEMALE_COUNT,
-  AUTOPICK_REQUIRED_PRIORITY_COUNT,
+  getAutopickRequiredPriorityCount,
 } from "@/lib/draftPriorityRequirements";
 import { normalizeDraftPoolGender as normalizeGender } from "@/lib/wrestlerDraftGender";
 import {
@@ -279,7 +279,6 @@ function resolvedStrategyOptions(prefs: DraftPreferences | null): DraftStrategyO
 }
 
 export const MIN_PRIORITY_LIST = 10;
-export const MAX_PRIORITY_LIST = 50;
 
 export type DraftOrderEntry = {
   overall_pick: number;
@@ -319,8 +318,15 @@ export async function getDraftPreferencesForAllMembers(
 > {
   const members = await getLeagueMembers(leagueId);
   const db = getAdminClient() ?? (await createClient());
-  const { data: leagueRow } = await db.from("leagues").select("draft_type").eq("id", leagueId).maybeSingle();
+  const { data: leagueRow } = await db
+    .from("leagues")
+    .select("draft_type, include_nxt")
+    .eq("id", leagueId)
+    .maybeSingle();
   const leagueIsAutopick = (leagueRow as { draft_type?: string } | null)?.draft_type === "autopick";
+  const requiredPriorityCount = getAutopickRequiredPriorityCount(
+    Boolean((leagueRow as { include_nxt?: boolean | null } | null)?.include_nxt)
+  );
 
   const out: { user_id: string; display_name: string; hasPreferences: boolean; summary: string }[] = [];
   for (const m of members) {
@@ -330,7 +336,7 @@ export async function getDraftPreferencesForAllMembers(
     const listSrc = so?.priorityListSource;
     const listLen = prefs?.priority_list?.length ?? 0;
     const isCustom = listSrc === "custom";
-    const customOk = isCustom && listLen >= AUTOPICK_REQUIRED_PRIORITY_COUNT;
+    const customOk = isCustom && listLen >= requiredPriorityCount;
     const hasPreferencesNonAutopick =
       prefs != null && (listLen > 0 || prefs.strategy_options != null);
 
@@ -359,7 +365,7 @@ export async function getDraftPreferencesForAllMembers(
       summary = `My own list: ${listLen} wrestlers · ${DEFAULT_AUTOPICK_DESCRIPTION}`;
     } else {
       hasPreferencesDisplay = false;
-      summary = `My own list incomplete (${listLen}/${AUTOPICK_REQUIRED_PRIORITY_COUNT}). The Default Big Board will be used at draft time until this is complete.`;
+      summary = `My own list incomplete (${listLen}/${requiredPriorityCount}). The Default Big Board will be used at draft time until this is complete.`;
     }
     out.push({
       user_id: m.user_id,
@@ -434,6 +440,15 @@ async function validateAutopickPriorityCoverage(
   const memberIds = await getLeagueMemberUserIdsForAdmin(leagueId);
   if (memberIds.length === 0) return { ok: false, error: "No league members found for autopick draft." };
 
+  const { data: leagueRow } = await admin
+    .from("leagues")
+    .select("include_nxt")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const requiredPriorityCount = getAutopickRequiredPriorityCount(
+    Boolean((leagueRow as { include_nxt?: boolean | null } | null)?.include_nxt)
+  );
+
   const { data: prefRows } = await admin
     .from("league_draft_preferences")
     .select("user_id, priority_list")
@@ -481,9 +496,9 @@ async function validateAutopickPriorityCoverage(
       const gen = genderById[key] ?? genderById[key.toLowerCase()] ?? null;
       return n + (gen === "F" ? 1 : 0);
     }, 0);
-    if (list.length < AUTOPICK_REQUIRED_PRIORITY_COUNT || femaleCount < AUTOPICK_REQUIRED_FEMALE_COUNT) {
+    if (list.length < requiredPriorityCount || femaleCount < AUTOPICK_REQUIRED_FEMALE_COUNT) {
       failures.push(
-        `${uid.slice(0, 8)}… (${list.length}/${AUTOPICK_REQUIRED_PRIORITY_COUNT} listed, ${femaleCount}/${AUTOPICK_REQUIRED_FEMALE_COUNT} female)`
+        `${uid.slice(0, 8)}… (${list.length}/${requiredPriorityCount} listed, ${femaleCount}/${AUTOPICK_REQUIRED_FEMALE_COUNT} female)`
       );
     }
   }
@@ -491,13 +506,13 @@ async function validateAutopickPriorityCoverage(
   return {
     ok: false,
     error:
-      `Autopick requires each manager to set at least ${AUTOPICK_REQUIRED_PRIORITY_COUNT} ranked wrestlers ` +
+      `Autopick requires each manager to set at least ${requiredPriorityCount} ranked wrestlers ` +
       `including at least ${AUTOPICK_REQUIRED_FEMALE_COUNT} female. Missing coverage: ${failures.join("; ")}`,
   };
 }
 
 /**
- * Save draft preferences. When strategy_options is set, priority_list can be empty (0-50). Otherwise priority_list must be 10-50.
+ * Save draft preferences. When set, priority_list must have at least MIN_PRIORITY_LIST entries.
  */
 export async function setDraftPreferences(
   leagueId: string,
@@ -514,8 +529,8 @@ export async function setDraftPreferences(
 
   const list = prefs.priority_list ?? [];
   const strategyOpts = prefs.strategy_options;
-  if (list.length > 0 && (list.length < MIN_PRIORITY_LIST || list.length > MAX_PRIORITY_LIST)) {
-    return { error: `Preferred wrestlers list must have between ${MIN_PRIORITY_LIST} and ${MAX_PRIORITY_LIST} wrestlers when set.` };
+  if (list.length > 0 && list.length < MIN_PRIORITY_LIST) {
+    return { error: `Preferred wrestlers list must have at least ${MIN_PRIORITY_LIST} wrestlers when set.` };
   }
 
   const strategy = (prefs.strategy ?? []).filter((s) => DRAFT_STRATEGY_KEYS.includes(s as DraftStrategyKey));

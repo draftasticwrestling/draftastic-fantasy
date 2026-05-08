@@ -54,10 +54,7 @@ type Props = {
 
 export const dynamic = "force-dynamic";
 
-const supabaseOrigin =
-  process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ??
-  "https://qvbqxietcmweltxoonvh.supabase.co";
-const ROAD_TO_SUMMERSLAM_BANNER_URL = `${supabaseOrigin}/storage/v1/object/public/Banners/Road%20to%20SummerSlam.png`;
+const ROAD_TO_SUMMERSLAM_BANNER_URL = "/images/season-belts/road-to-summer-belt-26.png";
 
 export async function generateMetadata({ params }: Props) {
   try {
@@ -278,6 +275,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         leagueName={league.name}
         seasonSubtitle={seasonSubtitle}
         seasonSlug={league.season_slug ?? null}
+        leagueStartDate={league.start_date ?? null}
+        leagueEndDate={league.end_date ?? null}
         isCommissioner={isCommissioner}
         members={membersByPoints}
         pointsByUserId={pointsByUserId}
@@ -361,7 +360,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             <ul className="lm-quick-links">
               <li><Link href="/how-it-works"><span className="lm-quick-link-icon">☰</span> Rules</Link></li>
               <li>
-                <Link href={pleDefaultHref(slug, league.season_slug ?? null)}>
+                <Link href={pleDefaultHref(slug, league.season_slug ?? null, league.start_date ?? null, league.end_date ?? null)}>
                   <span className="lm-quick-link-icon">🏟</span>{" "}
                   {(league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE"}
                 </Link>
@@ -384,7 +383,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               <span className="lm-subnav-sep">|</span>
               <Link href={`/leagues/${slug}/standings`}>Standings</Link>
               <span className="lm-subnav-sep">|</span>
-              <Link href={pleDefaultHref(slug, league.season_slug ?? null)}>
+              <Link href={pleDefaultHref(slug, league.season_slug ?? null, league.start_date ?? null, league.end_date ?? null)}>
                 {(league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE"}
               </Link>
               <span className="lm-subnav-sep">|</span>

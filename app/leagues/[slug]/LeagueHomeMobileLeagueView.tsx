@@ -16,6 +16,8 @@ type Props = {
   leagueName: string;
   seasonSubtitle: string | null;
   seasonSlug: string | null;
+  leagueStartDate?: string | null;
+  leagueEndDate?: string | null;
   isCommissioner: boolean;
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
@@ -47,6 +49,8 @@ export function LeagueHomeMobileLeagueView({
   leagueName,
   seasonSubtitle,
   seasonSlug,
+  leagueStartDate = null,
+  leagueEndDate = null,
   isCommissioner,
   members,
   pointsByUserId,
@@ -60,7 +64,7 @@ export function LeagueHomeMobileLeagueView({
   xpBannerKind = null,
 }: Props) {
   const base = `/leagues/${encodeURIComponent(leagueSlug)}`;
-  const pleHref = pleDefaultHref(leagueSlug, seasonSlug);
+  const pleHref = pleDefaultHref(leagueSlug, seasonSlug, leagueStartDate, leagueEndDate);
   const pleLabel = seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE";
 
   const items: { href: string; label: string }[] = [

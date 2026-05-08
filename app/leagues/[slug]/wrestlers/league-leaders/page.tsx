@@ -363,9 +363,15 @@ export default async function LeagueLeadersPage({
     const beltPoints2025 = cacheUsable ? points2025.beltPoints : points2025.beltPoints + extraBelt2025;
     const beltPoints2026 = cacheUsable ? points2026.beltPoints : points2026.beltPoints + extraBelt2026;
     const totalPoints2025Row = points2025.rsPoints + points2025.plePoints + beltPoints2025;
-    const totalPoints2025MainOnly = points2025MainOnly.rsPoints + points2025MainOnly.plePoints + (points2025MainOnly.beltPoints + extraBelt2025);
+    const totalPoints2025MainOnly =
+      points2025MainOnly.rsPoints +
+      points2025MainOnly.plePoints +
+      (cacheUsable ? points2025MainOnly.beltPoints : points2025MainOnly.beltPoints + extraBelt2025);
     const totalPoints2026Row = points2026.rsPoints + points2026.plePoints + beltPoints2026;
-    const totalPoints2026MainOnly = points2026MainOnly.rsPoints + points2026MainOnly.plePoints + (points2026MainOnly.beltPoints + extraBelt2026);
+    const totalPoints2026MainOnly =
+      points2026MainOnly.rsPoints +
+      points2026MainOnly.plePoints +
+      (cacheUsable ? points2026MainOnly.beltPoints : points2026MainOnly.beltPoints + extraBelt2026);
     const fromTable =
       currentFromTable[idKey] ?? mergeGetCurrentChampionFromMap(currentFromTable, slugKey, nameKey) ?? null;
     const fromChanges =
@@ -454,7 +460,10 @@ export default async function LeagueLeadersPage({
           totalPointsAllTime -
             (pointsAllTimeMainOnly.rsPoints +
               pointsAllTimeMainOnly.plePoints +
-              (pointsAllTimeMainOnly.beltPoints + mergeGetMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey)))
+              (cacheUsable
+                ? pointsAllTimeMainOnly.beltPoints
+                : pointsAllTimeMainOnly.beltPoints +
+                  mergeGetMonthlyBeltForWrestler(endOfMonthBeltPointsAllTime, slugKey, nameKey)))
         ) > 0.0001,
       hasNxtStatsSinceStart:
         matchStats.mw !== matchStatsMainOnly.mw ||
@@ -547,9 +556,9 @@ export default async function LeagueLeadersPage({
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16, fontSize: 13 }}>
         Wrestlers ranked by fantasy points to date. Sorted by highest total first; you can re-sort by any column.
       </p>
-      {rows.some((r) => r.hasNxtPointsSinceStart || r.hasNxtPoints2025 || r.hasNxtPoints2026 || r.hasNxtPointsAllTime || r.hasNxtStatsSinceStart || r.hasNxtStats2025 || r.hasNxtStats2026 || r.hasNxtStatsAllTime) && (
+      {rows.some((r) => r.hasNxtPointsSinceStart || r.hasNxtPoints2025 || r.hasNxtPoints2026 || r.hasNxtPointsAllTime) && (
         <p style={{ color: "#8a6d00", marginBottom: 16, fontSize: 13 }}>
-          (<strong>*</strong>) indicates the selected period includes NXT-earned points and/or match stats for that wrestler.
+          (<strong>*</strong>) indicates the selected period includes NXT-earned points for that wrestler.
         </p>
       )}
       <WrestlerMatchStatsDisclaimer style={{ marginBottom: 24 }} />
@@ -585,6 +594,7 @@ export default async function LeagueLeadersPage({
           rosterByWrestler={rosterByWrestler}
           enableViewToggle
           rtsNxtPointsFootnote={enforceNxtPendingOnlyForRts}
+          includeNxtInDefaultRosterFilter={Boolean(league.include_nxt)}
         />
       )}
     </main>

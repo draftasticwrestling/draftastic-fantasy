@@ -9,7 +9,7 @@ import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/profiles";
 import { siteLogoHref } from "@/lib/siteLogo";
 import { computeFantasyHomeHref, getLeagueSlugFromPath } from "@/lib/fantasyHomeHref";
-import { pleDefaultHref, pleHrefForEntry, pleNavEntriesForSeasonSlug, type PleNavEntry } from "@/lib/pleLeagueMenu";
+import { pleDefaultHref, pleHrefForEntry, pleNavEntriesForLeagueWindow, type PleNavEntry } from "@/lib/pleLeagueMenu";
 import { leagueShowsMatchupsInNav } from "@/lib/leagueNavVisibility";
 import { resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
 import { getXpLevelInfo } from "@/lib/xp/xpLevels";
@@ -22,6 +22,8 @@ type LeagueItem = {
   role: "commissioner" | "owner";
   league_type?: string | null;
   season_slug?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
 };
 
 type MobileLeagueSectionKey = "league" | "my-team" | "wrestlers" | "matchups" | "ple" | "draft" | "gm-tools";
@@ -309,9 +311,20 @@ export default function Nav() {
   const fantasyHref = computeFantasyHomeHref({ user, pathname, leagues, lastVisitedSlug });
 
   const pleNavItems: PleNavEntry[] = currentLeagueSlug
-    ? pleNavEntriesForSeasonSlug(currentLeague?.season_slug ?? null)
+    ? pleNavEntriesForLeagueWindow(
+        currentLeague?.season_slug ?? null,
+        currentLeague?.start_date ?? null,
+        currentLeague?.end_date ?? null
+      )
     : [];
-  const pleBarHref = currentLeagueSlug ? pleDefaultHref(currentLeagueSlug, currentLeague?.season_slug ?? null) : "#";
+  const pleBarHref = currentLeagueSlug
+    ? pleDefaultHref(
+        currentLeagueSlug,
+        currentLeague?.season_slug ?? null,
+        currentLeague?.start_date ?? null,
+        currentLeague?.end_date ?? null
+      )
+    : "#";
 
   function pleEntryIsActive(entry: PleNavEntry): boolean {
     if (!currentLeagueSlug) return false;
@@ -393,6 +406,7 @@ export default function Nav() {
           <Link href="/news" className="nav-top-link">News</Link>
           <Link href="/event-results" className="nav-top-link">Results</Link>
           <Link href="/wrestlers" className="nav-top-link">Wrestlers</Link>
+          <Link href="/faq" className="nav-top-link">FAQ</Link>
           <Link href="/about-us" className="nav-top-link">About Us</Link>
         </nav>
 
@@ -512,6 +526,9 @@ export default function Nav() {
             </Link>
             <Link href="/wrestlers" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               Wrestlers
+            </Link>
+            <Link href="/faq" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              FAQ
             </Link>
             <Link href="/about-us" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               About Us

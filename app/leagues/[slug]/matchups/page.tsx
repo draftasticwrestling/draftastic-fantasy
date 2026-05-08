@@ -5,6 +5,7 @@ import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getRostersForLe
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
+  leagueUsesOwnerMatchupBonuses,
   getXpSeededMemberUserIds,
   getScheduledMatchupsForWeek,
   getWeeksInRange,
@@ -147,6 +148,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
 
   const leagueStart = (league.draft_date || league.start_date) ?? "";
   const leagueEnd = league.end_date ?? "";
+  const ownerBonusRules = leagueUsesOwnerMatchupBonuses(league.league_type ?? null);
 
   const { supabase, user } = await getServerAuth();
   const [members, matchups] = await Promise.all([
@@ -237,9 +239,9 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   function totalForUser(userId: string): number {
     if (!matchupForWeek) return 0;
     const eventPts = matchupForWeek.pointsByUserId[userId] ?? 0;
-    const winBonus = matchupForWeek.winnerUserId === userId ? 15 : 0;
+    const winBonus = ownerBonusRules && matchupForWeek.winnerUserId === userId ? 15 : 0;
     const beltBonus =
-      matchupForWeek.beltHolderUserId === userId
+      ownerBonusRules && matchupForWeek.beltHolderUserId === userId
         ? matchupForWeek.beltRetained
           ? 4
           : 5
@@ -277,9 +279,18 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
         )}
       </div>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
-        Each week (Monday–Sunday) teams face off. Most event points wins the matchup and gets{" "}
-        <strong>+15 pts</strong>. Draftastic Championship: <strong>+5</strong> to win the belt,{" "}
-        <strong>+4</strong> to retain.
+        {ownerBonusRules ? (
+          <>
+            Each week (Monday–Sunday) teams face off. Most event points wins the matchup and gets{" "}
+            <strong>+15 pts</strong>. Draftastic Championship: <strong>+5</strong> to win the belt,{" "}
+            <strong>+4</strong> to retain.
+          </>
+        ) : (
+          <>
+            Each week (Monday–Sunday) teams face off. Weekly matchups are scored by event points only, and
+            standings are based on win-loss-draw record.
+          </>
+        )}
       </p>
 
       {matchups.length === 0 ? (
@@ -293,9 +304,10 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
           {weekMatchups.map((mu, idx) => {
             const teamData = mu.userIds.map((uid) => {
               const eventPts = matchupForWeek?.pointsByUserId[uid] ?? 0;
-              const winBonus = matchupForWeek?.winnerUserId === uid ? (matchupForWeek?.weeklyWinPoints ?? 15) : 0;
+              const winBonus =
+                ownerBonusRules && matchupForWeek?.winnerUserId === uid ? (matchupForWeek?.weeklyWinPoints ?? 15) : 0;
               const beltBonus =
-                matchupForWeek?.beltHolderUserId === uid
+                ownerBonusRules && matchupForWeek?.beltHolderUserId === uid
                   ? (matchupForWeek?.beltRetained ? matchupForWeek?.beltPoints ?? 4 : matchupForWeek?.beltPoints ?? 5)
                   : 0;
               return {

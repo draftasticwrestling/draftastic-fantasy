@@ -19,6 +19,8 @@ export async function GET(req: Request) {
     role: l.role,
     league_type: (l as { league_type?: string | null }).league_type ?? null,
     season_slug: (l as { season_slug?: string | null }).season_slug ?? null,
+    start_date: (l as { start_date?: string | null }).start_date ?? null,
+    end_date: (l as { end_date?: string | null }).end_date ?? null,
     visibility_type: (l as { visibility_type?: string | null }).visibility_type ?? "private",
   }));
 
@@ -31,7 +33,7 @@ export async function GET(req: Request) {
     if (admin) {
       const { data } = await admin
         .from("leagues")
-        .select("slug, name, league_type, season_slug, visibility_type")
+        .select("slug, name, league_type, season_slug, start_date, end_date, visibility_type")
         .eq("slug", previewSlug)
         .maybeSingle();
       const row = data as {
@@ -39,6 +41,8 @@ export async function GET(req: Request) {
         name: string;
         league_type: string | null;
         season_slug: string | null;
+        start_date: string | null;
+        end_date: string | null;
         visibility_type: string | null;
       } | null;
       if (row?.slug) {
@@ -48,6 +52,8 @@ export async function GET(req: Request) {
           role: "owner",
           league_type: row.league_type ?? null,
           season_slug: row.season_slug ?? null,
+          start_date: row.start_date ?? null,
+          end_date: row.end_date ?? null,
           visibility_type: row.visibility_type ?? "private",
         });
       }

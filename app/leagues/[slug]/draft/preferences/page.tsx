@@ -12,9 +12,14 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import {
   AUTOPICK_LIST_EXHAUSTED_TIE_BREAK,
   AUTOPICK_REQUIRED_FEMALE_COUNT,
-  AUTOPICK_REQUIRED_PRIORITY_COUNT,
+  getAutopickRequiredPriorityCount,
 } from "@/lib/draftPriorityRequirements";
-import { getBigBoardPriorityList, isBigBoardId, type BigBoardId } from "@/lib/draftBigBoards";
+import {
+  getAvailableBigBoardIdsForLeague,
+  getBigBoardPriorityList,
+  isBigBoardId,
+  type BigBoardId,
+} from "@/lib/draftBigBoards";
 import {
   BETA_AUTOPICK_DRAFT_WINDOW_LABEL,
   BETA_AUTOPICK_PREF_DEADLINE_LABEL,
@@ -244,11 +249,17 @@ export default async function DraftPreferencesPage({ params }: Props) {
 
   const draftStatus = state?.draft_status ?? "not_started";
   const canEdit = draftStatus === "not_started";
+  const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(Boolean(league.include_nxt));
 
   const wrestlerOptions = wrestlersData;
   const eligibleIds = new Set(wrestlerOptions.map((w) => String(w.id).toLowerCase()));
   const keepEligibleOnly = (ids: string[]) => ids.filter((id) => eligibleIds.has(String(id).toLowerCase()));
   const initialPriorityList = keepEligibleOnly(prefs?.priority_list ?? []);
+  const availableBigBoardIds = getAvailableBigBoardIdsForLeague({
+    includeNxt: Boolean(league.include_nxt),
+  });
+  const isAvailableBoardId = (id: string | null | undefined): id is BigBoardId =>
+    Boolean(id) && isBigBoardId(id) && availableBigBoardIds.includes(id as BigBoardId);
 
   let initialListSource: "custom" | BigBoardId = "custom";
   let autopickInitialList = initialPriorityList;
@@ -257,14 +268,17 @@ export default async function DraftPreferencesPage({ params }: Props) {
     const raw = so?.priorityListSource?.trim();
     if (raw === "custom") {
       initialListSource = "custom";
-    } else if (!raw && initialPriorityList.length >= AUTOPICK_REQUIRED_PRIORITY_COUNT) {
+    } else if (!raw && initialPriorityList.length >= autopickRequiredPriorityCount) {
       initialListSource = "custom";
-    } else if (raw && isBigBoardId(raw)) {
+    } else if (raw && isAvailableBoardId(raw)) {
       initialListSource = raw;
       autopickInitialList = keepEligibleOnly(getBigBoardPriorityList(raw) ?? initialPriorityList);
-    } else {
+    } else if (availableBigBoardIds.includes("default")) {
       initialListSource = "default";
       autopickInitialList = keepEligibleOnly(getBigBoardPriorityList("default") ?? []);
+    } else {
+      initialListSource = "custom";
+      autopickInitialList = initialPriorityList;
     }
   }
 
@@ -283,13 +297,13 @@ export default async function DraftPreferencesPage({ params }: Props) {
           <>
             Beta autopick: everyone defaults to the site <strong>Default Big Board</strong> until they deliberately choose
             another <strong>provided Big Board</strong> or <strong>My own list</strong> below and save (for My own list: at least{" "}
-            {AUTOPICK_REQUIRED_PRIORITY_COUNT} wrestlers, including at least {AUTOPICK_REQUIRED_FEMALE_COUNT} female). Set
+            {autopickRequiredPriorityCount} wrestlers, including at least {AUTOPICK_REQUIRED_FEMALE_COUNT} female). Set
             preferences by end of day {BETA_AUTOPICK_PREF_DEADLINE_LABEL}; drafts run {BETA_AUTOPICK_DRAFT_WINDOW_LABEL}.{" "}
             <strong>Tie-break after your list runs out</strong> (same for everyone): {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
           </>
         ) : (
           <>
-            If the draft clock runs out, your pick is made automatically. Optionally set a ranked list of 10–50
+            If the draft clock runs out, your pick is made automatically. Optionally set a ranked list of 10 or more
             preferred wrestlers; when none from your list are available, picks use all-time total points and
             best-available tie-breaks.
           </>
@@ -308,6 +322,8 @@ export default async function DraftPreferencesPage({ params }: Props) {
         initialPriorityList={league.draft_type === "autopick" ? autopickInitialList : initialPriorityList}
         initialListSource={initialListSource}
         isAutopickLeague={league.draft_type === "autopick"}
+        autopickRequiredPriorityCount={autopickRequiredPriorityCount}
+        availableBigBoardIds={availableBigBoardIds}
         disabled={!canEdit}
       />
     </main>
