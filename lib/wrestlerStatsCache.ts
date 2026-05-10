@@ -101,3 +101,31 @@ export function isWrestlerStatsCacheUsable(
   }
   return true;
 }
+
+/** Min hybrid belt in a season row before we treat “no R/S+PLE anywhere” as suspicious. */
+const CACHE_SANITY_MIN_BELT = 12;
+/** If max(rs+ple) across all wrestlers is below this while belts are high, cache rows are likely corrupt. */
+const CACHE_SANITY_MIN_MAX_EVENT_PTS = 0.5;
+
+/**
+ * Rejects cache snapshots where belt/hold points were written but event-derived rs_points / ple_points
+ * were not (e.g. failed aggregate). Callers should fall back to live aggregates from events.matches.
+ */
+export function isWrestlerStatsCachePointColumnsSane(maps: WrestlerStatsCacheMaps): boolean {
+  const seasons: WrestlerStatsCacheSeasonKey[] = ["all_time", "2025", "2026"];
+  for (const sk of seasons) {
+    const m = maps[sk];
+    let maxEventPts = 0;
+    let maxBelt = 0;
+    for (const row of m.values()) {
+      const ev = Number(row.rs_points ?? 0) + Number(row.ple_points ?? 0);
+      const belt = Number(row.belt_points ?? 0);
+      if (ev > maxEventPts) maxEventPts = ev;
+      if (belt > maxBelt) maxBelt = belt;
+    }
+    if (maxBelt >= CACHE_SANITY_MIN_BELT && maxEventPts < CACHE_SANITY_MIN_MAX_EVENT_PTS) {
+      return false;
+    }
+  }
+  return true;
+}

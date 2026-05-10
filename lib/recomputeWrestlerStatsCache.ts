@@ -9,14 +9,15 @@ import {
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
+import { LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM } from "@/lib/leagueLeadersAllTimeScoring";
 
 type EventRow = { id: string; name: string; date: string; matches?: object[] | undefined };
 type WrestlerRow = { id: string; name?: string | null; brand?: string | null };
 type ChampionshipReign = Record<string, unknown>;
 
-const ALL_TIME_FROM = "2025-01-01";
+const ALL_TIME_FROM = LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM;
 const SEASONS = [
-  { key: "all_time", from: "2025-01-01", to: null as string | null },
+  { key: "all_time", from: LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM, to: null as string | null },
   { key: "2025", from: "2025-01-01", to: "2025-12-31" },
   { key: "2026", from: "2026-01-01", to: null as string | null },
 ] as const;
