@@ -3,10 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
 import { getLeagueBySlug } from "@/lib/leagues";
-import { ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
-
-const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const ROAD_TO_SUMMERSLAM_BANNER_URL = `${supabaseOrigin}/storage/v1/object/public/Banners/Road%20to%20SummerSlam.png`;
+import { ROAD_TO_SUMMERSLAM_BANNER_SRC, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +35,10 @@ export default async function LeaguePathwayPage({
         }}
       >
         <Image
-          src={ROAD_TO_SUMMERSLAM_BANNER_URL}
+          src={ROAD_TO_SUMMERSLAM_BANNER_SRC}
           alt="Road to SummerSlam"
-          width={1120}
-          height={240}
+          width={560}
+          height={120}
           sizes="100vw"
           style={{ display: "block", width: "100%", height: "auto" }}
         />

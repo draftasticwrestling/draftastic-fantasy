@@ -15,6 +15,12 @@ export const MAX_LEAGUE_TEAMS_BETA = 6;
 /** Season slug from `lib/leagueSeasons` — only this season uses RTS beta roster caps for 3–6 teams. */
 export const ROAD_TO_SUMMERSLAM_SEASON_SLUG = "road-to-summerslam";
 
+/**
+ * League UI header for Road to SummerSlam (desktop season rail, mobile pathway page).
+ * Single source of truth so asset swaps apply everywhere.
+ */
+export const ROAD_TO_SUMMERSLAM_BANNER_SRC = "/images/season-belts/road-to-summer-belt-26.png";
+
 /** Road to Survivor Series (admin beta / NXT + H2H testing). */
 export const ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG = "road-to-survivor-series";
 

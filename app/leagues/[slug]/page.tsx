@@ -6,7 +6,11 @@ import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/le
 import {
   getPointsByOwnerForLeagueWithBonuses,
 } from "@/lib/leagueMatchups";
-import { getRosterRulesForLeague, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import {
+  getRosterRulesForLeague,
+  ROAD_TO_SUMMERSLAM_BANNER_SRC,
+  ROAD_TO_SUMMERSLAM_SEASON_SLUG,
+} from "@/lib/leagueStructure";
 import { pleDefaultHref } from "@/lib/pleLeagueMenu";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { getTradeProposalsForLeague, getLeagueRosterActivity, processTradeTimerDeadlines } from "@/lib/leagueOwner";
@@ -53,8 +57,6 @@ type Props = {
 };
 
 export const dynamic = "force-dynamic";
-
-const ROAD_TO_SUMMERSLAM_BANNER_URL = "/images/season-belts/road-to-summer-belt-26.png";
 
 export async function generateMetadata({ params }: Props) {
   try {
@@ -659,7 +661,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           {league.season_slug === "road-to-summerslam" && (
             <div className="lm-season-rail-banner">
               <Image
-                src={ROAD_TO_SUMMERSLAM_BANNER_URL}
+                src={ROAD_TO_SUMMERSLAM_BANNER_SRC}
                 alt="Road to SummerSlam"
                 width={560}
                 height={120}

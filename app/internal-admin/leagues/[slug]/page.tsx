@@ -1,8 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
+import { LeagueStandingsTable } from "@/app/leagues/[slug]/LeagueStandingsTable";
 import { siteAdminGetLeagueBySlug } from "@/lib/internalAdmin/siteAdminLeagues";
 import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
+import {
+  computeMatchupWltByUserId,
+  getLeagueWeeklyMatchups,
+  getPointsByOwnerForLeagueWithBonuses,
+  getScheduledMatchupsForWeek,
+  getWeeksInRange,
+  getXpSeededMemberUserIds,
+} from "@/lib/leagueMatchups";
+import type { LeagueMember } from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
 import {
   adminAddRosterEntryAction,
   adminAddUserToLeagueAction,
@@ -146,6 +158,101 @@ export default async function InternalAdminLeagueDetailPage({
     }
   }
 
+  let standingsSection: ReactNode = null;
+  try {
+    const memberUserIds = members.map((m) => m.user_id);
+    const [pointsByOwner, weeklyMatchups, xpByUserId] = await Promise.all([
+      getPointsByOwnerForLeagueWithBonuses(league.id, admin),
+      getLeagueWeeklyMatchups(league.id, admin),
+      getXpDisplayByUserIds(memberUserIds),
+    ]);
+    const pointsByUserId = pointsByOwner ?? {};
+    const isHeadToHeadRecordStandings = (league.league_type ?? null) === "head_to_head";
+    const weekStarts = getWeeksInRange((league.draft_date || league.start_date) ?? "", league.end_date ?? "");
+    const seededMemberUserIds = await getXpSeededMemberUserIds(memberUserIds, admin);
+    const membersMapped: LeagueMember[] = members.map((m) => ({
+      id: `lm-${league.id}-${m.user_id}`,
+      league_id: league.id,
+      user_id: m.user_id,
+      role: m.role === "commissioner" ? "commissioner" : "owner",
+      joined_at: m.joined_at,
+      display_name: m.display_name ?? null,
+      team_name: m.team_name ?? null,
+      faction_emoji: null,
+      manager_avatar_url: null,
+      manager_catchphrase: null,
+      avatar_url: null,
+    }));
+    const wltByUserId = isHeadToHeadRecordStandings
+      ? computeMatchupWltByUserId(
+          league.league_type ?? null,
+          memberUserIds,
+          weeklyMatchups,
+          {
+            matchupResolver: (week) =>
+              getScheduledMatchupsForWeek({
+                weekStart: week.weekStart,
+                weekStarts,
+                memberUserIds,
+                seededMemberUserIds,
+                maxTeams: league.max_teams ?? null,
+                draftStatus: league.draft_status ?? null,
+                weeklyResults: weeklyMatchups,
+              }),
+          }
+        )
+      : {};
+    const membersByStandings = [...membersMapped].sort((a, b) => {
+      if (isHeadToHeadRecordStandings) {
+        const wa = wltByUserId[a.user_id] ?? { w: 0, l: 0, t: 0 };
+        const wb = wltByUserId[b.user_id] ?? { w: 0, l: 0, t: 0 };
+        if (wb.w !== wa.w) return wb.w - wa.w;
+        if (wa.l !== wb.l) return wa.l - wb.l;
+        if (wb.t !== wa.t) return wb.t - wa.t;
+      }
+      return (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0);
+    });
+
+    standingsSection = (
+      <section style={{ marginBottom: 28 }}>
+        <h2 style={{ fontSize: "1.05rem", marginBottom: 8 }}>Standings (verification)</h2>
+        <p style={{ color: "var(--color-text-muted)", marginBottom: 14, fontSize: 14, lineHeight: 1.5 }}>
+          Computed with the same rules and sort order as the member-facing{" "}
+          <Link
+            href={`/leagues/${encodeURIComponent(league.slug)}/standings`}
+            className="app-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            standings page
+          </Link>
+          .{" "}
+          {isHeadToHeadRecordStandings
+            ? "Head-to-Head leagues show W-L-D (Win-Loss-Draw); points in the data layer are still event-based for matchups."
+            : "Points are season totals (including weekly win / belt bonuses when the league format applies them)."}
+        </p>
+        <LeagueStandingsTable
+          members={membersByStandings}
+          pointsByUserId={pointsByUserId}
+          recordByUserId={wltByUserId}
+          showRecordOnly={isHeadToHeadRecordStandings}
+          leagueSlug={league.slug}
+          xpByUserId={xpByUserId}
+        />
+      </section>
+    );
+  } catch (standingsErr) {
+    const msg = standingsErr instanceof Error ? standingsErr.message : String(standingsErr);
+    standingsSection = (
+      <section style={{ marginBottom: 28 }}>
+        <h2 style={{ fontSize: "1.05rem", marginBottom: 8 }}>Standings (verification)</h2>
+        <p role="alert" style={{ color: "var(--color-red)", fontSize: 14, margin: 0 }}>
+          Could not load standings: {msg}
+        </p>
+      </section>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 960 }}>
       <p style={{ marginBottom: 16 }}>
@@ -155,6 +262,15 @@ export default async function InternalAdminLeagueDetailPage({
         {" · "}
         <Link href={`/leagues/${encodeURIComponent(league.slug)}`} className="app-link" target="_blank" rel="noopener noreferrer">
           Open league (member UI)
+        </Link>
+        {" · "}
+        <Link
+          href={`/leagues/${encodeURIComponent(league.slug)}/standings`}
+          className="app-link"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open standings (member UI)
         </Link>
         {" · "}
         <Link
@@ -302,6 +418,8 @@ export default async function InternalAdminLeagueDetailPage({
           display_name: m.display_name ?? null,
         }))}
       />
+
+      {standingsSection}
 
       <section style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: "1.05rem", marginBottom: 12 }}>Details</h2>

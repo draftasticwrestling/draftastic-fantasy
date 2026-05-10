@@ -9,6 +9,7 @@ import { WrestlerTableLegend } from "./WrestlerTableLegend";
 import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
 import { getNationalityFlagDisplay } from "@/lib/nationalityFlag";
 import { wrestlerRosterFromBrand, type WrestlerRosterBucket } from "@/lib/wrestlerRosterFromBrand";
+import WrestlerHeadshotImage from "@/app/components/WrestlerHeadshotImage";
 
 /** Mobile list view: short roster labels (Raw / SD) per product request. */
 function mobileListRosterAbbrev(bucket: WrestlerRosterBucket): string {
@@ -1260,19 +1261,15 @@ export default function WrestlerList({
                 {style.label}
               </span>
               <div className="wrestler-card-img-wrap">
-                {w.image_url ? (
-                  <img
-                    src={w.image_url}
-                    alt=""
-                    width={52}
-                    height={52}
-                    className="wrestler-card-img"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : (
-                  <div className="wrestler-card-img wrestler-card-img-placeholder" aria-hidden>—</div>
-                )}
+                <WrestlerHeadshotImage
+                  src={w.image_url ?? null}
+                  alt=""
+                  width={52}
+                  height={52}
+                  sizes="52px"
+                  className="wrestler-card-img"
+                  style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover" }}
+                />
                 {isInjured(w.status) && (
                   <span className="wrestler-card-injury-badge" title="Injured">
                     <InjuryBadge size={22} />
@@ -1572,21 +1569,21 @@ export default function WrestlerList({
                   </div>
                   <div style={{ padding: "10px 6px", textAlign: "center", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center" }}>{rankByWrestlerId.get(w.id) ?? "—"}</div>
                   <div style={{ padding: 6, borderRight: cellBorder, background: rowBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {w.image_url ? (
-                      <img
-                        src={w.image_url}
-                        alt={w.name || w.id}
-                        width={60}
-                        height={60}
-                        loading="lazy"
-                        decoding="async"
-                        style={{ width: 60, height: 60, objectFit: "cover", borderRadius: "50%", display: "block", background: BORDER_TABLE }}
-                      />
-                    ) : (
-                      <div style={{ width: 60, height: 60, borderRadius: "50%", background: ROW_BG_ALT, display: "flex", alignItems: "center", justifyContent: "center", color: "#999", fontSize: 20 }} aria-hidden>
-                        —
-                      </div>
-                    )}
+                    <WrestlerHeadshotImage
+                      src={w.image_url ?? null}
+                      alt={w.name || w.id}
+                      width={60}
+                      height={60}
+                      sizes="60px"
+                      style={{
+                        width: 60,
+                        height: 60,
+                        objectFit: "cover",
+                        borderRadius: "50%",
+                        display: "block",
+                        background: BORDER_TABLE,
+                      }}
+                    />
                   </div>
                   <div style={{ padding: "10px 12px", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -1740,21 +1737,23 @@ export default function WrestlerList({
                   {roster === "Raw" || roster === "SmackDown" || roster === "NXT" ? roster : style.label}
                 </span>
                 <div className="wrestlers-boxscore-photo-wrap">
-                  {w.image_url ? (
-                    <img
-                      src={w.image_url}
-                      alt=""
-                      width={108}
-                      height={108}
-                      className="wrestlers-boxscore-photo"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : (
-                    <div className="wrestlers-boxscore-photo wrestlers-boxscore-photo-placeholder" aria-hidden>
-                      —
-                    </div>
-                  )}
+                  <WrestlerHeadshotImage
+                    src={w.image_url ?? null}
+                    alt=""
+                    width={108}
+                    height={108}
+                    sizes="108px"
+                    className="wrestlers-boxscore-photo"
+                    style={{
+                      width: 108,
+                      height: 108,
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      border: "2px solid #c5a059",
+                      background: "#1a1d22",
+                      display: "block",
+                    }}
+                  />
                   {isInjured(w.status) && (
                     <span className="wrestlers-boxscore-injury-badge">
                       <InjuryBadge size={20} />

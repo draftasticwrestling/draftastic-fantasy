@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from '@/components/boxscore-port/router-bridge';
 import countries from './data/countries';
 import {
@@ -98,7 +98,17 @@ function WrestlerDetailBlock({ slug, wrestlerMap, events, match, event, isWinner
     return getMatchRecordStatsForYear(events, slug, y, wrestlerMap);
   }, [events, slug, event?.date, wrestlerMap]);
 
-  const img = w?.full_body_image_url || w?.image_url || '/images/placeholder.png';
+  const primaryImgUrl = useMemo(() => {
+    const full = (w?.full_body_image_url ?? '').trim();
+    const head = (w?.image_url ?? '').trim();
+    return full || head || '';
+  }, [w?.full_body_image_url, w?.image_url]);
+
+  const [heroImgFailed, setHeroImgFailed] = useState(false);
+  useEffect(() => {
+    setHeroImgFailed(false);
+  }, [primaryImgUrl, slug]);
+
   const imgBoxW = sz.imgMax;
   const imgBoxH = sz.imgMaxH;
   const infoH = sz.infoH;
@@ -152,17 +162,46 @@ function WrestlerDetailBlock({ slug, wrestlerMap, events, match, event, isWinner
             justifyContent: 'center',
           }}
         >
-          <img
-            src={img}
-            alt={w?.name || slug}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              objectPosition: 'center bottom',
-              display: 'block',
-            }}
-          />
+          {primaryImgUrl && !heroImgFailed ? (
+            <img
+              src={primaryImgUrl}
+              alt={w?.name || slug}
+              onError={() => setHeroImgFailed(true)}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                objectPosition: 'center bottom',
+                display: 'block',
+              }}
+            />
+          ) : (
+            <div
+              role="img"
+              aria-label={w?.name || slug}
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'linear-gradient(180deg, #2a2a2a 0%, #141414 100%)',
+              }}
+            >
+              <svg
+                width={Math.min(Math.round(imgBoxW * 0.38), 140)}
+                height={Math.min(Math.round(imgBoxH * 0.35), 140)}
+                viewBox="0 0 24 24"
+                aria-hidden
+                style={{ opacity: 0.85 }}
+              >
+                <path
+                  fill="#8a8a8a"
+                  d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                />
+              </svg>
+            </div>
+          )}
         </div>
       </Link>
       <div

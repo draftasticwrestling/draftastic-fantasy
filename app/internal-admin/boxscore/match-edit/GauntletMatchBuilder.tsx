@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import WrestlerHeadshotImage from '@/app/components/WrestlerHeadshotImage';
 import WrestlerAutocomplete from './WrestlerAutocomplete';
 
 const gold = '#C6A04F';
@@ -398,9 +399,12 @@ export default function GauntletMatchBuilder({
           {/* First participant (starts the gauntlet) */}
           <div style={matchRowStyle}>
             <div style={wrestlerCardStyle}>
-              <img
-                src={getWrestlerImage(ordered[0]) || '/images/placeholder.png'}
+              <WrestlerHeadshotImage
+                src={getWrestlerImage(ordered[0]) || null}
                 alt={getWrestlerName(ordered[0])}
+                width={24}
+                height={24}
+                sizes="24px"
                 style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
               />
               <span>{getWrestlerName(ordered[0])}</span>
@@ -413,9 +417,12 @@ export default function GauntletMatchBuilder({
           {matchResults.map((result, index) => (
             <div key={index} style={matchRowStyle}>
               <div style={result.winner === result.participant1 ? winnerStyle : wrestlerCardStyle}>
-                <img
-                  src={getWrestlerImage(result.participant1) || '/images/placeholder.png'}
+                <WrestlerHeadshotImage
+                  src={getWrestlerImage(result.participant1) || null}
                   alt={getWrestlerName(result.participant1)}
+                  width={24}
+                  height={24}
+                  sizes="24px"
                   style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
                 />
                 <span>{getWrestlerName(result.participant1)}</span>
@@ -424,9 +431,12 @@ export default function GauntletMatchBuilder({
               <span style={{ color: '#fff', fontSize: '14px' }}>vs</span>
               
               <div style={result.winner === result.participant2 ? winnerStyle : wrestlerCardStyle}>
-                <img
-                  src={getWrestlerImage(result.participant2) || '/images/placeholder.png'}
+                <WrestlerHeadshotImage
+                  src={getWrestlerImage(result.participant2) || null}
                   alt={getWrestlerName(result.participant2)}
+                  width={24}
+                  height={24}
+                  sizes="24px"
                   style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
                 />
                 <span>{getWrestlerName(result.participant2)}</span>

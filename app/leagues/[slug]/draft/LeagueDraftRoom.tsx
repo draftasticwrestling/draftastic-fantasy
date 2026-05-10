@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useState, useMemo, useActionState } from "react";
+import WrestlerHeadshotImage from "@/app/components/WrestlerHeadshotImage";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { makeDraftPickWithStateAction } from "./actions";
@@ -339,39 +339,20 @@ export function LeagueDraftRoom({
                   const imageUrl = wrestlerIdToImage[wrestler_id];
                   return (
                     <li key={`${userId}-${wrestler_id}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      {imageUrl ? (
-                        <Image
-                          src={imageUrl}
-                          alt=""
-                          width={24}
-                          height={24}
-                          sizes="24px"
-                          style={{
-                            width: 24,
-                            height: 24,
-                            objectFit: "cover",
-                            borderRadius: "50%",
-                            background: "var(--color-bg-input)",
-                          }}
-                        />
-                      ) : (
-                        <span
-                          style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: "50%",
-                            background: "var(--color-bg-input)",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 10,
-                            color: "var(--color-text-muted)",
-                          }}
-                          aria-hidden
-                        >
-                          —
-                        </span>
-                      )}
+                      <WrestlerHeadshotImage
+                        src={imageUrl ?? null}
+                        alt=""
+                        width={24}
+                        height={24}
+                        sizes="24px"
+                        style={{
+                          width: 24,
+                          height: 24,
+                          objectFit: "cover",
+                          borderRadius: "50%",
+                          background: "var(--color-bg-input)",
+                        }}
+                      />
                       <span>{displayName}</span>
                     </li>
                   );
@@ -680,33 +661,20 @@ export function LeagueDraftRoom({
                         <td style={{ padding: "6px", fontWeight: 600 }}>{rank}</td>
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            {w.image_url ? (
-                              <Image
-                                src={w.image_url}
-                                alt=""
-                                width={32}
-                                height={32}
-                                sizes="32px"
-                                style={{ width: 32, height: 32, objectFit: "cover", borderRadius: "50%", background: "var(--color-bg-input)" }}
-                              />
-                            ) : (
-                              <span
-                                style={{
-                                  width: 32,
-                                  height: 32,
-                                  borderRadius: "50%",
-                                  background: "var(--color-bg-input)",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  fontSize: 12,
-                                  color: "var(--color-text-muted)",
-                                }}
-                                aria-hidden
-                              >
-                                —
-                              </span>
-                            )}
+                            <WrestlerHeadshotImage
+                              src={w.image_url ?? null}
+                              alt=""
+                              width={32}
+                              height={32}
+                              sizes="32px"
+                              style={{
+                                width: 32,
+                                height: 32,
+                                objectFit: "cover",
+                                borderRadius: "50%",
+                                background: "var(--color-bg-input)",
+                              }}
+                            />
                             <span>{w.name ?? w.id}</span>
                           </span>
                         </td>
