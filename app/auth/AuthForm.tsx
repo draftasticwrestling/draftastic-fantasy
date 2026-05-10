@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { mapSupabaseAuthErrorMessage } from "@/lib/authUserFacingErrors";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -70,8 +71,8 @@ export function AuthForm({ mode, searchParams }: Props) {
       if (mode === "sign-in") {
         const { error } = await supabase.auth.signInWithPassword({ email: emailNorm, password });
         if (error) {
-          let text = error.message;
-          if (/email not confirmed|confirm your email|not verified/i.test(text)) {
+          let text = mapSupabaseAuthErrorMessage(error.message);
+          if (/email not confirmed|confirm your email|not verified/i.test(error.message)) {
             text =
               "Confirm your email before signing in. Check your inbox and spam for the confirmation link. If you never received it, try signing up again or use Forgot password (works after the account exists).";
           }
@@ -103,7 +104,7 @@ export function AuthForm({ mode, searchParams }: Props) {
           },
         });
         if (error) {
-          setMessage({ type: "err", text: error.message });
+          setMessage({ type: "err", text: mapSupabaseAuthErrorMessage(error.message) });
           return;
         }
         setMessage({
@@ -149,7 +150,7 @@ export function AuthForm({ mode, searchParams }: Props) {
       },
     });
     if (error) {
-      setMessage({ type: "err", text: error.message });
+      setMessage({ type: "err", text: mapSupabaseAuthErrorMessage(error.message) });
       setLoading(false);
       return;
     }

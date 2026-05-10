@@ -14,6 +14,20 @@ This doc outlines the recommended approach for letting users create accounts and
 
 ---
 
+## Auth email rate limits (“Email rate limit exceeded”)
+
+Supabase applies strict limits to its **built-in** auth email sender (confirm signup, password reset). With **custom SMTP**, you still set caps under **Authentication → Rate Limits**. Values like **2 emails/hour** will break production—raise **Rate limit for sending emails** after connecting SMTP.
+
+**Step-by-step (Resend + this repo):** see **`docs/RESEND_SUPABASE_AUTH.md`** (domain verify, SMTP fields, recommended limits, invite env vars).
+
+**Short version:**
+
+1. **Custom SMTP** — Dashboard → **Authentication** → **SMTP** → Resend (`smtp.resend.com`, user `resend`, password = API key). [Supabase SMTP guide](https://supabase.com/docs/guides/auth/auth-smtp).
+2. **Rate limits** — **Authentication** → **Rate Limits** → increase **emails per hour** (and related gates as needed).
+3. **Google OAuth** — Users can sign in with Google without auth emails.
+
+---
+
 ## Recommended approach: Supabase Auth
 
 **Use Supabase Auth** for sign-up, sign-in, and sessions. You already use Supabase for data; Auth is built-in, integrates with Row Level Security (RLS), and avoids a separate auth service.

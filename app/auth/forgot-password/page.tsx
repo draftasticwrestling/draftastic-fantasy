@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { mapSupabaseAuthErrorMessage } from "@/lib/authUserFacingErrors";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -22,7 +23,7 @@ export default function ForgotPasswordPage() {
     });
     setLoading(false);
     if (err) {
-      setError(err.message);
+      setError(mapSupabaseAuthErrorMessage(err.message));
       return;
     }
     setSent(true);
