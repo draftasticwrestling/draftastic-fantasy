@@ -20,7 +20,19 @@ export type LeaderboardDisplayRow = {
   label: string;
 };
 
-function getPreviousWeekStartMondayPst(now = new Date()): string {
+/** Monday YYYY-MM-DD for the current Mon–Sun fantasy week in America/Los_Angeles. */
+export function getCurrentWeekStartMondayPst(now = new Date()): string {
+  const pstYmd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  return getMondayOfWeek(pstYmd);
+}
+
+/** Previous Mon–Sun fantasy week in America/Los_Angeles (matches weekly snapshot cron). */
+export function getPreviousWeekStartMondayPst(now = new Date()): string {
   const pstYmd = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Los_Angeles",
     year: "numeric",

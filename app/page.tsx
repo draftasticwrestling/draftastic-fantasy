@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FantasyHomeLink } from "@/app/components/FantasyHomeLink";
 import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
 import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
+import HubSiteLeaderboards from "@/app/components/HubSiteLeaderboards";
 import FantasyHubHero from "@/app/components/FantasyHubHero";
 import { getAdsenseSlotHubHome } from "@/lib/adsenseConfig";
 
@@ -28,15 +29,18 @@ export default async function HubHomePage() {
 
       <div className="hub-shell-wrap">
         <div className="hub-shell">
-          <aside className="hub-col hub-col-side" aria-label="Quick links">
-            <h2 className="hub-col-title">Quick links</h2>
-            <nav className="hub-quick-nav">
-              <Link href="/event-results">Events</Link>
-              <Link href="/wrestlers">Wrestlers</Link>
-              <FantasyHomeLink>Fantasy home</FantasyHomeLink>
-              <Link href="/how-it-works">Fantasy rules</Link>
-            </nav>
-          </aside>
+          <div className="hub-col hub-left-rail">
+            <HubSiteLeaderboards />
+            <aside className="hub-col-side" aria-label="Quick links">
+              <h2 className="hub-col-title">Quick links</h2>
+              <nav className="hub-quick-nav">
+                <Link href="/event-results">Events</Link>
+                <Link href="/wrestlers">Wrestlers</Link>
+                <FantasyHomeLink>Fantasy home</FantasyHomeLink>
+                <Link href="/how-it-works">Fantasy rules</Link>
+              </nav>
+            </aside>
+          </div>
 
           <HubLatestHeadlinesSection headlineVariant="hub" />
         </div>
