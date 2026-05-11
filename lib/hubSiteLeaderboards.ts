@@ -1,5 +1,6 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
@@ -116,7 +117,7 @@ async function aggregateLiveWeeklyByUser(
 
 const HUB_LEADERBOARD_WEEK_LOOKBACK = 52;
 
-function normalizeHubLeaderboardWeekStart(
+export function normalizeHubLeaderboardWeekStart(
   raw: string | null | undefined,
   currentMondayPst: string
 ): string {
@@ -199,3 +200,13 @@ export async function getHubSiteLeaderboards(opts?: {
     hubLeaderboardsAvailable: true,
   };
 }
+
+/**
+ * Per fantasy week (Monday YYYY-MM-DD, PT). Recomputes at most every `revalidate` seconds server-side so toggling
+ * weeks and repeat API hits stay fast while scores stay reasonably fresh during the live week.
+ */
+export const getHubSiteLeaderboardsCached = unstable_cache(
+  async (weekMonday: string) => getHubSiteLeaderboards({ leaderboardWeek: weekMonday }),
+  ["hub-site-leaderboards-by-week"],
+  { revalidate: 75 }
+);

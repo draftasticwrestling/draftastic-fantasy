@@ -1,7 +1,19 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { HubSiteLeaderboardsPayload } from "@/lib/hubSiteLeaderboardsTypes";
+
+const CLIENT_CACHE_MAX = 24;
+
+function cachePut(map: Map<string, HubSiteLeaderboardsPayload>, key: string, val: HubSiteLeaderboardsPayload) {
+  if (map.has(key)) map.delete(key);
+  map.set(key, val);
+  while (map.size > CLIENT_CACHE_MAX) {
+    const first = map.keys().next().value;
+    if (first === undefined) break;
+    map.delete(first);
+  }
+}
 
 /** Monday week key → Sunday YYYY-MM-DD (UTC noon math). */
 function sundayOfWeek(weekStartMonday: string): string {
@@ -53,26 +65,64 @@ function syncLeaderboardWeekUrl(payload: HubSiteLeaderboardsPayload) {
   window.history.replaceState(null, "", path);
 }
 
+async function fetchWeekPayload(weekMonday: string): Promise<HubSiteLeaderboardsPayload | null> {
+  const res = await fetch(
+    `/api/hub-site-leaderboards?leaderboard_week=${encodeURIComponent(weekMonday)}`,
+    { cache: "default" }
+  );
+  if (!res.ok) return null;
+  const json = (await res.json()) as HubSiteLeaderboardsPayload;
+  if (!json.hubLeaderboardsAvailable || !json.weekStart) return null;
+  return json;
+}
+
 export default function HubSiteLeaderboardsClient({ initial }: { initial: HubSiteLeaderboardsPayload }) {
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
+  const cacheRef = useRef<Map<string, HubSiteLeaderboardsPayload>>(new Map());
 
-  const loadWeek = useCallback(async (weekMonday: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/hub-site-leaderboards?leaderboard_week=${encodeURIComponent(weekMonday)}`,
-        { cache: "no-store" }
-      );
-      if (!res.ok) return;
-      const json = (await res.json()) as HubSiteLeaderboardsPayload;
-      if (!json.hubLeaderboardsAvailable) return;
-      setData(json);
-      syncLeaderboardWeekUrl(json);
-    } finally {
-      setLoading(false);
-    }
+  const prefetchWeek = useCallback((weekMonday: string | null) => {
+    if (!weekMonday || cacheRef.current.has(weekMonday)) return;
+    void fetchWeekPayload(weekMonday).then((json) => {
+      if (json?.weekStart) cachePut(cacheRef.current, json.weekStart, json);
+    });
   }, []);
+
+  useEffect(() => {
+    if (!initial.weekStart) return;
+    cachePut(cacheRef.current, initial.weekStart, initial);
+    const t = window.setTimeout(() => {
+      prefetchWeek(initial.weeklyPrevWeekStart);
+      prefetchWeek(initial.weeklyNextWeekStart);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [initial, prefetchWeek]);
+
+  const loadWeek = useCallback(
+    async (weekMonday: string) => {
+      const hit = cacheRef.current.get(weekMonday);
+      if (hit) {
+        setData(hit);
+        syncLeaderboardWeekUrl(hit);
+        prefetchWeek(hit.weeklyPrevWeekStart);
+        prefetchWeek(hit.weeklyNextWeekStart);
+        return;
+      }
+      setLoading(true);
+      try {
+        const json = await fetchWeekPayload(weekMonday);
+        if (!json?.weekStart) return;
+        cachePut(cacheRef.current, json.weekStart, json);
+        setData(json);
+        syncLeaderboardWeekUrl(json);
+        prefetchWeek(json.weeklyPrevWeekStart);
+        prefetchWeek(json.weeklyNextWeekStart);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [prefetchWeek]
+  );
 
   const weekLabel = data.weekStart ? weekRangeLabel(data.weekStart) : null;
 
