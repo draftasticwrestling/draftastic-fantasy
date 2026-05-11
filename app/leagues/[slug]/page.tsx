@@ -4,7 +4,12 @@ import { notFound } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
 import {
+  computeMatchupWltByUserId,
+  getLeagueWeeklyMatchups,
   getPointsByOwnerForLeagueWithBonuses,
+  getScheduledMatchupsForWeek,
+  getWeeksInRange,
+  getXpSeededMemberUserIds,
 } from "@/lib/leagueMatchups";
 import {
   getRosterRulesForLeague,
@@ -149,15 +154,52 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       Boolean(league.include_nxt),
       league.league_type ?? null
     );
-    const membersByPoints = [...members].sort(
+
+    const isHeadToHeadHomeStandings = (league.league_type ?? null) === "head_to_head";
+    let standingsRecordByUserId: Record<string, { w: number; l: number; t: number }> | undefined;
+    let membersByPoints = [...members].sort(
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
     );
+    if (isHeadToHeadHomeStandings) {
+      const weeklyMatchups = await getLeagueWeeklyMatchups(league.id);
+      const weekStarts = getWeeksInRange((league.draft_date || league.start_date) ?? "", league.end_date ?? "");
+      const seededMemberUserIds = await getXpSeededMemberUserIds(members.map((m) => m.user_id));
+      const maxTeamsCap = league.max_teams ?? null;
+      const draftStatusVal = league.draft_status ?? null;
+      standingsRecordByUserId = computeMatchupWltByUserId(
+        league.league_type ?? null,
+        members.map((m) => m.user_id),
+        weeklyMatchups,
+        {
+          matchupResolver: (week) =>
+            getScheduledMatchupsForWeek({
+              weekStart: week.weekStart,
+              weekStarts,
+              memberUserIds: members.map((m) => m.user_id),
+              seededMemberUserIds,
+              maxTeams: maxTeamsCap,
+              draftStatus: draftStatusVal,
+              weeklyResults: weeklyMatchups,
+            }),
+        }
+      );
+      membersByPoints = [...members].sort((a, b) => {
+        const wa = standingsRecordByUserId![a.user_id] ?? { w: 0, l: 0, t: 0 };
+        const wb = standingsRecordByUserId![b.user_id] ?? { w: 0, l: 0, t: 0 };
+        if (wb.w !== wa.w) return wb.w - wa.w;
+        if (wa.l !== wb.l) return wa.l - wb.l;
+        if (wb.t !== wa.t) return wb.t - wa.t;
+        return (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0);
+      });
+    }
     const showTop10 = isLeagueHomeTop10Visible();
     const leaderboardData = showTop10
       ? await getLeagueHomeLeaderboards({
           leagueId: league.id,
           members: membersByPoints,
           pointsByUserId,
+          leagueStartYmd: (league.draft_date || league.start_date) ?? null,
+          leagueEndYmd: league.end_date ?? null,
         })
       : { weekStart: null as string | null, weeklyTop10: [], seasonTop10: [] };
 
@@ -172,6 +214,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const xpByUserId = await getXpDisplayByUserIds(membersByPoints.map((m) => m.user_id));
     const seasonSubtitle =
       (league.season_slug && (getSeasonBySlug(league.season_slug)?.name ?? league.season_slug)) || null;
+    /** Sidebar: hide duplicate “most points this season” for Total Season Points leagues; keep for H2H and other formats. */
+    const showSeasonTop10InSidebar = (league.league_type ?? null) !== "season_overall";
 
     let tradeProposals: Awaited<ReturnType<typeof getTradeProposalsForLeague>> = [];
     let rosterActivity: Awaited<ReturnType<typeof getLeagueRosterActivity>> = [];
@@ -287,6 +331,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         isCommissioner={isCommissioner}
         members={membersByPoints}
         pointsByUserId={pointsByUserId}
+        recordByUserId={standingsRecordByUserId}
+        showRecordOnly={isHeadToHeadHomeStandings}
+        showSeasonTop10={showSeasonTop10InSidebar}
         currentUserId={currentUser?.id ?? null}
         xpByUserId={xpByUserId}
         showTop10Leaderboards={showTop10}
@@ -360,6 +407,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               weekStart={leaderboardData.weekStart}
               weeklyTop10={leaderboardData.weeklyTop10}
               seasonTop10={leaderboardData.seasonTop10}
+              showSeasonTop10={showSeasonTop10InSidebar}
             />
           ) : null}
           <div className="lm-card lm-card--quick-links">
@@ -547,6 +595,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             <LeagueStandingsTable
               members={membersByPoints}
               pointsByUserId={pointsByUserId}
+              recordByUserId={standingsRecordByUserId}
+              showRecordOnly={isHeadToHeadHomeStandings}
               leagueSlug={slug}
               xpByUserId={xpByUserId}
             />

@@ -21,11 +21,15 @@ type Props = {
   isCommissioner: boolean;
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
+  recordByUserId?: Record<string, { w: number; l: number; t: number }>;
+  showRecordOnly?: boolean;
   currentUserId: string | null;
   xpByUserId?: Record<string, XpDisplay>;
   showTop10Leaderboards: boolean;
   weeklyTop10: LeaderboardDisplayRow[];
   seasonTop10: LeaderboardDisplayRow[];
+  /** When false, sidebar hides “Most points this season” (e.g. Total Season Points leagues). */
+  showSeasonTop10?: boolean;
   latestWeekStart: string | null;
   levelUpCelebration?: LevelUpCelebration | null;
   xpBannerKind?: LeagueHomeXpBannerKind | null;
@@ -54,11 +58,14 @@ export function LeagueHomeMobileLeagueView({
   isCommissioner,
   members,
   pointsByUserId,
+  recordByUserId,
+  showRecordOnly = false,
   currentUserId,
   xpByUserId,
   showTop10Leaderboards,
   weeklyTop10,
   seasonTop10,
+  showSeasonTop10 = true,
   latestWeekStart,
   levelUpCelebration = null,
   xpBannerKind = null,
@@ -142,6 +149,8 @@ export function LeagueHomeMobileLeagueView({
         <LeagueMobileStandingsTable
           members={members}
           pointsByUserId={pointsByUserId}
+          recordByUserId={recordByUserId}
+          showRecordOnly={showRecordOnly}
           leagueSlug={leagueSlug}
           currentUserId={currentUserId}
           xpByUserId={xpByUserId}
@@ -155,6 +164,7 @@ export function LeagueHomeMobileLeagueView({
             weekStart={latestWeekStart}
             weeklyTop10={weeklyTop10}
             seasonTop10={seasonTop10}
+            showSeasonTop10={showSeasonTop10}
           />
         </div>
       ) : null}
