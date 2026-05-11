@@ -4721,6 +4721,29 @@ body > .site-footer {
   color: var(--color-text-muted);
 }
 
+.hub-leaderboard-week-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+}
+
+.hub-leaderboard-week-nav-sep {
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.hub-leaderboard-week-nav-muted {
+  color: var(--color-text-muted);
+  opacity: 0.55;
+}
+
+.hub-leaderboard-week-nav-link {
+  white-space: nowrap;
+}
+
 .hub-leaderboards-empty {
   margin: 0;
   font-size: 0.82rem;

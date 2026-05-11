@@ -20,7 +20,12 @@ export const metadata = {
  * Constant Contact callback breaks normal login. Use redirect URIs that point to `/callback` or
  * `/constant-contact-callback` only (see docs/CONSTANT_CONTACT_SETUP.md).
  */
-export default async function HubHomePage() {
+export default async function HubHomePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ leaderboard_week?: string }>;
+}) {
+  const sp = (await searchParams) ?? {};
   const adsSlotHub = getAdsenseSlotHubHome();
 
   return (
@@ -30,7 +35,7 @@ export default async function HubHomePage() {
       <div className="hub-shell-wrap">
         <div className="hub-shell">
           <div className="hub-col hub-left-rail">
-            <HubSiteLeaderboards />
+            <HubSiteLeaderboards leaderboardWeek={sp.leaderboard_week ?? null} />
             <aside className="hub-col-side" aria-label="Quick links">
               <h2 className="hub-col-title">Quick links</h2>
               <nav className="hub-quick-nav">

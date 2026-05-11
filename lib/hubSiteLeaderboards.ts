@@ -3,14 +3,16 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
-  getPointsByOwnerForLeagueForWeek,
+  getMondayOfWeek,
+  getPointsByOwnerForLeagueWeekFromMatchups,
   getPointsByOwnerForLeagueWithBonuses,
 } from "@/lib/leagueMatchups";
-import { getCurrentWeekStartMondayPst, type LeaderboardDisplayRow } from "@/lib/weeklyLeaderboards";
+import {
+  getCurrentWeekStartMondayPst,
+  shiftWeekStartMonday,
+  type LeaderboardDisplayRow,
+} from "@/lib/weeklyLeaderboards";
 import { getAdminClient } from "@/lib/supabase/admin";
-
-const LEAGUE_ID_CHUNK = 80;
-const SNAPSHOT_PAGE = 1000;
 
 function chunkIds(ids: string[], size: number): string[][] {
   const out: string[][] = [];
@@ -42,85 +44,6 @@ async function loadActiveCompletedLeagueIds(admin: NonNullable<ReturnType<typeof
     .eq("draft_status", "completed");
   if (error || !data) return [];
   return (data as { id: string }[]).map((r) => r.id);
-}
-
-const LEAGUE_USER_SEP = "\x1f";
-
-/** For each user, keep their best single-league total (map keys = `leagueId` + sep + `userId`). */
-function perLeagueUserTotalsToUserBest(perLeagueUser: Map<string, number>): Map<string, number> {
-  const userMax = new Map<string, number>();
-  for (const [k, pts] of perLeagueUser) {
-    const idx = k.indexOf(LEAGUE_USER_SEP);
-    const userId = idx === -1 ? k : k.slice(idx + LEAGUE_USER_SEP.length);
-    const p = Number(pts || 0);
-    const prev = userMax.get(userId) ?? 0;
-    if (p > prev) userMax.set(userId, p);
-  }
-  return userMax;
-}
-
-/** One fantasy week from snapshots: each user's best single-league score that week. */
-async function maxPointsByUserForWeekFromSnapshots(
-  admin: NonNullable<ReturnType<typeof getAdminClient>>,
-  leagueChunks: string[][],
-  weekStart: string
-): Promise<Map<string, number>> {
-  const perLeagueUser = new Map<string, number>();
-  for (const chunk of leagueChunks) {
-    let from = 0;
-    for (;;) {
-      const { data, error } = await admin
-        .from("league_weekly_points_snapshot")
-        .select("league_id, user_id, points")
-        .in("league_id", chunk)
-        .eq("week_start", weekStart)
-        .range(from, from + SNAPSHOT_PAGE - 1);
-      if (error) break;
-      const rows = (data ?? []) as Array<{
-        league_id: string;
-        user_id: string;
-        points: number | null;
-      }>;
-      for (const r of rows) {
-        const key = `${r.league_id}${LEAGUE_USER_SEP}${r.user_id}`;
-        perLeagueUser.set(key, (perLeagueUser.get(key) ?? 0) + Number(r.points ?? 0));
-      }
-      if (rows.length < SNAPSHOT_PAGE) break;
-      from += SNAPSHOT_PAGE;
-    }
-  }
-  return perLeagueUserTotalsToUserBest(perLeagueUser);
-}
-
-/** Per-user season total from snapshots: each user's best single-league tally (not summed across leagues). */
-async function maxSeasonPointsByUserFromSnapshots(
-  admin: NonNullable<ReturnType<typeof getAdminClient>>,
-  leagueChunks: string[][]
-): Promise<Map<string, number>> {
-  const perLeagueUser = new Map<string, number>();
-  for (const chunk of leagueChunks) {
-    let from = 0;
-    for (;;) {
-      const { data, error } = await admin
-        .from("league_weekly_points_snapshot")
-        .select("league_id, user_id, points")
-        .in("league_id", chunk)
-        .range(from, from + SNAPSHOT_PAGE - 1);
-      if (error) break;
-      const rows = (data ?? []) as Array<{
-        league_id: string;
-        user_id: string;
-        points: number | null;
-      }>;
-      for (const r of rows) {
-        const k = `${r.league_id}${LEAGUE_USER_SEP}${r.user_id}`;
-        perLeagueUser.set(k, (perLeagueUser.get(k) ?? 0) + Number(r.points ?? 0));
-      }
-      if (rows.length < SNAPSHOT_PAGE) break;
-      from += SNAPSHOT_PAGE;
-    }
-  }
-  return perLeagueUserTotalsToUserBest(perLeagueUser);
 }
 
 async function loadDisplayLabels(
@@ -183,7 +106,7 @@ async function aggregateLiveWeeklyByUser(
   const userMax = new Map<string, number>();
   await Promise.all(
     leagueIds.map(async (leagueId) => {
-      const byOwner = await getPointsByOwnerForLeagueForWeek(leagueId, weekStartMonday, admin);
+      const byOwner = await getPointsByOwnerForLeagueWeekFromMatchups(leagueId, weekStartMonday, admin);
       for (const [uid, pts] of Object.entries(byOwner)) {
         const p = Number(pts ?? 0);
         const prev = userMax.get(uid) ?? 0;
@@ -194,13 +117,41 @@ async function aggregateLiveWeeklyByUser(
   return userMax;
 }
 
+const HUB_LEADERBOARD_WEEK_LOOKBACK = 52;
+
+function normalizeHubLeaderboardWeekStart(
+  raw: string | null | undefined,
+  currentMondayPst: string
+): { weekStart: string; isCurrentWeek: boolean } {
+  if (!raw?.trim()) {
+    return { weekStart: currentMondayPst, isCurrentWeek: true };
+  }
+  const m = raw.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(m)) {
+    return { weekStart: currentMondayPst, isCurrentWeek: true };
+  }
+  let mon = getMondayOfWeek(m);
+  if (mon > currentMondayPst) mon = currentMondayPst;
+  const oldest = shiftWeekStartMonday(currentMondayPst, -HUB_LEADERBOARD_WEEK_LOOKBACK);
+  if (mon < oldest) mon = oldest;
+  return { weekStart: mon, isCurrentWeek: mon === currentMondayPst };
+}
+
 /**
  * Site-wide fantasy leaderboards for non-archived leagues with completed drafts.
- * Season and weekly: each user's best single-league tally (fair for multi-league managers).
- * Weekly uses the current Mon–Sun week (America/Los_Angeles); live scoring until snapshots exist for that week.
+ * Season: each user's best single-league season total (R/S + PLE + title-hold belt + weekly bonuses when the league
+ * uses them), same as the league home — always computed live so totals never drift from snapshot rollups.
+ * Weekly: each user's best single-league score for the selected Mon–Sun week (PT), always computed live from
+ * matchup logic (same chart as league matchups) so title-hold belt and weekly bonuses stay in sync.
  */
-export async function getHubSiteLeaderboards(): Promise<{
+export async function getHubSiteLeaderboards(opts?: {
+  leaderboardWeek?: string | null;
+}): Promise<{
   weekStart: string | null;
+  currentWeekStartMondayPst: string | null;
+  isWeeklyCurrentWeek: boolean;
+  weeklyPrevWeekStart: string | null;
+  weeklyNextWeekStart: string | null;
   weeklyTop10: LeaderboardDisplayRow[];
   seasonTop10: LeaderboardDisplayRow[];
   /** False when service role is missing; hide the block in that case. */
@@ -208,32 +159,42 @@ export async function getHubSiteLeaderboards(): Promise<{
 }> {
   const admin = getAdminClient();
   if (!admin) {
-    return { weekStart: null, weeklyTop10: [], seasonTop10: [], hubLeaderboardsAvailable: false };
+    return {
+      weekStart: null,
+      currentWeekStartMondayPst: null,
+      isWeeklyCurrentWeek: true,
+      weeklyPrevWeekStart: null,
+      weeklyNextWeekStart: null,
+      weeklyTop10: [],
+      seasonTop10: [],
+      hubLeaderboardsAvailable: false,
+    };
   }
 
   const leagueIds = await loadActiveCompletedLeagueIds(admin);
   if (leagueIds.length === 0) {
-    return { weekStart: null, weeklyTop10: [], seasonTop10: [], hubLeaderboardsAvailable: true };
+    return {
+      weekStart: null,
+      currentWeekStartMondayPst: null,
+      isWeeklyCurrentWeek: true,
+      weeklyPrevWeekStart: null,
+      weeklyNextWeekStart: null,
+      weeklyTop10: [],
+      seasonTop10: [],
+      hubLeaderboardsAvailable: true,
+    };
   }
 
-  const leagueChunks = chunkIds(leagueIds, LEAGUE_ID_CHUNK);
-  const weeklyWeekStart = getCurrentWeekStartMondayPst();
+  const currentMondayPst = getCurrentWeekStartMondayPst();
+  const { weekStart: selectedWeekStart, isCurrentWeek } = normalizeHubLeaderboardWeekStart(
+    opts?.leaderboardWeek ?? null,
+    currentMondayPst
+  );
 
-  const [weeklyTotalsSnap, seasonTotalsSnap] = await Promise.all([
-    maxPointsByUserForWeekFromSnapshots(admin, leagueChunks, weeklyWeekStart),
-    maxSeasonPointsByUserFromSnapshots(admin, leagueChunks),
+  const [seasonTotals, weeklyTotals] = await Promise.all([
+    aggregateLiveSeasonByUser(admin, leagueIds),
+    aggregateLiveWeeklyByUser(admin, leagueIds, selectedWeekStart),
   ]);
-
-  let seasonTotals = seasonTotalsSnap;
-  let weeklyTotals = weeklyTotalsSnap;
-
-  if (seasonTotals.size === 0) {
-    seasonTotals = await aggregateLiveSeasonByUser(admin, leagueIds);
-  }
-
-  if (mapToTop10Positive(weeklyTotals).length === 0) {
-    weeklyTotals = await aggregateLiveWeeklyByUser(admin, leagueIds, weeklyWeekStart);
-  }
 
   const weeklyTop = mapToTop10Positive(weeklyTotals);
   const seasonTop = mapToTop10(seasonTotals);
@@ -241,8 +202,18 @@ export async function getHubSiteLeaderboards(): Promise<{
   const labelIds = [...weeklyTop.map((r) => r.userId), ...seasonTop.map((r) => r.userId)];
   const labels = await loadDisplayLabels(admin, labelIds);
 
+  const oldest = shiftWeekStartMonday(currentMondayPst, -HUB_LEADERBOARD_WEEK_LOOKBACK);
+  const prevStart = shiftWeekStartMonday(selectedWeekStart, -1);
+  const nextStart = shiftWeekStartMonday(selectedWeekStart, 1);
+  const weeklyPrevWeekStart = prevStart >= oldest ? prevStart : null;
+  const weeklyNextWeekStart = nextStart <= currentMondayPst ? nextStart : null;
+
   return {
-    weekStart: weeklyWeekStart,
+    weekStart: selectedWeekStart,
+    currentWeekStartMondayPst: currentMondayPst,
+    isWeeklyCurrentWeek: isCurrentWeek,
+    weeklyPrevWeekStart,
+    weeklyNextWeekStart,
     weeklyTop10: toDisplayRows(weeklyTop, labels),
     seasonTop10: toDisplayRows(seasonTop, labels),
     hubLeaderboardsAvailable: true,

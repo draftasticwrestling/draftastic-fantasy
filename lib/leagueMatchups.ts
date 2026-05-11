@@ -649,6 +649,29 @@ export async function getLeagueWeeklyMatchups(
 }
 
 /**
+ * Per-owner points for one Mon–Sun week exactly as on the league matchups chart: event points, title-hold belt
+ * credited in that week (RTS weekly lock or legacy month-end in the week), and for combo / default leagues
+ * weekly high (+15) plus Draftastic belt (+5 / +4 retain) when the week is over.
+ */
+export async function getPointsByOwnerForLeagueWeekFromMatchups(
+  leagueId: string,
+  weekStartMonday: string,
+  supabaseOverride?: SupabaseClient
+): Promise<Record<string, number>> {
+  const matchups = await getLeagueWeeklyMatchups(leagueId, supabaseOverride);
+  const m = matchups.find((x) => x.weekStart === weekStartMonday);
+  if (!m) return {};
+  const out: Record<string, number> = { ...m.pointsByUserId };
+  if (m.winnerUserId) {
+    out[m.winnerUserId] = (out[m.winnerUserId] ?? 0) + m.weeklyWinPoints;
+  }
+  if (m.beltHolderUserId) {
+    out[m.beltHolderUserId] = (out[m.beltHolderUserId] ?? 0) + m.beltPoints;
+  }
+  return out;
+}
+
+/**
  * Title-hold belt points by wrestler slug for the given Mon–Sun week (weekly PST for RTS; legacy month-end otherwise).
  */
 export async function getMonthlyBeltBySlugForWeek(

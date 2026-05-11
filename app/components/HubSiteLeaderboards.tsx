@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getHubSiteLeaderboards } from "@/lib/hubSiteLeaderboards";
 import { formatFantasyWeekRangeLabel } from "@/lib/formatFantasyWeekRange";
 
@@ -8,21 +9,37 @@ function formatPts(n: number): string {
   return r.toFixed(2).replace(/\.?0+$/, "");
 }
 
-export default async function HubSiteLeaderboards() {
-  const { weekStart, weeklyTop10, seasonTop10, hubLeaderboardsAvailable } = await getHubSiteLeaderboards();
+type Props = {
+  leaderboardWeek?: string | null;
+};
+
+export default async function HubSiteLeaderboards({ leaderboardWeek = null }: Props) {
+  const {
+    weekStart,
+    currentWeekStartMondayPst,
+    isWeeklyCurrentWeek,
+    weeklyPrevWeekStart,
+    weeklyNextWeekStart,
+    weeklyTop10,
+    seasonTop10,
+    hubLeaderboardsAvailable,
+  } = await getHubSiteLeaderboards({ leaderboardWeek });
   const weekLabel = weekStart ? formatFantasyWeekRangeLabel(weekStart) : null;
 
   if (!hubLeaderboardsAvailable) {
     return null;
   }
 
+  const weekHref = (mon: string) => `/?leaderboard_week=${encodeURIComponent(mon)}`;
+
   return (
     <section className="hub-col-side hub-leaderboards-card" aria-label="Fantasy leaderboards">
       <h2 className="hub-col-title">Leaderboards</h2>
       <p className="hub-leaderboards-hint">
-        Site-wide among active leagues (completed draft). Season and weekly both use your best single league so
-        multi-league managers are not double-counted. Weekly is the current Mon–Sun week (PT), using live scores until
-        that week is snapshotted.
+        Site-wide among active leagues (completed draft). Each row is your best single league (not summed across
+        leagues). Season totals match the league home: R/S and PLE event points plus title-hold belt points and, when
+        the league format uses them, weekly win and Draftastic belt bonuses. Weekly is Mon–Sun (PT); use the links
+        below to view earlier weeks.
       </p>
 
       <div className="hub-leaderboard-block">
@@ -45,6 +62,42 @@ export default async function HubSiteLeaderboards() {
       <div className="hub-leaderboard-block hub-leaderboard-block--week">
         <h3 className="hub-leaderboard-subtitle">Most points this week</h3>
         {weekLabel ? <p className="hub-leaderboard-week">Week of {weekLabel}</p> : null}
+        <nav className="hub-leaderboard-week-nav" aria-label="Fantasy week">
+          {weeklyPrevWeekStart ? (
+            <Link href={weekHref(weeklyPrevWeekStart)} className="app-link hub-leaderboard-week-nav-link">
+              ← Previous week
+            </Link>
+          ) : (
+            <span className="hub-leaderboard-week-nav-muted">← Previous week</span>
+          )}
+          {!isWeeklyCurrentWeek && currentWeekStartMondayPst ? (
+            <>
+              <span className="hub-leaderboard-week-nav-sep" aria-hidden>
+                ·
+              </span>
+              <Link href="/" className="app-link hub-leaderboard-week-nav-link">
+                This week
+              </Link>
+            </>
+          ) : null}
+          {weeklyNextWeekStart ? (
+            <>
+              <span className="hub-leaderboard-week-nav-sep" aria-hidden>
+                ·
+              </span>
+              <Link href={weekHref(weeklyNextWeekStart)} className="app-link hub-leaderboard-week-nav-link">
+                Next week →
+              </Link>
+            </>
+          ) : (
+            <>
+              <span className="hub-leaderboard-week-nav-sep" aria-hidden>
+                ·
+              </span>
+              <span className="hub-leaderboard-week-nav-muted">Next week →</span>
+            </>
+          )}
+        </nav>
         {weeklyTop10.length === 0 ? (
           <p className="hub-leaderboards-empty">No points scored this week yet.</p>
         ) : (

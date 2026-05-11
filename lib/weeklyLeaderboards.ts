@@ -1,7 +1,11 @@
 import "server-only";
 
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getMondayOfWeek, getPointsByOwnerForLeagueForWeek, getSundayOfWeek } from "@/lib/leagueMatchups";
+import {
+  getMondayOfWeek,
+  getPointsByOwnerForLeagueWeekFromMatchups,
+  getSundayOfWeek,
+} from "@/lib/leagueMatchups";
 import { awardWeeklyHighScoreXp } from "@/lib/xp/seasonAwards";
 import { refreshFantasyPointsTiersForUser } from "@/lib/xp/refreshFantasyPointsTiers";
 import type { LeagueMember } from "@/lib/leagues";
@@ -29,6 +33,13 @@ export function getCurrentWeekStartMondayPst(now = new Date()): string {
     day: "2-digit",
   }).format(now);
   return getMondayOfWeek(pstYmd);
+}
+
+/** Move a fantasy week start (Monday YYYY-MM-DD) by `deltaWeeks` (negative = earlier). */
+export function shiftWeekStartMonday(weekStartMonday: string, deltaWeeks: number): string {
+  const d = new Date(weekStartMonday + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 7 * deltaWeeks);
+  return d.toISOString().slice(0, 10);
 }
 
 /** Previous Mon–Sun fantasy week in America/Los_Angeles (matches weekly snapshot cron). */
@@ -177,7 +188,7 @@ export async function processWeeklyXpAndLeaderboards(
 
     let byOwner: Record<string, number> = {};
     try {
-      byOwner = await getPointsByOwnerForLeagueForWeek(league.id, weekStart, admin);
+      byOwner = await getPointsByOwnerForLeagueWeekFromMatchups(league.id, weekStart, admin);
     } catch (err) {
       errors.push(`league ${league.id}: weekly points failed (${err instanceof Error ? err.message : "unknown"})`);
       continue;
