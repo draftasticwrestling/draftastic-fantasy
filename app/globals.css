@@ -4723,25 +4723,38 @@ body > .site-footer {
 
 .hub-leaderboard-week-nav {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 4px 8px;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0 0 10px;
   font-size: 0.78rem;
-}
-
-.hub-leaderboard-week-nav-sep {
-  color: var(--color-text-muted);
-  user-select: none;
+  min-width: 0;
 }
 
 .hub-leaderboard-week-nav-muted {
   color: var(--color-text-muted);
   opacity: 0.55;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .hub-leaderboard-week-nav-link {
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+button.hub-leaderboard-week-nav-btn {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: inherit;
+}
+
+button.hub-leaderboard-week-nav-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .hub-leaderboards-empty {

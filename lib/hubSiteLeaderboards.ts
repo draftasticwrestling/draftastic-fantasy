@@ -7,11 +7,8 @@ import {
   getPointsByOwnerForLeagueWeekFromMatchups,
   getPointsByOwnerForLeagueWithBonuses,
 } from "@/lib/leagueMatchups";
-import {
-  getCurrentWeekStartMondayPst,
-  shiftWeekStartMonday,
-  type LeaderboardDisplayRow,
-} from "@/lib/weeklyLeaderboards";
+import { getCurrentWeekStartMondayPst, shiftWeekStartMonday } from "@/lib/weeklyLeaderboards";
+import type { HubLeaderboardDisplayRow, HubSiteLeaderboardsPayload } from "@/lib/hubSiteLeaderboardsTypes";
 import { getAdminClient } from "@/lib/supabase/admin";
 
 function chunkIds(ids: string[], size: number): string[][] {
@@ -72,7 +69,7 @@ async function loadDisplayLabels(
 function toDisplayRows(
   top: { userId: string; points: number }[],
   labels: Map<string, string>
-): LeaderboardDisplayRow[] {
+): HubLeaderboardDisplayRow[] {
   return top.map((r, idx) => ({
     userId: r.userId,
     points: r.points,
@@ -122,19 +119,19 @@ const HUB_LEADERBOARD_WEEK_LOOKBACK = 52;
 function normalizeHubLeaderboardWeekStart(
   raw: string | null | undefined,
   currentMondayPst: string
-): { weekStart: string; isCurrentWeek: boolean } {
+): string {
   if (!raw?.trim()) {
-    return { weekStart: currentMondayPst, isCurrentWeek: true };
+    return currentMondayPst;
   }
   const m = raw.trim().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(m)) {
-    return { weekStart: currentMondayPst, isCurrentWeek: true };
+    return currentMondayPst;
   }
   let mon = getMondayOfWeek(m);
   if (mon > currentMondayPst) mon = currentMondayPst;
   const oldest = shiftWeekStartMonday(currentMondayPst, -HUB_LEADERBOARD_WEEK_LOOKBACK);
   if (mon < oldest) mon = oldest;
-  return { weekStart: mon, isCurrentWeek: mon === currentMondayPst };
+  return mon;
 }
 
 /**
@@ -146,23 +143,12 @@ function normalizeHubLeaderboardWeekStart(
  */
 export async function getHubSiteLeaderboards(opts?: {
   leaderboardWeek?: string | null;
-}): Promise<{
-  weekStart: string | null;
-  currentWeekStartMondayPst: string | null;
-  isWeeklyCurrentWeek: boolean;
-  weeklyPrevWeekStart: string | null;
-  weeklyNextWeekStart: string | null;
-  weeklyTop10: LeaderboardDisplayRow[];
-  seasonTop10: LeaderboardDisplayRow[];
-  /** False when service role is missing; hide the block in that case. */
-  hubLeaderboardsAvailable: boolean;
-}> {
+}): Promise<HubSiteLeaderboardsPayload> {
   const admin = getAdminClient();
   if (!admin) {
     return {
       weekStart: null,
       currentWeekStartMondayPst: null,
-      isWeeklyCurrentWeek: true,
       weeklyPrevWeekStart: null,
       weeklyNextWeekStart: null,
       weeklyTop10: [],
@@ -171,25 +157,26 @@ export async function getHubSiteLeaderboards(opts?: {
     };
   }
 
+  const currentMondayPst = getCurrentWeekStartMondayPst();
+  const selectedWeekStart = normalizeHubLeaderboardWeekStart(opts?.leaderboardWeek ?? null, currentMondayPst);
+  const oldest = shiftWeekStartMonday(currentMondayPst, -HUB_LEADERBOARD_WEEK_LOOKBACK);
+  const prevStart = shiftWeekStartMonday(selectedWeekStart, -1);
+  const nextStart = shiftWeekStartMonday(selectedWeekStart, 1);
+  const weeklyPrevWeekStart = prevStart >= oldest ? prevStart : null;
+  const weeklyNextWeekStart = nextStart <= currentMondayPst ? nextStart : null;
+
   const leagueIds = await loadActiveCompletedLeagueIds(admin);
   if (leagueIds.length === 0) {
     return {
-      weekStart: null,
-      currentWeekStartMondayPst: null,
-      isWeeklyCurrentWeek: true,
-      weeklyPrevWeekStart: null,
-      weeklyNextWeekStart: null,
+      weekStart: selectedWeekStart,
+      currentWeekStartMondayPst: currentMondayPst,
+      weeklyPrevWeekStart,
+      weeklyNextWeekStart,
       weeklyTop10: [],
       seasonTop10: [],
       hubLeaderboardsAvailable: true,
     };
   }
-
-  const currentMondayPst = getCurrentWeekStartMondayPst();
-  const { weekStart: selectedWeekStart, isCurrentWeek } = normalizeHubLeaderboardWeekStart(
-    opts?.leaderboardWeek ?? null,
-    currentMondayPst
-  );
 
   const [seasonTotals, weeklyTotals] = await Promise.all([
     aggregateLiveSeasonByUser(admin, leagueIds),
@@ -202,16 +189,9 @@ export async function getHubSiteLeaderboards(opts?: {
   const labelIds = [...weeklyTop.map((r) => r.userId), ...seasonTop.map((r) => r.userId)];
   const labels = await loadDisplayLabels(admin, labelIds);
 
-  const oldest = shiftWeekStartMonday(currentMondayPst, -HUB_LEADERBOARD_WEEK_LOOKBACK);
-  const prevStart = shiftWeekStartMonday(selectedWeekStart, -1);
-  const nextStart = shiftWeekStartMonday(selectedWeekStart, 1);
-  const weeklyPrevWeekStart = prevStart >= oldest ? prevStart : null;
-  const weeklyNextWeekStart = nextStart <= currentMondayPst ? nextStart : null;
-
   return {
     weekStart: selectedWeekStart,
     currentWeekStartMondayPst: currentMondayPst,
-    isWeeklyCurrentWeek: isCurrentWeek,
     weeklyPrevWeekStart,
     weeklyNextWeekStart,
     weeklyTop10: toDisplayRows(weeklyTop, labels),
