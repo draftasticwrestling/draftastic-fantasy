@@ -1054,6 +1054,9 @@ export type LeagueRosterEntry = {
   acquired_at?: string;
   /** YYYY-MM-DD when dropped (for matchup display). */
   released_at?: string | null;
+  /** When set, used with `formatRosterMoveDateTimePt` for FA 5pm PT cutoff display. */
+  acquired_at_ts?: string | null;
+  released_at_ts?: string | null;
 };
 
 /** Stint for scoring: points count when event_date >= acquired_at and (released_at is null or event_date <= released_at). */
@@ -1232,7 +1235,7 @@ function getSundayOfWeek(weekStart: string): string {
  * acquired_at <= weekEnd and (released_at is null or released_at >= weekStart).
  * So mid-week adds (e.g. Nia Jax Friday) and mid-week drops (e.g. Maxxine Dupri Friday) both appear;
  * points are still per-event (each wrestler only gets points for events while on roster).
- * Returns acquired_at and released_at on each entry for matchup display (add date / drop date).
+ * Returns acquired_at / released_at and optional *_ts for matchup display (FA cutoff transparency).
  * Ordered by acquired_at per user.
  */
 export const getRostersForLeagueForWeek = cacheFn(
@@ -1254,6 +1257,8 @@ export const getRostersForLeagueForWeek = cacheFn(
         contract: s.contract,
         acquired_at: acquired,
         released_at: released ?? undefined,
+        acquired_at_ts: s.acquired_at_ts ? String(s.acquired_at_ts) : null,
+        released_at_ts: s.released_at_ts ? String(s.released_at_ts) : null,
       });
     }
     for (const arr of Object.values(byUser)) {

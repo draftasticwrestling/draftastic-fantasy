@@ -15,6 +15,7 @@ import {
 } from "@/lib/leagueMatchups";
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import { factionDisplayName } from "@/lib/factionName";
+import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
 
 type Props = { params: Promise<{ slug: string; weekStart: string }> };
 
@@ -152,9 +153,8 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
               const member = memberByUserId[uid];
               const entries = (rosters[uid] ?? []).slice(0, maxSlots);
               const byWrestler = pointsByOwnerByWrestler[uid] ?? {};
-              const rosterRows = entries.map((e, i) => {
-                const acq = e.acquired_at && e.acquired_at >= weekStartDecoded && e.acquired_at <= weekEnd ? formatShortDate(e.acquired_at) : null;
-                const drop = e.released_at && e.released_at >= weekStartDecoded && e.released_at <= weekEnd ? formatShortDate(e.released_at) : null;
+              const rosterRows = entries.map((e) => {
+                const txnLines = matchupRosterTransactionLines(weekStartDecoded, weekEnd, e);
                 const eventPts = byWrestler[e.wrestler_id] ?? 0;
                 const monthlyPts = sumMonthlyBeltPointsForStint(
                   monthlyBeltBySlug,
@@ -169,8 +169,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   points: eventPts + monthlyPts,
                   eventPts,
                   monthlyPts,
-                  acquiredAt: acq,
-                  releasedAt: drop,
+                  txnLines,
                 };
               });
               while (rosterRows.length < maxSlots) {
@@ -181,8 +180,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   points: 0,
                   eventPts: 0,
                   monthlyPts: 0,
-                  acquiredAt: null,
-                  releasedAt: null,
+                  txnLines: [],
                 });
               }
               return {
@@ -341,11 +339,21 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                                     (row?.name ?? "—")
                                   )}
                                 </span>
-                                {row?.wrestlerId && (row.acquiredAt != null || row.releasedAt != null) && (
-                                  <span style={{ fontSize: 11, color: "var(--color-text-muted)", display: "block", marginTop: 2 }}>
-                                    {row.acquiredAt != null && `Added ${row.acquiredAt}`}
-                                    {row.acquiredAt != null && row.releasedAt != null && " · "}
-                                    {row.releasedAt != null && `Dropped ${row.releasedAt}`}
+                                {row?.wrestlerId && row.txnLines.length > 0 && (
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      color: "var(--color-text-muted)",
+                                      display: "block",
+                                      marginTop: 2,
+                                      lineHeight: 1.35,
+                                    }}
+                                  >
+                                    {row.txnLines.map((line, li) => (
+                                      <span key={li} style={{ display: "block" }}>
+                                        {line}
+                                      </span>
+                                    ))}
                                   </span>
                                 )}
                                 {row?.wrestlerId && (
@@ -381,6 +389,16 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
         Event points = roster wrestlers’ points from matches this week. Winner gets +15; Draftastic
         Championship: +5 (win) or +4 (retain).
       </p>
+      {((league.league_type ?? null) === "head_to_head" ||
+        (league.league_type ?? null) === "combo" ||
+        league.league_type == null) && (
+        <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 12, lineHeight: 1.5 }}>
+          <strong>Free agents:</strong> Each Mon–Sun week you may make two FA adds. Times are shown in{" "}
+          <strong>PT</strong>. For a show on the same calendar day as the pickup, that wrestler can score that show’s
+          points only if the add was logged <strong>by 5:00 PM PT</strong> (adds after 4:59 PM PT wait until the next
+          event). Drops during the week are shown with time when available.
+        </p>
+      )}
     </main>
   );
 }

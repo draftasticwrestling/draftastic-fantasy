@@ -16,6 +16,7 @@ import {
 } from "@/lib/leagueMatchups";
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import { factionDisplayName } from "@/lib/factionName";
+import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
 import { MatchupWeekSelector } from "./MatchupWeekSelector";
 
 type Props = {
@@ -95,7 +96,16 @@ function RosterCell({
   borderLeft,
   leagueSlug,
 }: {
-  row?: { name: string; points: number; eventPts?: number; monthlyPts?: number; wrestlerId?: string } | undefined;
+  row?:
+    | {
+        name: string;
+        points: number;
+        eventPts?: number;
+        monthlyPts?: number;
+        wrestlerId?: string;
+        txnLines?: string[];
+      }
+    | undefined;
   borderLeft?: boolean;
   leagueSlug?: string;
 }) {
@@ -104,6 +114,7 @@ function RosterCell({
   const pts = row?.points ?? 0;
   const monthlyPts = row?.monthlyPts ?? 0;
   const eventPts = row?.eventPts ?? (pts - monthlyPts);
+  const txnLines = row?.txnLines ?? [];
   const ptsLabel =
     pts > 0
       ? monthlyPts > 0
@@ -127,14 +138,22 @@ function RosterCell({
         padding: "6px 12px",
         borderLeft: borderLeft ? "1px solid var(--color-border)" : undefined,
         color: row?.name && row.name !== "—" ? "var(--color-text)" : "var(--color-text-muted)",
+        verticalAlign: "top",
       }}
     >
-      <span>
+      <div>
         {nameNode}
         {ptsLabel != null && (
           <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>{ptsLabel}</span>
         )}
-      </span>
+      </div>
+      {txnLines.length > 0 && (
+        <div style={{ fontSize: 10, color: "var(--color-text-muted)", marginTop: 3, lineHeight: 1.35 }}>
+          {txnLines.map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </div>
+      )}
     </td>
   );
 }
@@ -306,6 +325,14 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
         <p style={{ color: "var(--color-text-muted)" }}>Select a week above.</p>
       ) : (
         <div className="scoreboard-cards" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {((league.league_type ?? null) === "head_to_head" ||
+            (league.league_type ?? null) === "combo" ||
+            league.league_type == null) && (
+            <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 8px", lineHeight: 1.45 }}>
+              Roster rows show <strong>PT</strong> add/drop times when available. Same-day event scoring requires the
+              add by <strong>5:00 PM PT</strong> (see full matchup for details).
+            </p>
+          )}
           {weekMatchups.map((mu, idx) => {
             const teamData = mu.userIds.map((uid) => {
               const eventPts = matchupForWeek?.pointsByUserId[uid] ?? 0;
@@ -332,6 +359,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
               points: number;
               eventPts: number;
               monthlyPts: number;
+              txnLines: string[];
             };
             const rosterByTeam: ScoreboardRosterRow[][] = teamData.map((t) => {
               const entries = (rosters[t.userId] ?? []).slice(0, maxSlots);
@@ -346,18 +374,24 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                       beltWeekEndSunday
                     )
                   : 0;
+                const txnLines =
+                  selectedWeekStart && beltWeekEndSunday
+                    ? matchupRosterTransactionLines(selectedWeekStart, beltWeekEndSunday, e)
+                    : [];
                 return {
                   wrestlerId: e.wrestler_id,
                   name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
                   points: eventPts + monthlyPts,
                   eventPts,
                   monthlyPts,
+                  txnLines,
                 };
               });
             });
             while (rosterByTeam.some((r) => r.length < maxSlots)) {
               rosterByTeam.forEach((r) => {
-                if (r.length < maxSlots) r.push({ name: "—", points: 0, eventPts: 0, monthlyPts: 0 });
+                if (r.length < maxSlots)
+                  r.push({ name: "—", points: 0, eventPts: 0, monthlyPts: 0, txnLines: [] });
               });
             }
 
