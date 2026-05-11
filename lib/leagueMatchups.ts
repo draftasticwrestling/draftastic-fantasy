@@ -5,6 +5,7 @@ import { getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.j
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { eventPointsForRosterStint, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import {
+  compareStintsForEventTieBreak,
   rosterStintActiveForEvent,
   rosterStintActiveForMonthEndBelt,
   rosterStintActiveForWeeklyBeltHold,
@@ -24,7 +25,9 @@ import {
   weeklyBeltLockYmdForWeek,
 } from "@/lib/beltWeeklyHold";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
-import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
+import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import {
   isRoadToSummerSlam2026WithSummerslamFinale,
@@ -33,7 +36,6 @@ import {
   shouldSkipJulyMonthEndBeltForRts2026,
 } from "@/lib/beltRts2026JulyDeferral";
 
-const BELT_REIGN_INFERENCE_EVENTS_LIMIT = 10000;
 import {
   CHAMPIONSHIP_CHANGES_TABLE_NAME,
   inferReignsFromChampionshipChanges,
@@ -88,6 +90,134 @@ export function getWeeksInRange(leagueStart: string, leagueEnd: string): string[
   return weeks;
 }
 
+type RosterStintRow = {
+  user_id: string;
+  wrestler_id: string;
+  contract: string | null;
+  acquired_at: string;
+  released_at: string | null;
+  acquired_at_ts?: string | null;
+  released_at_ts?: string | null;
+};
+
+/**
+ * Single-calendar-week slice of the same event→owner rules as `getLeagueScoring` in `lib/leagues.ts`
+ * (KOTR carryover across all in-range events; per-event “best stint” when overlaps exist; RTS NXT-brand omission).
+ * Keeping these aligned is required so hub “season” (from `getLeagueScoring`) matches “this week” from matchups.
+ */
+function accumulateOwnerEventPointsForCalendarWeek(
+  allInRangeSorted: Array<{
+    id: string;
+    name: string | null;
+    date: string | null;
+    matches: unknown;
+    broadcast_start_ts?: string | null;
+  }>,
+  weekStartMonday: string,
+  weekEndSunday: string,
+  stints: RosterStintRow[],
+  wrestlerDisplayNames: Record<string, string>,
+  brandBySlug: ReturnType<typeof brandByWrestlerSlugFromRows>,
+  seasonSlug: string | null,
+  nxtRosterByWrestlerId: Record<string, boolean>
+): {
+  pointsByOwner: Record<string, number>;
+  pointsByOwnerByWrestler: Record<string, Record<string, number>>;
+} {
+  const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
+  const enforceMainRosterOnlyForNxt = (seasonSlug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  const pointsByOwner: Record<string, number> = {};
+  const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
+  let kotrCarryOver: Record<string, number> = {};
+
+  for (const event of allInRangeSorted) {
+    const eventDate = (event.date ?? "").toString().slice(0, 10);
+    const eventType = classifyEventType(event.name ?? "", event.id ?? "");
+    const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
+      event as never,
+      kotrCarryOver,
+      brandBySlug
+    );
+    kotrCarryOver = updatedCarryOver;
+
+    const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
+    const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
+      ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
+      : NaN;
+    const useBroadcastStart = Number.isFinite(eventStartMs);
+    const eventMs = eventEndOfDayMs;
+    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
+
+    const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
+
+    const bestStintByWrestlerId: Record<string, RosterStintRow> = {};
+    for (const stint of stints) {
+      if (
+        !rosterStintActiveForEvent({
+          eventDate,
+          eventMs,
+          broadcastStartMs,
+          useBroadcastStart,
+          stint,
+          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+        })
+      ) {
+        continue;
+      }
+      const wid = stint.wrestler_id;
+      const currentBest = bestStintByWrestlerId[wid];
+      if (!currentBest) {
+        bestStintByWrestlerId[wid] = stint;
+        continue;
+      }
+      if (compareStintsForEventTieBreak(stint, currentBest, useBroadcastStart, ROSTER_STINT_DATE_OFFSET_DAYS) < 0) {
+        bestStintByWrestlerId[wid] = stint;
+      }
+    }
+
+    if (!inWeek) continue;
+
+    for (const stint of stints) {
+      if (
+        !rosterStintActiveForEvent({
+          eventDate,
+          eventMs,
+          broadcastStartMs,
+          useBroadcastStart,
+          stint,
+          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+        })
+      ) {
+        continue;
+      }
+      if (bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
+      if (
+        enforceMainRosterOnlyForNxt &&
+        nxtRosterByWrestlerId[stint.wrestler_id] &&
+        (eventType === EVENT_TYPES.NXT || String(eventType).startsWith("nxt-"))
+      ) {
+        continue;
+      }
+
+      const pts = eventPointsForRosterStint(
+        eventPoints,
+        stint.wrestler_id,
+        wrestlerDisplayNames[stint.wrestler_id],
+        eventDate
+      );
+
+      pointsByOwner[stint.user_id] = (pointsByOwner[stint.user_id] ?? 0) + pts;
+      if (pts > 0) {
+        if (!pointsByOwnerByWrestler[stint.user_id]) pointsByOwnerByWrestler[stint.user_id] = {};
+        pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] =
+          (pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] ?? 0) + pts;
+      }
+    }
+  }
+
+  return { pointsByOwner, pointsByOwnerByWrestler };
+}
+
 /** Points per owner for a single week (Monday–Sunday). Uses acquisition/release windows.
  * Only events in the week and in league range count; KOTR carryover uses all league events in order. */
 export async function getPointsByOwnerForLeagueForWeek(
@@ -95,18 +225,18 @@ export async function getPointsByOwnerForLeagueForWeek(
   weekStartMonday: string,
   supabaseOverride?: SupabaseClient
 ): Promise<Record<string, number>> {
-  const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
   const weekEndSunday = getSundayOfWeek(weekStartMonday);
   const supabase = supabaseOverride ?? (await createClient());
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date")
+    .select("id, start_date, end_date, draft_date, season_slug")
     .eq("id", leagueId)
     .single();
   if (!league) return {};
 
   const leagueStart = (league.draft_date || league.start_date) ?? "";
   const leagueEnd = league.end_date ?? "";
+  const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
 
   const eventsSelectWithStart = supabase
     .from("events")
@@ -130,6 +260,9 @@ export async function getPointsByOwnerForLeagueForWeek(
     const d = (e.date ?? "").toString().slice(0, 10);
     return (!leagueStart || d >= leagueStart) && (!leagueEnd || d <= leagueEnd);
   });
+  const allInRangeSorted = [...allInRange].sort((a, b) =>
+    String(a.date ?? "").localeCompare(String(b.date ?? ""))
+  );
   const stints = supabaseOverride
     ? ((
         await supabase
@@ -178,47 +311,25 @@ export async function getPointsByOwnerForLeagueForWeek(
   }
   const { data: brandRowsWeek } = await supabase.from("wrestlers").select("id, brand");
   const brandBySlugWeek = brandByWrestlerSlugFromRows(brandRowsWeek ?? []);
-  const pointsByOwner: Record<string, number> = {};
-  let kotrCarryOver: Record<string, number> = {};
-  for (const event of allInRange) {
-    const eventDate = (event.date ?? "").toString().slice(0, 10);
-    const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
-    const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
-      ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
-      : NaN;
-    const useBroadcastStart = Number.isFinite(eventStartMs);
-    const eventMs = eventEndOfDayMs;
-    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
-    const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
-    const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
-      event,
-      kotrCarryOver,
-      brandBySlugWeek
-    );
-    kotrCarryOver = updatedCarryOver;
-    if (!inWeek) continue;
-    for (const stint of stints) {
-      if (
-        !rosterStintActiveForEvent({
-          eventDate,
-          eventMs,
-          broadcastStartMs,
-          useBroadcastStart,
-          stint,
-          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
-        })
-      ) {
-        continue;
-      }
-      const pts = eventPointsForRosterStint(
-        eventPoints,
-        stint.wrestler_id,
-        wrestlerDisplayNames[stint.wrestler_id],
-        eventDate
-      );
-      pointsByOwner[stint.user_id] = (pointsByOwner[stint.user_id] ?? 0) + pts;
-    }
+  const rosterWrestlerIds = [...new Set(stints.map((s) => s.wrestler_id))];
+  const { data: rosterWrestlerRows } = rosterWrestlerIds.length
+    ? await supabase.from("wrestlers").select("id, brand").in("id", rosterWrestlerIds)
+    : { data: [] as Array<{ id: string; brand: string | null }> };
+  const nxtRosterByWrestlerId: Record<string, boolean> = {};
+  for (const w of rosterWrestlerRows ?? []) {
+    nxtRosterByWrestlerId[w.id] = wrestlerRosterFromBrand(w.brand) === "NXT";
   }
+
+  const { pointsByOwner } = accumulateOwnerEventPointsForCalendarWeek(
+    allInRangeSorted,
+    weekStartMonday,
+    weekEndSunday,
+    stints,
+    wrestlerDisplayNames,
+    brandBySlugWeek,
+    seasonSlug,
+    nxtRosterByWrestlerId
+  );
   return pointsByOwner;
 }
 
@@ -227,18 +338,18 @@ export async function getPointsByOwnerByWrestlerForWeek(
   leagueId: string,
   weekStartMonday: string
 ): Promise<Record<string, Record<string, number>>> {
-  const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
   const weekEndSunday = getSundayOfWeek(weekStartMonday);
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date")
+    .select("id, start_date, end_date, draft_date, season_slug")
     .eq("id", leagueId)
     .single();
   if (!league) return {};
 
   const leagueStart = (league.draft_date || league.start_date) ?? "";
   const leagueEnd = league.end_date ?? "";
+  const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
 
   const eventsSelectWithStart = supabase
     .from("events")
@@ -262,55 +373,32 @@ export async function getPointsByOwnerByWrestlerForWeek(
     const d = (e.date ?? "").toString().slice(0, 10);
     return (!leagueStart || d >= leagueStart) && (!leagueEnd || d <= leagueEnd);
   });
+  const allInRangeSorted = [...allInRange].sort((a, b) =>
+    String(a.date ?? "").localeCompare(String(b.date ?? ""))
+  );
   const stints = await getRosterStintsForLeague(leagueId);
   const wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
   const { data: brandRowsBreakdown } = await supabase.from("wrestlers").select("id, brand");
   const brandBySlugBreakdown = brandByWrestlerSlugFromRows(brandRowsBreakdown ?? []);
-  const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
-  let kotrCarryOver: Record<string, number> = {};
-  for (const event of allInRange) {
-    const eventDate = (event.date ?? "").toString().slice(0, 10);
-    const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
-    const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
-      ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
-      : NaN;
-    const useBroadcastStart = Number.isFinite(eventStartMs);
-    const eventMs = eventEndOfDayMs;
-    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
-    const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
-    const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
-      event,
-      kotrCarryOver,
-      brandBySlugBreakdown
-    );
-    kotrCarryOver = updatedCarryOver;
-    if (!inWeek) continue;
-    for (const stint of stints) {
-      if (
-        !rosterStintActiveForEvent({
-          eventDate,
-          eventMs,
-          broadcastStartMs,
-          useBroadcastStart,
-          stint,
-          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
-        })
-      ) {
-        continue;
-      }
-      const pts = eventPointsForRosterStint(
-        eventPoints,
-        stint.wrestler_id,
-        wrestlerDisplayNames[stint.wrestler_id],
-        eventDate
-      );
-      if (pts > 0) {
-        if (!pointsByOwnerByWrestler[stint.user_id]) pointsByOwnerByWrestler[stint.user_id] = {};
-        pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] =
-          (pointsByOwnerByWrestler[stint.user_id][stint.wrestler_id] ?? 0) + pts;
-      }
-    }
+  const rosterWrestlerIds = [...new Set(stints.map((s) => s.wrestler_id))];
+  const { data: rosterWrestlerRowsBw } = rosterWrestlerIds.length
+    ? await supabase.from("wrestlers").select("id, brand").in("id", rosterWrestlerIds)
+    : { data: [] as Array<{ id: string; brand: string | null }> };
+  const nxtRosterByWrestlerId: Record<string, boolean> = {};
+  for (const w of rosterWrestlerRowsBw ?? []) {
+    nxtRosterByWrestlerId[w.id] = wrestlerRosterFromBrand(w.brand) === "NXT";
   }
+
+  const { pointsByOwnerByWrestler } = accumulateOwnerEventPointsForCalendarWeek(
+    allInRangeSorted,
+    weekStartMonday,
+    weekEndSunday,
+    stints,
+    wrestlerDisplayNames,
+    brandBySlugBreakdown,
+    seasonSlug,
+    nxtRosterByWrestlerId
+  );
   return pointsByOwnerByWrestler;
 }
 
@@ -390,6 +478,7 @@ export async function getLeagueWeeklyMatchups(
       firstEligibleMonthEnd = firstLegacyCalendarMonthEndEligibleForLeagueStart(start);
     }
 
+    /** Full event stream through `end` (no row cap): must match `getLeagueScoring` belt inference or reigns / weekly lock dates truncate and title-hold belt points diverge from season totals. */
     const [{ data: tableReigns }, eventsRes, changesRes] = await Promise.all([
       supabase.from("championship_history").select("*"),
       supabase
@@ -398,8 +487,7 @@ export async function getLeagueWeeklyMatchups(
         .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .lte("date", end)
-        .order("date", { ascending: true })
-        .limit(BELT_REIGN_INFERENCE_EVENTS_LIMIT),
+        .order("date", { ascending: true }),
       supabase
         .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
         .select("championship_type, champion, champion_slug, date")
@@ -417,8 +505,7 @@ export async function getLeagueWeeklyMatchups(
         .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .lte("date", end)
-        .order("date", { ascending: true })
-        .limit(BELT_REIGN_INFERENCE_EVENTS_LIMIT);
+        .order("date", { ascending: true });
       eventsInRange = (ev2 ?? []) as EventRowForReignInference[];
     }
     useBroadcastForMonthlyBelt = (eventsInRange as Array<{ broadcast_start_ts?: string | null }>).some(
@@ -726,8 +813,7 @@ export async function getMonthlyBeltBySlugForWeek(
       .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
       .lte("date", end)
-      .order("date", { ascending: true })
-      .limit(BELT_REIGN_INFERENCE_EVENTS_LIMIT),
+      .order("date", { ascending: true }),
     supabase
       .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
       .select("championship_type, champion, champion_slug, date")
@@ -972,24 +1058,29 @@ export function getScheduledMatchupsForWeek(params: {
 
   const idx = weekStarts.indexOf(weekStart);
   if (idx < 0) return [];
-  if (memberUserIds.length !== 8 || weekStarts.length < 11) {
+  /** Eight-team H2H: 9 RS weeks (7 round-robin + repeat W1 + repeat W2), 3 playoff weeks (QF / SF / F) → 12 Mondays in range. */
+  if (memberUserIds.length !== 8 || weekStarts.length < 12) {
     return getMatchupsForWeek(baseOrder, baseOrder.length);
   }
 
-  // Weeks 1-8: seven-round robin, then week 8 repeats week 1 pairings.
+  const todayYmd = new Date().toISOString().slice(0, 10);
+
+  // Weeks 1–7: rounds 0–6 of the 7-round single round-robin.
   if (idx < 7) return getRoundRobinH2HForWeek(baseOrder, idx);
+  // Week 8: repeat week 1 pairings (round 0).
   if (idx === 7) return getRoundRobinH2HForWeek(baseOrder, 0);
+  // Week 9: repeat week 2 pairings (round 1).
+  if (idx === 8) return getRoundRobinH2HForWeek(baseOrder, 1);
 
-  const week8Start = weekStarts[7]!;
-  const week8Ended = getSundayOfWeek(week8Start) < new Date().toISOString().slice(0, 10);
-  if (!week8Ended) return [];
+  const lastRegularWeekStart = weekStarts[8]!;
+  if (getSundayOfWeek(lastRegularWeekStart) >= todayYmd) return [];
 
-  const regularSeasonWeeks = weekStarts.slice(0, 8);
+  const regularSeasonWeeks = weekStarts.slice(0, 9);
   const seeds = buildRegularSeasonSeedsForEightTeamLeague(baseOrder, regularSeasonWeeks, weeklyResults);
   if (seeds.length !== 8) return [];
 
-  // Week 9: quarterfinals (1v8, 4v5, 2v7, 3v6)
-  if (idx === 8) {
+  // Week 10: quarterfinals (1v8, 4v5, 2v7, 3v6), seeded from regular season through week 9.
+  if (idx === 9) {
     return [
       { type: "h2h", userIds: [seeds[0]!, seeds[7]!] },
       { type: "h2h", userIds: [seeds[3]!, seeds[4]!] },
@@ -998,22 +1089,21 @@ export function getScheduledMatchupsForWeek(params: {
     ];
   }
 
-  const week9Start = weekStarts[8]!;
-  const week9Ended = getSundayOfWeek(week9Start) < new Date().toISOString().slice(0, 10);
-  if (!week9Ended) return [];
-  const week9 = weeklyResults.find((r) => r.weekStart === week9Start);
-  if (!week9) return [];
-  const qf1w = winnerByPointsThenSeed(week9.pointsByUserId, seeds[0]!, seeds[7]!, seeds);
-  const qf2w = winnerByPointsThenSeed(week9.pointsByUserId, seeds[3]!, seeds[4]!, seeds);
-  const qf3w = winnerByPointsThenSeed(week9.pointsByUserId, seeds[1]!, seeds[6]!, seeds);
-  const qf4w = winnerByPointsThenSeed(week9.pointsByUserId, seeds[2]!, seeds[5]!, seeds);
+  const qfWeekStart = weekStarts[9]!;
+  if (getSundayOfWeek(qfWeekStart) >= todayYmd) return [];
+  const qfWeek = weeklyResults.find((r) => r.weekStart === qfWeekStart);
+  if (!qfWeek) return [];
+  const qf1w = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[0]!, seeds[7]!, seeds);
+  const qf2w = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[3]!, seeds[4]!, seeds);
+  const qf3w = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[1]!, seeds[6]!, seeds);
+  const qf4w = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[2]!, seeds[5]!, seeds);
   const qf1l = qf1w === seeds[0] ? seeds[7]! : seeds[0]!;
   const qf2l = qf2w === seeds[3] ? seeds[4]! : seeds[3]!;
   const qf3l = qf3w === seeds[1] ? seeds[6]! : seeds[1]!;
   const qf4l = qf4w === seeds[2] ? seeds[5]! : seeds[2]!;
 
-  // Week 10: semifinals for championship + placement bracket.
-  if (idx === 9) {
+  // Week 11: semifinals for championship + placement bracket.
+  if (idx === 10) {
     return [
       { type: "h2h", userIds: [qf1w, qf2w] },
       { type: "h2h", userIds: [qf3w, qf4w] },
@@ -1022,21 +1112,22 @@ export function getScheduledMatchupsForWeek(params: {
     ];
   }
 
-  const week10Start = weekStarts[9]!;
-  const week10Ended = getSundayOfWeek(week10Start) < new Date().toISOString().slice(0, 10);
-  if (!week10Ended) return [];
-  const week10 = weeklyResults.find((r) => r.weekStart === week10Start);
-  if (!week10) return [];
-  const sf1w = winnerByPointsThenSeed(week10.pointsByUserId, qf1w, qf2w, seeds);
-  const sf2w = winnerByPointsThenSeed(week10.pointsByUserId, qf3w, qf4w, seeds);
+  const sfWeekStart = weekStarts[10]!;
+  if (getSundayOfWeek(sfWeekStart) >= todayYmd) return [];
+  const sfWeek = weeklyResults.find((r) => r.weekStart === sfWeekStart);
+  if (!sfWeek) return [];
+  const sf1w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf1w, qf2w, seeds);
+  const sf2w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf3w, qf4w, seeds);
   const sf1l = sf1w === qf1w ? qf2w : qf1w;
   const sf2l = sf2w === qf3w ? qf4w : qf3w;
-  const sf3w = winnerByPointsThenSeed(week10.pointsByUserId, qf1l, qf2l, seeds);
-  const sf4w = winnerByPointsThenSeed(week10.pointsByUserId, qf3l, qf4l, seeds);
+  const sf3w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf1l, qf2l, seeds);
+  const sf4w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf3l, qf4l, seeds);
   const sf3l = sf3w === qf1l ? qf2l : qf1l;
   const sf4l = sf4w === qf3l ? qf4l : qf3l;
 
-  // Week 11: finals for 1/2, 3/4, 5/6, 7/8.
+  // Week 12: finals for 1/2, 3/4, 5/6, 7/8.
+  if (idx !== 11) return [];
+
   return [
     { type: "h2h", userIds: [sf1w, sf2w] },
     { type: "h2h", userIds: [sf1l, sf2l] },

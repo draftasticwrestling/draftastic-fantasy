@@ -10,6 +10,7 @@ import {
   runFullAutopickDraftAtScheduledTime,
   siteAdminClearDraftOrder,
   siteAdminRedrawDraftOrder,
+  restartDraft,
 } from "@/lib/leagueDraft";
 
 type Failure = { userId: string; expectedSize: number; actualSize: number; female: number; male: number; minFemale: number; minMale: number };
@@ -26,13 +27,18 @@ async function getRosterFailures(leagueId: string): Promise<Failure[]> {
   const admin = getAdminClient();
   if (!admin) return [];
   const [{ data: league }, { data: members }, { data: rows }, { data: genders }] = await Promise.all([
-    admin.from("leagues").select("season_slug").eq("id", leagueId).maybeSingle(),
+    admin.from("leagues").select("season_slug, league_type, include_nxt").eq("id", leagueId).maybeSingle(),
     admin.from("league_members").select("user_id").eq("league_id", leagueId),
     admin.from("league_rosters").select("user_id, wrestler_id").eq("league_id", leagueId).is("released_at", null),
     admin.from("wrestlers").select("id, gender"),
   ]);
   const memberIds = ((members ?? []) as { user_id: string }[]).map((m) => m.user_id);
-  const rules = getRosterRulesForLeague(memberIds.length, (league as { season_slug?: string | null } | null)?.season_slug ?? null, Boolean((league as { include_nxt?: boolean | null } | null)?.include_nxt));
+  const rules = getRosterRulesForLeague(
+    memberIds.length,
+    (league as { season_slug?: string | null } | null)?.season_slug ?? null,
+    Boolean((league as { include_nxt?: boolean | null } | null)?.include_nxt),
+    (league as { league_type?: string | null } | null)?.league_type ?? null
+  );
   if (!rules) return [];
   const genderById = new Map<string, "F" | "M" | null>();
   for (const w of (genders ?? []) as { id: string; gender: string | null }[]) {
@@ -130,6 +136,21 @@ export async function adminRunAutopickDraftAction(formData: FormData): Promise<v
       "Autopick run finished this request. Refresh: status should be ready_for_review (or still in_progress if the draft is large—use cron to finish)."
     )}`
   );
+}
+
+export async function adminRestartDraftAction(formData: FormData): Promise<void> {
+  await requireSiteAdmin();
+  const leagueSlug = String(formData.get("leagueSlug") ?? "").trim();
+  const leagueId = String(formData.get("leagueId") ?? "").trim();
+  if (!leagueId || !leagueSlug) return;
+
+  const result = await restartDraft(leagueId);
+  revalidatePath(`/internal-admin/leagues/${encodeURIComponent(leagueSlug)}`);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}`);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}/draft`);
+
+  if (result.error) leagueRedirect(leagueSlug, undefined, result.error);
+  leagueRedirect(leagueSlug, "Draft restarted: all picks and rosters cleared, new draft run created. Draft order preserved.");
 }
 
 export async function adminClearDraftOrderAction(formData: FormData): Promise<void> {

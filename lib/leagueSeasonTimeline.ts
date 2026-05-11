@@ -1,11 +1,12 @@
 /**
  * League sidebar season timeline: one chronological numbered track — Raw, SmackDown,
- * all PLEs including season finales (WrestleMania nights, SummerSlam, Survivor Series).
+ * optional NXT (weekly + NXT PLEs when the league includes NXT), and all other PLEs including season finales.
  */
 
 import {
   classifyEventType,
   EVENT_TYPES,
+  isNxtBrandEventType,
   isPLE,
 } from "@/lib/scoring/parsers/eventClassifier.js";
 import { isRoadToSummerSlam2026WithSummerslamFinale } from "@/lib/beltRts2026JulyDeferral";
@@ -69,9 +70,9 @@ export type PleFinaleBeltSub = {
   seasonEndBeltHold?: boolean;
 };
 
-/** Road to SummerSlam weekly title-hold: credit after last PLE in the segment, else after SmackDown, before the next Raw. */
+/** Road to SummerSlam weekly title-hold: credit after last PLE in the segment, else after the last weekly TV show before the next Raw (SmackDown, or NXT when that is later in the segment). */
 export type WeeklyBeltLockSub = {
-  variant: "ple" | "smackdown";
+  variant: "ple" | "smackdown" | "nxt";
   nextRawDate: string;
   completed: boolean;
 };
@@ -137,17 +138,21 @@ type MainTrackRow = {
 
 /**
  * For each Raw on the timeline, weekly belt credit attaches to the last PLE since the prior Raw,
- * or the last SmackDown if there was no PLE in that span.
+ * or the last SmackDown (non–include-NXT leagues), or the chronologically last SmackDown / NXT weekly
+ * in that span when the league includes NXT.
  */
 function weeklyBeltLockMarkersByTrackIndex(
   mainTrackRows: MainTrackRow[],
   todayYmd: string,
-  enabled: boolean
+  enabled: boolean,
+  includeNxt: boolean
 ): Map<number, WeeklyBeltLockSub> {
   const out = new Map<number, WeeklyBeltLockSub>();
   if (!enabled || mainTrackRows.length === 0) return out;
   let lastSd = -1;
   let lastPle = -1;
+  let lastMinorTv = -1;
+  let lastMinorTvVariant: "smackdown" | "nxt" = "smackdown";
   for (let i = 0; i < mainTrackRows.length; i++) {
     const { row, kind } = mainTrackRows[i]!;
     const t = classifyEventType(row.name ?? "", row.id);
@@ -155,19 +160,38 @@ function weeklyBeltLockMarkersByTrackIndex(
       lastPle = i;
     } else if (t === EVENT_TYPES.SMACKDOWN) {
       lastSd = i;
+      if (includeNxt) {
+        lastMinorTv = i;
+        lastMinorTvVariant = "smackdown";
+      }
+    } else if (includeNxt && t === EVENT_TYPES.NXT) {
+      lastMinorTv = i;
+      lastMinorTvVariant = "nxt";
     }
     if (t === EVENT_TYPES.RAW) {
       const rawDate = row.date!.slice(0, 10);
-      const attrib = lastPle >= 0 ? lastPle : lastSd;
+      let attrib = -1;
+      let variant: WeeklyBeltLockSub["variant"] = "smackdown";
+      if (lastPle >= 0) {
+        attrib = lastPle;
+        variant = "ple";
+      } else if (includeNxt && lastMinorTv >= 0) {
+        attrib = lastMinorTv;
+        variant = lastMinorTvVariant;
+      } else if (!includeNxt && lastSd >= 0) {
+        attrib = lastSd;
+        variant = "smackdown";
+      }
       if (attrib >= 0) {
         out.set(attrib, {
-          variant: lastPle >= 0 ? "ple" : "smackdown",
+          variant,
           nextRawDate: rawDate,
           completed: compareYmd(todayYmd, rawDate) > 0,
         });
       }
       lastSd = -1;
       lastPle = -1;
+      lastMinorTv = -1;
     }
   }
   return out;
@@ -214,8 +238,10 @@ export function buildLeagueSeasonTimeline(params: {
   todayYmd: string;
   /** When this league uses weekly belt scoring, timeline shows weekly locks instead of calendar month-end belt rows. */
   seasonSlug?: string | null;
+  /** NXT weekly shows and NXT-brand PLEs appear on the track; weekly belt hints consider NXT vs SmackDown order. */
+  includeNxt?: boolean;
 }): LeagueSeasonTimelinePayload {
-  const { events, effectiveStartYmd, endDateYmd, todayYmd, seasonSlug } = params;
+  const { events, effectiveStartYmd, endDateYmd, todayYmd, seasonSlug, includeNxt = false } = params;
   const windowStart = effectiveStartYmd;
   const windowEnd = endDateYmd && /^\d{4}-\d{2}-\d{2}$/.test(endDateYmd) ? endDateYmd : "2099-12-31";
 
@@ -247,7 +273,10 @@ export function buildLeagueSeasonTimeline(params: {
   for (const row of sorted) {
     const t = classifyEventType(row.name ?? "", row.id);
     if (t === EVENT_TYPES.UNKNOWN) continue;
+    if (!includeNxt && isNxtBrandEventType(t)) continue;
     if (WEEKLY_TIMELINE_TYPES.has(t)) {
+      mainTrackRows.push({ row, kind: "weekly", isFinale: false });
+    } else if (includeNxt && t === EVENT_TYPES.NXT) {
       mainTrackRows.push({ row, kind: "weekly", isFinale: false });
     } else if (isPLE(t)) {
       mainTrackRows.push({
@@ -262,7 +291,12 @@ export function buildLeagueSeasonTimeline(params: {
   /** Match belt strip to the arc shown in the title (May–Jul = Road to SummerSlam), not only DB `season_slug`. */
   const useWeeklyBeltTimeline =
     leagueUsesWeeklyPstBeltHold(seasonSlug ?? null) || seasonPhase.id === "road-to-summerslam";
-  const weeklyBeltByIndex = weeklyBeltLockMarkersByTrackIndex(mainTrackRows, todayYmd, useWeeklyBeltTimeline);
+  const weeklyBeltByIndex = weeklyBeltLockMarkersByTrackIndex(
+    mainTrackRows,
+    todayYmd,
+    useWeeklyBeltTimeline,
+    includeNxt
+  );
 
   const steps: Omit<TimelineStep, "isNext">[] = [];
   let eventOrdinal = 0;

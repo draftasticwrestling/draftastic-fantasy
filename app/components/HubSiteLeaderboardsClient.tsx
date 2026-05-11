@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { formatFantasyWeekRangeLabel } from "@/lib/formatFantasyWeekRange";
 import type { HubSiteLeaderboardsPayload } from "@/lib/hubSiteLeaderboardsTypes";
 
 const CLIENT_CACHE_MAX = 24;
@@ -15,30 +16,15 @@ function cachePut(map: Map<string, HubSiteLeaderboardsPayload>, key: string, val
   }
 }
 
-/** Monday week key → Sunday YYYY-MM-DD (UTC noon math). */
-function sundayOfWeek(weekStartMonday: string): string {
-  const d = new Date(weekStartMonday + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() + 6);
-  return d.toISOString().slice(0, 10);
-}
-
-/** Same display string as `formatFantasyWeekRangeLabel` without importing server-only modules. */
-function weekRangeLabel(weekStartMonday: string): string {
-  const end = sundayOfWeek(weekStartMonday);
-  try {
-    const s = new Date(`${weekStartMonday}T12:00:00Z`);
-    const e = new Date(`${end}T12:00:00Z`);
-    const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", timeZone: "UTC" };
-    const y = s.getUTCFullYear();
-    const y2 = e.getUTCFullYear();
-    const a = s.toLocaleDateString("en-US", opts);
-    const b = e.toLocaleDateString("en-US", { ...opts, year: y !== y2 ? "numeric" : undefined });
-    if (y !== y2) {
-      return `${a}, ${y} – ${b}, ${y2}`;
-    }
-    return `${a} – ${b}, ${y}`;
-  } catch {
-    return `${weekStartMonday} – ${end}`;
+/** Index payload by requested week and by normalized weekStart so nav clicks always resolve. */
+function cachePutWeekPayload(
+  map: Map<string, HubSiteLeaderboardsPayload>,
+  requestedMonday: string,
+  val: HubSiteLeaderboardsPayload
+) {
+  cachePut(map, requestedMonday, val);
+  if (val.weekStart && val.weekStart !== requestedMonday) {
+    cachePut(map, val.weekStart, val);
   }
 }
 
@@ -68,7 +54,7 @@ function syncLeaderboardWeekUrl(payload: HubSiteLeaderboardsPayload) {
 async function fetchWeekPayload(weekMonday: string): Promise<HubSiteLeaderboardsPayload | null> {
   const res = await fetch(
     `/api/hub-site-leaderboards?leaderboard_week=${encodeURIComponent(weekMonday)}`,
-    { cache: "default" }
+    { cache: "no-store" }
   );
   if (!res.ok) return null;
   const json = (await res.json()) as HubSiteLeaderboardsPayload;
@@ -84,13 +70,13 @@ export default function HubSiteLeaderboardsClient({ initial }: { initial: HubSit
   const prefetchWeek = useCallback((weekMonday: string | null) => {
     if (!weekMonday || cacheRef.current.has(weekMonday)) return;
     void fetchWeekPayload(weekMonday).then((json) => {
-      if (json?.weekStart) cachePut(cacheRef.current, json.weekStart, json);
+      if (json?.weekStart) cachePutWeekPayload(cacheRef.current, weekMonday, json);
     });
   }, []);
 
   useEffect(() => {
     if (!initial.weekStart) return;
-    cachePut(cacheRef.current, initial.weekStart, initial);
+    cachePutWeekPayload(cacheRef.current, initial.weekStart, initial);
     const t = window.setTimeout(() => {
       prefetchWeek(initial.weeklyPrevWeekStart);
       prefetchWeek(initial.weeklyNextWeekStart);
@@ -112,7 +98,7 @@ export default function HubSiteLeaderboardsClient({ initial }: { initial: HubSit
       try {
         const json = await fetchWeekPayload(weekMonday);
         if (!json?.weekStart) return;
-        cachePut(cacheRef.current, json.weekStart, json);
+        cachePutWeekPayload(cacheRef.current, weekMonday, json);
         setData(json);
         syncLeaderboardWeekUrl(json);
         prefetchWeek(json.weeklyPrevWeekStart);
@@ -124,7 +110,7 @@ export default function HubSiteLeaderboardsClient({ initial }: { initial: HubSit
     [prefetchWeek]
   );
 
-  const weekLabel = data.weekStart ? weekRangeLabel(data.weekStart) : null;
+  const weekLabel = data.weekStart ? formatFantasyWeekRangeLabel(data.weekStart) : null;
 
   return (
     <section
@@ -134,10 +120,9 @@ export default function HubSiteLeaderboardsClient({ initial }: { initial: HubSit
     >
       <h2 className="hub-col-title">Leaderboards</h2>
       <p className="hub-leaderboards-hint">
-        Site-wide among active leagues (completed draft). Each row is your best single league (not summed across
-        leagues). Season totals match the league home: R/S and PLE event points plus title-hold belt points and, when
-        the league format uses them, weekly win and Draftastic belt bonuses. Weekly is Mon–Sun (PT); use Previous Week
-        and Next Week to move one week at a time.
+        Active leagues with a completed draft: each column is your <strong>best single league</strong> for that
+        column—scores are never added across leagues. Weekly uses the Mon–Sun <strong>Pacific</strong> week below; use{" "}
+        <strong>Previous week</strong> / <strong>Next week</strong> to move.
       </p>
 
       <div className="hub-leaderboard-block">

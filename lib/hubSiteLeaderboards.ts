@@ -18,6 +18,25 @@ function chunkIds(ids: string[], size: number): string[][] {
   return out;
 }
 
+/** Run an async task for each item with at most `limit` in-flight at once. */
+async function mapConcurrent<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let idx = 0;
+  async function worker() {
+    while (idx < items.length) {
+      const i = idx++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
+  await Promise.all(workers);
+  return results;
+}
+
 function mapToTop10(totals: Map<string, number>): { userId: string; points: number }[] {
   return [...totals.entries()]
     .map(([userId, points]) => ({ userId, points: Number(points || 0) }))
@@ -79,39 +98,44 @@ function toDisplayRows(
   }));
 }
 
-/** Live season: each user's highest single-league total (same scoring as league home, max not sum). */
+const HUB_LEADERBOARD_CONCURRENCY = 4;
+
+/**
+ * Hub “Most points this season”: per user, their **highest** season-to-date total in any one league (never summed
+ * across leagues). Same scoring as that league’s home total.
+ */
 async function aggregateLiveSeasonByUser(admin: SupabaseClient, leagueIds: string[]): Promise<Map<string, number>> {
   const userMax = new Map<string, number>();
-  await Promise.all(
-    leagueIds.map(async (leagueId) => {
-      const byOwner = await getPointsByOwnerForLeagueWithBonuses(leagueId, admin);
-      for (const [uid, pts] of Object.entries(byOwner)) {
-        const p = Number(pts ?? 0);
-        const prev = userMax.get(uid) ?? 0;
-        if (p > prev) userMax.set(uid, p);
-      }
-    })
-  );
+  await mapConcurrent(leagueIds, HUB_LEADERBOARD_CONCURRENCY, async (leagueId) => {
+    const byOwner = await getPointsByOwnerForLeagueWithBonuses(leagueId, admin);
+    for (const [uid, pts] of Object.entries(byOwner)) {
+      const p = Number(pts ?? 0);
+      const prev = userMax.get(uid) ?? 0;
+      if (p > prev) userMax.set(uid, p);
+    }
+  });
   return userMax;
 }
 
-/** Live weekly: each user's best single-league score that week (same scoring as league matchups). */
+/**
+ * Hub “Most points this week”: per user, their **highest** Mon–Sun week total in any one league (never summed across
+ * leagues). Uses matchup-week scoring — event points, title-hold belt in that week, and weekly win / Draftastic belt
+ * bonuses when the league format applies them (`getPointsByOwnerForLeagueWeekFromMatchups`).
+ */
 async function aggregateLiveWeeklyByUser(
   admin: SupabaseClient,
   leagueIds: string[],
   weekStartMonday: string
 ): Promise<Map<string, number>> {
   const userMax = new Map<string, number>();
-  await Promise.all(
-    leagueIds.map(async (leagueId) => {
-      const byOwner = await getPointsByOwnerForLeagueWeekFromMatchups(leagueId, weekStartMonday, admin);
-      for (const [uid, pts] of Object.entries(byOwner)) {
-        const p = Number(pts ?? 0);
-        const prev = userMax.get(uid) ?? 0;
-        if (p > prev) userMax.set(uid, p);
-      }
-    })
-  );
+  await mapConcurrent(leagueIds, HUB_LEADERBOARD_CONCURRENCY, async (leagueId) => {
+    const byOwner = await getPointsByOwnerForLeagueWeekFromMatchups(leagueId, weekStartMonday, admin);
+    for (const [uid, pts] of Object.entries(byOwner)) {
+      const p = Number(pts ?? 0);
+      const prev = userMax.get(uid) ?? 0;
+      if (p > prev) userMax.set(uid, p);
+    }
+  });
   return userMax;
 }
 
@@ -135,16 +159,8 @@ export function normalizeHubLeaderboardWeekStart(
   return mon;
 }
 
-/**
- * Site-wide fantasy leaderboards for non-archived leagues with completed drafts.
- * Season: each user's best single-league season total (R/S + PLE + title-hold belt + weekly bonuses when the league
- * uses them), same as the league home — always computed live so totals never drift from snapshot rollups.
- * Weekly: each user's best single-league score for the selected Mon–Sun week (PT), always computed live from
- * matchup logic (same chart as league matchups) so title-hold belt and weekly bonuses stay in sync.
- */
-export async function getHubSiteLeaderboards(opts?: {
-  leaderboardWeek?: string | null;
-}): Promise<HubSiteLeaderboardsPayload> {
+/** Heavy path: all leagues × scoring; cached per `selectedWeekStart` (args are part of the cache key). */
+async function computeHubSiteLeaderboardsForWeek(selectedWeekStart: string): Promise<HubSiteLeaderboardsPayload> {
   const admin = getAdminClient();
   if (!admin) {
     return {
@@ -159,7 +175,6 @@ export async function getHubSiteLeaderboards(opts?: {
   }
 
   const currentMondayPst = getCurrentWeekStartMondayPst();
-  const selectedWeekStart = normalizeHubLeaderboardWeekStart(opts?.leaderboardWeek ?? null, currentMondayPst);
   const oldest = shiftWeekStartMonday(currentMondayPst, -HUB_LEADERBOARD_WEEK_LOOKBACK);
   const prevStart = shiftWeekStartMonday(selectedWeekStart, -1);
   const nextStart = shiftWeekStartMonday(selectedWeekStart, 1);
@@ -201,12 +216,38 @@ export async function getHubSiteLeaderboards(opts?: {
   };
 }
 
-/**
- * Per fantasy week (Monday YYYY-MM-DD, PT). Recomputes at most every `revalidate` seconds server-side so toggling
- * weeks and repeat API hits stay fast while scores stay reasonably fresh during the live week.
- */
-export const getHubSiteLeaderboardsCached = unstable_cache(
-  async (weekMonday: string) => getHubSiteLeaderboards({ leaderboardWeek: weekMonday }),
+const getHubSiteLeaderboardsCached = unstable_cache(
+  async (selectedWeekStart: string) => computeHubSiteLeaderboardsForWeek(selectedWeekStart),
   ["hub-site-leaderboards-by-week"],
-  { revalidate: 75 }
+  { revalidate: 90 }
 );
+
+/**
+ * Site-wide hub leaderboards (non-archived leagues, completed draft).
+ *
+ * - Season: max over leagues of that user’s season-to-date points in the league (never sum across leagues).
+ * - Weekly: max over leagues of that user’s points for the selected Mon–Sun week (PT), all categories the matchup
+ *   chart includes for that week (including weekly belt where applicable).
+ */
+export async function getHubSiteLeaderboards(opts?: {
+  leaderboardWeek?: string | null;
+}): Promise<HubSiteLeaderboardsPayload> {
+  const admin = getAdminClient();
+  if (!admin) {
+    return {
+      weekStart: null,
+      currentWeekStartMondayPst: null,
+      weeklyPrevWeekStart: null,
+      weeklyNextWeekStart: null,
+      weeklyTop10: [],
+      seasonTop10: [],
+      hubLeaderboardsAvailable: false,
+    };
+  }
+
+  const currentMondayPst = getCurrentWeekStartMondayPst();
+  const selectedWeekStart = normalizeHubLeaderboardWeekStart(opts?.leaderboardWeek ?? null, currentMondayPst);
+
+  return getHubSiteLeaderboardsCached(selectedWeekStart);
+}
+

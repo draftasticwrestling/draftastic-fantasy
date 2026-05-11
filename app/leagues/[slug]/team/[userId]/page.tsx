@@ -208,7 +208,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     teamScoringAudit.activeStints.map((s) => [s.wrestler_id, s.acquired_at ?? null])
   );
 
-  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
+  const rosterRules = getRosterRulesForLeague(
+    members.length,
+    league.season_slug ?? null,
+    Boolean(league.include_nxt),
+    league.league_type ?? null
+  );
   const rosterWrestlers = rosterEntries.map((e) => {
     const w = wrestlers.find((x) => x.id === e.wrestler_id) as { id: string; name: string | null; gender?: string | null } | undefined;
     return { id: e.wrestler_id, name: w?.name ?? e.wrestler_id, gender: w?.gender ?? null };

@@ -27,6 +27,7 @@ import {
   adminRedrawDraftOrderAction,
   adminRemoveRosterEntryAction,
   adminRemoveUserFromLeagueAction,
+  adminRestartDraftAction,
   adminRunAutopickDraftAction,
   adminUnarchiveLeagueAction,
 } from "../actions";
@@ -138,7 +139,12 @@ export default async function InternalAdminLeagueDetailPage({
     list.push(r.wrestler_id);
     rosterByUser.set(r.user_id, list);
   }
-  const rules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
+  const rules = getRosterRulesForLeague(
+    members.length,
+    league.season_slug ?? null,
+    Boolean(league.include_nxt),
+    league.league_type ?? null
+  );
   const rosterWarnings: string[] = [];
   if (rules) {
     for (const m of members) {
@@ -485,6 +491,43 @@ export default async function InternalAdminLeagueDetailPage({
             (same logic as the pre-draft randomizer). After picks exist, use the GM &quot;restart draft&quot; flow on the member
             draft page instead.
           </p>
+
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ margin: "0 0 8px", fontSize: 14, color: "var(--color-text-muted)" }}>
+              <strong>Restart draft</strong> — clears all picks, all rosters, and user draft state; rotates to a fresh
+              draft run ID; preserves draft order. Use this when a draft is stuck or needs a clean retry.
+            </p>
+            <details style={{ display: "inline-block" }}>
+              <summary
+                style={{
+                  cursor: "pointer",
+                  display: "inline-block",
+                  padding: "6px 14px",
+                  background: "#7f1d1d",
+                  color: "#fff",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  userSelect: "none",
+                }}
+              >
+                Restart draft (clear picks + rosters)
+              </summary>
+              <div style={{ marginTop: 10, padding: "10px 12px", border: "1px solid #fca5a5", borderRadius: 6, background: "#fef2f2", maxWidth: 480 }}>
+                <p style={{ margin: "0 0 10px", fontSize: 13, color: "#7f1d1d" }}>
+                  This will permanently delete all picks and rosters for <strong>{league.slug}</strong>. Draft order is preserved. Are you sure?
+                </p>
+                <form action={adminRestartDraftAction}>
+                  <input type="hidden" name="leagueId" value={league.id} />
+                  <input type="hidden" name="leagueSlug" value={league.slug} />
+                  <button type="submit" className="admin-article-submit" style={{ background: "#7f1d1d", color: "#fff" }}>
+                    Yes, restart draft
+                  </button>
+                </form>
+              </div>
+            </details>
+          </div>
+
           {canEditDraftOrderAdmin ? (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start" }}>
               <form action={adminClearDraftOrderAction}>

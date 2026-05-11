@@ -262,7 +262,12 @@ export default async function LeagueDraftPage({ params }: Props) {
     wrestlerPoolDiagnostic = wrestlersResult.diagnostic;
 
     memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, { display_name: m.display_name, team_name: m.team_name }]));
-    rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
+    rosterRules = getRosterRulesForLeague(
+      members.length,
+      league.season_slug ?? null,
+      Boolean(league.include_nxt),
+      league.league_type ?? null
+    );
     const draftedIds = new Set<string>();
     for (const entries of Object.values(rosters)) {
       for (const e of entries) {

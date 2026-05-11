@@ -85,6 +85,28 @@ export const INCLUDE_NXT_ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
 };
 
 /**
+ * Head-to-Head and Combo (H2H + season points): deeper benches than legacy Total Season Points.
+ * Roster size 12 for every supported team count; gender floors align with expanded NXT-inclusive ladder.
+ */
+export const HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
+  3: { rosterSize: 12, minFemale: 4, minMale: 5 },
+  4: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  5: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  6: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  7: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  8: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  9: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  10: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  11: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  12: { rosterSize: 12, minFemale: 4, minMale: 4 },
+};
+
+/** Leagues that use {@link HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS} instead of the Total Season Points ladder. */
+export function leagueUsesHeadToHeadStyleRosterRules(leagueType: string | null | undefined): boolean {
+  return leagueType === "head_to_head" || leagueType === "combo";
+}
+
+/**
  * @deprecated Use LEGACY_ROSTER_RULES_BY_TEAMS + RTS_BETA_ROSTER_RULES_3_TO_6 via getRosterRulesForLeague.
  * Merged view for debugging/docs only — do not use for new code.
  */
@@ -100,6 +122,7 @@ export const ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
 export const ACTIVE_PER_EVENT_BY_ROSTER_SIZE: Record<number, number> = {
   15: 8,
   13: 7,
+  12: 7,
   11: 6,
   10: 8,
   9: 5,
@@ -112,6 +135,7 @@ export const ACTIVE_PER_EVENT_BY_ROSTER_SIZE: Record<number, number> = {
 /**
  * Get roster rules for a league based on team count and season.
  *
+ * - `league_type` **head_to_head** or **combo**: {@link HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS} (roster 12 for 3–12 teams).
  * - Road to SummerSlam (`season_slug === road-to-summerslam`) with 3–6 teams: RTS beta caps.
  * - All other seasons (including Total Season Points test leagues in other seasons): legacy rules.
  *   For 3–6 teams, legacy uses the same rules as a 7-team league (roster 10 / mins 4F+4M).
@@ -120,10 +144,14 @@ export const ACTIVE_PER_EVENT_BY_ROSTER_SIZE: Record<number, number> = {
 export function getRosterRulesForLeague(
   teamCount: number,
   seasonSlug?: string | null,
-  includeNxt?: boolean | null
+  includeNxt?: boolean | null,
+  leagueType?: string | null
 ): RosterRules | null {
   if (teamCount < MIN_LEAGUE_TEAMS || teamCount > MAX_LEAGUE_TEAMS) {
     return null;
+  }
+  if (leagueUsesHeadToHeadStyleRosterRules(leagueType)) {
+    return HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
   }
   if (includeNxt) {
     return INCLUDE_NXT_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
@@ -146,12 +174,13 @@ export async function getRosterRulesForLeagueId(
 ): Promise<RosterRules | null> {
   const [{ count }, { data: league }] = await Promise.all([
     supabase.from("league_members").select("*", { count: "exact", head: true }).eq("league_id", leagueId),
-    supabase.from("leagues").select("season_slug, include_nxt").eq("id", leagueId).maybeSingle(),
+    supabase.from("leagues").select("season_slug, include_nxt, league_type").eq("id", leagueId).maybeSingle(),
   ]);
   const teamCount = count ?? 0;
   const seasonSlug = (league as { season_slug?: string | null } | null)?.season_slug ?? null;
   const includeNxt = (league as { include_nxt?: boolean | null } | null)?.include_nxt ?? false;
-  return getRosterRulesForLeague(teamCount, seasonSlug, includeNxt);
+  const leagueType = (league as { league_type?: string | null } | null)?.league_type ?? null;
+  return getRosterRulesForLeague(teamCount, seasonSlug, includeNxt, leagueType);
 }
 
 /**

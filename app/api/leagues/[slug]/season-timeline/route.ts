@@ -7,7 +7,8 @@ type RouteContext = { params: Promise<{ slug: string }> };
 
 /**
  * GET /api/leagues/[slug]/season-timeline
- * Member-only. Raw, SmackDown, and all PLEs (including finales) between effective start and end_date.
+ * Member-only. Raw, SmackDown, all PLEs (including finales), and NXT weekly + NXT PLEs when the league has
+ * `include_nxt`, between effective start and end_date.
  */
 export async function GET(_request: Request, context: RouteContext) {
   const { slug } = await context.params;
@@ -39,6 +40,7 @@ export async function GET(_request: Request, context: RouteContext) {
     endDateYmd: endRaw,
     todayYmd,
     seasonSlug: (league as { season_slug?: string | null }).season_slug ?? null,
+    includeNxt: Boolean((league as { include_nxt?: boolean | null }).include_nxt),
   });
 
   return NextResponse.json(payload);

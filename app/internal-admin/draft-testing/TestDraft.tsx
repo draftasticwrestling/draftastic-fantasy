@@ -233,7 +233,7 @@ export function TestDraft({ wrestlers: wrestlersProp, pointsByPeriod }: Props) {
   const [editingTeamPrefsFor, setEditingTeamPrefsFor] = useState<number>(0);
   const autoPickTriggeredForPickRef = useRef<number>(0);
 
-  const rules = getRosterRulesForLeague(teamCount, ROAD_TO_SUMMERSLAM_SEASON_SLUG);
+  const rules = getRosterRulesForLeague(teamCount, ROAD_TO_SUMMERSLAM_SEASON_SLUG, false, "head_to_head");
   const totalPicks = rules ? teamCount * rules.rosterSize : 0;
   const currentTeamIndex = draftOrder[currentPick - 1] ?? null;
 

@@ -294,11 +294,10 @@ export async function getDraftOrder(
   leagueId: string
 ): Promise<{ overall_pick: number; user_id: string }[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("league_draft_order")
-    .select("overall_pick, user_id")
-    .eq("league_id", leagueId)
-    .order("overall_pick", { ascending: true });
+  const runId = await getLeagueCurrentDraftRunId(supabase, leagueId);
+  let q = supabase.from("league_draft_order").select("overall_pick, user_id").eq("league_id", leagueId);
+  if (runId) q = q.eq("draft_run_id", runId);
+  const { data, error } = await q.order("overall_pick", { ascending: true });
 
   if (error) return [];
   return (data ?? []) as { overall_pick: number; user_id: string }[];
@@ -573,7 +572,9 @@ export async function getLeagueDraftState(leagueId: string): Promise<{
 
   const full = await supabase
     .from("leagues")
-    .select("draft_status, draft_current_pick, draft_style, draft_type, draft_current_pick_started_at")
+    .select(
+      "draft_status, draft_current_pick, draft_style, draft_type, draft_current_pick_started_at, current_draft_run_id"
+    )
     .eq("id", leagueId)
     .maybeSingle();
   if (full.error) {
@@ -592,10 +593,11 @@ export async function getLeagueDraftState(leagueId: string): Promise<{
   if (err && !league) return null;
   if (!league) return null;
 
-  const { count } = await supabase
-    .from("league_draft_order")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", leagueId);
+  const runId =
+    (league as { current_draft_run_id?: string | null }).current_draft_run_id?.trim() || null;
+  let countQ = supabase.from("league_draft_order").select("*", { count: "exact", head: true }).eq("league_id", leagueId);
+  if (runId) countQ = countQ.eq("draft_run_id", runId);
+  const { count } = await countQ;
 
   return {
     draft_status: (league.draft_status ?? "not_started") as
@@ -619,7 +621,7 @@ export async function getCurrentPick(
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
-    .select("draft_current_pick, draft_status")
+    .select("draft_current_pick, draft_status, current_draft_run_id")
     .eq("id", leagueId)
     .single();
 
@@ -627,18 +629,78 @@ export async function getCurrentPick(
     return null;
   }
 
-  const { data: row } = await supabase
+  const runId = (league as { current_draft_run_id?: string | null }).current_draft_run_id?.trim() || null;
+  let orderQ = supabase
     .from("league_draft_order")
     .select("overall_pick, user_id")
     .eq("league_id", leagueId)
-    .eq("overall_pick", league.draft_current_pick)
-    .maybeSingle();
+    .eq("overall_pick", league.draft_current_pick);
+  if (runId) orderQ = orderQ.eq("draft_run_id", runId);
+  const { data: row } = await orderQ.maybeSingle();
 
   if (!row) return null;
   return row as { overall_pick: number; user_id: string };
 }
 
 type AdminClient = NonNullable<ReturnType<typeof getAdminClient>>;
+
+/** Highest `overall_pick` in the active order set (per run when pinned). */
+async function getMaxOverallPickForLeagueOrder(
+  admin: AdminClient,
+  leagueId: string,
+  runId: string | null
+): Promise<number | null> {
+  let q = admin
+    .from("league_draft_order")
+    .select("overall_pick")
+    .eq("league_id", leagueId)
+    .order("overall_pick", { ascending: false })
+    .limit(1);
+  if (runId) q = q.eq("draft_run_id", runId);
+  const { data, error } = await q.maybeSingle();
+  if (error || !data) return null;
+  const n = (data as { overall_pick?: number }).overall_pick;
+  return typeof n === "number" ? n : null;
+}
+
+/**
+ * If the league cursor is past the last slot in the draft order, mark the draft ready for review.
+ * Heals stuck `in_progress` leagues after a bad `total_picks` / order mismatch.
+ */
+async function finalizeDraftIfCursorPastOrderEnd(admin: AdminClient, leagueId: string): Promise<boolean> {
+  const { data: league } = await admin
+    .from("leagues")
+    .select("draft_status, draft_current_pick, current_draft_run_id")
+    .eq("id", leagueId)
+    .maybeSingle();
+  if (!league) return false;
+  const status = (league as { draft_status?: string }).draft_status;
+  const cursor = (league as { draft_current_pick?: number | null }).draft_current_pick;
+  if (status !== "in_progress" || cursor == null) return false;
+  const runId = (league as { current_draft_run_id?: string | null }).current_draft_run_id?.trim() || null;
+  const maxOverall = await getMaxOverallPickForLeagueOrder(admin, leagueId, runId);
+  if (maxOverall == null) return false;
+  if (cursor <= maxOverall) return false;
+  const { error } = await admin
+    .from("leagues")
+    .update({
+      draft_current_pick: null,
+      draft_status: "ready_for_review",
+      draft_current_pick_started_at: null,
+    })
+    .eq("id", leagueId);
+  return !error;
+}
+
+/** Active draft run for order/pick queries; null = legacy leagues before `current_draft_run_id`. */
+async function getLeagueCurrentDraftRunId(
+  client: Pick<SupabaseClient, "from">,
+  leagueId: string
+): Promise<string | null> {
+  const { data } = await client.from("leagues").select("current_draft_run_id").eq("id", leagueId).maybeSingle();
+  const id = (data as { current_draft_run_id?: string | null } | null)?.current_draft_run_id;
+  return typeof id === "string" && id.trim().length > 0 ? id.trim() : null;
+}
 
 /** Same as getCurrentPick but uses admin client. Use this during autopick/cron so the correct picker is always read (no RLS/session dependency). */
 async function getCurrentPickUsingAdmin(
@@ -647,7 +709,7 @@ async function getCurrentPickUsingAdmin(
 ): Promise<{ overall_pick: number; user_id: string } | null> {
   const { data: league } = await admin
     .from("leagues")
-    .select("draft_current_pick, draft_status")
+    .select("draft_current_pick, draft_status, current_draft_run_id")
     .eq("id", leagueId)
     .single();
 
@@ -655,12 +717,14 @@ async function getCurrentPickUsingAdmin(
     return null;
   }
 
-  const { data: row } = await admin
+  const runId = (league as { current_draft_run_id?: string | null }).current_draft_run_id?.trim() || null;
+  let orderQ = admin
     .from("league_draft_order")
     .select("overall_pick, user_id")
     .eq("league_id", leagueId)
-    .eq("overall_pick", league.draft_current_pick)
-    .maybeSingle();
+    .eq("overall_pick", league.draft_current_pick);
+  if (runId) orderQ = orderQ.eq("draft_run_id", runId);
+  const { data: row } = await orderQ.maybeSingle();
 
   if (!row) return null;
   return row as { overall_pick: number; user_id: string };
@@ -671,11 +735,10 @@ async function getDraftOrderUsingAdmin(
   admin: AdminClient,
   leagueId: string
 ): Promise<{ overall_pick: number; user_id: string }[]> {
-  const { data, error } = await admin
-    .from("league_draft_order")
-    .select("overall_pick, user_id")
-    .eq("league_id", leagueId)
-    .order("overall_pick", { ascending: true });
+  const runId = await getLeagueCurrentDraftRunId(admin, leagueId);
+  let q = admin.from("league_draft_order").select("overall_pick, user_id").eq("league_id", leagueId);
+  if (runId) q = q.eq("draft_run_id", runId);
+  const { data, error } = await q.order("overall_pick", { ascending: true });
   if (error) return [];
   return (data ?? []) as { overall_pick: number; user_id: string }[];
 }
@@ -694,14 +757,16 @@ async function getLeagueDraftStateUsingAdmin(
 } | null> {
   const { data: league, error } = await admin
     .from("leagues")
-    .select("draft_status, draft_current_pick, draft_style, draft_current_pick_started_at, draft_type")
+    .select(
+      "draft_status, draft_current_pick, draft_style, draft_current_pick_started_at, draft_type, current_draft_run_id"
+    )
     .eq("id", leagueId)
     .maybeSingle();
   if (error || !league) return null;
-  const { count } = await admin
-    .from("league_draft_order")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", leagueId);
+  const runId = (league as { current_draft_run_id?: string | null }).current_draft_run_id?.trim() || null;
+  let countQ = admin.from("league_draft_order").select("*", { count: "exact", head: true }).eq("league_id", leagueId);
+  if (runId) countQ = countQ.eq("draft_run_id", runId);
+  const { count } = await countQ;
   return {
     draft_status: (league.draft_status ?? "not_started") as
       | "not_started"
@@ -902,7 +967,8 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
   const rules = getRosterRulesForLeague(
     members.length,
     (league as { season_slug?: string | null }).season_slug ?? null,
-    Boolean((league as { include_nxt?: boolean | null }).include_nxt)
+    Boolean((league as { include_nxt?: boolean | null }).include_nxt),
+    (league as { league_type?: string | null } | null)?.league_type ?? null
   );
   if (!rules) return { error: "League size must be 3–12 teams to generate draft order." };
 
@@ -979,7 +1045,8 @@ export async function generateDraftOrderForScheduledDraft(leagueId: string): Pro
   const rules = getRosterRulesForLeague(
     memberIds.length,
     (league as { season_slug?: string | null }).season_slug ?? null,
-    Boolean((league as { include_nxt?: boolean | null }).include_nxt)
+    Boolean((league as { include_nxt?: boolean | null }).include_nxt),
+    (league as { league_type?: string | null } | null)?.league_type ?? null
   );
   if (!rules) return { error: "League size must be 3–12 teams to generate draft order." };
 
@@ -1055,7 +1122,8 @@ export async function setDraftOrderFromRound1(
   const rules = getRosterRulesForLeague(
     members.length,
     (league as { season_slug?: string | null }).season_slug ?? null,
-    Boolean((league as { include_nxt?: boolean | null }).include_nxt)
+    Boolean((league as { include_nxt?: boolean | null }).include_nxt),
+    (league as { league_type?: string | null } | null)?.league_type ?? null
   );
   if (!rules) return { error: "League size must be 3–12 teams to set draft order." };
 
@@ -1123,7 +1191,7 @@ export async function startDraft(leagueId: string): Promise<{ error?: string }> 
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, draft_current_pick, visibility_type")
+    .select("id, draft_current_pick, visibility_type, current_draft_run_id")
     .eq("id", leagueId)
     .single();
   if (!league) {
@@ -1133,10 +1201,14 @@ export async function startDraft(leagueId: string): Promise<{ error?: string }> 
   const adminGate = await assertSiteAdminForMemberUi(supabase, user.id);
   if (adminGate.error) return adminGate;
 
-  const { count } = await supabase
+  const orderRunId =
+    (league as { current_draft_run_id?: string | null }).current_draft_run_id?.trim() || null;
+  let countQ = supabase
     .from("league_draft_order")
     .select("*", { count: "exact", head: true })
     .eq("league_id", leagueId);
+  if (orderRunId) countQ = countQ.eq("draft_run_id", orderRunId);
+  const { count } = await countQ;
   if (!count || count === 0) return { error: "No draft order. Generate draft order first." };
   if ((league as { visibility_type?: string | null }).visibility_type === "public") {
     const members = await getLeagueMembers(leagueId);
@@ -1198,27 +1270,30 @@ export async function makeDraftPick(
     };
   }
 
-  const { data: orderRow } = await admin
+  const runIdForOrder = await getLeagueCurrentDraftRunId(admin, leagueId);
+  let orderPickQ = admin
     .from("league_draft_order")
     .select("draft_run_id")
     .eq("league_id", leagueId)
-    .eq("overall_pick", current.overall_pick)
-    .maybeSingle();
+    .eq("overall_pick", current.overall_pick);
+  if (runIdForOrder) orderPickQ = orderPickQ.eq("draft_run_id", runIdForOrder);
+  const { data: orderRow } = await orderPickQ.maybeSingle();
   const draftRunId = (orderRow as { draft_run_id?: string } | null)?.draft_run_id ?? null;
   if (!draftRunId) {
     return { error: "Draft run not found. Generate or set draft order first." };
   }
 
-  const rosters = await getRostersForLeagueAdmin(leagueId, admin);
-  const draftedIds = new Set<string>();
-  for (const entries of Object.values(rosters)) for (const e of entries) addToDraftedSet(draftedIds, e.wrestler_id);
+  // Seed drafted set from the current run's picks only, plus live rosters for free-agent deduplication.
   const { data: existingPickRows } = await admin
     .from("league_draft_picks")
     .select("wrestler_id")
     .eq("draft_run_id", draftRunId);
+  const draftedIds = new Set<string>();
   for (const row of existingPickRows ?? []) {
     addToDraftedSet(draftedIds, (row as { wrestler_id?: string | null }).wrestler_id);
   }
+  const rosters = await getRostersForLeagueAdmin(leagueId, admin);
+  for (const entries of Object.values(rosters)) for (const e of entries) addToDraftedSet(draftedIds, e.wrestler_id);
   if (isInDraftedSet(draftedIds, wrestlerId)) {
     return { error: "That wrestler (or an alter ego of that wrestler) has already been drafted." };
   }
@@ -1891,14 +1966,19 @@ async function healOneStaleDraftCursorStep(admin: AdminClient, leagueId: string)
   if (!state || state.draft_status !== "in_progress" || state.draft_current_pick == null) return false;
 
   const pickNum = state.draft_current_pick;
-  const { data: orderRow } = await admin
+  const runId = await getLeagueCurrentDraftRunId(admin, leagueId);
+  let orderQ = admin
     .from("league_draft_order")
     .select("draft_run_id")
     .eq("league_id", leagueId)
-    .eq("overall_pick", pickNum)
-    .maybeSingle();
+    .eq("overall_pick", pickNum);
+  if (runId) orderQ = orderQ.eq("draft_run_id", runId);
+  const { data: orderRow } = await orderQ.maybeSingle();
   const draftRunId = (orderRow as { draft_run_id?: string } | null)?.draft_run_id ?? null;
-  if (!draftRunId) return false;
+  if (!draftRunId) {
+    await finalizeDraftIfCursorPastOrderEnd(admin, leagueId);
+    return false;
+  }
 
   const { data: pickRow } = await admin
     .from("league_draft_picks")
@@ -1908,14 +1988,14 @@ async function healOneStaleDraftCursorStep(admin: AdminClient, leagueId: string)
     .maybeSingle();
   if (!pickRow) return false;
 
-  const totalPicks = state.total_picks ?? 0;
+  const maxOverall = await getMaxOverallPickForLeagueOrder(admin, leagueId, runId);
   const nextPick = pickNum + 1;
   const updates: {
     draft_current_pick: number | null;
     draft_status: string;
     draft_current_pick_started_at?: string | null;
   } =
-    nextPick > totalPicks
+    maxOverall != null && nextPick > maxOverall
       ? { draft_current_pick: null, draft_status: "ready_for_review", draft_current_pick_started_at: null }
       : {
           draft_current_pick: nextPick,
@@ -1927,10 +2007,12 @@ async function healOneStaleDraftCursorStep(admin: AdminClient, leagueId: string)
 }
 
 async function healStaleDraftCursorChain(admin: AdminClient, leagueId: string): Promise<void> {
+  await finalizeDraftIfCursorPastOrderEnd(admin, leagueId);
   for (let i = 0; i < 200; i++) {
     const healed = await healOneStaleDraftCursorStep(admin, leagueId);
     if (!healed) break;
   }
+  await finalizeDraftIfCursorPastOrderEnd(admin, leagueId);
 }
 
 /** Cheap cursor repair only (no picks). Safe on every draft page load for autopick. */
@@ -2256,39 +2338,55 @@ async function performOneAutoPick(
   /** Preloaded event aggregate for ranking; one query per `runAutoPickIfExpired` batch instead of per pick. */
   autopickEventPointsBySlug?: ReturnType<typeof aggregateWrestlerPoints> | null
 ): Promise<{ error?: string; nextPick?: number; totalPicks?: number; skippedDueToRace?: boolean }> {
-  const { data: orderRow } = await admin
+  const runIdForOrder = await getLeagueCurrentDraftRunId(admin, leagueId);
+  let orderSlotQ = admin
     .from("league_draft_order")
     .select("draft_run_id")
     .eq("league_id", leagueId)
-    .eq("overall_pick", current.overall_pick)
-    .maybeSingle();
+    .eq("overall_pick", current.overall_pick);
+  if (runIdForOrder) orderSlotQ = orderSlotQ.eq("draft_run_id", runIdForOrder);
+  const { data: orderRow } = await orderSlotQ.maybeSingle();
   const draftRunId = (orderRow as { draft_run_id?: string } | null)?.draft_run_id ?? null;
   if (!draftRunId) return { error: "Draft run not found. Generate or set draft order first." };
 
-  // Use admin rosters so we see all teams' picks (RLS would otherwise limit to current user) and assign correctly.
-  const rosters = await getRostersForLeagueAdmin(leagueId, admin);
-  const draftedIds = new Set<string>();
-  for (const entries of Object.values(rosters)) for (const e of entries) addToDraftedSet(draftedIds, e.wrestler_id);
+  // Seed drafted set and per-user roster from league_draft_picks for this run only.
+  // Using league_rosters would incorrectly include wrestlers from a prior stuck/partial run.
   const { data: existingPickRows } = await admin
     .from("league_draft_picks")
-    .select("wrestler_id")
+    .select("overall_pick, user_id, wrestler_id")
     .eq("draft_run_id", draftRunId);
-  for (const row of existingPickRows ?? []) {
-    addToDraftedSet(draftedIds, (row as { wrestler_id?: string | null }).wrestler_id);
+  const draftedIds = new Set<string>();
+  const rosterByUser: Record<string, string[]> = {};
+  for (const row of (existingPickRows ?? []) as { overall_pick: number; user_id: string; wrestler_id: string }[]) {
+    addToDraftedSet(draftedIds, row.wrestler_id);
+    const list = rosterByUser[row.user_id] ?? [];
+    list.push(row.wrestler_id);
+    rosterByUser[row.user_id] = list;
   }
+  // Also seed from live rosters so that manually-added free-agent acquisitions and non-draft roster moves
+  // don't allow double-drafting the same wrestler mid-draft.
+  const rosters = await getRostersForLeagueAdmin(leagueId, admin);
+  for (const entries of Object.values(rosters)) for (const e of entries) addToDraftedSet(draftedIds, e.wrestler_id);
 
-  const currentRoster = rosters[current.user_id] ?? [];
+  // For gender/size accounting, use only the current-run picks for the active picker (not stale roster rows).
+  const currentRunPickerIds = rosterByUser[current.user_id] ?? [];
   const rules = await getRosterRulesForLeagueId(admin, leagueId);
   const rosterGenderCounts: Record<string, number> = { F: 0, M: 0 };
-  if (currentRoster.length > 0) {
-    const genderById = await getWrestlerGendersBatch(admin, currentRoster.map((e) => e.wrestler_id));
-    for (const e of currentRoster) {
-      const g = normalizeGender(genderById[e.wrestler_id]);
+  if (currentRunPickerIds.length > 0) {
+    const genderById = await getWrestlerGendersBatch(admin, currentRunPickerIds);
+    for (const wid of currentRunPickerIds) {
+      const g = normalizeGender(genderById[wid]);
       if (g) rosterGenderCounts[g] = (rosterGenderCounts[g] ?? 0) + 1;
     }
   }
   const currentFemale = rosterGenderCounts.F ?? 0;
   const currentMale = rosterGenderCounts.M ?? 0;
+  // Build a currentRoster-shaped array for downstream code that still needs it.
+  const currentRoster = (rosters[current.user_id] ?? []).filter((e) =>
+    currentRunPickerIds.includes(e.wrestler_id)
+  ).length > 0
+    ? rosters[current.user_id] ?? []
+    : currentRunPickerIds.map((id) => ({ wrestler_id: id } as { wrestler_id: string }));
   const requiredGender: "F" | "M" | null = rules
     ? requiredGenderForNextPick(rules, currentRoster.length, currentFemale, currentMale)
     : null;
@@ -2383,6 +2481,7 @@ async function performOneAutoPick(
 
   const nextPick = (state.draft_current_pick ?? 0) + 1;
   const totalPicks = state.total_picks ?? 0;
+  const maxOverall = await getMaxOverallPickForLeagueOrder(admin, leagueId, draftRunId);
 
   // Claim the slot before roster insert so concurrent page loads cannot each add a roster row
   // for the same overall_pick (which used to leave orphan rosters and duplicate-key errors).
@@ -2441,7 +2540,7 @@ async function performOneAutoPick(
     draft_status: string;
     draft_current_pick_started_at?: string;
   } =
-    nextPick > totalPicks
+    maxOverall != null && nextPick > maxOverall
       ? { draft_current_pick: null, draft_status: "ready_for_review" }
       : {
           draft_current_pick: nextPick,
@@ -2451,7 +2550,7 @@ async function performOneAutoPick(
 
   const { error: updateError } = await admin.from("leagues").update(updates).eq("id", leagueId);
   if (updateError) return { error: updateError.message };
-  return { nextPick, totalPicks };
+  return { nextPick, totalPicks: maxOverall ?? totalPicks };
 }
 
 /** When true, auto-pick runs without waiting for the per-pick timer (e.g. scheduled full autopick). */
@@ -2481,6 +2580,7 @@ export async function runAutoPickIfExpired(
 
   await healStaleDraftCursorChain(admin, leagueId);
 
+  const activeRunId = await getLeagueCurrentDraftRunId(admin, leagueId);
   const state = await getLeagueDraftStateUsingAdmin(admin, leagueId);
   if (!state || state.draft_status !== "in_progress" || state.draft_current_pick == null) {
     return { didAutoPick: false };
@@ -2488,16 +2588,21 @@ export async function runAutoPickIfExpired(
 
   // Use admin so we always get the correct picker (cron has no user session; RLS would otherwise limit who we see).
   const current = await getCurrentPickUsingAdmin(admin, leagueId);
-  if (!current) return { didAutoPick: false };
+  if (!current) {
+    await finalizeDraftIfCursorPastOrderEnd(admin, leagueId);
+    return { didAutoPick: false };
+  }
 
-  const { data: stateOrderRow } = await admin
+  let stateOrderQ = admin
     .from("league_draft_order")
     .select("draft_run_id")
     .eq("league_id", leagueId)
-    .eq("overall_pick", current.overall_pick)
-    .maybeSingle();
+    .eq("overall_pick", current.overall_pick);
+  if (activeRunId) stateOrderQ = stateOrderQ.eq("draft_run_id", activeRunId);
+  const { data: stateOrderRow } = await stateOrderQ.maybeSingle();
   const draftRunIdForUserState = (stateOrderRow as { draft_run_id?: string } | null)?.draft_run_id;
   if (!draftRunIdForUserState) {
+    await finalizeDraftIfCursorPastOrderEnd(admin, leagueId);
     return { didAutoPick: false, error: "Draft run not found for league_draft_order slot." };
   }
   const userState = await getDraftUserState(admin, leagueId, current.user_id, draftRunIdForUserState);
@@ -2591,17 +2696,22 @@ export async function runAutoPickIfExpired(
     if (result.error) return { didAutoPick: didAny, error: result.error };
     didAny = true;
     batchCount += 1;
+    totalPicks = result.totalPicks ?? totalPicks;
 
     const nextPick = result.nextPick ?? currentPickNum + 1;
     if (nextPick > totalPicks) return { didAutoPick: true };
 
-    const { data: nextOrderRow } = await admin
+    let nextOrderQ = admin
       .from("league_draft_order")
       .select("overall_pick, user_id, draft_run_id")
       .eq("league_id", leagueId)
-      .eq("overall_pick", nextPick)
-      .maybeSingle();
-    if (!nextOrderRow) return { didAutoPick: true };
+      .eq("overall_pick", nextPick);
+    if (activeRunId) nextOrderQ = nextOrderQ.eq("draft_run_id", activeRunId);
+    const { data: nextOrderRow } = await nextOrderQ.maybeSingle();
+    if (!nextOrderRow) {
+      await finalizeDraftIfCursorPastOrderEnd(admin, leagueId);
+      return { didAutoPick: true };
+    }
 
     if (runBatchAutopick) {
       if (batchCount >= pickBudget) return { didAutoPick: true };
@@ -2857,12 +2967,46 @@ export async function restartDraft(leagueId: string): Promise<{ error?: string }
   const { error: rostersErr } = await admin.from("league_rosters").delete().eq("league_id", leagueId);
   if (rostersErr) return { error: rostersErr.message };
   await admin.from("league_draft_user_state").delete().eq("league_id", leagueId);
+
+  // Rotate to a fresh draft run so new picks never share a run_id with the deleted ones.
+  const { data: leagueMeta } = await admin
+    .from("leagues")
+    .select("id, season_slug, start_date, draft_date, created_at, current_draft_run_id")
+    .eq("id", leagueId)
+    .maybeSingle();
+  let newRunId: string | null = null;
+  if (leagueMeta) {
+    const { data: run } = await admin
+      .from("league_draft_runs")
+      .insert({
+        league_id: leagueId,
+        season_slug: (leagueMeta as { season_slug?: string | null }).season_slug ?? "",
+        season_year: new Date().getFullYear(),
+        draft_date:
+          (leagueMeta as { draft_date?: string | null }).draft_date ??
+          (leagueMeta as { start_date?: string | null }).start_date ??
+          new Date().toISOString().slice(0, 10),
+      })
+      .select("id")
+      .single();
+    newRunId = run?.id ?? null;
+  }
+
+  // Also rotate the draft_run_id on the existing order rows so the order stays linked to the new run.
+  if (newRunId) {
+    await admin
+      .from("league_draft_order")
+      .update({ draft_run_id: newRunId })
+      .eq("league_id", leagueId);
+  }
+
   const { error: updateErr } = await admin
     .from("leagues")
     .update({
       draft_status: "not_started",
       draft_current_pick: null,
       draft_current_pick_started_at: null,
+      ...(newRunId ? { current_draft_run_id: newRunId } : {}),
     })
     .eq("id", leagueId);
   if (updateErr) return { error: updateErr.message };

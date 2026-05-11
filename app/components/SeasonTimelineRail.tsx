@@ -119,7 +119,9 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
                           <span className={styles.beltSubText}>
                             {weeklyBeltLock.variant === "ple"
                               ? `Weekly title hold · after this PLE, before Raw (${formatShortDate(weeklyBeltLock.nextRawDate)})`
-                              : `Weekly title hold · after SmackDown, before Raw (${formatShortDate(weeklyBeltLock.nextRawDate)})`}
+                              : weeklyBeltLock.variant === "nxt"
+                                ? `Weekly title hold · after NXT, before Raw (${formatShortDate(weeklyBeltLock.nextRawDate)})`
+                                : `Weekly title hold · after SmackDown, before Raw (${formatShortDate(weeklyBeltLock.nextRawDate)})`}
                           </span>
                         </div>
                       )}
