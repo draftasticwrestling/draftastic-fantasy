@@ -19,8 +19,8 @@ const BUILTIN_ALL_LEAGUES_STAT_CORRECTIONS: EventScoreCorrectionPublicRow[] = [
     title: "May 11, 2026 — Oba Femi (RAW handicap match)",
     body_markdown:
       "Oba Femi's points for his handicap match on RAW were originally scored incorrectly. He earned 4 pts (+1 for appearance, +2 for winning, and +1 special match bonus for the additional opponent beaten).",
-    visible_at: "2026-05-11T16:00:00.000Z",
-    created_at: "2026-05-11T16:00:00.000Z",
+    visible_at: "2026-05-11T00:00:00.000Z",
+    created_at: "2026-05-11T00:00:00.000Z",
   },
   {
     id: "builtin-stat-correction-brie-bella-belt-2026-05-12",
@@ -29,8 +29,8 @@ const BUILTIN_ALL_LEAGUES_STAT_CORRECTIONS: EventScoreCorrectionPublicRow[] = [
     title: "May 12, 2026 — Brie Bella (faction belt scoring; point earned May 10)",
     body_markdown:
       "Brie Bella should have earned **1 belt point on May 10, 2026** (title-hold scoring). Faction pages and scoreboards were not crediting that point correctly. **This correction was applied May 12, 2026**; totals should now match her wrestler profile.",
-    visible_at: "2026-05-12T16:00:00.000Z",
-    created_at: "2026-05-12T16:00:00.000Z",
+    visible_at: "2026-05-12T00:00:00.000Z",
+    created_at: "2026-05-12T00:00:00.000Z",
   },
 ];
 
@@ -43,17 +43,17 @@ export function statCorrectionEventResultsPath(eventId: string): string | null {
   return `/event-results/${encodeURIComponent(id)}`;
 }
 
-function mergeAndSortCorrections(
-  fromDb: EventScoreCorrectionPublicRow[],
-  nowIso: string
-): EventScoreCorrectionPublicRow[] {
-  const nowMs = Date.parse(nowIso);
-  const builtins = BUILTIN_ALL_LEAGUES_STAT_CORRECTIONS.filter((b) => {
-    const t = Date.parse(b.visible_at);
-    return !Number.isNaN(t) && t <= nowMs;
-  });
+/**
+ * DB rows are already limited to visible_at <= now by the query. Built-in rows ship with the app:
+ * they are always included (do not gate on visible_at — a future-looking timestamp would hide them
+ * for part of the “posted” calendar day in some time zones).
+ */
+function mergeAndSortCorrections(fromDb: EventScoreCorrectionPublicRow[]): EventScoreCorrectionPublicRow[] {
   const byId = new Map<string, EventScoreCorrectionPublicRow>();
-  for (const r of [...fromDb, ...builtins]) {
+  for (const r of fromDb) {
+    if (!byId.has(r.id)) byId.set(r.id, r);
+  }
+  for (const r of BUILTIN_ALL_LEAGUES_STAT_CORRECTIONS) {
     if (!byId.has(r.id)) byId.set(r.id, r);
   }
   return [...byId.values()].sort((a, b) => {
@@ -80,6 +80,6 @@ export async function listEventScoreCorrectionsForLeaguePage(
     .or(`league_id.is.null,league_id.eq.${leagueId}`)
     .order("visible_at", { ascending: false });
 
-  if (error) return mergeAndSortCorrections([], now);
-  return mergeAndSortCorrections((data ?? []) as EventScoreCorrectionPublicRow[], now);
+  if (error) return mergeAndSortCorrections([]);
+  return mergeAndSortCorrections((data ?? []) as EventScoreCorrectionPublicRow[]);
 }
