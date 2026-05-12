@@ -663,7 +663,7 @@ export default async function EventResultsPage({
         </div>
       )}
 
-      {isKOTRPLE && (
+      {debugKotr && isKOTRPLE && (
         <section style={{ marginBottom: 24, padding: 16, background: "#f0f8ff", border: "1px solid #b0d0e0", borderRadius: 8, fontSize: 13 }}>
           <h3 style={{ margin: "0 0 8px 0", fontSize: 14 }}>KOTR prior events (June 20 / 23)</h3>
           {kotrForceFetchLog.map((r) => (

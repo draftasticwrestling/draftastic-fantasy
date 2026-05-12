@@ -5668,6 +5668,67 @@ button.hub-leaderboard-week-nav-btn:disabled {
   text-decoration: underline;
 }
 
+.hub-headlines-row-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+.hub-headlines-row-link:hover .hub-headlines-row-title {
+  text-decoration: underline;
+}
+.hub-headlines-thumb {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--color-surface-muted, #f0f0f0);
+}
+.hub-headlines-row-main {
+  min-width: 0;
+  flex: 1;
+}
+.hub-headlines-row-title {
+  display: block;
+  color: var(--color-blue);
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.hub-headlines-art-meta {
+  margin-top: 6px;
+}
+.hub-headlines-date {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+.hub-headlines-dek {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.hub-headlines-index {
+  margin: 14px 0 0;
+  font-size: 0.88rem;
+}
+.hub-headlines-index a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+.hub-headlines-index a:hover {
+  color: var(--color-blue);
+  text-decoration: underline;
+}
+
 @media (max-width: 960px) {
   .hub-shell {
     grid-template-columns: 1fr;

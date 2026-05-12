@@ -20,6 +20,7 @@ import { buildEventResultsSlug, getEventForResultsRoute } from "@/lib/event-resu
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { isWrestlerWinner } from "@/lib/event-results/winnerUtils";
 import type { ScoredEvent } from "@/lib/scoring/types";
+import { SEO_DEFAULT_OG_IMAGE_PATH, SEO_SITE_NAME } from "@/lib/seoDefaults";
 
 export const revalidate = 120;
 
@@ -31,17 +32,54 @@ export async function generateMetadata({
   const { eventId } = await params;
   const event = await getEventForResultsRoute(eventId);
   if (!event?.name) {
+    const title = "Event results — Draftastic Fantasy";
+    const description = "Fantasy scoring for WWE events.";
     return {
-      title: "Event results — Draftastic Fantasy",
-      description: "Fantasy scoring for WWE events.",
+      title,
+      description,
+      openGraph: {
+        type: "website",
+        title,
+        description,
+        siteName: SEO_SITE_NAME,
+        images: [{ url: SEO_DEFAULT_OG_IMAGE_PATH, alt: `${title} — ${SEO_SITE_NAME}` }],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title,
+        description,
+        images: [SEO_DEFAULT_OG_IMAGE_PATH],
+      },
     };
   }
   const canonicalSlug = buildEventResultsSlug(event);
+  const title = buildEventSeoTitle(event);
+  const description = buildEventHeaderMetaDescription(event);
+  const path = `/event-results/${canonicalSlug}`;
   return {
-    title: buildEventSeoTitle(event),
-    description: buildEventHeaderMetaDescription(event),
+    title,
+    description,
     alternates: {
-      canonical: `/event-results/${canonicalSlug}`,
+      canonical: path,
+    },
+    openGraph: {
+      type: "article",
+      title,
+      description,
+      url: path,
+      siteName: SEO_SITE_NAME,
+      images: [
+        {
+          url: SEO_DEFAULT_OG_IMAGE_PATH,
+          alt: `${title} — ${SEO_SITE_NAME}`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [SEO_DEFAULT_OG_IMAGE_PATH],
     },
   };
 }
@@ -664,7 +702,7 @@ export default async function EventResultsPage({
         </div>
       )}
 
-      {isKOTRPLE && (
+      {debugKotr && isKOTRPLE && (
         <section style={{ marginBottom: 24, padding: 16, background: "#f0f8ff", border: "1px solid #b0d0e0", borderRadius: 8, fontSize: 13 }}>
           <h3 style={{ margin: "0 0 8px 0", fontSize: 14 }}>KOTR prior events (June 20 / 23)</h3>
           {kotrForceFetchLog.map((r) => (

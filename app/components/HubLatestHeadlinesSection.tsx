@@ -18,7 +18,9 @@ import { listPublishedArticles, type ArticleRow } from "@/lib/articles";
 
 /** Hub “The latest”: up to four article cards; event vs article order uses `hubLatestSchedule` (8am PT + 12h windows). */
 const LATEST_SECTION_ARTICLES = 4;
-const HEADLINES_ARTICLE_POOL = 5;
+const HEADLINES_ARTICLE_POOL = 10;
+/** Articles + static links (+ optional empty-state row); must not cut off trailing static CTAs */
+const HEADLINES_LIST_MAX_ITEMS = HEADLINES_ARTICLE_POOL + 4;
 
 export type HubHeadlineVariant = "hub" | "marketing";
 
@@ -26,7 +28,39 @@ export type HubHeadlineVariant = "hub" | "marketing";
 export type HubLatestLayout = "hub-columns" | "marketing-rail";
 
 const MARKETING_RAIL_MAX_FEED = 3;
-const MARKETING_RAIL_MAX_HEADLINES = 6;
+/** Total headline rows in marketing sidebar (articles first, then static links) */
+const MARKETING_RAIL_MAX_HEADLINES = HEADLINES_LIST_MAX_ITEMS;
+
+const HEADLINE_EXCERPT_MAX = 130;
+
+type HubHeadlineItem = {
+  href: string;
+  label: string;
+  /** ISO timestamp for `<time>`; only article rows */
+  publishedAt?: string | null;
+  excerpt?: string | null;
+  /** Article hero / first image; static rows omit */
+  imageUrl?: string | null;
+};
+
+function clipHeadlineExcerpt(text: string | null | undefined): string | null {
+  if (text == null || !text.trim()) return null;
+  const one = text.replace(/\s+/g, " ").trim();
+  if (one.length <= HEADLINE_EXCERPT_MAX) return one;
+  return `${one.slice(0, HEADLINE_EXCERPT_MAX - 1).trimEnd()}…`;
+}
+
+function formatHeadlinePublishedDate(iso: string | null | undefined): string | null {
+  if (iso == null || !iso.trim()) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/New_York",
+  }).format(d);
+}
 
 function hubArticleCardEl(a: ArticleRow) {
   return (
@@ -41,23 +75,23 @@ function hubArticleCardEl(a: ArticleRow) {
   );
 }
 
-function buildHeadlines(articles: ArticleRow[], variant: HubHeadlineVariant) {
-  const staticHeadlines =
+function buildHeadlines(articles: ArticleRow[], variant: HubHeadlineVariant): HubHeadlineItem[] {
+  const staticHeadlines: HubHeadlineItem[] =
     variant === "marketing"
       ? [
           { href: "/news", label: "More on the News page" },
           { href: "/event-results", label: "Browse event results & fantasy scoring" },
           { href: "/wrestlers", label: "Wrestler profiles & stats" },
         ]
-      : [
-          { href: "/fantasy", label: "Play Draftastic Fantasy — create a league with friends" },
-          { href: "/event-results", label: "Browse all completed events and fantasy scoring" },
-        ];
+      : [{ href: "/event-results", label: "Browse all completed events and fantasy scoring" }];
 
   return [
     ...articles.slice(0, HEADLINES_ARTICLE_POOL).map((a) => ({
       href: `/news/${encodeURIComponent(a.slug)}`,
       label: a.title,
+      publishedAt: a.published_at,
+      excerpt: clipHeadlineExcerpt(a.excerpt),
+      imageUrl: articleFeedThumbnailUrl(a),
     })),
     ...(articles.length === 0
       ? [
@@ -68,7 +102,7 @@ function buildHeadlines(articles: ArticleRow[], variant: HubHeadlineVariant) {
         ]
       : []),
     ...staticHeadlines,
-  ].slice(0, 8);
+  ].slice(0, HEADLINES_LIST_MAX_ITEMS);
 }
 
 export default async function HubLatestHeadlinesSection({
@@ -208,13 +242,59 @@ export default async function HubLatestHeadlinesSection({
   );
 
   const headlinesBlock = (
-    <ul className="hub-headlines">
-      {headlines.map((h, i) => (
-        <li key={`${h.href}-${i}`}>
-          <Link href={h.href}>{h.label}</Link>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="hub-headlines">
+        {headlines.map((h, i) => {
+          const dateLabel = formatHeadlinePublishedDate(h.publishedAt);
+          const showMeta = Boolean(dateLabel || h.excerpt);
+          const metaBlock =
+            showMeta ? (
+              <div className="hub-headlines-art-meta">
+                {dateLabel != null && h.publishedAt ? (
+                  <time className="hub-headlines-date" dateTime={h.publishedAt}>
+                    {dateLabel}
+                  </time>
+                ) : null}
+                {h.excerpt ? <p className="hub-headlines-dek">{h.excerpt}</p> : null}
+              </div>
+            ) : null;
+
+          const thumb = h.imageUrl?.trim();
+          if (thumb) {
+            return (
+              <li key={`${h.href}-${i}`} className="hub-headlines-li hub-headlines-li--thumb">
+                <Link href={h.href} className="hub-headlines-row-link">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={thumb}
+                    alt=""
+                    className="hub-headlines-thumb"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <div className="hub-headlines-row-main">
+                    <span className="hub-headlines-row-title">{h.label}</span>
+                    {metaBlock}
+                  </div>
+                </Link>
+              </li>
+            );
+          }
+
+          return (
+            <li key={`${h.href}-${i}`}>
+              <Link href={h.href}>{h.label}</Link>
+              {metaBlock}
+            </li>
+          );
+        })}
+      </ul>
+      {headlineVariant === "hub" ? (
+        <p className="hub-headlines-index">
+          <Link href="/news">View all news</Link>
+        </p>
+      ) : null}
+    </>
   );
 
   if (layout === "marketing-rail") {
