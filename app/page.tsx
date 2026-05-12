@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { FantasyHomeLink } from "@/app/components/FantasyHomeLink";
 import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
@@ -5,13 +6,38 @@ import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSectio
 import HubSiteLeaderboards from "@/app/components/HubSiteLeaderboards";
 import FantasyHubHero from "@/app/components/FantasyHubHero";
 import { getAdsenseSlotHubHome } from "@/lib/adsenseConfig";
+import {
+  SEO_DEFAULT_DESCRIPTION,
+  SEO_DEFAULT_KEYWORDS,
+  SEO_DEFAULT_OG_IMAGE_PATH,
+  SEO_SITE_NAME,
+} from "@/lib/seoDefaults";
+import { absoluteUrl } from "@/lib/sitePublicOrigin";
 
 /** Cache homepage shell and revalidate frequently to reduce SSR compute. */
 export const revalidate = 120;
 
-export const metadata = {
-  title: "Draftastic Pro Wrestling — Results & News",
-  description: "Event results, fantasy scoring, and commentary — Draftastic Pro Wrestling.",
+const homeTitle = "Results, fantasy leagues & news";
+
+export const metadata: Metadata = {
+  title: { absolute: `${SEO_SITE_NAME} — ${homeTitle}` },
+  description: SEO_DEFAULT_DESCRIPTION,
+  keywords: [...SEO_DEFAULT_KEYWORDS, "wrestling news", "WWE results", "NXT results"],
+  alternates: { canonical: absoluteUrl("/") },
+  openGraph: {
+    title: `${SEO_SITE_NAME} — ${homeTitle}`,
+    description: SEO_DEFAULT_DESCRIPTION,
+    url: absoluteUrl("/"),
+    type: "website",
+    siteName: SEO_SITE_NAME,
+    images: [{ url: SEO_DEFAULT_OG_IMAGE_PATH, alt: `${SEO_SITE_NAME} hub` }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SEO_SITE_NAME} — ${homeTitle}`,
+    description: SEO_DEFAULT_DESCRIPTION,
+    images: [SEO_DEFAULT_OG_IMAGE_PATH],
+  },
 };
 
 /**
