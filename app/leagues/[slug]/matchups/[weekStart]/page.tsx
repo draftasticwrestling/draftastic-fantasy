@@ -315,6 +315,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                         : "1fr auto 1fr",
                     gap: 16,
                     alignItems: "center",
+                    justifyItems: "center",
                     padding: "20px 20px 16px",
                     borderBottom: "1px solid var(--color-border)",
                     background: "var(--color-bg-elevated)",
@@ -437,20 +438,27 @@ function TeamHeaderBlock({
   };
 }) {
   return (
-    <div style={{ minWidth: 0 }}>
+    <div
+      style={{
+        minWidth: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        gap: 8,
+      }}
+    >
       <div
         style={{
           display: "flex",
           alignItems: "center",
+          justifyContent: "center",
           gap: 10,
           flexWrap: "wrap",
-          marginBottom: 4,
         }}
       >
         <MatchupOwnerAvatarRing member={data.member} size={36} />
-        <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)" }}>
-          {data.label}
-        </span>
+        <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)" }}>{data.label}</span>
         {data.isWinner && (
           <span
             style={{

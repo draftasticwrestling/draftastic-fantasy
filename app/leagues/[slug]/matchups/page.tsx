@@ -84,29 +84,43 @@ function ScoreHeaderCell({
         padding: "14px 12px",
         background: isWinner ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
         borderLeft: "1px solid var(--color-border)",
+        textAlign: "center",
+        verticalAlign: "middle",
       }}
     >
       <div
         style={{
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
-          gap: 10,
-          marginBottom: 4,
+          gap: 6,
           minWidth: 0,
         }}
       >
-        <MatchupOwnerAvatarRing member={m} size={32} />
-        <div style={{ fontWeight: 700, fontSize: 15, color: "var(--color-text)", minWidth: 0 }}>
-          {t.label}
-          {isWinner && (
-            <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>W</span>
-          )}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
+          <MatchupOwnerAvatarRing member={m} size={32} />
+          <div style={{ fontWeight: 700, fontSize: 15, color: "var(--color-text)", minWidth: 0 }}>
+            {t.label}
+            {isWinner && (
+              <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>W</span>
+            )}
+          </div>
         </div>
+        <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-red)", lineHeight: 1.2 }}>
+          {t.total}
+        </div>
+        {showBreakdown && bonusLine && (
+          <div style={{ fontSize: 11, color: "var(--color-text-muted)", maxWidth: "100%" }}>{bonusLine}</div>
+        )}
       </div>
-      <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-red)" }}>{t.total}</div>
-      {showBreakdown && bonusLine && (
-        <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 4 }}>{bonusLine}</div>
-      )}
     </td>
   );
 }
@@ -507,10 +521,11 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                               padding: "14px 12px",
                               background: "var(--color-bg-elevated)",
                               borderRight: "1px solid var(--color-border)",
-                              verticalAlign: "bottom",
+                              verticalAlign: "middle",
                               fontWeight: 600,
                               fontSize: 12,
                               color: "var(--color-text-muted)",
+                              textAlign: "center",
                             }}
                           >
                             #
@@ -525,6 +540,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                                   borderLeft: "1px solid var(--color-border)",
                                   borderRight: "1px solid var(--color-border)",
                                   textAlign: "center",
+                                  verticalAlign: "middle",
                                   fontSize: 12,
                                   fontWeight: 800,
                                   color: "var(--color-text-muted)",
