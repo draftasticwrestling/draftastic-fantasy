@@ -26,9 +26,9 @@ const BUILTIN_ALL_LEAGUES_STAT_CORRECTIONS: EventScoreCorrectionPublicRow[] = [
     id: "builtin-stat-correction-brie-bella-belt-2026-05-12",
     league_id: null,
     event_id: "platform-scoring",
-    title: "May 12, 2026 — Brie Bella (faction belt scoring)",
+    title: "May 12, 2026 — Brie Bella (faction belt scoring; point earned May 10)",
     body_markdown:
-      "Brie Bella's belt points were not factoring into faction scores correctly. She earned 1 belt point on May 10, 2026. Scores should count correctly now.",
+      "Brie Bella should have earned **1 belt point on May 10, 2026** (title-hold scoring). Faction pages and scoreboards were not crediting that point correctly. **This correction was applied May 12, 2026**; totals should now match her wrestler profile.",
     visible_at: "2026-05-12T16:00:00.000Z",
     created_at: "2026-05-12T16:00:00.000Z",
   },
