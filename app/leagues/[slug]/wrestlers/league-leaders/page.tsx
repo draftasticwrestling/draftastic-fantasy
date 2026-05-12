@@ -17,9 +17,11 @@ import {
   getUnparsedMatchesByWrestler,
 } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
+  BELT_REIGN_INFERENCE_EVENTS_FROM,
   computeEndOfMonthBeltPoints,
   computeHybridBeltHoldBySlugForCalendarYear,
   computeWeeklyBeltHoldPointsAccumulated,
+  filterEventsForBeltReignInference,
   firstLegacyCalendarMonthEndEligibleForLeagueStart,
   getCurrentChampionsBySlug,
   inferReignsFromEvents,
@@ -227,21 +229,33 @@ export default async function LeagueLeadersPage({
     liveLeadersBundle = await loadLeagueLeadersAllTimeScoringBundle(supabase);
   }
 
-  let sinceStartEventsData: { id: string; name: string; date: string; matches?: object[] }[] | null = null;
+  let eventsSinceStart: { id: string; name: string; date: string; matches?: object[] }[] = [];
+  let beltInferenceEvents: Parameters<typeof inferReignsFromEvents>[0] = [];
   try {
-    const ev = await supabase
-      .from("events")
-      .select("id, name, date, matches")
-      .in("status", [...EVENT_STATUSES_FOR_SCORING])
-      .gte("date", startDate)
-      .order("date", { ascending: true })
-      .limit(Math.min(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT, 2000));
-    sinceStartEventsData = (ev.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
+    const [evSince, evBelt] = await Promise.all([
+      supabase
+        .from("events")
+        .select("id, name, date, matches")
+        .in("status", [...EVENT_STATUSES_FOR_SCORING])
+        .gte("date", startDate)
+        .order("date", { ascending: true })
+        .limit(Math.min(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT, 2000)),
+      supabase
+        .from("events")
+        .select("id, name, date, matches")
+        .in("status", [...EVENT_STATUSES_FOR_SCORING])
+        .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
+        .order("date", { ascending: true }),
+    ]);
+    eventsSinceStart = (evSince.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
+    beltInferenceEvents = filterEventsForBeltReignInference(
+      (evBelt.data ?? []) as Parameters<typeof inferReignsFromEvents>[0],
+      league.end_date
+    ) as Parameters<typeof inferReignsFromEvents>[0];
   } catch {
-    sinceStartEventsData = [];
+    eventsSinceStart = [];
+    beltInferenceEvents = [];
   }
-  const eventsSinceStart = sinceStartEventsData ?? [];
-  const eventsAll = eventsSinceStart;
 
   const membersList: LeagueMember[] = members ?? [];
   const rostersByUser: Record<string, LeagueRosterEntry[]> = rosters ?? {};
@@ -257,7 +271,7 @@ export default async function LeagueLeadersPage({
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
   let reigns: ChampionshipReign[];
   try {
-    const inferredReigns = inferReignsFromEvents(eventsAll);
+    const inferredReigns = inferReignsFromEvents(beltInferenceEvents);
     reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
   } catch {
     reigns = tableReigns;
@@ -348,7 +362,7 @@ export default async function LeagueLeadersPage({
     : liveLeadersBundle!.matchStatsAllTimeMainOnlyBySlug;
   // All-time unparsed matches (for "matches needing review" indicator on League Leaders)
   const unparsedBySlug = getUnparsedMatchesByWrestler(
-    eventsAll as { id: string; name: string; date: string; matches?: object[] }[]
+    eventsSinceStart as { id: string; name: string; date: string; matches?: object[] }[]
   );
   const todayYmd = new Date().toISOString().slice(0, 10);
   const beltLastMonthEnd = beltScoringLastMonthEndInclusive(league.end_date);

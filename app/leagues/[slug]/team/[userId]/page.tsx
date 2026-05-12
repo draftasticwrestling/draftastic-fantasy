@@ -26,8 +26,10 @@ import type { WrestlerRow } from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats, getMatchStatsForWrestler } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
+  BELT_REIGN_INFERENCE_EVENTS_FROM,
   computeEndOfMonthBeltPoints,
   computeWeeklyBeltHoldPointsAccumulated,
+  filterEventsForBeltReignInference,
   firstLegacyCalendarMonthEndEligibleForLeagueStart,
   getCurrentChampionsBySlug,
   getMonthlyBeltForWrestler,
@@ -227,6 +229,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     const [
       { data: eventsSinceStart },
       { data: eventsAll },
+      { data: eventsBeltInferenceRows },
       { data: rawReigns },
       { data: rawChangeRows, error: changeRowsError },
       currentFromTable,
@@ -234,6 +237,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     ] = await Promise.all([
       supabaseTable.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", startDate).order("date", { ascending: true }),
       supabaseTable.from("events").select("id, name, date, matches").in("status", [...EVENT_STATUSES_FOR_SCORING]).gte("date", ALL_TIME_EVENTS_FROM).order("date", { ascending: true }).limit(ALL_TIME_EVENTS_LIMIT),
+      supabaseTable
+        .from("events")
+        .select("id, name, date, matches")
+        .in("status", [...EVENT_STATUSES_FOR_SCORING])
+        .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
+        .order("date", { ascending: true }),
       supabaseTable.from("championship_history").select("champion_slug, champion, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
       supabaseTable
         .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
@@ -247,7 +256,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     const changesReigns = inferReignsFromChampionshipChanges(
       changeRowsError ? [] : (rawChangeRows ?? [])
     );
-    const inferredReigns = inferReignsFromEvents(eventsAll ?? []);
+    const inferredReigns = inferReignsFromEvents(
+      filterEventsForBeltReignInference(
+        (eventsBeltInferenceRows ?? []) as Parameters<typeof inferReignsFromEvents>[0],
+        league.end_date
+      ) as Parameters<typeof inferReignsFromEvents>[0]
+    );
     const reigns = mergeReigns(tableReigns, [...inferredReigns, ...changesReigns]) as ChampionshipReign[];
     const pointsBySlugSinceStart = aggregateWrestlerPoints(eventsSinceStart ?? [], brandBySlugTeamPage);
     const pointsBySlugAllTime = aggregateWrestlerPoints(eventsAll ?? [], brandBySlugTeamPage);
@@ -282,7 +296,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       const pointsAllTime = getPointsForWrestler(pointsBySlugAllTime, slugKey, nameKey);
       const matchStats = getMatchStatsForWrestler(matchStatsBySlugSinceStart, slugKey, nameKey);
       const matchStatsAllTime = getMatchStatsForWrestler(matchStatsBySlugAllTime, slugKey, nameKey);
-      const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, w.name ?? undefined);
+      const extraBelt = getMonthlyBeltForWrestler(endOfMonthBeltPoints, slugKey, w.name ?? undefined, todayYmd);
       const beltPoints = points.beltPoints + extraBelt;
       const totalPoints = points.rsPoints + points.plePoints + beltPoints;
       const beltPointsAllTime = pointsAllTime.beltPoints + extraBelt;

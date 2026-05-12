@@ -7,10 +7,12 @@ import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
 import {
+  BELT_REIGN_INFERENCE_EVENTS_FROM,
   computeEndOfMonthBeltPoints,
   computeHybridBeltHoldBySlugForCalendarYear,
   computeHybridPublicBeltHoldBySlug,
   computeWeeklyBeltHoldPointsAccumulated,
+  filterEventsForBeltReignInference,
   firstLegacyCalendarMonthEndEligibleForLeagueStart,
   getCurrentChampionsBySlug,
   inferReignsFromEvents,
@@ -138,20 +140,33 @@ export default async function WrestlersFreeAgentsPage({
     }
   }
 
-  const { data: allEventsData } = await supabase
-    .from("events")
-    .select("id, name, date, matches")
-    .in("status", [...EVENT_STATUSES_FOR_SCORING])
-    .gte("date", ALL_TIME_EVENTS_FROM)
-    .order("date", { ascending: true })
-    .limit(ALL_TIME_EVENTS_LIMIT);
+  const [{ data: allEventsData }, { data: beltInferenceRows }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, name, date, matches")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
+      .gte("date", ALL_TIME_EVENTS_FROM)
+      .order("date", { ascending: true })
+      .limit(ALL_TIME_EVENTS_LIMIT),
+    supabase
+      .from("events")
+      .select("id, name, date, matches")
+      .in("status", [...EVENT_STATUSES_FOR_SCORING])
+      .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
+      .order("date", { ascending: true }),
+  ]);
   const eventsAll = (allEventsData ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
   const eventsSinceStart = eventsAll.filter((e) => (e.date ?? "") >= startDate);
   const events2025 = eventsAll.filter((e) => (e.date ?? "") >= "2025-01-01" && (e.date ?? "") <= "2025-12-31");
   const events2026 = eventsAll.filter((e) => (e.date ?? "") >= "2026-01-01" && (e.date ?? "") <= "2026-12-31");
 
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
-  const inferredReigns = inferReignsFromEvents(eventsAll);
+  const inferredReigns = inferReignsFromEvents(
+    filterEventsForBeltReignInference(
+      (beltInferenceRows ?? []) as Parameters<typeof inferReignsFromEvents>[0],
+      league.end_date
+    ) as Parameters<typeof inferReignsFromEvents>[0]
+  );
   const reigns = mergeReigns(tableReigns, inferredReigns) as ChampionshipReign[];
 
   const pointsBySlug = aggregateWrestlerPoints(eventsSinceStart, brandBySlug);

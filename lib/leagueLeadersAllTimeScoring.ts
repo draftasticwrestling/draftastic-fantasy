@@ -5,7 +5,13 @@ import {
   mergeGetMonthlyBeltForWrestler,
   mergeGetPointsForWrestler,
 } from "@/lib/scoring/draftAliasListMerge";
-import { computeHybridPublicBeltHoldBySlug, inferReignsFromEvents, mergeReigns } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import {
+  BELT_REIGN_INFERENCE_EVENTS_FROM,
+  computeHybridPublicBeltHoldBySlug,
+  filterEventsForBeltReignInference,
+  inferReignsFromEvents,
+  mergeReigns,
+} from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
@@ -50,17 +56,24 @@ function isNxtStandaloneEventType(eventType: string): boolean {
 export async function loadLeagueLeadersAllTimeScoringBundle(
   db: Pick<SupabaseClient, "from">
 ): Promise<LeagueLeadersAllTimeScoringBundle> {
-  const [{ data: rawReigns }, { data: allEventsData }, { data: brandRows }] = await Promise.all([
-    db.from("championship_history").select("*"),
-    db
-      .from("events")
-      .select("id, name, date, matches")
-      .in("status", [...EVENT_STATUSES_FOR_SCORING])
-      .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
-      .order("date", { ascending: true })
-      .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT),
-    db.from("wrestlers").select("id, brand"),
-  ]);
+  const [{ data: rawReigns }, { data: allEventsData }, { data: beltInferenceEvents }, { data: brandRows }] =
+    await Promise.all([
+      db.from("championship_history").select("*"),
+      db
+        .from("events")
+        .select("id, name, date, matches")
+        .in("status", [...EVENT_STATUSES_FOR_SCORING])
+        .gte("date", LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM)
+        .order("date", { ascending: true })
+        .limit(LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT),
+      db
+        .from("events")
+        .select("id, name, date, matches")
+        .in("status", [...EVENT_STATUSES_FOR_SCORING])
+        .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
+        .order("date", { ascending: true }),
+      db.from("wrestlers").select("id, brand"),
+    ]);
   const eventsAll = (allEventsData ?? []) as EventRow[];
   const brandMap = brandByWrestlerSlugFromRows((brandRows ?? []) as { id: string; brand: string | null }[]);
   const mainOnlyEvents = eventsAll.filter((e) => {
@@ -84,7 +97,12 @@ export async function loadLeagueLeadersAllTimeScoringBundle(
     return !isNxtStandaloneEventType(t);
   });
   const tableReigns = (rawReigns ?? []) as Parameters<typeof mergeReigns>[0];
-  const inferredReigns = inferReignsFromEvents(eventsAll);
+  const inferredReigns = inferReignsFromEvents(
+    filterEventsForBeltReignInference(
+      (beltInferenceEvents ?? []) as Parameters<typeof inferReignsFromEvents>[0],
+      undefined
+    ) as Parameters<typeof inferReignsFromEvents>[0]
+  );
   const reigns = mergeReigns(tableReigns, inferredReigns);
   const pointsAllTimeBySlug = aggregateWrestlerPoints(eventsAll, brandMap);
   const pointsAllTimeMainOnlyBySlug = aggregateWrestlerPoints(mainOnlyEvents, brandMap);
