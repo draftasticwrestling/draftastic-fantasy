@@ -21,7 +21,7 @@ import {
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
-import { MatchupColumnHeading, MatchupOwnerAvatarRing } from "../MatchupOwnerHeading";
+import { MatchupOwnerAvatarRing } from "../MatchupOwnerHeading";
 
 type Props = { params: Promise<{ slug: string; weekStart: string }> };
 
@@ -256,42 +256,9 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                       borderCollapse: "collapse",
                       fontSize: 14,
                       minWidth: 48 + 120 * teamData.length,
+                      borderTop: "1px solid var(--color-border)",
                     }}
                   >
-                    <thead>
-                      <tr>
-                        <th
-                          style={{
-                            padding: "8px 12px",
-                            textAlign: "left",
-                            fontWeight: 600,
-                            color: "var(--color-text-muted)",
-                            background: "#f0f2f5",
-                            width: 48,
-                            minWidth: 48,
-                          }}
-                        >
-                          #
-                        </th>
-                        {teamData.map((t) => (
-                          <th
-                            key={t.userId}
-                            className="matchup-roster-th-team"
-                            style={{
-                              padding: "8px 12px",
-                              textAlign: "left",
-                              fontWeight: 600,
-                              color: "var(--color-text)",
-                              background: "#f0f2f5",
-                              borderLeft: "1px solid var(--color-border)",
-                              minWidth: 120,
-                            }}
-                          >
-                            <MatchupColumnHeading member={t.member ?? null} label={t.label} avatarSize={28} />
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
                     <tbody>
                       {Array.from({ length: maxSlots }, (_, rowIdx) => (
                         <tr

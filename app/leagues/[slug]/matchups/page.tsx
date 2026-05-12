@@ -23,7 +23,7 @@ import {
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
-import { MatchupColumnHeading, MatchupOwnerAvatarRing } from "./MatchupOwnerHeading";
+import { MatchupOwnerAvatarRing } from "./MatchupOwnerHeading";
 import { MatchupWeekSelector } from "./MatchupWeekSelector";
 
 type Props = {
@@ -461,7 +461,19 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                       <thead>
                         {/* Score row: team name + total in same columns as roster */}
                         <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
-                          <td style={{ padding: "14px 12px", background: "var(--color-bg-elevated)", borderRight: "1px solid var(--color-border)" }} />
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              background: "var(--color-bg-elevated)",
+                              borderRight: "1px solid var(--color-border)",
+                              verticalAlign: "bottom",
+                              fontWeight: 600,
+                              fontSize: 12,
+                              color: "var(--color-text-muted)",
+                            }}
+                          >
+                            #
+                          </td>
                           {mu.type === "h2h" ? (
                             <>
                               <ScoreHeaderCell t={teamData[0]!} isWinner={isWinner(teamData[0]!.userId)} />
@@ -491,35 +503,6 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                               />
                             ))
                           )}
-                        </tr>
-                        <tr style={{ background: "#f0f2f5" }}>
-                          <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text-muted)", borderRight: "1px solid var(--color-border)" }}>
-                            #
-                          </th>
-                          {mu.type === "h2h"
-                            ? [
-                                <th key={teamData[0]!.userId} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text)", borderLeft: "1px solid var(--color-border)" }}>
-                                  <MatchupColumnHeading member={teamData[0]!.member} label={teamData[0]!.label} />
-                                </th>,
-                                <th key="vs" style={{ padding: 0, borderLeft: "1px solid var(--color-border)" }} />,
-                                <th key={teamData[1]!.userId} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text)", borderLeft: "1px solid var(--color-border)" }}>
-                                  <MatchupColumnHeading member={teamData[1]!.member} label={teamData[1]!.label} />
-                                </th>,
-                              ]
-                            : teamData.map((t) => (
-                                <th
-                                  key={t.userId}
-                                  style={{
-                                    padding: "8px 12px",
-                                    textAlign: "left",
-                                    fontWeight: 600,
-                                    color: "var(--color-text)",
-                                    borderLeft: "1px solid var(--color-border)",
-                                  }}
-                                >
-                                  <MatchupColumnHeading member={t.member} label={t.label} />
-                                </th>
-                              ))}
                         </tr>
                       </thead>
                       <tbody>
