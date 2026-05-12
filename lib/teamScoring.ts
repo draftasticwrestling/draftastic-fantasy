@@ -30,7 +30,7 @@ import {
   getCompletedWeekEndSundaysForBeltScoring,
   weekEndSundayContaining,
 } from "@/lib/beltWeeklyHold";
-import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
@@ -156,7 +156,8 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     .from("events")
     .select("id, name, date, broadcast_start_ts, matches")
     .in("status", [...EVENT_STATUSES_FOR_SCORING])
-    .order("date", { ascending: true });
+    .order("date", { ascending: true })
+    .limit(SCORING_EVENTS_FETCH_LIMIT);
 
   const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
   const events =
@@ -168,6 +169,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
             .select("id, name, date, matches")
             .in("status", [...EVENT_STATUSES_FOR_SCORING])
             .order("date", { ascending: true })
+            .limit(SCORING_EVENTS_FETCH_LIMIT)
         ).data ?? []
       : []);
 

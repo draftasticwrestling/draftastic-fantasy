@@ -63,7 +63,7 @@ import {
   beltScoringLastWeekEndSundayInclusive,
   firstEligibleWeekEndSundayForLeagueStart,
 } from "@/lib/beltWeeklyHold";
-import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
 import XpStatusStrip from "@/app/components/XpStatusStrip";
 
@@ -242,7 +242,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         .select("id, name, date, matches")
         .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
-        .order("date", { ascending: true }),
+        .order("date", { ascending: true })
+        .limit(SCORING_EVENTS_FETCH_LIMIT),
       supabaseTable.from("championship_history").select("champion_slug, champion, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
       supabaseTable
         .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)

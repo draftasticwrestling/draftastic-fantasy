@@ -12,7 +12,7 @@ import {
   inferReignsFromEvents,
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
-import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 
@@ -71,7 +71,8 @@ export async function loadLeagueLeadersAllTimeScoringBundle(
         .select("id, name, date, matches")
         .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
-        .order("date", { ascending: true }),
+        .order("date", { ascending: true })
+        .limit(SCORING_EVENTS_FETCH_LIMIT),
       db.from("wrestlers").select("id, brand"),
     ]);
   const eventsAll = (allEventsData ?? []) as EventRow[];

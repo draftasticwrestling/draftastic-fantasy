@@ -40,7 +40,7 @@ import {
   CHAMPIONSHIP_CHANGES_TABLE_NAME,
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
-import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 
 /** Monday of the week containing the given date (YYYY-MM-DD). Weeks are Monday–Sunday. */
 export function getMondayOfWeek(dateStr: string): string {
@@ -242,7 +242,8 @@ export async function getPointsByOwnerForLeagueForWeek(
     .from("events")
     .select("id, name, date, broadcast_start_ts, matches")
     .in("status", [...EVENT_STATUSES_FOR_SCORING])
-    .order("date", { ascending: true });
+    .order("date", { ascending: true })
+    .limit(SCORING_EVENTS_FETCH_LIMIT);
   const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
   const events =
     eventsWithStart ??
@@ -253,6 +254,7 @@ export async function getPointsByOwnerForLeagueForWeek(
             .select("id, name, date, matches")
             .in("status", [...EVENT_STATUSES_FOR_SCORING])
             .order("date", { ascending: true })
+            .limit(SCORING_EVENTS_FETCH_LIMIT)
         ).data ?? []
       : []);
 
@@ -355,7 +357,8 @@ export async function getPointsByOwnerByWrestlerForWeek(
     .from("events")
     .select("id, name, date, broadcast_start_ts, matches")
     .in("status", [...EVENT_STATUSES_FOR_SCORING])
-    .order("date", { ascending: true });
+    .order("date", { ascending: true })
+    .limit(SCORING_EVENTS_FETCH_LIMIT);
   const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
   const events =
     eventsWithStart ??
@@ -366,6 +369,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
             .select("id, name, date, matches")
             .in("status", [...EVENT_STATUSES_FOR_SCORING])
             .order("date", { ascending: true })
+            .limit(SCORING_EVENTS_FETCH_LIMIT)
         ).data ?? []
       : []);
 
@@ -489,7 +493,7 @@ export async function getLeagueWeeklyMatchups(
       firstEligibleMonthEnd = firstLegacyCalendarMonthEndEligibleForLeagueStart(start);
     }
 
-    /** Full event stream through `end` (no row cap): must match `getLeagueScoring` belt inference or reigns / weekly lock dates truncate and title-hold belt points diverge from season totals. */
+    /** Belt inference must see the full event timeline in range; explicit limit avoids PostgREST default ~1000 oldest rows. */
     const [{ data: tableReigns }, eventsRes, changesRes] = await Promise.all([
       supabase.from("championship_history").select("*"),
       supabase
@@ -498,7 +502,8 @@ export async function getLeagueWeeklyMatchups(
         .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .lte("date", end)
-        .order("date", { ascending: true }),
+        .order("date", { ascending: true })
+        .limit(SCORING_EVENTS_FETCH_LIMIT),
       supabase
         .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
         .select("championship_type, champion, champion_slug, date")
@@ -516,7 +521,8 @@ export async function getLeagueWeeklyMatchups(
         .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .lte("date", end)
-        .order("date", { ascending: true });
+        .order("date", { ascending: true })
+        .limit(SCORING_EVENTS_FETCH_LIMIT);
       eventsInRange = (ev2 ?? []) as EventRowForReignInference[];
     }
     useBroadcastForMonthlyBelt = (eventsInRange as Array<{ broadcast_start_ts?: string | null }>).some(
@@ -834,7 +840,8 @@ export async function getMonthlyBeltBySlugForWeek(
       .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
       .lte("date", end)
-      .order("date", { ascending: true }),
+      .order("date", { ascending: true })
+      .limit(SCORING_EVENTS_FETCH_LIMIT),
     supabase
       .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
       .select("championship_type, champion, champion_slug, date")

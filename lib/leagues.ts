@@ -38,7 +38,7 @@ import {
   rosterStintActiveForWeeklyBeltHold,
 } from "@/lib/scoring/rosterStintEventWindow";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
-import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { validateFactionNameForSave } from "@/lib/factionName";
@@ -1535,7 +1535,8 @@ export async function getLeagueScoring(
     .from("events")
     .select("id, name, date, broadcast_start_ts, matches")
     .in("status", [...EVENT_STATUSES_FOR_SCORING])
-    .order("date", { ascending: true });
+    .order("date", { ascending: true })
+    .limit(SCORING_EVENTS_FETCH_LIMIT);
 
   const { data: eventsWithStart, error: eventsErr } = await eventsSelectWithStart;
   const events =
@@ -1547,6 +1548,7 @@ export async function getLeagueScoring(
             .select("id, name, date, matches")
             .in("status", [...EVENT_STATUSES_FOR_SCORING])
             .order("date", { ascending: true })
+            .limit(SCORING_EVENTS_FETCH_LIMIT)
         ).data ?? []
       : []);
 

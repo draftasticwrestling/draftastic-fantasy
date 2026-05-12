@@ -55,7 +55,7 @@ import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
 import { ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
-import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import {
   LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT,
   allTimeLeadersStylePointBreakdown,
@@ -245,7 +245,8 @@ export default async function LeagueLeadersPage({
         .select("id, name, date, matches")
         .in("status", [...EVENT_STATUSES_FOR_SCORING])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
-        .order("date", { ascending: true }),
+        .order("date", { ascending: true })
+        .limit(SCORING_EVENTS_FETCH_LIMIT),
     ]);
     eventsSinceStart = (evSince.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
     beltInferenceEvents = filterEventsForBeltReignInference(

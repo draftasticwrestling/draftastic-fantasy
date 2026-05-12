@@ -43,7 +43,7 @@ import {
 import { leagueIncludesNxt, leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
-import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
 
@@ -153,7 +153,8 @@ export default async function WrestlersFreeAgentsPage({
       .select("id, name, date, matches")
       .in("status", [...EVENT_STATUSES_FOR_SCORING])
       .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
-      .order("date", { ascending: true }),
+      .order("date", { ascending: true })
+      .limit(SCORING_EVENTS_FETCH_LIMIT),
   ]);
   const eventsAll = (allEventsData ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
   const eventsSinceStart = eventsAll.filter((e) => (e.date ?? "") >= startDate);
