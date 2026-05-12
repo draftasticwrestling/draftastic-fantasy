@@ -5,7 +5,10 @@ import {
   autolinkWrestlersInMarkdown,
   getCachedWrestlerAutolinkEntries,
 } from "@/lib/articleWrestlerAutolink";
-import { listEventScoreCorrectionsForLeaguePage } from "@/lib/eventScoreCorrections";
+import {
+  listEventScoreCorrectionsForLeaguePage,
+  statCorrectionEventResultsPath,
+} from "@/lib/eventScoreCorrections";
 import { ArticleMarkdown } from "@/app/components/articles/ArticleMarkdown";
 
 export const metadata = {
@@ -38,33 +41,40 @@ export default async function StatCorrectionsPage({ params }: { params: Promise<
         <p style={{ color: "var(--color-text-muted)" }}>No published corrections yet.</p>
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 28 }}>
-          {rows.map((r) => (
-            <li
-              key={r.id}
-              style={{
-                paddingBottom: 24,
-                borderBottom: "1px solid var(--color-border)",
-              }}
-            >
-              <h2 style={{ fontSize: "1.15rem", margin: "0 0 6px" }}>{r.title}</h2>
-              <p style={{ fontSize: 13, color: "var(--color-text-muted)", margin: "0 0 12px" }}>
-                Event:{" "}
-                <Link href={`/event-results/${encodeURIComponent(r.event_id)}`} className="app-link">
-                  {r.event_id}
-                </Link>
-                {" · "}
-                Posted {r.visible_at?.slice(0, 10) ?? ""}
-                {r.league_id == null ? " · All leagues" : ""}
-              </p>
-              <ArticleMarkdown
-                markdown={
-                  r.body_markdown?.trim()
-                    ? autolinkWrestlersInMarkdown(r.body_markdown, autolinkEntries)
-                    : "_No details._"
-                }
-              />
-            </li>
-          ))}
+          {rows.map((r) => {
+            const eventPath = statCorrectionEventResultsPath(r.event_id);
+            return (
+              <li
+                key={r.id}
+                style={{
+                  paddingBottom: 24,
+                  borderBottom: "1px solid var(--color-border)",
+                }}
+              >
+                <h2 style={{ fontSize: "1.15rem", margin: "0 0 6px" }}>{r.title}</h2>
+                <p style={{ fontSize: 13, color: "var(--color-text-muted)", margin: "0 0 12px" }}>
+                  Event:{" "}
+                  {eventPath ? (
+                    <Link href={eventPath} className="app-link">
+                      {r.event_id}
+                    </Link>
+                  ) : (
+                    <span style={{ color: "var(--color-text)" }}>Platform / scoring (not tied to one event)</span>
+                  )}
+                  {" · "}
+                  Posted {r.visible_at?.slice(0, 10) ?? ""}
+                  {r.league_id == null ? " · All leagues" : ""}
+                </p>
+                <ArticleMarkdown
+                  markdown={
+                    r.body_markdown?.trim()
+                      ? autolinkWrestlersInMarkdown(r.body_markdown, autolinkEntries)
+                      : "_No details._"
+                  }
+                />
+              </li>
+            );
+          })}
         </ul>
       )}
     </main>
