@@ -27,6 +27,107 @@ type Props = { params: Promise<{ slug: string; weekStart: string }> };
 
 export const dynamic = "force-dynamic";
 
+type MatchupDetailRosterRow = {
+  slot: number;
+  wrestlerId: string;
+  name: string;
+  points: number;
+  eventPts: number;
+  monthlyPts: number;
+  txnLines: string[];
+};
+
+function MatchupDetailRosterSlot({
+  row,
+  leagueSlug,
+  align,
+}: {
+  row: MatchupDetailRosterRow | undefined;
+  leagueSlug: string;
+  align: "left" | "right";
+}) {
+  const name = row?.name ?? "—";
+  const wrestlerId = row?.wrestlerId;
+  const pts = row?.points ?? 0;
+  const monthlyPts = row?.monthlyPts ?? 0;
+  const eventPts = row?.eventPts ?? (pts - monthlyPts);
+  const txnLines = row?.txnLines ?? [];
+  const ptsDisplay =
+    wrestlerId != null && wrestlerId !== ""
+      ? pts > 0
+        ? monthlyPts > 0
+          ? `+${eventPts} + ${monthlyPts} belt`
+          : `+${pts}`
+        : "0"
+      : null;
+
+  const nameNode =
+    wrestlerId && wrestlerId !== "" ? (
+      <Link
+        href={`/wrestlers/${encodeURIComponent(wrestlerId)}?league=${encodeURIComponent(leagueSlug)}`}
+        className="app-link"
+        style={{ fontWeight: 500 }}
+      >
+        {name}
+      </Link>
+    ) : (
+      <span>{name}</span>
+    );
+
+  const nameBlock = (
+    <div style={{ minWidth: 0, textAlign: align === "right" ? "right" : "left" }}>
+      <div>{nameNode}</div>
+      {txnLines.length > 0 && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--color-text-muted)",
+            marginTop: 2,
+            lineHeight: 1.35,
+          }}
+        >
+          {txnLines.map((line, li) => (
+            <span key={li} style={{ display: "block" }}>
+              {line}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const ptsNode =
+    ptsDisplay != null ? (
+      <span
+        style={{
+          flexShrink: 0,
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--color-red)",
+          lineHeight: 1.25,
+        }}
+      >
+        {ptsDisplay}
+      </span>
+    ) : null;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 8,
+        width: "100%",
+        flexDirection: align === "right" ? "row-reverse" : "row",
+      }}
+    >
+      {nameBlock}
+      {ptsNode}
+    </div>
+  );
+}
+
 function formatWeekRange(weekStart: string, weekEnd: string): string {
   const fmt = (s: string) => {
     const d = new Date(s + "T12:00:00Z");
@@ -276,8 +377,9 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                           >
                             {rowIdx + 1}
                           </td>
-                          {teamData.map((t) => {
+                          {teamData.map((t, colIdx) => {
                             const row = t.rosterRows[rowIdx];
+                            const align: "left" | "right" = colIdx === teamData.length - 1 ? "right" : "left";
                             return (
                               <td
                                 key={t.userId}
@@ -290,51 +392,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                                   minWidth: 120,
                                 }}
                               >
-                                <span style={{ display: "block" }}>
-                                  {row?.wrestlerId ? (
-                                    <Link
-                                      href={`/wrestlers/${encodeURIComponent(row.wrestlerId)}?league=${encodeURIComponent(slug)}`}
-                                      className="app-link"
-                                      style={{ fontWeight: 500 }}
-                                    >
-                                      {row.name ?? row.wrestlerId}
-                                    </Link>
-                                  ) : (
-                                    (row?.name ?? "—")
-                                  )}
-                                </span>
-                                {row?.wrestlerId && row.txnLines.length > 0 && (
-                                  <span
-                                    style={{
-                                      fontSize: 11,
-                                      color: "var(--color-text-muted)",
-                                      display: "block",
-                                      marginTop: 2,
-                                      lineHeight: 1.35,
-                                    }}
-                                  >
-                                    {row.txnLines.map((line, li) => (
-                                      <span key={li} style={{ display: "block" }}>
-                                        {line}
-                                      </span>
-                                    ))}
-                                  </span>
-                                )}
-                                {row?.wrestlerId && (
-                                  <span
-                                    style={{
-                                      fontSize: 12,
-                                      fontWeight: 600,
-                                      color: "var(--color-red)",
-                                    }}
-                                  >
-                                    {row.points > 0
-                                      ? row.monthlyPts != null && row.monthlyPts > 0
-                                        ? `+${row.eventPts ?? 0} + ${row.monthlyPts} belt`
-                                        : `+${row.points}`
-                                      : "0"}
-                                  </span>
-                                )}
+                                <MatchupDetailRosterSlot row={row} leagueSlug={slug} align={align} />
                               </td>
                             );
                           })}

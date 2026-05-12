@@ -115,6 +115,7 @@ function RosterCell({
   row,
   borderLeft,
   leagueSlug,
+  align,
 }: {
   row?:
     | {
@@ -128,6 +129,8 @@ function RosterCell({
     | undefined;
   borderLeft?: boolean;
   leagueSlug?: string;
+  /** Left: name left, points right (toward center). Right: points left, name right. */
+  align: "left" | "right";
 }) {
   const name = row?.name ?? "—";
   const wrestlerId = row?.wrestlerId;
@@ -135,11 +138,13 @@ function RosterCell({
   const monthlyPts = row?.monthlyPts ?? 0;
   const eventPts = row?.eventPts ?? (pts - monthlyPts);
   const txnLines = row?.txnLines ?? [];
-  const ptsLabel =
-    pts > 0
-      ? monthlyPts > 0
-        ? `+${eventPts} + ${monthlyPts} belt`
-        : `+${pts}`
+  const ptsDisplay =
+    wrestlerId != null && wrestlerId !== ""
+      ? pts > 0
+        ? monthlyPts > 0
+          ? `+${eventPts} + ${monthlyPts} belt`
+          : `+${pts}`
+        : "0"
       : null;
   const nameNode = wrestlerId && leagueSlug ? (
     <Link
@@ -152,6 +157,42 @@ function RosterCell({
   ) : (
     <span style={{ whiteSpace: "nowrap" }}>{name}</span>
   );
+
+  const nameBlock = (
+    <div style={{ minWidth: 0, textAlign: align === "right" ? "right" : "left" }}>
+      <div>{nameNode}</div>
+      {txnLines.length > 0 && (
+        <div
+          style={{
+            fontSize: 10,
+            color: "var(--color-text-muted)",
+            marginTop: 3,
+            lineHeight: 1.35,
+          }}
+        >
+          {txnLines.map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const ptsNode =
+    ptsDisplay != null ? (
+      <span
+        style={{
+          flexShrink: 0,
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--color-red)",
+          lineHeight: 1.25,
+        }}
+      >
+        {ptsDisplay}
+      </span>
+    ) : null;
+
   return (
     <td
       style={{
@@ -161,19 +202,19 @@ function RosterCell({
         verticalAlign: "top",
       }}
     >
-      <div>
-        {nameNode}
-        {ptsLabel != null && (
-          <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, color: "var(--color-red)" }}>{ptsLabel}</span>
-        )}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 8,
+          width: "100%",
+          flexDirection: align === "right" ? "row-reverse" : "row",
+        }}
+      >
+        {nameBlock}
+        {ptsNode}
       </div>
-      {txnLines.length > 0 && (
-        <div style={{ fontSize: 10, color: "var(--color-text-muted)", marginTop: 3, lineHeight: 1.35 }}>
-          {txnLines.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
-        </div>
-      )}
     </td>
   );
 }
@@ -519,9 +560,9 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                             </td>
                             {mu.type === "h2h" ? (
                               <>
-                                <RosterCell row={rosterByTeam[0]?.[rowIdx]} borderLeft leagueSlug={slug} />
+                                <RosterCell row={rosterByTeam[0]?.[rowIdx]} borderLeft leagueSlug={slug} align="left" />
                                 <td style={{ borderLeft: "1px solid var(--color-border)", borderRight: "1px solid var(--color-border)" }} />
-                                <RosterCell row={rosterByTeam[1]?.[rowIdx]} borderLeft leagueSlug={slug} />
+                                <RosterCell row={rosterByTeam[1]?.[rowIdx]} borderLeft leagueSlug={slug} align="right" />
                               </>
                             ) : (
                               teamData.map((t, colIdx) => (
@@ -530,6 +571,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                                   row={rosterByTeam[colIdx]?.[rowIdx]}
                                   borderLeft
                                   leagueSlug={slug}
+                                  align={colIdx === teamData.length - 1 ? "right" : "left"}
                                 />
                               ))
                             )}
