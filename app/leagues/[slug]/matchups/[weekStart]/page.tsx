@@ -65,13 +65,13 @@ function MatchupDetailRosterSlot({
     wrestlerId && wrestlerId !== "" ? (
       <Link
         href={`/wrestlers/${encodeURIComponent(wrestlerId)}?league=${encodeURIComponent(leagueSlug)}`}
-        className="app-link"
+        className="app-link matchups-roster-name"
         style={{ fontWeight: 500 }}
       >
         {name}
       </Link>
     ) : (
-      <span>{name}</span>
+      <span className="matchups-roster-name">{name}</span>
     );
 
   const nameBlock = (
@@ -211,10 +211,10 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
 
   return (
     <main
-      className="app-page"
+      className="app-page matchups-detail-page"
       style={{ maxWidth: 960, fontSize: 16, lineHeight: 1.5, minHeight: "100vh" }}
     >
-      <p style={{ marginBottom: 20 }}>
+      <p className="matchups-detail-breadcrumb" style={{ marginBottom: 20 }}>
         <Link
           href={`/leagues/${slug}/matchups?week=${encodeURIComponent(weekStartDecoded)}`}
           className="app-link"
@@ -222,7 +222,10 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
         >
           ← Scoreboard
         </Link>
-        {" · "}
+        <span className="matchups-detail-bc-sep" aria-hidden>
+          {" "}
+          ·{" "}
+        </span>
         <Link href={`/leagues/${slug}`} className="app-link" style={{ fontWeight: 500 }}>
           {league.name}
         </Link>
@@ -470,42 +473,52 @@ function TeamHeaderBlock({
       <div
         style={{
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
-          gap: 10,
-          flexWrap: "wrap",
+          gap: 8,
+          minWidth: 0,
         }}
       >
-        <MatchupOwnerAvatarRing member={data.member} size={36} />
-        <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)" }}>{data.label}</span>
-        {data.isWinner && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: "var(--color-success-muted)",
-              background: "var(--color-success-bg)",
-              padding: "2px 6px",
-              borderRadius: 4,
-            }}
-          >
-            Winner
-          </span>
-        )}
-        {data.isBeltHolder && !data.isWinner && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--color-blue)",
-              background: "var(--color-blue-bg)",
-              padding: "2px 6px",
-              borderRadius: 4,
-            }}
-          >
-            Belt
-          </span>
-        )}
+        <MatchupOwnerAvatarRing member={data.member} size={54} />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)" }}>{data.label}</span>
+          {data.isWinner && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--color-success-muted)",
+                background: "var(--color-success-bg)",
+                padding: "2px 6px",
+                borderRadius: 4,
+              }}
+            >
+              Winner
+            </span>
+          )}
+          {data.isBeltHolder && !data.isWinner && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: "var(--color-blue)",
+                background: "var(--color-blue-bg)",
+                padding: "2px 6px",
+                borderRadius: 4,
+              }}
+            >
+              Belt
+            </span>
+          )}
+        </div>
       </div>
       <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--color-red)", lineHeight: 1.2 }}>
         {data.total}

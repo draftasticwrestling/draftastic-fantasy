@@ -30,6 +30,8 @@ type Props = {
   seasonTop10: LeaderboardDisplayRow[];
   /** When false, sidebar hides “Most points this season” (e.g. Total Season Points leagues). */
   showSeasonTop10?: boolean;
+  /** Head-to-head leagues get a Matchups link in the mobile League menu. */
+  isHeadToHead?: boolean;
   latestWeekStart: string | null;
   levelUpCelebration?: LevelUpCelebration | null;
   xpBannerKind?: LeagueHomeXpBannerKind | null;
@@ -66,6 +68,7 @@ export function LeagueHomeMobileLeagueView({
   weeklyTop10,
   seasonTop10,
   showSeasonTop10 = true,
+  isHeadToHead = false,
   latestWeekStart,
   levelUpCelebration = null,
   xpBannerKind = null,
@@ -76,6 +79,7 @@ export function LeagueHomeMobileLeagueView({
 
   const items: { href: string; label: string }[] = [
     { href: `${base}/standings`, label: "Standings" },
+    ...(isHeadToHead ? [{ href: `${base}/matchups`, label: "Matchups" }] : []),
     ...(seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG
       ? [{ href: `${base}/pathway`, label: "Your Pathway" }]
       : []),

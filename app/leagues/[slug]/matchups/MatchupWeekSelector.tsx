@@ -21,6 +21,7 @@ export function MatchupWeekSelector({ weeks, selectedWeekStart, slug }: Props) {
       </label>
       <select
         id="matchup-week"
+        className="matchups-week-select"
         value={selectedWeekStart}
         onChange={(e) => {
           const week = e.target.value;
@@ -35,7 +36,8 @@ export function MatchupWeekSelector({ weeks, selectedWeekStart, slug }: Props) {
           border: "1px solid var(--color-border)",
           borderRadius: "var(--radius-sm)",
           cursor: "pointer",
-          minWidth: 220,
+          minWidth: 200,
+          maxWidth: "100%",
         }}
       >
         {weeks.map((w) => (

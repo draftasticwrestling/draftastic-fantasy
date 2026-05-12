@@ -3202,6 +3202,19 @@ body > .site-footer {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* Scoreboard list (/leagues/.../matchups) — mobile */
+.matchups-page .matchups-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.matchups-scoreboard-table-wrap {
+  min-width: 0;
+}
 .scoreboard-card-link:hover .scoreboard-card {
   border-color: var(--color-blue);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -3210,13 +3223,110 @@ body > .site-footer {
   min-width: 0;
 }
 
-/* Week detail: mobile-friendly triple threat */
+/* Matchups scoreboard + week detail (mobile) */
 @media (max-width: 640px) {
+  .matchups-page .matchups-page__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .matchups-page .matchups-page__toolbar h1 {
+    font-size: 1.25rem;
+  }
+  .matchups-page .matchup-week-selector {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .matchups-page .matchup-week-selector label {
+    margin-right: 0;
+    margin-bottom: 2px;
+  }
+  .matchups-page .matchups-week-select {
+    width: 100%;
+    min-width: 0;
+  }
+  .matchups-page .matchups-rules-blurb {
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .matchups-scoreboard-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    margin-left: calc(-1 * var(--page-padding-x-mobile));
+    margin-right: calc(-1 * var(--page-padding-x-mobile));
+    padding-left: var(--page-padding-x-mobile);
+    padding-right: var(--page-padding-x-mobile);
+    padding-bottom: 2px;
+  }
+  .matchups-page .matchups-scoreboard-table {
+    font-size: 12px;
+    min-width: 520px;
+  }
+  .matchups-page .matchups-score-header {
+    padding: 10px 8px !important;
+  }
+  .matchups-page .matchups-vs-cell {
+    padding: 10px 4px !important;
+    font-size: 11px !important;
+  }
+  .matchups-page .matchups-slot-num {
+    padding: 6px 6px !important;
+    font-size: 11px !important;
+  }
+  .matchups-page .matchups-roster-cell {
+    padding: 6px 8px !important;
+  }
+  .matchups-page .matchups-roster-name {
+    white-space: normal !important;
+    word-break: break-word;
+    line-height: 1.3;
+  }
+  .matchups-page .scoreboard-card-link + p {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+
+  .matchups-detail-page .matchups-detail-breadcrumb {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    line-height: 1.45;
+  }
+  .matchups-detail-page .matchups-detail-breadcrumb .matchups-detail-bc-sep {
+    display: none;
+  }
+  .matchups-detail-page .matchups-roster-name {
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.3;
+  }
+  .matchups-detail-page .matchup-detail-card:not(.matchup-detail-card--triple) .matchup-detail-header {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+    padding: 16px;
+  }
+  .matchups-detail-page
+    .matchup-detail-card:not(.matchup-detail-card--triple)
+    .matchup-detail-header
+    > *:nth-child(2) {
+    padding: 8px 0;
+    border-top: 1px solid var(--color-border-light);
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
   .matchup-detail-card .matchup-roster-table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    padding-left: 12px;
-    padding-right: 12px;
+    overscroll-behavior-x: contain;
+    margin-left: calc(-1 * var(--page-padding-x-mobile));
+    margin-right: calc(-1 * var(--page-padding-x-mobile));
+    padding-left: var(--page-padding-x-mobile);
+    padding-right: var(--page-padding-x-mobile);
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
   .matchup-detail-card .matchup-roster-table-wrap table {
     min-width: 480px;

@@ -334,6 +334,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         recordByUserId={standingsRecordByUserId}
         showRecordOnly={isHeadToHeadHomeStandings}
         showSeasonTop10={showSeasonTop10InSidebar}
+        isHeadToHead={isHeadToHeadHomeStandings}
         currentUserId={currentUser?.id ?? null}
         xpByUserId={xpByUserId}
         showTop10Leaderboards={showTop10}

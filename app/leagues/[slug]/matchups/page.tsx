@@ -80,6 +80,7 @@ function ScoreHeaderCell({
   const m = t.member ?? null;
   return (
     <td
+      className="matchups-score-header"
       style={{
         padding: "14px 12px",
         background: isWinner ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
@@ -100,17 +101,29 @@ function ScoreHeaderCell({
         <div
           style={{
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            flexWrap: "wrap",
+            gap: 8,
+            minWidth: 0,
           }}
         >
-          <MatchupOwnerAvatarRing member={m} size={32} />
-          <div style={{ fontWeight: 700, fontSize: 15, color: "var(--color-text)", minWidth: 0 }}>
-            {t.label}
+          <MatchupOwnerAvatarRing member={m} size={48} />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexWrap: "wrap",
+              gap: 6,
+              fontWeight: 700,
+              fontSize: 15,
+              color: "var(--color-text)",
+              minWidth: 0,
+            }}
+          >
+            <span>{t.label}</span>
             {isWinner && (
-              <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>W</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>W</span>
             )}
           </div>
         </div>
@@ -163,13 +176,15 @@ function RosterCell({
   const nameNode = wrestlerId && leagueSlug ? (
     <Link
       href={`/wrestlers/${encodeURIComponent(wrestlerId)}?league=${encodeURIComponent(leagueSlug)}`}
-      className="app-link"
+      className="app-link matchups-roster-name"
       style={{ whiteSpace: "nowrap", fontWeight: 500 }}
     >
       {name}
     </Link>
   ) : (
-    <span style={{ whiteSpace: "nowrap" }}>{name}</span>
+    <span className="matchups-roster-name" style={{ whiteSpace: "nowrap" }}>
+      {name}
+    </span>
   );
 
   const nameBlock = (
@@ -209,6 +224,7 @@ function RosterCell({
 
   return (
     <td
+      className="matchups-roster-cell"
       style={{
         padding: "6px 12px",
         borderLeft: borderLeft ? "1px solid var(--color-border)" : undefined,
@@ -349,23 +365,14 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   }
 
   return (
-    <main className="app-page" style={{ maxWidth: 720, fontSize: 16, lineHeight: 1.5 }}>
+    <main className="app-page matchups-page" style={{ maxWidth: 720, fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 24 }}>
         <Link href={`/leagues/${slug}`} className="app-link">
           ← {league.name}
         </Link>
       </p>
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 8,
-        }}
-      >
+      <div className="matchups-page__toolbar">
         <h1 style={{ fontSize: "1.5rem", margin: 0, color: "var(--color-text)", fontWeight: 700 }}>
           Scoreboard
         </h1>
@@ -377,7 +384,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
           />
         )}
       </div>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
+      <p className="matchups-rules-blurb" style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
         {ownerBonusRules ? (
           <>
             Each week (Monday–Sunday) teams face off. Most event points wins the matchup and gets{" "}
@@ -489,7 +496,9 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                     }}
                   >
                     {/* Single table so score row and roster columns stay aligned */}
+                    <div className="matchups-scoreboard-table-wrap">
                     <table
+                      className="matchups-scoreboard-table"
                       style={{
                         width: "100%",
                         borderCollapse: "collapse",
@@ -519,6 +528,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                         {/* Score row: team name + total in same columns as roster */}
                         <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
                           <td
+                            className="matchups-slot-num"
                             style={{
                               padding: "14px 12px",
                               background: "var(--color-bg-elevated)",
@@ -536,6 +546,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                             <>
                               <ScoreHeaderCell t={teamData[0]!} isWinner={isWinner(teamData[0]!.userId)} />
                               <td
+                                className="matchups-vs-cell"
                                 style={{
                                   padding: "14px 8px",
                                   background: "var(--color-bg-elevated)",
@@ -553,6 +564,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                               </td>
                               <ScoreHeaderCell t={teamData[1]!} isWinner={isWinner(teamData[1]!.userId)} />
                               <td
+                                className="matchups-slot-num"
                                 style={{
                                   padding: "14px 12px",
                                   background: "var(--color-bg-elevated)",
@@ -577,6 +589,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                                 />
                               ))}
                               <td
+                                className="matchups-slot-num"
                                 style={{
                                   padding: "14px 12px",
                                   background: "var(--color-bg-elevated)",
@@ -603,13 +616,20 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                               borderTop: "1px solid var(--color-border)",
                             }}
                           >
-                            <td style={{ padding: "6px 12px", color: "var(--color-text-muted)", borderRight: "1px solid var(--color-border)" }}>
+                            <td
+                              className="matchups-slot-num"
+                              style={{ padding: "6px 12px", color: "var(--color-text-muted)", borderRight: "1px solid var(--color-border)" }}
+                            >
                               {rowIdx + 1}
                             </td>
                             {mu.type === "h2h" ? (
                               <>
                                 <RosterCell row={rosterByTeam[0]?.[rowIdx]} borderLeft leagueSlug={slug} align="left" />
-                                <td style={{ borderLeft: "1px solid var(--color-border)", borderRight: "1px solid var(--color-border)" }} />
+                                <td
+                                  className="matchups-vs-cell"
+                                  aria-hidden
+                                  style={{ borderLeft: "1px solid var(--color-border)", borderRight: "1px solid var(--color-border)" }}
+                                />
                                 <RosterCell row={rosterByTeam[1]?.[rowIdx]} borderLeft leagueSlug={slug} align="right" />
                               </>
                             ) : (
@@ -624,6 +644,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                               ))
                             )}
                             <td
+                              className="matchups-slot-num"
                               style={{
                                 padding: "6px 12px",
                                 color: "var(--color-text-muted)",
@@ -637,6 +658,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </Link>
                 <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, color: "var(--color-text-muted)" }}>

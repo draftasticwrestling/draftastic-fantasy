@@ -9,7 +9,7 @@ function matchupOwnerFallbackInitial(m: LeagueMember | null | undefined): string
 
 export function MatchupOwnerAvatarRing({
   member,
-  size = 28,
+  size = 42,
 }: {
   member: LeagueMember | null;
   size?: number;
@@ -20,7 +20,7 @@ export function MatchupOwnerAvatarRing({
       style={{
         display: "flex",
         flexShrink: 0,
-        borderRadius: 999,
+        borderRadius: 0,
         border: "1px solid var(--color-border)",
         overflow: "hidden",
         background: "var(--color-bg-card)",
@@ -30,7 +30,7 @@ export function MatchupOwnerAvatarRing({
         avatarUrl={resolvedManagerAvatarUrl(member ?? {})}
         fallbackLetter={matchupOwnerFallbackInitial(member)}
         size={size}
-        radius={999}
+        radius={0}
         alt=""
         variant="sidebar"
       />
