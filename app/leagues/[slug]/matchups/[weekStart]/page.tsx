@@ -357,7 +357,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                       width: "100%",
                       borderCollapse: "collapse",
                       fontSize: 14,
-                      minWidth: 48 + 120 * teamData.length,
+                      minWidth: 48 + 48 + 120 * teamData.length,
                       borderTop: "1px solid var(--color-border)",
                     }}
                   >
@@ -374,6 +374,11 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                               padding: "8px 12px",
                               color: "var(--color-text-muted)",
                               borderBottom: "1px solid var(--color-border)",
+                              borderRight: "1px solid var(--color-border)",
+                              textAlign: "center",
+                              fontWeight: 600,
+                              width: 48,
+                              minWidth: 48,
                             }}
                           >
                             {rowIdx + 1}
@@ -397,6 +402,20 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                               </td>
                             );
                           })}
+                          <td
+                            style={{
+                              padding: "8px 12px",
+                              color: "var(--color-text-muted)",
+                              borderBottom: "1px solid var(--color-border)",
+                              borderLeft: "1px solid var(--color-border)",
+                              textAlign: "center",
+                              fontWeight: 600,
+                              width: 48,
+                              minWidth: 48,
+                            }}
+                          >
+                            {rowIdx + 1}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

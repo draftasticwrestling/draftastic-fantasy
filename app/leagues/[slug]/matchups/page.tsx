@@ -501,15 +501,17 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                         <col style={{ width: 40 }} />
                         {mu.type === "h2h" ? (
                           <>
-                            <col style={{ width: "47%" }} />
+                            <col style={{ width: "45%" }} />
                             <col style={{ width: 48 }} />
-                            <col style={{ width: "47%" }} />
+                            <col style={{ width: "45%" }} />
+                            <col style={{ width: 40 }} />
                           </>
                         ) : (
                           <>
                             <col style={{ width: "33.33%" }} />
                             <col style={{ width: "33.33%" }} />
                             <col style={{ width: "33.33%" }} />
+                            <col style={{ width: 40 }} />
                           </>
                         )}
                       </colgroup>
@@ -550,15 +552,45 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                                 VS
                               </td>
                               <ScoreHeaderCell t={teamData[1]!} isWinner={isWinner(teamData[1]!.userId)} />
+                              <td
+                                style={{
+                                  padding: "14px 12px",
+                                  background: "var(--color-bg-elevated)",
+                                  borderLeft: "1px solid var(--color-border)",
+                                  verticalAlign: "middle",
+                                  fontWeight: 600,
+                                  fontSize: 12,
+                                  color: "var(--color-text-muted)",
+                                  textAlign: "center",
+                                }}
+                              >
+                                #
+                              </td>
                             </>
                           ) : (
-                            teamData.map((t) => (
-                              <ScoreHeaderCell
-                                key={t.userId}
-                                t={t}
-                                isWinner={isWinner(t.userId)}
-                              />
-                            ))
+                            <>
+                              {teamData.map((t) => (
+                                <ScoreHeaderCell
+                                  key={t.userId}
+                                  t={t}
+                                  isWinner={isWinner(t.userId)}
+                                />
+                              ))}
+                              <td
+                                style={{
+                                  padding: "14px 12px",
+                                  background: "var(--color-bg-elevated)",
+                                  borderLeft: "1px solid var(--color-border)",
+                                  verticalAlign: "middle",
+                                  fontWeight: 600,
+                                  fontSize: 12,
+                                  color: "var(--color-text-muted)",
+                                  textAlign: "center",
+                                }}
+                              >
+                                #
+                              </td>
+                            </>
                           )}
                         </tr>
                       </thead>
@@ -591,6 +623,16 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                                 />
                               ))
                             )}
+                            <td
+                              style={{
+                                padding: "6px 12px",
+                                color: "var(--color-text-muted)",
+                                borderLeft: "1px solid var(--color-border)",
+                                textAlign: "center",
+                              }}
+                            >
+                              {rowIdx + 1}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
