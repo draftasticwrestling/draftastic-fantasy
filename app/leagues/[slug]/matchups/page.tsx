@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getRostersForLeagueForWeek } from "@/lib/leagues";
+import {
+  getLeagueBySlug,
+  getLeagueMembers,
+  getRostersForLeague,
+  getRostersForLeagueForWeek,
+  type LeagueMember,
+} from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
@@ -17,6 +23,7 @@ import {
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
+import { MatchupColumnHeading, MatchupOwnerAvatarRing } from "./MatchupOwnerHeading";
 import { MatchupWeekSelector } from "./MatchupWeekSelector";
 
 type Props = {
@@ -56,6 +63,7 @@ function ScoreHeaderCell({
     label: string;
     total: number;
     userId: string;
+    member?: LeagueMember | null;
     eventPts?: number;
     winBonus?: number;
     beltBonus?: number;
@@ -69,6 +77,7 @@ function ScoreHeaderCell({
   if (showBreakdown && winBonus > 0) parts.push(`+${winBonus} win`);
   if (showBreakdown && beltBonus > 0) parts.push(`+${beltBonus} belt`);
   const bonusLine = parts.join(" · ");
+  const m = t.member ?? null;
   return (
     <td
       style={{
@@ -77,11 +86,22 @@ function ScoreHeaderCell({
         borderLeft: "1px solid var(--color-border)",
       }}
     >
-      <div style={{ fontWeight: 700, fontSize: 15, color: "var(--color-text)", marginBottom: 4 }}>
-        {t.label}
-        {isWinner && (
-          <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>W</span>
-        )}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 4,
+          minWidth: 0,
+        }}
+      >
+        <MatchupOwnerAvatarRing member={m} size={32} />
+        <div style={{ fontWeight: 700, fontSize: 15, color: "var(--color-text)", minWidth: 0 }}>
+          {t.label}
+          {isWinner && (
+            <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "var(--color-success-muted)" }}>W</span>
+          )}
+        </div>
       </div>
       <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-red)" }}>{t.total}</div>
       {showBreakdown && bonusLine && (
@@ -344,6 +364,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                   : 0;
               return {
                 userId: uid,
+                member: memberByUserId[uid] ?? null,
                 label: teamLabel(memberByUserId[uid] ?? {}),
                 total: totalForUser(uid),
                 eventPts,
@@ -477,9 +498,13 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                           </th>
                           {mu.type === "h2h"
                             ? [
-                                <th key={teamData[0]!.userId} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text)", borderLeft: "1px solid var(--color-border)" }}>{teamData[0]!.label}</th>,
+                                <th key={teamData[0]!.userId} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text)", borderLeft: "1px solid var(--color-border)" }}>
+                                  <MatchupColumnHeading member={teamData[0]!.member} label={teamData[0]!.label} />
+                                </th>,
                                 <th key="vs" style={{ padding: 0, borderLeft: "1px solid var(--color-border)" }} />,
-                                <th key={teamData[1]!.userId} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text)", borderLeft: "1px solid var(--color-border)" }}>{teamData[1]!.label}</th>,
+                                <th key={teamData[1]!.userId} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--color-text)", borderLeft: "1px solid var(--color-border)" }}>
+                                  <MatchupColumnHeading member={teamData[1]!.member} label={teamData[1]!.label} />
+                                </th>,
                               ]
                             : teamData.map((t) => (
                                 <th
@@ -492,7 +517,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                                     borderLeft: "1px solid var(--color-border)",
                                   }}
                                 >
-                                  {t.label}
+                                  <MatchupColumnHeading member={t.member} label={t.label} />
                                 </th>
                               ))}
                         </tr>

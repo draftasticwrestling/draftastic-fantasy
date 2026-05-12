@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeagueForWeek } from "@/lib/leagues";
+import {
+  getLeagueBySlug,
+  getLeagueMembers,
+  getRostersForLeagueForWeek,
+  type LeagueMember,
+} from "@/lib/leagues";
 import { getRosterRulesForLeague } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
@@ -16,6 +21,7 @@ import {
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
+import { MatchupColumnHeading, MatchupOwnerAvatarRing } from "../MatchupOwnerHeading";
 
 type Props = { params: Promise<{ slug: string; weekStart: string }> };
 
@@ -27,15 +33,6 @@ function formatWeekRange(weekStart: string, weekEnd: string): string {
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
   return `${fmt(weekStart)} – ${fmt(weekEnd)}`;
-}
-
-/** M/D for add/drop dates in matchup roster. */
-function formatShortDate(ymd: string): string {
-  const [y, m, d] = ymd.split("-");
-  if (!m || !d) return ymd;
-  const month = Number(m);
-  const day = Number(d);
-  return `${month}/${day}`;
 }
 
 export default async function LeagueMatchupDetailPage({ params }: Props) {
@@ -185,7 +182,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
               }
               return {
                 userId: uid,
-                member,
+                member: member ?? null,
                 label: member ? teamLabel(member) : "Unknown",
                 total: totalForUser(uid),
                 isWinner: weekMatchup.winnerUserId === uid,
@@ -290,7 +287,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                               minWidth: 120,
                             }}
                           >
-                            {t.label}
+                            <MatchupColumnHeading member={t.member ?? null} label={t.label} avatarSize={28} />
                           </th>
                         ))}
                       </tr>
@@ -411,6 +408,7 @@ function TeamHeaderBlock({
     total: number;
     isWinner: boolean;
     isBeltHolder: boolean;
+    member: LeagueMember | null;
   };
 }) {
   return (
@@ -419,11 +417,12 @@ function TeamHeaderBlock({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
+          gap: 10,
           flexWrap: "wrap",
           marginBottom: 4,
         }}
       >
+        <MatchupOwnerAvatarRing member={data.member} size={36} />
         <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)" }}>
           {data.label}
         </span>
