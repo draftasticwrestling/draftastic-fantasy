@@ -249,7 +249,8 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
           rsPoints =
             Number(wp.matchPoints || 0) +
             Number(wp.mainEventPoints || 0) +
-            Number(wp.battleRoyalPoints || 0);
+            Number(wp.battleRoyalPoints || 0) +
+            Number(wp.specialPoints || 0);
           const toward = Number(wp.kotrTowardNOC || 0);
           if (toward > 0) {
             kotrCarryOver[slug] = (kotrCarryOver[slug] || 0) + toward;

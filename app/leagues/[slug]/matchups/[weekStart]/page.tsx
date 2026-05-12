@@ -22,6 +22,7 @@ import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoin
 import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
 import { MatchupOwnerAvatarRing } from "../MatchupOwnerHeading";
+import { MatchupMobileH2hLineup, MatchupMobileH2hMasthead } from "../MatchupMobileH2h";
 
 type Props = { params: Promise<{ slug: string; weekStart: string }> };
 
@@ -163,8 +164,8 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   ];
   const wrestlersRows =
     wrestlerIds.length > 0
-      ? await supabase.from("wrestlers").select("id, name").in("id", wrestlerIds)
-      : { data: [] as { id: string; name: string | null }[] };
+      ? await supabase.from("wrestlers").select("id, name, image_url, brand").in("id", wrestlerIds)
+      : { data: [] as { id: string; name: string | null; image_url?: string | null; brand?: string | null }[] };
   const isMember = user && members.some((m) => m.user_id === user.id);
   if (!isMember) notFound();
   const matchup = matchups.find((m) => m.weekStart === weekStartDecoded);
@@ -178,6 +179,12 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
     factionDisplayName(m, "Unknown");
   const wrestlerNames: Record<string, string> = Object.fromEntries(
     (wrestlersRows.data ?? []).map((w) => [w.id, w.name ?? w.id])
+  );
+  const wrestlerMeta: Record<string, { image_url?: string | null; brand?: string | null }> = Object.fromEntries(
+    (wrestlersRows.data ?? []).map((w) => {
+      const row = w as { id: string; image_url?: string | null; brand?: string | null };
+      return [row.id, { image_url: row.image_url ?? null, brand: row.brand ?? null }];
+    })
   );
   const rosterRules = getRosterRulesForLeague(
     members.length,
@@ -252,6 +259,15 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
           {weekMatchups.map((mu, matchupIdx) => {
             const teamData = mu.userIds.map((uid) => {
               const member = memberByUserId[uid];
+              const eventPtsOnly = weekMatchup.pointsByUserId[uid] ?? 0;
+              const winBonus =
+                ownerBonusRules && weekMatchup.winnerUserId === uid ? 15 : 0;
+              const beltBonus =
+                ownerBonusRules && weekMatchup.beltHolderUserId === uid
+                  ? weekMatchup.beltRetained
+                    ? 4
+                    : 5
+                  : 0;
               const entries = (rosters[uid] ?? []).slice(0, maxSlots);
               const byWrestler = pointsByOwnerByWrestler[uid] ?? {};
               const rosterRows = entries.map((e, idx) => {
@@ -289,6 +305,9 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                 member: member ?? null,
                 label: member ? teamLabel(member) : "Unknown",
                 total: totalForUser(uid),
+                eventPts: eventPtsOnly,
+                winBonus,
+                beltBonus,
                 isWinner: weekMatchup.winnerUserId === uid,
                 isBeltHolder: weekMatchup.beltHolderUserId === uid,
                 rosterRows,
@@ -298,7 +317,9 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
             return (
               <section
                 key={matchupIdx}
-                className={`matchup-detail-card ${mu.type === "triple" ? "matchup-detail-card--triple" : ""}`}
+                className={`matchup-detail-card ${mu.type === "triple" ? "matchup-detail-card--triple" : ""} ${
+                  mu.type === "h2h" ? "matchup-detail-card--h2h" : ""
+                }`}
                 style={{
                   border: "1px solid var(--color-border)",
                   borderRadius: "var(--radius-lg)",
@@ -345,9 +366,46 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   )}
                 </div>
 
+                {mu.type === "h2h" && teamData[0] && teamData[1] ? (
+                  <>
+                    <MatchupMobileH2hMasthead
+                      teamA={{
+                        userId: teamData[0].userId,
+                        label: teamData[0].label,
+                        member: teamData[0].member,
+                        total: teamData[0].total,
+                        eventPts: teamData[0].eventPts,
+                        winBonus: teamData[0].winBonus,
+                        beltBonus: teamData[0].beltBonus,
+                        isWinner: teamData[0].isWinner,
+                        isBeltHolder: teamData[0].isBeltHolder,
+                      }}
+                      teamB={{
+                        userId: teamData[1].userId,
+                        label: teamData[1].label,
+                        member: teamData[1].member,
+                        total: teamData[1].total,
+                        eventPts: teamData[1].eventPts,
+                        winBonus: teamData[1].winBonus,
+                        beltBonus: teamData[1].beltBonus,
+                        isWinner: teamData[1].isWinner,
+                        isBeltHolder: teamData[1].isBeltHolder,
+                      }}
+                      ownerBonusRules={ownerBonusRules}
+                    />
+                    <MatchupMobileH2hLineup
+                      maxSlots={maxSlots}
+                      rowsLeft={teamData[0].rosterRows}
+                      rowsRight={teamData[1].rosterRows}
+                      leagueSlug={slug}
+                      wrestlerMeta={wrestlerMeta}
+                    />
+                  </>
+                ) : null}
+
                 {/* Roster breakdown table (horizontal scroll on mobile so columns aren't squished) */}
                 <div
-                  className="matchup-roster-table-wrap"
+                  className="matchup-roster-table-wrap matchup-roster-desktop-wrap"
                   style={{
                     overflowX: "auto",
                     WebkitOverflowScrolling: "touch",

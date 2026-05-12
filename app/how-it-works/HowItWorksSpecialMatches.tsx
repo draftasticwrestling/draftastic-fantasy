@@ -61,9 +61,10 @@ export function HowItWorksSpecialMatches({ variant }: Props) {
           fontSize: 15,
         }}
       >
-        Multi-person and multi-team matches (triple threat, fatal four-way, five-way, etc.) earn an extra victory bonus
-        for each opponent/team defeated. <strong>2 out of 3 Falls</strong> and <strong>Gauntlet</strong> matches award
-        this same bonus per round won.
+        Multi-person and multi-team matches (triple threat, fatal four-way, five-way, handicap 2v1, etc.) earn an extra
+        victory bonus of <strong>one tier point per opponent beyond the first</strong> you defeat in that match (a normal
+        singles match has one opponent, so no bonus). <strong>2 out of 3 Falls</strong> and <strong>Gauntlet</strong>{" "}
+        matches still award this same tier per round won.
       </p>
       <div className={styles.darkBox}>
         <div className={styles.specialMatchesInner}>
@@ -88,8 +89,10 @@ export function HowItWorksSpecialMatches({ variant }: Props) {
             fontSize: 14,
           }}
         >
-          Examples: a 4-team tag winner at WrestleMania earns <strong>+9</strong> (3 teams defeated × 3 major-ple points
-          each). A Raw fatal four-way winner earns <strong>+3</strong> (3 opponents defeated × 1 weekly point each).
+          Examples: a 4-team tag winner at WrestleMania with three defeated sides earns <strong>+6</strong> (2
+          additional sides beyond the first × 3 major-ple points each). A Raw fatal four-way winner with three defeated
+          opponents earns <strong>+2</strong> (2 additional opponents × 1 weekly point each). A Raw triple-threat winner
+          earns <strong>+1</strong> (one additional opponent beyond the first).
         </p>
       ) : null}
     </section>
