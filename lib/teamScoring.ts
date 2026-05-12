@@ -24,6 +24,7 @@ import {
   CHAMPIONSHIP_CHANGES_TABLE_NAME,
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
+import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormalize";
 import {
   beltScoringLastWeekEndSundayInclusive,
   firstEligibleWeekEndSundayForLeagueStart,
@@ -361,18 +362,20 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   // Title-hold belt points: weekly PST (RTS) or legacy month-end rows on the calendar month-end date.
   try {
     const [histResult, changesResult] = await Promise.all([
-      supabase
-        .from("championship_history")
-        .select(
-          "champion_slug, champion, title, title_name, won_date, start_date, lost_date, end_date"
-        )
-        .order("won_date", { ascending: true }),
+      supabase.from("championship_history").select("*"),
       supabase
         .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
         .select("championship_type, champion, champion_slug, date")
         .order("date", { ascending: true }),
     ]);
     const histRows = histResult.data;
+    const tableReignsForBelt = (histRows ?? [])
+      .map((row) => normalizeChampionshipHistoryRow(row as Record<string, unknown>))
+      .sort((a, b) => {
+        const ax = (a.won_date ?? a.start_date ?? "").slice(0, 10);
+        const bx = (b.won_date ?? b.start_date ?? "").slice(0, 10);
+        return ax.localeCompare(bx);
+      });
     const changesRows = changesResult.error ? [] : (changesResult.data ?? []);
     const leagueEndYmd = leagueEnd ? String(leagueEnd).slice(0, 10) : "";
     const eventsForBeltReignInference = (events ?? []).filter((e) => {
@@ -383,7 +386,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     });
     const inferredReigns = inferReignsFromEvents(eventsForBeltReignInference);
     const changesReigns = inferReignsFromChampionshipChanges(changesRows);
-    const reigns = mergeReigns(histRows ?? [], [...inferredReigns, ...changesReigns]);
+    const reigns = mergeReigns(tableReignsForBelt, [...inferredReigns, ...changesReigns]);
     const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
     const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug);
 

@@ -47,6 +47,7 @@ import {
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
+import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormalize";
 import { getTeamScoringAudit } from "@/lib/teamScoring";
 import { factionDisplayName } from "@/lib/factionName";
 import { getTodayTomorrowYmdET } from "@/lib/home/hubHomeEvents";
@@ -244,7 +245,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .order("date", { ascending: true })
         .limit(SCORING_EVENTS_FETCH_LIMIT),
-      supabaseTable.from("championship_history").select("champion_slug, champion, title, title_name, won_date, start_date, lost_date, end_date").order("won_date", { ascending: true }),
+      supabaseTable.from("championship_history").select("*"),
       supabaseTable
         .from(CHAMPIONSHIP_CHANGES_TABLE_NAME)
         .select("championship_type, champion, champion_slug, date")
@@ -253,7 +254,13 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       getCurrentChampionsFromChanges(supabaseTable).catch((): Record<string, CurrentChampionFromChanges> => ({})),
     ]);
     const fullWrestlers = wrestlers.filter((w) => rosterIds.includes(w.id));
-    const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
+    const tableReigns = (rawReigns ?? [])
+      .map((row) => normalizeChampionshipHistoryRow(row as Record<string, unknown>))
+      .sort((a, b) => {
+        const ax = (a.won_date ?? a.start_date ?? "").slice(0, 10);
+        const bx = (b.won_date ?? b.start_date ?? "").slice(0, 10);
+        return ax.localeCompare(bx);
+      }) as ChampionshipReign[];
     const changesReigns = inferReignsFromChampionshipChanges(
       changeRowsError ? [] : (rawChangeRows ?? [])
     );
