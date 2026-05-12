@@ -153,7 +153,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
               const member = memberByUserId[uid];
               const entries = (rosters[uid] ?? []).slice(0, maxSlots);
               const byWrestler = pointsByOwnerByWrestler[uid] ?? {};
-              const rosterRows = entries.map((e) => {
+              const rosterRows = entries.map((e, idx) => {
                 const txnLines = matchupRosterTransactionLines(weekStartDecoded, weekEnd, e);
                 const eventPts = byWrestler[e.wrestler_id] ?? 0;
                 const monthlyPts = sumMonthlyBeltPointsForStint(
@@ -163,7 +163,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   weekEnd
                 );
                 return {
-                  slot: i + 1,
+                  slot: idx + 1,
                   wrestlerId: e.wrestler_id,
                   name: wrestlerNames[e.wrestler_id] ?? e.wrestler_id,
                   points: eventPts + monthlyPts,

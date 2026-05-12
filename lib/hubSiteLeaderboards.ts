@@ -159,7 +159,10 @@ export function normalizeHubLeaderboardWeekStart(
   return mon;
 }
 
-/** Heavy path: all leagues × scoring; cached per `selectedWeekStart` (args are part of the cache key). */
+/**
+ * Heavy path: all leagues × scoring; cached per `selectedWeekStart` (args are part of the cache key).
+ * Set `HUB_LEADERBOARD_MAX_LEAGUES` (integer) locally to cap work if you have many test leagues.
+ */
 async function computeHubSiteLeaderboardsForWeek(selectedWeekStart: string): Promise<HubSiteLeaderboardsPayload> {
   const admin = getAdminClient();
   if (!admin) {
@@ -181,7 +184,11 @@ async function computeHubSiteLeaderboardsForWeek(selectedWeekStart: string): Pro
   const weeklyPrevWeekStart = prevStart >= oldest ? prevStart : null;
   const weeklyNextWeekStart = nextStart <= currentMondayPst ? nextStart : null;
 
-  const leagueIds = await loadActiveCompletedLeagueIds(admin);
+  let leagueIds = await loadActiveCompletedLeagueIds(admin);
+  const maxLeagues = Number.parseInt(process.env.HUB_LEADERBOARD_MAX_LEAGUES ?? "", 10);
+  if (Number.isFinite(maxLeagues) && maxLeagues > 0 && leagueIds.length > maxLeagues) {
+    leagueIds = leagueIds.slice(0, maxLeagues);
+  }
   if (leagueIds.length === 0) {
     return {
       weekStart: selectedWeekStart,
@@ -219,7 +226,7 @@ async function computeHubSiteLeaderboardsForWeek(selectedWeekStart: string): Pro
 const getHubSiteLeaderboardsCached = unstable_cache(
   async (selectedWeekStart: string) => computeHubSiteLeaderboardsForWeek(selectedWeekStart),
   ["hub-site-leaderboards-by-week"],
-  { revalidate: 90 }
+  { revalidate: 180 }
 );
 
 /**

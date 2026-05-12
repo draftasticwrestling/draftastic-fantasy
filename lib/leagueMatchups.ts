@@ -421,6 +421,14 @@ export function leagueUsesOwnerMatchupBonuses(leagueType: string | null | undefi
   return leagueType === "combo" || leagueType === null;
 }
 
+export type GetLeagueWeeklyMatchupsOptions = {
+  /**
+   * When set, only compute this Mon–Sun week (skips other weeks).
+   * Ignored for combo / default leagues: +15 and Draftastic belt bonuses depend on prior weeks.
+   */
+  onlyWeekStartMonday?: string | null;
+};
+
 /**
  * All weekly matchups for a league. Winner = most event points that week (tie = no winner).
  * Draftastic Championship: first week winner gets +5; same holder next week +4 retain; new winner +5.
@@ -430,7 +438,8 @@ export function leagueUsesOwnerMatchupBonuses(leagueType: string | null | undefi
  */
 export async function getLeagueWeeklyMatchups(
   leagueId: string,
-  supabaseOverride?: SupabaseClient
+  supabaseOverride?: SupabaseClient,
+  opts?: GetLeagueWeeklyMatchupsOptions
 ): Promise<WeeklyMatchupResult[]> {
   const supabase = supabaseOverride ?? (await createClient());
   const { data: league } = await supabase
@@ -520,7 +529,15 @@ export async function getLeagueWeeklyMatchups(
     beltEventsForWeeklyLock = eventsInRange as Array<{ name: string | null; date: string | null; id: string }>;
   }
 
-  const weeks = getWeeksInRange(start, end);
+  const weeksAll = getWeeksInRange(start, end);
+  const only = opts?.onlyWeekStartMonday?.trim().slice(0, 10) ?? "";
+  const weeks =
+    only &&
+    /^\d{4}-\d{2}-\d{2}$/.test(only) &&
+    weeksAll.includes(only) &&
+    !useOwnerMatchupBonuses
+      ? [only]
+      : weeksAll;
   const results: WeeklyMatchupResult[] = [];
   let beltHolder: string | null = null;
   const today = new Date().toISOString().slice(0, 10);
@@ -747,7 +764,9 @@ export async function getPointsByOwnerForLeagueWeekFromMatchups(
   weekStartMonday: string,
   supabaseOverride?: SupabaseClient
 ): Promise<Record<string, number>> {
-  const matchups = await getLeagueWeeklyMatchups(leagueId, supabaseOverride);
+  const matchups = await getLeagueWeeklyMatchups(leagueId, supabaseOverride, {
+    onlyWeekStartMonday: weekStartMonday,
+  });
   const m = matchups.find((x) => x.weekStart === weekStartMonday);
   if (!m) return {};
   const out: Record<string, number> = { ...m.pointsByUserId };

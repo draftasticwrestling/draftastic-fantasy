@@ -77,6 +77,8 @@ export default function HubSiteLeaderboardsClient({ initial }: { initial: HubSit
   useEffect(() => {
     if (!initial.weekStart) return;
     cachePutWeekPayload(cacheRef.current, initial.weekStart, initial);
+    // Adjacent weeks each re-aggregate every league (expensive). Skip in dev to keep `next dev` responsive.
+    if (process.env.NODE_ENV === "development") return;
     const t = window.setTimeout(() => {
       prefetchWeek(initial.weeklyPrevWeekStart);
       prefetchWeek(initial.weeklyNextWeekStart);
