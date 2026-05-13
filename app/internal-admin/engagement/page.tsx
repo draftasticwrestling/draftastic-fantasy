@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
+import {
+  distinctUserIdsForEngagementEvent,
+  fetchDailyEngagementTrend,
+  fetchSeasonEngagementKpiCounts,
+  paginateContentEngagementRows,
+  paginateSeasonEngagementRows,
+  type EngagementRow,
+} from "@/lib/internalAdmin/engagementStats";
 
 export const metadata = {
   title: "Season engagement — Site admin",
 };
 
-type Row = {
-  event_name: string;
-  user_id: string | null;
-  occurred_at: string;
-  path: string | null;
-};
+type Row = EngagementRow;
 
 function uniqUsers(rows: Row[], predicate?: (r: Row) => boolean): number {
   const users = new Set(
@@ -83,22 +86,104 @@ export default async function InternalAdminEngagementPage({
   );
   const season = seasonParam && seasons.includes(seasonParam) ? seasonParam : (seasons[0] ?? "");
 
-  const eventsQuery = admin
-    .from("engagement_events")
-    .select("event_name, user_id, occurred_at, path")
-    .order("occurred_at", { ascending: false })
-    .limit(50000);
-  const { data: rawEvents } = season ? await eventsQuery.eq("season_slug", season) : await eventsQuery;
-  const rows = (rawEvents ?? []) as Row[];
+  const USER_TABLE_LOOKBACK_DAYS = 120;
+  const sinceForUserIso = new Date(
+    Date.now() - USER_TABLE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
 
-  /** Logged-in views of news articles and event results (no season_slug; not filtered by season picker). */
-  const { data: rawContentViews } = await admin
-    .from("engagement_events")
-    .select("event_name, user_id, occurred_at, path")
-    .in("event_name", ["page.news_article_view", "page.event_results_view"])
-    .order("occurred_at", { ascending: false })
-    .limit(50000);
-  const contentRows = (rawContentViews ?? []) as Row[];
+  let rows: Row[] = [];
+  let contentRows: Row[] = [];
+  let dailyRows: Array<{
+    day: string;
+    signIns: number;
+    faAdds: number;
+    drops: number;
+    tradesExecuted: number;
+    loggedInViews: number;
+    articleViews: number;
+    resultsViews: number;
+  }> = [];
+  let kpiCounts: Awaited<ReturnType<typeof fetchSeasonEngagementKpiCounts>> | null = null;
+  let signInUserIds = new Set<string>();
+  let articleViewUserIds = new Set<string>();
+  let resultsViewUserIds = new Set<string>();
+
+  if (season) {
+    const [counts, trend, sUsers, aUsers, rUsers, seasonRows, contentPaged] = await Promise.all([
+      fetchSeasonEngagementKpiCounts(admin, season),
+      fetchDailyEngagementTrend(admin, season, 21),
+      distinctUserIdsForEngagementEvent(admin, { eventName: "auth.sign_in", seasonSlug: season }),
+      distinctUserIdsForEngagementEvent(admin, { eventName: "page.news_article_view", seasonSlug: null }),
+      distinctUserIdsForEngagementEvent(admin, { eventName: "page.event_results_view", seasonSlug: null }),
+      paginateSeasonEngagementRows(admin, season, sinceForUserIso),
+      paginateContentEngagementRows(admin, sinceForUserIso),
+    ]);
+    kpiCounts = counts;
+    dailyRows = trend;
+    signInUserIds = sUsers;
+    articleViewUserIds = aUsers;
+    resultsViewUserIds = rUsers;
+    rows = seasonRows;
+    contentRows = contentPaged;
+  } else {
+    const eventsQuery = admin
+      .from("engagement_events")
+      .select("event_name, user_id, occurred_at, path")
+      .order("occurred_at", { ascending: false })
+      .limit(50000);
+    const { data: rawEvents } = await eventsQuery;
+    rows = (rawEvents ?? []) as Row[];
+    const { data: rawContentViews } = await admin
+      .from("engagement_events")
+      .select("event_name, user_id, occurred_at, path")
+      .in("event_name", ["page.news_article_view", "page.event_results_view"])
+      .order("occurred_at", { ascending: false })
+      .limit(50000);
+    contentRows = (rawContentViews ?? []) as Row[];
+    const dailyByDate = new Map<
+      string,
+      {
+        signIns: number;
+        faAdds: number;
+        drops: number;
+        tradesExecuted: number;
+        loggedInViews: number;
+        articleViews: number;
+        resultsViews: number;
+      }
+    >();
+    const emptyDay = () => ({
+      signIns: 0,
+      faAdds: 0,
+      drops: 0,
+      tradesExecuted: 0,
+      loggedInViews: 0,
+      articleViews: 0,
+      resultsViews: 0,
+    });
+    for (const r of rows) {
+      const day = r.occurred_at.slice(0, 10);
+      const bucket = dailyByDate.get(day) ?? emptyDay();
+      if (r.event_name === "auth.sign_in") bucket.signIns += 1;
+      if (r.event_name === "league.fa_add") bucket.faAdds += 1;
+      if (r.event_name === "league.drop") bucket.drops += 1;
+      if (r.event_name === "league.trade_executed") bucket.tradesExecuted += 1;
+      if (r.event_name === "page.logged_in_view") bucket.loggedInViews += 1;
+      dailyByDate.set(day, bucket);
+    }
+    for (const r of contentRows) {
+      const day = r.occurred_at.slice(0, 10);
+      const bucket = dailyByDate.get(day) ?? emptyDay();
+      if (r.event_name === "page.news_article_view") bucket.articleViews += 1;
+      if (r.event_name === "page.event_results_view") bucket.resultsViews += 1;
+      dailyByDate.set(day, bucket);
+    }
+    dailyRows = Array.from(dailyByDate.entries())
+      .map(([day, v]) => ({ day, ...v }))
+      .sort((a, b) => (a.day < b.day ? 1 : -1))
+      .slice(0, 21);
+  }
+
   const sortKey = String(sortParam || "total");
   const sortDir: "asc" | "desc" = dirParam === "asc" ? "asc" : "desc";
 
@@ -110,26 +195,47 @@ export default async function InternalAdminEngagementPage({
   const rowsWeek = rows.filter((r) => Date.parse(r.occurred_at) >= weekAgo);
   const rowsMonth = rows.filter((r) => Date.parse(r.occurred_at) >= monthAgo);
 
-  const kpi = {
-    signIns: count(rows, "auth.sign_in"),
-    signInsUnique: uniqUsers(rows, (r) => r.event_name === "auth.sign_in"),
-    faAdds: count(rows, "league.fa_add"),
-    drops: count(rows, "league.drop"),
-    tradesProposed: count(rows, "league.trade_proposed"),
-    tradesExecuted: count(rows, "league.trade_executed"),
-    myFactionViews: count(rows, "page.my_faction_view"),
-    freeAgentsViews: count(rows, "page.free_agents_view"),
-    leadersViews: count(rows, "page.league_leaders_view"),
-    loggedInViews: count(rows, "page.logged_in_view"),
-    sessionStarts: count(rows, "session.logged_in_start"),
-    articleViews: count(contentRows, "page.news_article_view"),
-    articleViewsUnique: uniqUsers(contentRows, (r) => r.event_name === "page.news_article_view"),
-    resultsViews: count(contentRows, "page.event_results_view"),
-    resultsViewsUnique: uniqUsers(contentRows, (r) => r.event_name === "page.event_results_view"),
-    dau: uniqUsers(rowsDay),
-    wau: uniqUsers(rowsWeek),
-    mau: uniqUsers(rowsMonth),
-  };
+  const kpi = kpiCounts
+    ? {
+        signIns: kpiCounts.signIns,
+        signInsUnique: signInUserIds.size,
+        faAdds: kpiCounts.faAdds,
+        drops: kpiCounts.drops,
+        tradesProposed: kpiCounts.tradesProposed,
+        tradesExecuted: kpiCounts.tradesExecuted,
+        myFactionViews: kpiCounts.myFactionViews,
+        freeAgentsViews: kpiCounts.freeAgentsViews,
+        leadersViews: kpiCounts.leadersViews,
+        loggedInViews: kpiCounts.loggedInViews,
+        sessionStarts: kpiCounts.sessionStarts,
+        articleViews: kpiCounts.articleViews,
+        articleViewsUnique: articleViewUserIds.size,
+        resultsViews: kpiCounts.resultsViews,
+        resultsViewsUnique: resultsViewUserIds.size,
+        dau: uniqUsers(rowsDay),
+        wau: uniqUsers(rowsWeek),
+        mau: uniqUsers(rowsMonth),
+      }
+    : {
+        signIns: count(rows, "auth.sign_in"),
+        signInsUnique: uniqUsers(rows, (r) => r.event_name === "auth.sign_in"),
+        faAdds: count(rows, "league.fa_add"),
+        drops: count(rows, "league.drop"),
+        tradesProposed: count(rows, "league.trade_proposed"),
+        tradesExecuted: count(rows, "league.trade_executed"),
+        myFactionViews: count(rows, "page.my_faction_view"),
+        freeAgentsViews: count(rows, "page.free_agents_view"),
+        leadersViews: count(rows, "page.league_leaders_view"),
+        loggedInViews: count(rows, "page.logged_in_view"),
+        sessionStarts: count(rows, "session.logged_in_start"),
+        articleViews: count(contentRows, "page.news_article_view"),
+        articleViewsUnique: uniqUsers(contentRows, (r) => r.event_name === "page.news_article_view"),
+        resultsViews: count(contentRows, "page.event_results_view"),
+        resultsViewsUnique: uniqUsers(contentRows, (r) => r.event_name === "page.event_results_view"),
+        dau: uniqUsers(rowsDay),
+        wau: uniqUsers(rowsWeek),
+        mau: uniqUsers(rowsMonth),
+      };
 
   const { data: leaguesInSeason } = season
     ? await admin.from("leagues").select("id").eq("season_slug", season).limit(4000)
@@ -288,49 +394,6 @@ export default async function InternalAdminEngagementPage({
     return `/internal-admin/engagement?${q.toString()}`;
   }
 
-  const dailyByDate = new Map<
-    string,
-    {
-      signIns: number;
-      faAdds: number;
-      drops: number;
-      tradesExecuted: number;
-      loggedInViews: number;
-      articleViews: number;
-      resultsViews: number;
-    }
-  >();
-  const emptyDay = () => ({
-    signIns: 0,
-    faAdds: 0,
-    drops: 0,
-    tradesExecuted: 0,
-    loggedInViews: 0,
-    articleViews: 0,
-    resultsViews: 0,
-  });
-  for (const r of rows) {
-    const day = r.occurred_at.slice(0, 10);
-    const bucket = dailyByDate.get(day) ?? emptyDay();
-    if (r.event_name === "auth.sign_in") bucket.signIns += 1;
-    if (r.event_name === "league.fa_add") bucket.faAdds += 1;
-    if (r.event_name === "league.drop") bucket.drops += 1;
-    if (r.event_name === "league.trade_executed") bucket.tradesExecuted += 1;
-    if (r.event_name === "page.logged_in_view") bucket.loggedInViews += 1;
-    dailyByDate.set(day, bucket);
-  }
-  for (const r of contentRows) {
-    const day = r.occurred_at.slice(0, 10);
-    const bucket = dailyByDate.get(day) ?? emptyDay();
-    if (r.event_name === "page.news_article_view") bucket.articleViews += 1;
-    if (r.event_name === "page.event_results_view") bucket.resultsViews += 1;
-    dailyByDate.set(day, bucket);
-  }
-  const dailyRows = Array.from(dailyByDate.entries())
-    .map(([day, v]) => ({ day, ...v }))
-    .sort((a, b) => (a.day < b.day ? 1 : -1))
-    .slice(0, 21);
-
   return (
     <div style={{ maxWidth: 980 }}>
       <p style={{ marginBottom: 12 }}>
@@ -340,8 +403,10 @@ export default async function InternalAdminEngagementPage({
       </p>
       <h1 style={{ marginTop: 0, marginBottom: 8 }}>Season engagement</h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
-        Logged-in behavior and in-league action tracking for the selected season. Article and Results metrics count all
-        logged-in views (not scoped to the season).
+        Logged-in behavior and in-league action tracking for the selected season. Article and Results headline totals
+        count all logged-in views (not scoped to the season). Daily trend uses exact per-day counts (not capped by the
+        newest 50k events). The per-user table loads season events from the last {USER_TABLE_LOOKBACK_DAYS} days (large
+        leagues may hit a row cap — totals above still use full database counts).
       </p>
 
       <form method="get" style={{ marginBottom: 18, display: "flex", gap: 10, alignItems: "center" }}>
