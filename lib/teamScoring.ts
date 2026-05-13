@@ -32,7 +32,7 @@ import {
   weekEndSundayContaining,
 } from "@/lib/beltWeeklyHold";
 import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
-import { leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import { leagueIncludesNxt, leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import {
@@ -141,7 +141,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date, created_at, season_slug")
+    .select("id, start_date, end_date, draft_date, created_at, season_slug, include_nxt")
     .eq("id", leagueId)
     .single();
   if (!league) {
@@ -189,7 +189,9 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     wrestlerNameById[w.id] = w.name ?? w.id;
     nxtRosterByWrestlerId[w.id] = wrestlerRosterFromBrand((w as { brand?: string | null }).brand ?? null) === "NXT";
   }
-  const enforceMainRosterOnlyForNxt = (league as { season_slug?: string | null }).season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  const enforceMainRosterOnlyForNxt =
+    (league as { season_slug?: string | null }).season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG &&
+    !leagueIncludesNxt(league as { include_nxt?: boolean | null });
 
   const filteredEvents = (events ?? []).filter((e) => {
     const d = String(e.date ?? "").slice(0, 10);

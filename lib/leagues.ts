@@ -1516,7 +1516,7 @@ export async function getLeagueScoring(
   const supabase = supabaseOverride ?? (await getServerAuth()).supabase;
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date, season_slug")
+    .select("id, start_date, end_date, draft_date, season_slug, include_nxt")
     .eq("id", leagueId)
     .single();
 
@@ -1621,7 +1621,8 @@ export async function getLeagueScoring(
   for (const w of rosterWrestlerRows ?? []) {
     nxtRosterByWrestlerId[w.id] = wrestlerRosterFromBrand(w.brand) === "NXT";
   }
-  const enforceMainRosterOnlyForNxt = (league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  const enforceMainRosterOnlyForNxt =
+    (league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG && !leagueIncludesNxt(league);
   const pointsByOwner: Record<string, number> = {};
   /** Per owner, points from each wrestler (only while on roster). For team page per-wrestler breakdown. */
   const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};

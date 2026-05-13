@@ -25,7 +25,11 @@ import {
   weeklyBeltLockYmdForWeek,
 } from "@/lib/beltWeeklyHold";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
-import { leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import {
+  leagueIncludesNxt,
+  leagueUsesWeeklyPstBeltHold,
+  ROAD_TO_SUMMERSLAM_SEASON_SLUG,
+} from "@/lib/leagueStructure";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
@@ -102,7 +106,8 @@ type RosterStintRow = {
 
 /**
  * Single-calendar-week slice of the same event→owner rules as `getLeagueScoring` in `lib/leagues.ts`
- * (KOTR carryover across all in-range events; per-event “best stint” when overlaps exist; RTS NXT-brand omission).
+ * (KOTR carryover across all in-range events; per-event “best stint” when overlaps exist; RTS NXT-brand omission
+ * unless the league has `include_nxt`).
  * Keeping these aligned is required so hub “season” (from `getLeagueScoring`) matches “this week” from matchups.
  */
 function accumulateOwnerEventPointsForCalendarWeek(
@@ -119,13 +124,15 @@ function accumulateOwnerEventPointsForCalendarWeek(
   wrestlerDisplayNames: Record<string, string>,
   brandBySlug: ReturnType<typeof brandByWrestlerSlugFromRows>,
   seasonSlug: string | null,
-  nxtRosterByWrestlerId: Record<string, boolean>
+  nxtRosterByWrestlerId: Record<string, boolean>,
+  includeNxt: boolean
 ): {
   pointsByOwner: Record<string, number>;
   pointsByOwnerByWrestler: Record<string, Record<string, number>>;
 } {
   const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
-  const enforceMainRosterOnlyForNxt = (seasonSlug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  const enforceMainRosterOnlyForNxt =
+    (seasonSlug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG && !includeNxt;
   const pointsByOwner: Record<string, number> = {};
   const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let kotrCarryOver: Record<string, number> = {};
@@ -229,7 +236,7 @@ export async function getPointsByOwnerForLeagueForWeek(
   const supabase = supabaseOverride ?? (await createClient());
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date, season_slug")
+    .select("id, start_date, end_date, draft_date, season_slug, include_nxt")
     .eq("id", leagueId)
     .single();
   if (!league) return {};
@@ -237,6 +244,7 @@ export async function getPointsByOwnerForLeagueForWeek(
   const leagueStart = (league.draft_date || league.start_date) ?? "";
   const leagueEnd = league.end_date ?? "";
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
+  const includeNxt = leagueIncludesNxt(league as { include_nxt?: boolean | null });
 
   const eventsSelectWithStart = supabase
     .from("events")
@@ -330,7 +338,8 @@ export async function getPointsByOwnerForLeagueForWeek(
     wrestlerDisplayNames,
     brandBySlugWeek,
     seasonSlug,
-    nxtRosterByWrestlerId
+    nxtRosterByWrestlerId,
+    includeNxt
   );
   return pointsByOwner;
 }
@@ -344,7 +353,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date, season_slug")
+    .select("id, start_date, end_date, draft_date, season_slug, include_nxt")
     .eq("id", leagueId)
     .single();
   if (!league) return {};
@@ -352,6 +361,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
   const leagueStart = (league.draft_date || league.start_date) ?? "";
   const leagueEnd = league.end_date ?? "";
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
+  const includeNxt = leagueIncludesNxt(league as { include_nxt?: boolean | null });
 
   const eventsSelectWithStart = supabase
     .from("events")
@@ -401,7 +411,8 @@ export async function getPointsByOwnerByWrestlerForWeek(
     wrestlerDisplayNames,
     brandBySlugBreakdown,
     seasonSlug,
-    nxtRosterByWrestlerId
+    nxtRosterByWrestlerId,
+    includeNxt
   );
   return pointsByOwnerByWrestler;
 }
