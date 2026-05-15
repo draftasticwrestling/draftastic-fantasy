@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import type { LevelUpCelebration } from "@/lib/xp/xpLevelUpFlavor";
 import type { LeagueHomeXpBannerKind } from "@/lib/xp/leagueHomeXpBannerKind";
-import { ackXpLeagueBannerIntroAction } from "./ackXpLeagueBannerIntro";
+import { ackXpLeagueBannerLevelAction } from "./ackXpLeagueBannerLevel";
 
 type Props = {
   celebration: LevelUpCelebration | null;
@@ -19,13 +19,13 @@ export function LeagueLevelUpBanner({ celebration, bannerKind, className }: Prop
   if (!celebration || dismissed) return null;
 
   async function dismiss() {
-    if (bannerKind === "intro") {
-      setAckPending(true);
-      try {
-        await ackXpLeagueBannerIntroAction();
-      } finally {
-        setAckPending(false);
-      }
+    setAckPending(true);
+    try {
+      await ackXpLeagueBannerLevelAction({
+        markIntroSeen: bannerKind === "intro",
+      });
+    } finally {
+      setAckPending(false);
     }
     setDismissed(true);
   }

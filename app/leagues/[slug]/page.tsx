@@ -206,7 +206,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     let levelUpCelebration: Awaited<ReturnType<typeof resolveLeagueHomeXpBanner>>["celebration"] = null;
     let xpBannerKind: LeagueHomeXpBannerKind | null = null;
     if (currentUser?.id) {
-      const xpBanner = await resolveLeagueHomeXpBanner(currentUser.id, supabase);
+      const xpBanner = await resolveLeagueHomeXpBanner(currentUser.id);
       levelUpCelebration = xpBanner.celebration;
       xpBannerKind = xpBanner.kind;
     }

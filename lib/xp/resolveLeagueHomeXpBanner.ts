@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { getXpLevelInfo } from "@/lib/xp/xpLevels";
 import { refreshFantasyPointsTiersForUser } from "@/lib/xp/refreshFantasyPointsTiers";
 import { getXpLevelUpFlavor, type LevelUpCelebration } from "@/lib/xp/xpLevelUpFlavor";
@@ -24,6 +24,34 @@ function introSeenFromRow(row: unknown): boolean {
   return v === true;
 }
 
+function lastCelebratedLevelFromRow(row: unknown): number | null {
+  const v = (row as { xp_league_banner_last_celebrated_level?: unknown } | null)
+    ?.xp_league_banner_last_celebrated_level;
+  if (v == null) return null;
+  if (typeof v === "number" && Number.isFinite(v)) return Math.max(1, Math.trunc(v));
+  const n = Number.parseInt(String(v), 10);
+  return Number.isFinite(n) ? Math.max(1, n) : null;
+}
+
+async function syncLastCelebratedLevel(userId: string, level: number): Promise<void> {
+  const admin = getAdminClient();
+  if (!admin) return;
+  const now = new Date().toISOString();
+  const { data: row } = await admin.from("user_xp_state").select("user_id").eq("user_id", userId).maybeSingle();
+  if (row) {
+    await admin
+      .from("user_xp_state")
+      .update({ xp_league_banner_last_celebrated_level: level, updated_at: now })
+      .eq("user_id", userId);
+  } else {
+    await admin.from("user_xp_state").insert({
+      user_id: userId,
+      xp_league_banner_last_celebrated_level: level,
+      updated_at: now,
+    });
+  }
+}
+
 function celebrationForLevel(levelInfo: ReturnType<typeof getXpLevelInfo>): LevelUpCelebration {
   const flavor = getXpLevelUpFlavor(levelInfo.level);
   return {
@@ -35,33 +63,45 @@ function celebrationForLevel(levelInfo: ReturnType<typeof getXpLevelInfo>): Leve
 }
 
 /**
- * League home: optional tier refresh (throttled), one-time intro banner, then real level-ups only after a full check.
+ * League home: tier refresh (may award XP), one-time intro banner, then level-up when current level
+ * exceeds the last celebrated level (XP may have been earned on any page, not only this visit).
  */
-export async function resolveLeagueHomeXpBanner(
-  userId: string,
-  supabase: SupabaseClient
-): Promise<ResolveLeagueHomeXpBannerResult> {
-  const { data: beforeRow } = await supabase
+export async function resolveLeagueHomeXpBanner(userId: string): Promise<ResolveLeagueHomeXpBannerResult> {
+  const admin = getAdminClient();
+  if (!admin) return { celebration: null, kind: null };
+
+  const { data: beforeRow } = await admin
     .from("user_xp_state")
-    .select("total_xp, xp_league_banner_intro_seen")
+    .select("total_xp, xp_league_banner_intro_seen, xp_league_banner_last_celebrated_level")
     .eq("user_id", userId)
     .maybeSingle();
 
   const introSeen = introSeenFromRow(beforeRow);
-  const beforeXp = readTotalXp(beforeRow);
-  const beforeLevel = getXpLevelInfo(beforeXp).level;
+  const lastCelebrated = lastCelebratedLevelFromRow(beforeRow);
 
-  const ranFullCheck = await refreshFantasyPointsTiersForUser(userId);
+  await refreshFantasyPointsTiersForUser(userId);
 
-  const { data: afterRow } = await supabase.from("user_xp_state").select("total_xp").eq("user_id", userId).maybeSingle();
+  const { data: afterRow } = await admin
+    .from("user_xp_state")
+    .select("total_xp, xp_league_banner_intro_seen, xp_league_banner_last_celebrated_level")
+    .eq("user_id", userId)
+    .maybeSingle();
+
   const afterXp = readTotalXp(afterRow);
   const afterInfo = getXpLevelInfo(afterXp);
+  const currentLevel = afterInfo.level;
 
   if (!introSeen) {
     return { celebration: celebrationForLevel(afterInfo), kind: "intro" };
   }
 
-  if (ranFullCheck && afterInfo.level > beforeLevel) {
+  // Existing users after column rollout: sync without spamming a false level-up.
+  if (lastCelebrated == null) {
+    await syncLastCelebratedLevel(userId, currentLevel);
+    return { celebration: null, kind: null };
+  }
+
+  if (currentLevel > lastCelebrated) {
     return { celebration: celebrationForLevel(afterInfo), kind: "level_up" };
   }
 
