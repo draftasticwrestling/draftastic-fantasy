@@ -30,8 +30,7 @@ export function LeagueLevelUpBanner({ celebration, bannerKind, className }: Prop
     setDismissed(true);
   }
 
-  const kicker =
-    bannerKind === "intro" ? "YOUR LEVEL" : "YOU'VE LEVELED UP!";
+  const kicker = bannerKind === "intro" ? "YOUR LEVEL" : "YOU'VE LEVELED UP!";
 
   return (
     <div

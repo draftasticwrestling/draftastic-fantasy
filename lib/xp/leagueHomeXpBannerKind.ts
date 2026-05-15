@@ -1,1 +1,1 @@
-export type LeagueHomeXpBannerKind = "intro" | "level_up";
+export type LeagueHomeXpBannerKind = "intro" | "level_up" | "replay";

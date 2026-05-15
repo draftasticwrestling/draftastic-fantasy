@@ -24,6 +24,15 @@ function introSeenFromRow(row: unknown): boolean {
   return v === true;
 }
 
+/** One-time replay targets users at level 3+ (strictly above level 2). */
+const MIN_LEVEL_FOR_ONE_TIME_REPLAY = 3;
+
+function replayDoneFromRow(row: unknown): boolean {
+  const v = (row as { xp_league_banner_level_replay_done?: unknown } | null)
+    ?.xp_league_banner_level_replay_done;
+  return v === true;
+}
+
 function lastCelebratedLevelFromRow(row: unknown): number | null {
   const v = (row as { xp_league_banner_last_celebrated_level?: unknown } | null)
     ?.xp_league_banner_last_celebrated_level;
@@ -33,21 +42,22 @@ function lastCelebratedLevelFromRow(row: unknown): number | null {
   return Number.isFinite(n) ? Math.max(1, n) : null;
 }
 
-async function syncLastCelebratedLevel(userId: string, level: number): Promise<void> {
+async function syncLastCelebratedLevel(userId: string, level: number, opts?: { markReplayDone?: boolean }): Promise<void> {
   const admin = getAdminClient();
   if (!admin) return;
   const now = new Date().toISOString();
   const { data: row } = await admin.from("user_xp_state").select("user_id").eq("user_id", userId).maybeSingle();
+  const patch: Record<string, unknown> = {
+    xp_league_banner_last_celebrated_level: level,
+    updated_at: now,
+  };
+  if (opts?.markReplayDone) patch.xp_league_banner_level_replay_done = true;
   if (row) {
-    await admin
-      .from("user_xp_state")
-      .update({ xp_league_banner_last_celebrated_level: level, updated_at: now })
-      .eq("user_id", userId);
+    await admin.from("user_xp_state").update(patch).eq("user_id", userId);
   } else {
     await admin.from("user_xp_state").insert({
       user_id: userId,
-      xp_league_banner_last_celebrated_level: level,
-      updated_at: now,
+      ...patch,
     });
   }
 }
@@ -70,39 +80,51 @@ export async function resolveLeagueHomeXpBanner(userId: string): Promise<Resolve
   const admin = getAdminClient();
   if (!admin) return { celebration: null, kind: null };
 
+  const xpStateSelect =
+    "total_xp, xp_league_banner_intro_seen, xp_league_banner_last_celebrated_level, xp_league_banner_level_replay_done";
+
   const { data: beforeRow } = await admin
     .from("user_xp_state")
-    .select("total_xp, xp_league_banner_intro_seen, xp_league_banner_last_celebrated_level")
+    .select(xpStateSelect)
     .eq("user_id", userId)
     .maybeSingle();
 
   const introSeen = introSeenFromRow(beforeRow);
   const lastCelebrated = lastCelebratedLevelFromRow(beforeRow);
+  const replayDoneBefore = replayDoneFromRow(beforeRow);
 
   await refreshFantasyPointsTiersForUser(userId);
 
   const { data: afterRow } = await admin
     .from("user_xp_state")
-    .select("total_xp, xp_league_banner_intro_seen, xp_league_banner_last_celebrated_level")
+    .select(xpStateSelect)
     .eq("user_id", userId)
     .maybeSingle();
 
   const afterXp = readTotalXp(afterRow);
   const afterInfo = getXpLevelInfo(afterXp);
   const currentLevel = afterInfo.level;
+  const replayDone = replayDoneFromRow(afterRow) || replayDoneBefore;
 
   if (!introSeen) {
     return { celebration: celebrationForLevel(afterInfo), kind: "intro" };
   }
 
-  // Existing users after column rollout: sync without spamming a false level-up.
-  if (lastCelebrated == null) {
-    await syncLastCelebratedLevel(userId, currentLevel);
-    return { celebration: null, kind: null };
+  const eligibleForReplay = currentLevel >= MIN_LEVEL_FOR_ONE_TIME_REPLAY && !replayDone;
+
+  if (lastCelebrated != null && currentLevel > lastCelebrated) {
+    return { celebration: celebrationForLevel(afterInfo), kind: "level_up" };
   }
 
-  if (currentLevel > lastCelebrated) {
-    return { celebration: celebrationForLevel(afterInfo), kind: "level_up" };
+  if (eligibleForReplay) {
+    return { celebration: celebrationForLevel(afterInfo), kind: "replay" };
+  }
+
+  // Level 1–2 or replay already done: backfill last_celebrated without showing a banner.
+  if (lastCelebrated == null) {
+    await syncLastCelebratedLevel(userId, currentLevel, {
+      markReplayDone: currentLevel < MIN_LEVEL_FOR_ONE_TIME_REPLAY,
+    });
   }
 
   return { celebration: null, kind: null };

@@ -37,6 +37,7 @@ export async function ackXpLeagueBannerLevelAction(opts?: {
   const patch = {
     xp_league_banner_last_celebrated_level: level,
     xp_league_banner_intro_seen: introSeen,
+    xp_league_banner_level_replay_done: true,
     updated_at: now,
   };
 
