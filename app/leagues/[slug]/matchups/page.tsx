@@ -20,6 +20,7 @@ import {
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
 } from "@/lib/leagueMatchups";
+import { getMatchupWrestlerChampionTitleLineBySlug } from "@/lib/matchupWrestlerCurrentTitles";
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
@@ -152,6 +153,7 @@ function RosterCell({
         monthlyPts?: number;
         wrestlerId?: string;
         txnLines?: string[];
+        championTitles?: string | null;
       }
     | undefined;
   borderLeft?: boolean;
@@ -190,6 +192,21 @@ function RosterCell({
   const nameBlock = (
     <div style={{ minWidth: 0, textAlign: align === "right" ? "right" : "left" }}>
       <div>{nameNode}</div>
+      {row?.championTitles ? (
+        <div
+          className="matchups-roster-champion-titles"
+          style={{
+            fontSize: 10,
+            fontWeight: 500,
+            color: "#b8860b",
+            marginTop: 2,
+            lineHeight: 1.35,
+            whiteSpace: "normal",
+          }}
+        >
+          {row.championTitles}
+        </div>
+      ) : null}
       {txnLines.length > 0 && (
         <div
           style={{
@@ -304,6 +321,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
   let monthlyBeltBySlug: Record<string, number> = {};
   let beltWeekEndSunday: string | null = null;
+  let championTitleByWrestlerId: Record<string, string | null> = {};
   if (selectedWeekStart) {
     const [pts, weekRosters, monthlyBelt] = await Promise.all([
       getPointsByOwnerByWrestlerForWeek(league.id, selectedWeekStart),
@@ -327,6 +345,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     wrestlerNames = Object.fromEntries(
       ((wr.data ?? []) as { id: string; name: string | null }[]).map((w) => [w.id, w.name ?? w.id])
     );
+    championTitleByWrestlerId = await getMatchupWrestlerChampionTitleLineBySlug(wrestlerIds, wrestlerNames);
     rosters = weekRosters;
   } else {
     rosters = await getRostersForLeague(league.id);
@@ -443,6 +462,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
               eventPts: number;
               monthlyPts: number;
               txnLines: string[];
+              championTitles?: string | null;
             };
             const rosterByTeam: ScoreboardRosterRow[][] = teamData.map((t) => {
               const entries = (rosters[t.userId] ?? []).slice(0, maxSlots);
@@ -468,13 +488,21 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                   eventPts,
                   monthlyPts,
                   txnLines,
+                  championTitles: championTitleByWrestlerId[e.wrestler_id] ?? null,
                 };
               });
             });
             while (rosterByTeam.some((r) => r.length < maxSlots)) {
               rosterByTeam.forEach((r) => {
                 if (r.length < maxSlots)
-                  r.push({ name: "—", points: 0, eventPts: 0, monthlyPts: 0, txnLines: [] });
+                  r.push({
+                    name: "—",
+                    points: 0,
+                    eventPts: 0,
+                    monthlyPts: 0,
+                    txnLines: [],
+                    championTitles: null,
+                  });
               });
             }
 

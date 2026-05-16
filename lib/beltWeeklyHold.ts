@@ -76,8 +76,74 @@ export function beltScoringLastWeekEndSundayInclusive(leagueEndYmd: string | nul
 export type WeeklyBeltLockScoringOpts = {
   leagueStartYmd: string;
   leagueEndYmd: string;
-  events: Array<{ name: string | null; date: string | null; id: string }>;
+  events: Array<{ name?: string | null; date: string | null; id?: string | null; status?: string | null }>;
 };
+
+function normEventStatus(s: string | null | undefined): string {
+  return String(s ?? "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Event rows in the Mon–Sun fantasy week, intersected with the league’s [start, end] dates (inclusive).
+ */
+export function eventsInFantasyWeek(
+  events: Array<{ date: string | null | undefined }>,
+  weekStartMonday: string,
+  weekEndSunday: string,
+  leagueStartYmd: string,
+  leagueEndYmd: string
+): Array<{ date: string | null | undefined; status?: string | null | undefined }> {
+  const ls = leagueStartYmd.slice(0, 10);
+  const le = leagueEndYmd.slice(0, 10);
+  return events.filter((e) => {
+    const d = (e.date ?? "").toString().slice(0, 10);
+    if (!d || d < weekStartMonday || d > weekEndSunday) return false;
+    if (ls && d < ls) return false;
+    if (le && d > le) return false;
+    return true;
+  });
+}
+
+/**
+ * Weekly title-hold points apply only after every PWBS event dated in that week is `completed`
+ * (so credit can land Friday after SmackDown, Saturday/Sunday after a PLE, etc.).
+ * If there are no event rows in the week, falls back to end of that Sunday in PT (legacy / empty data).
+ */
+export function fantasyWeekBeltScoringUnlocked(
+  events: Array<{ date: string | null | undefined; status?: string | null | undefined }>,
+  weekStartMonday: string,
+  weekEndSunday: string,
+  leagueStartYmd: string,
+  leagueEndYmd: string,
+  nowMs: number = Date.now()
+): boolean {
+  const inWeek = eventsInFantasyWeek(events, weekStartMonday, weekEndSunday, leagueStartYmd, leagueEndYmd);
+  if (inWeek.length === 0) return isPastEndOfDayPst(weekEndSunday, nowMs);
+  return inWeek.every((e) => normEventStatus(e.status) === "completed");
+}
+
+/**
+ * Belt snapshot calendar date: last show date in the Mon–Sun window (who held at end of that day once all
+ * week events are complete). If the week has no rows, uses week-ending Sunday.
+ */
+export function weeklyBeltSnapshotYmdForWeek(
+  events: Array<{ date: string | null | undefined }>,
+  weekStartMonday: string,
+  weekEndSunday: string,
+  leagueStartYmd: string,
+  leagueEndYmd: string
+): string {
+  const inWeek = eventsInFantasyWeek(events, weekStartMonday, weekEndSunday, leagueStartYmd, leagueEndYmd);
+  if (!inWeek.length) return weekEndSunday;
+  let maxD = "";
+  for (const e of inWeek) {
+    const d = (e.date ?? "").toString().slice(0, 10);
+    if (d && d > maxD) maxD = d;
+  }
+  return maxD || weekEndSunday;
+}
 
 /**
  * For a Monday–Sunday scoring week, title-hold “lock” date: last PLE in that week if any,
@@ -105,8 +171,9 @@ export function weekEndSundayContaining(ymd: string): string {
 }
 
 /**
- * Completed weekly belt lock dates (each Mon–Sun week one credit), in order.
- * With `opts`, lock is the last PLE date in that week if any, else that week’s Sunday.
+ * Completed weekly belt snapshot dates (each Mon–Sun week one credit), in order.
+ * With `opts`, a week credits once every PWBS event dated in that week is `completed`; snapshot date is
+ * the calendar date of the last show in the week (or Sunday when there are no rows — see `fantasyWeekBeltScoringUnlocked`).
  * Without `opts`, legacy behavior: every Sunday from `firstWeekEndSunday` stepping by 7 days.
  */
 export function getCompletedWeekEndSundaysForBeltScoring(
@@ -120,6 +187,7 @@ export function getCompletedWeekEndSundaysForBeltScoring(
 
   if (opts?.events?.length && opts.leagueStartYmd && opts.leagueEndYmd) {
     const leagueEnd = opts.leagueEndYmd.slice(0, 10);
+    const leagueStart = opts.leagueStartYmd.slice(0, 10);
     const firstMonday = getMondayOfWeek(firstWeekEndSunday);
     let weekStart = firstMonday;
     while (compareYmd(weekStart, leagueEnd) <= 0) {
@@ -129,12 +197,12 @@ export function getCompletedWeekEndSundaysForBeltScoring(
         continue;
       }
       if (compareYmd(weekEnd, capSunday) > 0) break;
-      const lockYmd = weeklyBeltLockYmdForWeek(weekStart, weekEnd, opts.events);
+      if (!fantasyWeekBeltScoringUnlocked(opts.events, weekStart, weekEnd, leagueStart, leagueEnd, nowMs)) break;
+      const lockYmd = weeklyBeltSnapshotYmdForWeek(opts.events, weekStart, weekEnd, leagueStart, leagueEnd);
       if (compareYmd(lockYmd, capSunday) > 0) {
         weekStart = addDaysYmdUtc(weekStart, 7);
         continue;
       }
-      if (!isPastEndOfDayPst(lockYmd, nowMs)) break;
       out.push(lockYmd);
       weekStart = addDaysYmdUtc(weekStart, 7);
     }

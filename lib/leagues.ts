@@ -38,7 +38,7 @@ import {
   rosterStintActiveForWeeklyBeltHold,
 } from "@/lib/scoring/rosterStintEventWindow";
 import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
-import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, EVENT_STATUSES_FOR_WEEK_SCHEDULE, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { validateFactionNameForSave } from "@/lib/factionName";
@@ -1728,7 +1728,7 @@ export async function getLeagueScoring(
     }
   }
 
-  // Title-hold belt points: weekly PST (Road to SummerSlam; lock after PLE or Sunday) or legacy calendar month-ends.
+  // Title-hold belt points: weekly (RTS / RTSS; after all week events complete) or legacy calendar month-ends.
   try {
     const [histResult, changesResult] = await Promise.all([
       supabase.from("championship_history").select("*"),
@@ -1762,15 +1762,18 @@ export async function getLeagueScoring(
     if (useWeeklyBelt) {
       const beltFirstWeekEnd = firstEligibleWeekEndSundayForLeagueStart(start);
       const lastWeekCap = beltScoringLastWeekEndSundayInclusive(leagueEndYmd || undefined);
-      const beltLockEvents = eventsForBeltReignInference.map((e) => ({
-        id: String((e as { id?: string }).id ?? ""),
-        name: (e as { name?: string | null }).name ?? null,
-        date: (e as { date?: string | null }).date ?? null,
-      }));
+      const { data: beltWeekGateRows } = await supabase
+        .from("events")
+        .select("date, status")
+        .in("status", [...EVENT_STATUSES_FOR_WEEK_SCHEDULE])
+        .gte("date", start)
+        .lte("date", leagueEndYmd || "2099-12-31")
+        .order("date", { ascending: true })
+        .limit(SCORING_EVENTS_FETCH_LIMIT);
       const weekEnds = getCompletedWeekEndSundaysForBeltScoring(beltFirstWeekEnd, lastWeekCap, Date.now(), {
         leagueStartYmd: start,
         leagueEndYmd: leagueEndYmd || "2099-12-31",
-        events: beltLockEvents,
+        events: (beltWeekGateRows ?? []) as Array<{ date: string | null; status: string | null }>,
       });
       for (const lockYmd of weekEnds) {
         const weekEndSun = weekEndSundayContaining(lockYmd);

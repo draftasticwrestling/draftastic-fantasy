@@ -22,7 +22,8 @@ import {
 import {
   beltScoringLastWeekEndSundayInclusive,
   firstEligibleWeekEndSundayForLeagueStart,
-  weeklyBeltLockYmdForWeek,
+  fantasyWeekBeltScoringUnlocked,
+  weeklyBeltSnapshotYmdForWeek,
 } from "@/lib/beltWeeklyHold";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import {
@@ -44,7 +45,7 @@ import {
   CHAMPIONSHIP_CHANGES_TABLE_NAME,
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
-import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, EVENT_STATUSES_FOR_WEEK_SCHEDULE, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 
 /** Monday of the week containing the given date (YYYY-MM-DD). Weeks are Monday–Sunday. */
 export function getMondayOfWeek(dateStr: string): string {
@@ -447,8 +448,9 @@ export type GetLeagueWeeklyMatchupsOptions = {
 /**
  * All weekly matchups for a league. Winner = most event points that week (tie = no winner).
  * Draftastic Championship: first week winner gets +5; same holder next week +4 retain; new winner +5.
- * Road to SummerSlam: weekly PST title-hold each Mon–Sun week — lock end of day PT on the week’s last PLE if one
- * airs that week, otherwise end of Sunday after SmackDown (before the next Raw).
+ * Road to SummerSlam / Survivor Series: weekly title-hold each Mon–Sun week — credits once every PWBS event
+ * dated in that week is `completed` (Friday after SmackDown, weekend after a PLE, etc.). Snapshot uses the
+ * calendar date of the last show in the week.
  * Other seasons: legacy full-tier points on each calendar month-end that falls in the matchup week.
  */
 export async function getLeagueWeeklyMatchups(
@@ -494,8 +496,9 @@ export async function getLeagueWeeklyMatchups(
   let firstEligibleWeekEndSunday = "9999-12-31";
   let firstEligibleMonthEnd = "9999-12-31";
   let useBroadcastForMonthlyBelt = false;
-  /** Populated when belt reign inference runs; used for weekly lock dates (RTS). */
-  let beltEventsForWeeklyLock: Array<{ name: string | null; date: string | null; id: string }> = [];
+  /** Populated when belt reign inference runs; used for weekly snapshot + completion gate (RTS). */
+  let beltEventsForWeeklyLock: Array<{ name: string | null; date: string | null; id: string; status?: string | null }> =
+    [];
 
   if (includeMonthlyBeltInMatchup) {
     if (useWeeklyBelt) {
@@ -504,13 +507,15 @@ export async function getLeagueWeeklyMatchups(
       firstEligibleMonthEnd = firstLegacyCalendarMonthEndEligibleForLeagueStart(start);
     }
 
+    const beltEventStatuses = useWeeklyBelt ? EVENT_STATUSES_FOR_WEEK_SCHEDULE : [...EVENT_STATUSES_FOR_SCORING];
+
     /** Belt inference must see the full event timeline in range; explicit limit avoids PostgREST default ~1000 oldest rows. */
     const [{ data: tableReigns }, eventsRes, changesRes] = await Promise.all([
       supabase.from("championship_history").select("*"),
       supabase
         .from("events")
-        .select("id, name, date, matches, broadcast_start_ts")
-        .in("status", [...EVENT_STATUSES_FOR_SCORING])
+        .select("id, name, date, matches, broadcast_start_ts, status")
+        .in("status", [...beltEventStatuses])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .lte("date", end)
         .order("date", { ascending: true })
@@ -528,8 +533,8 @@ export async function getLeagueWeeklyMatchups(
     ) {
       const { data: ev2 } = await supabase
         .from("events")
-        .select("id, name, date, matches")
-        .in("status", [...EVENT_STATUSES_FOR_SCORING])
+        .select("id, name, date, matches, status")
+        .in("status", [...beltEventStatuses])
         .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
         .lte("date", end)
         .order("date", { ascending: true })
@@ -541,9 +546,21 @@ export async function getLeagueWeeklyMatchups(
     );
     const changesRows = changesRes.error ? [] : (changesRes.data ?? []);
     const changesReigns = inferReignsFromChampionshipChanges(changesRows);
-    const inferredReigns = inferReignsFromEvents(eventsInRange);
+    let eventsForInference: EventRowForReignInference[] = eventsInRange;
+    if (useWeeklyBelt) {
+      eventsForInference = eventsInRange.filter((e) => {
+        const s = String((e as { status?: string | null }).status ?? "").toLowerCase();
+        return s === "live" || s === "completed";
+      });
+    }
+    const inferredReigns = inferReignsFromEvents(eventsForInference);
     reigns = mergeReigns(tableReigns ?? [], [...inferredReigns, ...changesReigns]) as typeof reigns;
-    beltEventsForWeeklyLock = eventsInRange as Array<{ name: string | null; date: string | null; id: string }>;
+    beltEventsForWeeklyLock = eventsInRange as Array<{
+      name: string | null;
+      date: string | null;
+      id: string;
+      status?: string | null;
+    }>;
   }
 
   const weeksAll = getWeeksInRange(start, end);
@@ -617,11 +634,25 @@ export async function getLeagueWeeklyMatchups(
     if (includeMonthlyBeltInMatchup && reigns.length > 0) {
       if (useWeeklyBelt) {
         const lastBeltWeekEnd = beltScoringLastWeekEndSundayInclusive(end);
-        const beltLockYmd = weeklyBeltLockYmdForWeek(weekStart, weekEnd, beltEventsForWeeklyLock);
+        const leagueStartYmd = start.slice(0, 10);
+        const leagueEndYmd = end.slice(0, 10);
+        const beltLockYmd = weeklyBeltSnapshotYmdForWeek(
+          beltEventsForWeeklyLock,
+          weekStart,
+          weekEnd,
+          leagueStartYmd,
+          leagueEndYmd
+        );
         const inLeagueBeltWindow =
           weekEnd >= firstEligibleWeekEndSunday &&
           (!lastBeltWeekEnd || weekEnd <= lastBeltWeekEnd) &&
-          isPastEndOfDayPst(beltLockYmd);
+          fantasyWeekBeltScoringUnlocked(
+            beltEventsForWeeklyLock,
+            weekStart,
+            weekEnd,
+            leagueStartYmd,
+            leagueEndYmd
+          );
 
         if (inLeagueBeltWindow) {
           const beltBySlug = computeWeeklyBeltHoldPointsForWeekEndSunday(
@@ -843,12 +874,15 @@ export async function getMonthlyBeltBySlugForWeek(
     }
   }
 
+  const beltEventStatuses = useWeeklyBelt ? EVENT_STATUSES_FOR_WEEK_SCHEDULE : [...EVENT_STATUSES_FOR_SCORING];
+  const beltEventSelect = "id, name, date, matches, status";
+
   const [{ data: tableReigns }, { data: eventsInRange }, changesRes] = await Promise.all([
     supabase.from("championship_history").select("*"),
     supabase
       .from("events")
-      .select("id, name, date, matches")
-      .in("status", [...EVENT_STATUSES_FOR_SCORING])
+      .select(beltEventSelect)
+      .in("status", [...beltEventStatuses])
       .gte("date", BELT_REIGN_INFERENCE_EVENTS_FROM)
       .lte("date", end)
       .order("date", { ascending: true })
@@ -860,7 +894,14 @@ export async function getMonthlyBeltBySlugForWeek(
   ]);
   const changesRows = changesRes.error ? [] : (changesRes.data ?? []);
   const changesReigns = inferReignsFromChampionshipChanges(changesRows);
-  const inferredReigns = inferReignsFromEvents(eventsInRange ?? []);
+  let evForInfer = eventsInRange ?? [];
+  if (useWeeklyBelt) {
+    evForInfer = (eventsInRange ?? []).filter((e) => {
+      const s = String((e as { status?: string | null }).status ?? "").toLowerCase();
+      return s === "live" || s === "completed";
+    });
+  }
+  const inferredReigns = inferReignsFromEvents(evForInfer);
   const reigns = mergeReigns(tableReigns ?? [], [...inferredReigns, ...changesReigns]) as Array<{
     champion_slug?: string | null;
     champion_id?: string | null;
@@ -878,12 +919,25 @@ export async function getMonthlyBeltBySlugForWeek(
   if (useWeeklyBelt) {
     const firstEligibleWeekEndSunday = firstEligibleWeekEndSundayForLeagueStart(start);
     const lastBeltWeekEnd = beltScoringLastWeekEndSundayInclusive(end);
-    const evRows = (eventsInRange ?? []) as Array<{ name: string | null; date: string | null; id: string }>;
-    const beltLockYmd = weeklyBeltLockYmdForWeek(weekStartMonday, weekEndSunday, evRows);
+    const evRows = (eventsInRange ?? []) as Array<{
+      name: string | null;
+      date: string | null;
+      id: string;
+      status?: string | null;
+    }>;
+    const leagueStartYmd = start.slice(0, 10);
+    const leagueEndYmd = end.slice(0, 10);
+    const beltLockYmd = weeklyBeltSnapshotYmdForWeek(
+      evRows,
+      weekStartMonday,
+      weekEndSunday,
+      leagueStartYmd,
+      leagueEndYmd
+    );
     if (
       weekEndSunday < firstEligibleWeekEndSunday ||
       (lastBeltWeekEnd && weekEndSunday > lastBeltWeekEnd) ||
-      !isPastEndOfDayPst(beltLockYmd)
+      !fantasyWeekBeltScoringUnlocked(evRows, weekStartMonday, weekEndSunday, leagueStartYmd, leagueEndYmd)
     ) {
       return {};
     }

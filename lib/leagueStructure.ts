@@ -24,7 +24,7 @@ export const ROAD_TO_SUMMERSLAM_BANNER_SRC = "/images/season-belts/road-to-summe
 /** Road to Survivor Series (admin beta / NXT + H2H testing). */
 export const ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG = "road-to-survivor-series";
 
-/** Weekly PST title-hold belt (Mon–Sun week; lock after last PLE in the week or Sunday after SD). */
+/** Weekly PST title-hold belt (Mon–Sun week; credits once all PWBS events in that week are completed). */
 export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefined): boolean {
   return (
     seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG || seasonSlug === ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG

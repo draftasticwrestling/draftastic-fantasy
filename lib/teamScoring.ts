@@ -31,7 +31,7 @@ import {
   getCompletedWeekEndSundaysForBeltScoring,
   weekEndSundayContaining,
 } from "@/lib/beltWeeklyHold";
-import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
+import { EVENT_STATUSES_FOR_SCORING, EVENT_STATUSES_FOR_WEEK_SCHEDULE, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { leagueIncludesNxt, leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
@@ -361,7 +361,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     }
   }
 
-  // Title-hold belt points: weekly PST (RTS) or legacy month-end rows on the calendar month-end date.
+  // Title-hold belt points: weekly (RTS / RTSS; after all week events complete) or legacy month-end rows.
   try {
     const [histResult, changesResult] = await Promise.all([
       supabase.from("championship_history").select("*"),
@@ -395,15 +395,18 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     if (useWeeklyBelt) {
       const beltFirstWeekEnd = firstEligibleWeekEndSundayForLeagueStart(leagueStart);
       const lastWeekCap = beltScoringLastWeekEndSundayInclusive(leagueEndYmd || undefined);
-      const beltLockEvents = eventsForBeltReignInference.map((e) => ({
-        id: String((e as { id?: string }).id ?? ""),
-        name: (e as { name?: string | null }).name ?? null,
-        date: (e as { date?: string | null }).date ?? null,
-      }));
+      const { data: beltWeekGateRows } = await supabase
+        .from("events")
+        .select("date, status")
+        .in("status", [...EVENT_STATUSES_FOR_WEEK_SCHEDULE])
+        .gte("date", leagueStart)
+        .lte("date", leagueEndYmd || "2099-12-31")
+        .order("date", { ascending: true })
+        .limit(SCORING_EVENTS_FETCH_LIMIT);
       const weekEnds = getCompletedWeekEndSundaysForBeltScoring(beltFirstWeekEnd, lastWeekCap, Date.now(), {
         leagueStartYmd: leagueStart,
         leagueEndYmd: leagueEndYmd || "2099-12-31",
-        events: beltLockEvents,
+        events: (beltWeekGateRows ?? []) as Array<{ date: string | null; status: string | null }>,
       });
       for (const lockYmd of weekEnds) {
         const weekEndSun = weekEndSundayContaining(lockYmd);
@@ -413,10 +416,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
           beltFirstWeekEnd,
           weekEndSun
         );
-        const eventName =
-          lockYmd === weekEndSun
-            ? `Weekly belt hold (${beltHoldLedgerLabel(lockYmd)} PT week close, Los Angeles time)`
-            : `Weekly belt hold (${beltHoldLedgerLabel(lockYmd)} PT lock after last PLE this week; week ends ${beltHoldLedgerLabel(weekEndSun)})`;
+        const eventName = `Weekly belt hold (title snapshot ${beltHoldLedgerLabel(lockYmd)}; fantasy week ends ${beltHoldLedgerLabel(weekEndSun)})`;
         for (const pick of teamStints) {
           if (
             !rosterStintActiveForWeeklyBeltHold({

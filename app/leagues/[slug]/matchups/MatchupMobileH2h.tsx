@@ -23,6 +23,7 @@ export type MatchupMobileRosterRow = {
   eventPts: number;
   monthlyPts: number;
   txnLines: string[];
+  championTitles?: string | null;
 };
 
 function formatPts(n: number): string {
@@ -191,6 +192,9 @@ export function MatchupMobileH2hLineup({
                 ) : (
                   <span className="matchup-mobile-slot-name matchup-mobile-slot-name--empty">—</span>
                 )}
+                {left?.championTitles ? (
+                  <div className="matchup-mobile-slot-champion-titles">{left.championTitles}</div>
+                ) : null}
                 {left?.wrestlerId && wrestlerMeta[left.wrestlerId]?.brand ? (
                   <div className="matchup-mobile-slot-brand">{wrestlerMeta[left.wrestlerId]!.brand}</div>
                 ) : null}
@@ -224,6 +228,11 @@ export function MatchupMobileH2hLineup({
                 ) : (
                   <span className="matchup-mobile-slot-name matchup-mobile-slot-name--empty">—</span>
                 )}
+                {right?.championTitles ? (
+                  <div className="matchup-mobile-slot-champion-titles matchup-mobile-slot-champion-titles--right">
+                    {right.championTitles}
+                  </div>
+                ) : null}
                 {right?.wrestlerId && wrestlerMeta[right.wrestlerId]?.brand ? (
                   <div className="matchup-mobile-slot-brand">{wrestlerMeta[right.wrestlerId]!.brand}</div>
                 ) : null}

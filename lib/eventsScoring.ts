@@ -8,6 +8,12 @@
 export const EVENT_STATUSES_FOR_SCORING = ["completed", "live"] as const;
 
 /**
+ * PWBS rows that can appear on the calendar for a Mon–Sun fantasy week (used to wait on `upcoming`/`live`
+ * before awarding weekly title-hold belt credit).
+ */
+export const EVENT_STATUSES_FOR_WEEK_SCHEDULE = ["upcoming", "live", "completed"] as const;
+
+/**
  * PostgREST applies a default max row cap (commonly 1000) when `.limit()` is omitted.
  * Fantasy scoring and belt reign inference need chronological events through the current season;
  * without an explicit limit, queries return only the oldest rows and recent title changes disappear.

@@ -18,6 +18,7 @@ import {
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
 } from "@/lib/leagueMatchups";
+import { getMatchupWrestlerChampionTitleLineBySlug } from "@/lib/matchupWrestlerCurrentTitles";
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
 import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
@@ -36,6 +37,7 @@ type MatchupDetailRosterRow = {
   eventPts: number;
   monthlyPts: number;
   txnLines: string[];
+  championTitles: string | null;
 };
 
 function MatchupDetailRosterSlot({
@@ -78,6 +80,20 @@ function MatchupDetailRosterSlot({
   const nameBlock = (
     <div style={{ minWidth: 0, textAlign: align === "right" ? "right" : "left" }}>
       <div>{nameNode}</div>
+      {row?.championTitles ? (
+        <div
+          className="matchups-roster-champion-titles"
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: "#b8860b",
+            marginTop: 2,
+            lineHeight: 1.35,
+          }}
+        >
+          {row.championTitles}
+        </div>
+      ) : null}
       {txnLines.length > 0 && (
         <div
           style={{
@@ -186,6 +202,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
       return [row.id, { image_url: row.image_url ?? null, brand: row.brand ?? null }];
     })
   );
+  const championTitleByWrestlerId = await getMatchupWrestlerChampionTitleLineBySlug(wrestlerIds, wrestlerNames);
   const rosterRules = getRosterRulesForLeague(
     members.length,
     league.season_slug ?? null,
@@ -287,6 +304,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   eventPts,
                   monthlyPts,
                   txnLines,
+                  championTitles: championTitleByWrestlerId[e.wrestler_id] ?? null,
                 };
               });
               while (rosterRows.length < maxSlots) {
@@ -298,6 +316,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   eventPts: 0,
                   monthlyPts: 0,
                   txnLines: [],
+                  championTitles: null,
                 });
               }
               return {
