@@ -28,7 +28,8 @@ import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
 import { sortMatchupRosterRowsByWeekPointsDesc } from "@/lib/sortMatchupRosterRowsByWeekPoints";
 import { MatchupOwnerAvatarRing } from "./MatchupOwnerHeading";
-import { MatchupMobileH2hMasthead } from "./MatchupMobileH2h";
+import { MatchupMobileH2hMasthead, type MatchupMobileRosterRow } from "./MatchupMobileH2h";
+import { MatchupMobileH2hCollapsible } from "./MatchupMobileH2hCollapsible";
 import { MatchupWeekSelector } from "./MatchupWeekSelector";
 
 type Props = {
@@ -50,6 +51,29 @@ export async function generateMetadata({ params }: Props) {
   } catch {
     return { title: "Matchups — Draftastic Fantasy" };
   }
+}
+
+type ScoreboardRosterRowLike = {
+  wrestlerId?: string;
+  name: string;
+  points: number;
+  eventPts: number;
+  monthlyPts: number;
+  txnLines: string[];
+  championTitles?: string | null;
+};
+
+function scoreboardRowsToMobileLineup(rows: ScoreboardRosterRowLike[]): MatchupMobileRosterRow[] {
+  return rows.map((r, i) => ({
+    slot: i + 1,
+    wrestlerId: r.wrestlerId ?? "",
+    name: r.name,
+    points: r.points,
+    eventPts: r.eventPts,
+    monthlyPts: r.monthlyPts,
+    txnLines: r.txnLines,
+    championTitles: r.championTitles ?? null,
+  }));
 }
 
 function formatWeekRangeShort(weekStart: string, weekEnd: string): string {
@@ -327,6 +351,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   let beltWeekEndSunday: string | null = null;
   let championTitleByWrestlerId: Record<string, string | null> = {};
   let seasonPointsByUserId: Record<string, number> = {};
+  let wrestlerMeta: Record<string, { image_url?: string | null; brand?: string | null }> = {};
   if (selectedWeekStart) {
     const [pts, weekRosters, monthlyBelt, seasonPts] = await Promise.all([
       getPointsByOwnerByWrestlerForWeek(league.id, selectedWeekStart),
@@ -343,13 +368,19 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     ];
     const wr =
       wrestlerIds.length > 0
-        ? await supabase.from("wrestlers").select("id, name").in("id", wrestlerIds)
-        : { data: [] as { id: string; name: string | null }[] };
+        ? await supabase.from("wrestlers").select("id, name, image_url, brand").in("id", wrestlerIds)
+        : { data: [] as { id: string; name: string | null; image_url?: string | null; brand?: string | null }[] };
     pointsByOwnerByWrestler = pts;
     monthlyBeltBySlug = monthlyBelt;
     beltWeekEndSunday = getSundayOfWeek(selectedWeekStart);
     wrestlerNames = Object.fromEntries(
       ((wr.data ?? []) as { id: string; name: string | null }[]).map((w) => [w.id, w.name ?? w.id])
+    );
+    wrestlerMeta = Object.fromEntries(
+      ((wr.data ?? []) as { id: string; image_url?: string | null; brand?: string | null }[]).map((w) => [
+        w.id,
+        { image_url: w.image_url ?? null, brand: w.brand ?? null },
+      ])
     );
     championTitleByWrestlerId = await getMatchupWrestlerChampionTitleLineBySlug(wrestlerIds, wrestlerNames);
     rosters = weekRosters;
@@ -505,182 +536,186 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
               });
             }
             const rosterByTeamSorted = rosterByTeam.map((rows) => sortMatchupRosterRowsByWeekPointsDesc(rows));
+            const cardShellStyle = {
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-lg)",
+              background: "var(--color-bg-card)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+              overflow: "hidden" as const,
+            };
+            const h2hReady = mu.type === "h2h" && teamData[0] && teamData[1];
+            const mobileRowsLeft = h2hReady ? scoreboardRowsToMobileLineup(rosterByTeamSorted[0] ?? []) : [];
+            const mobileRowsRight = h2hReady ? scoreboardRowsToMobileLineup(rosterByTeamSorted[1] ?? []) : [];
+
+            const scoreboardTable = (
+              <table
+                className="matchups-scoreboard-table"
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 13,
+                  tableLayout: "fixed",
+                }}
+              >
+                <colgroup>
+                  <col style={{ width: 40 }} />
+                  {mu.type === "h2h" ? (
+                    <>
+                      <col style={{ width: "45%" }} />
+                      <col style={{ width: 48 }} />
+                      <col style={{ width: "45%" }} />
+                      <col style={{ width: 40 }} />
+                    </>
+                  ) : (
+                    <>
+                      <col style={{ width: "33.33%" }} />
+                      <col style={{ width: "33.33%" }} />
+                      <col style={{ width: "33.33%" }} />
+                      <col style={{ width: 40 }} />
+                    </>
+                  )}
+                </colgroup>
+                {mu.type !== "h2h" ? (
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td
+                        className="matchups-slot-num"
+                        style={{
+                          padding: "14px 12px",
+                          background: "var(--color-bg-elevated)",
+                          borderRight: "1px solid var(--color-border)",
+                          verticalAlign: "middle",
+                          fontWeight: 600,
+                          fontSize: 12,
+                          color: "var(--color-text-muted)",
+                          textAlign: "center",
+                        }}
+                      >
+                        #
+                      </td>
+                      {teamData.map((t) => (
+                        <ScoreHeaderCell key={t.userId} t={t} isWinner={isWinner(t.userId)} />
+                      ))}
+                      <td
+                        className="matchups-slot-num"
+                        style={{
+                          padding: "14px 12px",
+                          background: "var(--color-bg-elevated)",
+                          borderLeft: "1px solid var(--color-border)",
+                          verticalAlign: "middle",
+                          fontWeight: 600,
+                          fontSize: 12,
+                          color: "var(--color-text-muted)",
+                          textAlign: "center",
+                        }}
+                      >
+                        #
+                      </td>
+                    </tr>
+                  </thead>
+                ) : null}
+                <tbody>
+                  {Array.from({ length: maxSlots }, (_, rowIdx) => (
+                    <tr
+                      key={rowIdx}
+                      style={{
+                        background: rowIdx % 2 === 0 ? "#fff" : "#f8f9fa",
+                        borderTop: "1px solid var(--color-border)",
+                      }}
+                    >
+                      <td
+                        className="matchups-slot-num"
+                        style={{ padding: "6px 12px", color: "var(--color-text-muted)", borderRight: "1px solid var(--color-border)" }}
+                      >
+                        {rowIdx + 1}
+                      </td>
+                      {mu.type === "h2h" ? (
+                        <>
+                          <RosterCell row={rosterByTeamSorted[0]?.[rowIdx]} borderLeft leagueSlug={slug} align="left" />
+                          <td
+                            className="matchups-vs-cell"
+                            aria-hidden
+                            style={{ borderLeft: "1px solid var(--color-border)", borderRight: "1px solid var(--color-border)" }}
+                          />
+                          <RosterCell row={rosterByTeamSorted[1]?.[rowIdx]} borderLeft leagueSlug={slug} align="right" />
+                        </>
+                      ) : (
+                        teamData.map((t, colIdx) => (
+                          <RosterCell
+                            key={t.userId}
+                            row={rosterByTeamSorted[colIdx]?.[rowIdx]}
+                            borderLeft
+                            leagueSlug={slug}
+                            align={colIdx === teamData.length - 1 ? "right" : "left"}
+                          />
+                        ))
+                      )}
+                      <td
+                        className="matchups-slot-num"
+                        style={{
+                          padding: "6px 12px",
+                          color: "var(--color-text-muted)",
+                          borderLeft: "1px solid var(--color-border)",
+                          textAlign: "center",
+                        }}
+                      >
+                        {rowIdx + 1}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
 
             return (
               <section key={idx} style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                <Link
-                  href={`/leagues/${slug}/matchups/${encodeURIComponent(selectedWeekStart!)}`}
-                  style={{ textDecoration: "none", color: "inherit" }}
-                  className="scoreboard-card-link"
-                >
-                  <div
-                    className="scoreboard-card"
-                    style={{
-                      border: "1px solid var(--color-border)",
-                      borderRadius: "var(--radius-lg)",
-                      background: "var(--color-bg-card)",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {mu.type === "h2h" && teamData[0] && teamData[1] ? (
-                      <div className="matchups-scoreboard-h2h-masthead">
-                        <MatchupMobileH2hMasthead
-                          teamA={{
-                            userId: teamData[0].userId,
-                            label: teamData[0].label,
-                            member: teamData[0].member,
-                            total: teamData[0].total,
-                            eventPts: teamData[0].eventPts,
-                            winBonus: teamData[0].winBonus,
-                            beltBonus: teamData[0].beltBonus,
-                            isWinner: isWinner(teamData[0].userId),
-                            isBeltHolder: matchupForWeek?.beltHolderUserId === teamData[0].userId,
-                            seasonTotalPts: seasonPointsByUserId[teamData[0].userId] ?? 0,
-                          }}
-                          teamB={{
-                            userId: teamData[1].userId,
-                            label: teamData[1].label,
-                            member: teamData[1].member,
-                            total: teamData[1].total,
-                            eventPts: teamData[1].eventPts,
-                            winBonus: teamData[1].winBonus,
-                            beltBonus: teamData[1].beltBonus,
-                            isWinner: isWinner(teamData[1].userId),
-                            isBeltHolder: matchupForWeek?.beltHolderUserId === teamData[1].userId,
-                            seasonTotalPts: seasonPointsByUserId[teamData[1].userId] ?? 0,
-                          }}
-                        />
-                      </div>
-                    ) : null}
-                    {/* Single table so score row and roster columns stay aligned */}
-                    <div className="matchups-scoreboard-table-wrap">
-                    <table
-                      className="matchups-scoreboard-table"
-                      style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        fontSize: 13,
-                        tableLayout: "fixed",
-                      }}
-                    >
-                      <colgroup>
-                        <col style={{ width: 40 }} />
-                        {mu.type === "h2h" ? (
-                          <>
-                            <col style={{ width: "45%" }} />
-                            <col style={{ width: 48 }} />
-                            <col style={{ width: "45%" }} />
-                            <col style={{ width: 40 }} />
-                          </>
-                        ) : (
-                          <>
-                            <col style={{ width: "33.33%" }} />
-                            <col style={{ width: "33.33%" }} />
-                            <col style={{ width: "33.33%" }} />
-                            <col style={{ width: 40 }} />
-                          </>
-                        )}
-                      </colgroup>
-                      {mu.type !== "h2h" ? (
-                      <thead>
-                        {/* Score row: team name + total in same columns as roster */}
-                        <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
-                          <td
-                            className="matchups-slot-num"
-                            style={{
-                              padding: "14px 12px",
-                              background: "var(--color-bg-elevated)",
-                              borderRight: "1px solid var(--color-border)",
-                              verticalAlign: "middle",
-                              fontWeight: 600,
-                              fontSize: 12,
-                              color: "var(--color-text-muted)",
-                              textAlign: "center",
-                            }}
-                          >
-                            #
-                          </td>
-                          {teamData.map((t) => (
-                            <ScoreHeaderCell key={t.userId} t={t} isWinner={isWinner(t.userId)} />
-                          ))}
-                          <td
-                            className="matchups-slot-num"
-                            style={{
-                              padding: "14px 12px",
-                              background: "var(--color-bg-elevated)",
-                              borderLeft: "1px solid var(--color-border)",
-                              verticalAlign: "middle",
-                              fontWeight: 600,
-                              fontSize: 12,
-                              color: "var(--color-text-muted)",
-                              textAlign: "center",
-                            }}
-                          >
-                            #
-                          </td>
-                        </tr>
-                      </thead>
-                      ) : null}
-                      <tbody>
-                        {Array.from({ length: maxSlots }, (_, rowIdx) => (
-                          <tr
-                            key={rowIdx}
-                            style={{
-                              background: rowIdx % 2 === 0 ? "#fff" : "#f8f9fa",
-                              borderTop: "1px solid var(--color-border)",
-                            }}
-                          >
-                            <td
-                              className="matchups-slot-num"
-                              style={{ padding: "6px 12px", color: "var(--color-text-muted)", borderRight: "1px solid var(--color-border)" }}
-                            >
-                              {rowIdx + 1}
-                            </td>
-                            {mu.type === "h2h" ? (
-                              <>
-                                <RosterCell row={rosterByTeamSorted[0]?.[rowIdx]} borderLeft leagueSlug={slug} align="left" />
-                                <td
-                                  className="matchups-vs-cell"
-                                  aria-hidden
-                                  style={{ borderLeft: "1px solid var(--color-border)", borderRight: "1px solid var(--color-border)" }}
-                                />
-                                <RosterCell row={rosterByTeamSorted[1]?.[rowIdx]} borderLeft leagueSlug={slug} align="right" />
-                              </>
-                            ) : (
-                              teamData.map((t, colIdx) => (
-                                <RosterCell
-                                  key={t.userId}
-                                  row={rosterByTeamSorted[colIdx]?.[rowIdx]}
-                                  borderLeft
-                                  leagueSlug={slug}
-                                  align={colIdx === teamData.length - 1 ? "right" : "left"}
-                                />
-                              ))
-                            )}
-                            <td
-                              className="matchups-slot-num"
-                              style={{
-                                padding: "6px 12px",
-                                color: "var(--color-text-muted)",
-                                borderLeft: "1px solid var(--color-border)",
-                                textAlign: "center",
-                              }}
-                            >
-                              {rowIdx + 1}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                {h2hReady ? (
+                  <div className="scoreboard-card scoreboard-card--h2h" style={cardShellStyle}>
+                    <div className="matchups-scoreboard-h2h-masthead">
+                      <MatchupMobileH2hMasthead
+                        teamA={{
+                          userId: teamData[0]!.userId,
+                          label: teamData[0]!.label,
+                          member: teamData[0]!.member,
+                          total: teamData[0]!.total,
+                          eventPts: teamData[0]!.eventPts,
+                          winBonus: teamData[0]!.winBonus,
+                          beltBonus: teamData[0]!.beltBonus,
+                          isWinner: isWinner(teamData[0]!.userId),
+                          isBeltHolder: matchupForWeek?.beltHolderUserId === teamData[0]!.userId,
+                          seasonTotalPts: seasonPointsByUserId[teamData[0]!.userId] ?? 0,
+                        }}
+                        teamB={{
+                          userId: teamData[1]!.userId,
+                          label: teamData[1]!.label,
+                          member: teamData[1]!.member,
+                          total: teamData[1]!.total,
+                          eventPts: teamData[1]!.eventPts,
+                          winBonus: teamData[1]!.winBonus,
+                          beltBonus: teamData[1]!.beltBonus,
+                          isWinner: isWinner(teamData[1]!.userId),
+                          isBeltHolder: matchupForWeek?.beltHolderUserId === teamData[1]!.userId,
+                          seasonTotalPts: seasonPointsByUserId[teamData[1]!.userId] ?? 0,
+                        }}
+                      />
                     </div>
+                    <div className="matchup-h2h-mobile-lineup-only">
+                      <MatchupMobileH2hCollapsible
+                        matchupKey={`${slug}-${selectedWeekStart}-${idx}`}
+                        maxSlots={maxSlots}
+                        rowsLeft={mobileRowsLeft}
+                        rowsRight={mobileRowsRight}
+                        leagueSlug={slug}
+                        wrestlerMeta={wrestlerMeta}
+                      />
+                    </div>
+                    <div className="matchups-scoreboard-table-wrap matchup-roster-desktop-wrap">{scoreboardTable}</div>
                   </div>
-                </Link>
-                <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, color: "var(--color-text-muted)" }}>
-                  <Link href={`/leagues/${slug}/matchups/${encodeURIComponent(selectedWeekStart!)}`} className="app-link">
-                    View full matchup details →
-                  </Link>
-                </p>
+                ) : (
+                  <div className="scoreboard-card scoreboard-card--multi" style={cardShellStyle}>
+                    <div className="matchups-scoreboard-table-wrap">{scoreboardTable}</div>
+                  </div>
+                )}
               </section>
             );
           })}

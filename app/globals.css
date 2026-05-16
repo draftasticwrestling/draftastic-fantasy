@@ -3215,7 +3215,8 @@ body > .site-footer {
 .matchups-scoreboard-table-wrap {
   min-width: 0;
 }
-.scoreboard-card-link:hover .scoreboard-card {
+.scoreboard-card--h2h:hover,
+.scoreboard-card--multi:hover {
   border-color: var(--color-blue);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
@@ -3675,13 +3676,16 @@ body > .site-footer {
 
 /* H2H week detail: mobile gets expandable lineup; desktop keeps roster table under masthead */
 @media (max-width: 1024px) {
-  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-lineup {
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-lineup,
+  .matchups-page .scoreboard-card--h2h .matchup-mobile-lineup {
     display: flex;
   }
-  .matchups-detail-page .matchup-detail-card--h2h .matchup-roster-desktop-wrap {
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-roster-desktop-wrap,
+  .matchups-page .scoreboard-card--h2h .matchup-roster-desktop-wrap {
     display: none !important;
   }
-  .matchups-detail-page .matchup-detail-card--h2h .matchup-h2h-mobile-lineup-only {
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-h2h-mobile-lineup-only,
+  .matchups-page .scoreboard-card--h2h .matchup-h2h-mobile-lineup-only {
     display: block;
   }
 }
@@ -3746,11 +3750,6 @@ body > .site-footer {
     word-break: break-word;
     line-height: 1.3;
   }
-  .matchups-page .scoreboard-card-link + p {
-    margin-top: 10px;
-    font-size: 13px;
-  }
-
   .matchups-detail-page .matchups-detail-breadcrumb {
     display: flex;
     flex-direction: column;
