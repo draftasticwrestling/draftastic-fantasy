@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
 import {
-  distinctUserIdsForEngagementEvent,
-  fetchDailyEngagementTrend,
-  fetchSeasonEngagementKpiCounts,
-  paginateContentEngagementRows,
-  paginateSeasonEngagementRows,
-  type EngagementRow,
-} from "@/lib/internalAdmin/engagementStats";
+  ENGAGEMENT_ADMIN_CACHE_SECONDS,
+  getEngagementAdminSnapshot,
+  getEngagementAdminUserTableRows,
+} from "@/lib/internalAdmin/engagementAdminSnapshot";
+import {
+  ENGAGEMENT_PERIOD_KEYS,
+  ENGAGEMENT_PERIOD_LABELS,
+  eventOccurredInPeriod,
+  engagementPeriodBounds,
+  parseEngagementPeriodKey,
+} from "@/lib/internalAdmin/engagementPeriods";
+import type { EngagementRow } from "@/lib/internalAdmin/engagementStats";
 
 export const metadata = {
   title: "Season engagement — Site admin",
@@ -15,18 +20,18 @@ export const metadata = {
 
 type Row = EngagementRow;
 
-function uniqUsers(rows: Row[], predicate?: (r: Row) => boolean): number {
-  const users = new Set(
-    rows
-      .filter((r) => (predicate ? predicate(r) : true))
-      .map((r) => r.user_id)
-      .filter((id): id is string => Boolean(id))
-  );
-  return users.size;
-}
-
-function count(rows: Row[], eventName: string): number {
-  return rows.filter((r) => r.event_name === eventName).length;
+function formatComputedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
 }
 
 async function getEmailByUserIds(
@@ -56,9 +61,14 @@ async function getEmailByUserIds(
 export default async function InternalAdminEngagementPage({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ season?: string; period?: string; sort?: string; dir?: string }>;
 }) {
-  const { season: seasonParam = "", sort: sortParam = "total", dir: dirParam = "desc" } = await searchParams;
+  const {
+    season: seasonParam = "",
+    period: periodParam = "",
+    sort: sortParam = "total",
+    dir: dirParam = "desc",
+  } = await searchParams;
   const admin = getServiceRoleClient();
   if (!admin) {
     return (
@@ -85,157 +95,46 @@ export default async function InternalAdminEngagementPage({
     )
   );
   const season = seasonParam && seasons.includes(seasonParam) ? seasonParam : (seasons[0] ?? "");
+  const period = parseEngagementPeriodKey(periodParam);
 
-  const USER_TABLE_LOOKBACK_DAYS = 120;
-  const sinceForUserIso = new Date(
-    Date.now() - USER_TABLE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
-  ).toISOString();
-
-  let rows: Row[] = [];
-  let contentRows: Row[] = [];
-  let dailyRows: Array<{
-    day: string;
-    signIns: number;
-    faAdds: number;
-    drops: number;
-    tradesExecuted: number;
-    loggedInViews: number;
-    articleViews: number;
-    resultsViews: number;
-  }> = [];
-  let kpiCounts: Awaited<ReturnType<typeof fetchSeasonEngagementKpiCounts>> | null = null;
-  let signInUserIds = new Set<string>();
-  let articleViewUserIds = new Set<string>();
-  let resultsViewUserIds = new Set<string>();
-
-  if (season) {
-    const [counts, trend, sUsers, aUsers, rUsers, seasonRows, contentPaged] = await Promise.all([
-      fetchSeasonEngagementKpiCounts(admin, season),
-      fetchDailyEngagementTrend(admin, season, 21),
-      distinctUserIdsForEngagementEvent(admin, { eventName: "auth.sign_in", seasonSlug: season }),
-      distinctUserIdsForEngagementEvent(admin, { eventName: "page.news_article_view", seasonSlug: null }),
-      distinctUserIdsForEngagementEvent(admin, { eventName: "page.event_results_view", seasonSlug: null }),
-      paginateSeasonEngagementRows(admin, season, sinceForUserIso),
-      paginateContentEngagementRows(admin, sinceForUserIso),
-    ]);
-    kpiCounts = counts;
-    dailyRows = trend;
-    signInUserIds = sUsers;
-    articleViewUserIds = aUsers;
-    resultsViewUserIds = rUsers;
-    rows = seasonRows;
-    contentRows = contentPaged;
-  } else {
-    const eventsQuery = admin
-      .from("engagement_events")
-      .select("event_name, user_id, occurred_at, path")
-      .order("occurred_at", { ascending: false })
-      .limit(50000);
-    const { data: rawEvents } = await eventsQuery;
-    rows = (rawEvents ?? []) as Row[];
-    const { data: rawContentViews } = await admin
-      .from("engagement_events")
-      .select("event_name, user_id, occurred_at, path")
-      .in("event_name", ["page.news_article_view", "page.event_results_view"])
-      .order("occurred_at", { ascending: false })
-      .limit(50000);
-    contentRows = (rawContentViews ?? []) as Row[];
-    const dailyByDate = new Map<
-      string,
-      {
-        signIns: number;
-        faAdds: number;
-        drops: number;
-        tradesExecuted: number;
-        loggedInViews: number;
-        articleViews: number;
-        resultsViews: number;
-      }
-    >();
-    const emptyDay = () => ({
-      signIns: 0,
-      faAdds: 0,
-      drops: 0,
-      tradesExecuted: 0,
-      loggedInViews: 0,
-      articleViews: 0,
-      resultsViews: 0,
-    });
-    for (const r of rows) {
-      const day = r.occurred_at.slice(0, 10);
-      const bucket = dailyByDate.get(day) ?? emptyDay();
-      if (r.event_name === "auth.sign_in") bucket.signIns += 1;
-      if (r.event_name === "league.fa_add") bucket.faAdds += 1;
-      if (r.event_name === "league.drop") bucket.drops += 1;
-      if (r.event_name === "league.trade_executed") bucket.tradesExecuted += 1;
-      if (r.event_name === "page.logged_in_view") bucket.loggedInViews += 1;
-      dailyByDate.set(day, bucket);
-    }
-    for (const r of contentRows) {
-      const day = r.occurred_at.slice(0, 10);
-      const bucket = dailyByDate.get(day) ?? emptyDay();
-      if (r.event_name === "page.news_article_view") bucket.articleViews += 1;
-      if (r.event_name === "page.event_results_view") bucket.resultsViews += 1;
-      dailyByDate.set(day, bucket);
-    }
-    dailyRows = Array.from(dailyByDate.entries())
-      .map(([day, v]) => ({ day, ...v }))
-      .sort((a, b) => (a.day < b.day ? 1 : -1))
-      .slice(0, 21);
-  }
+  const snapshot = season ? await getEngagementAdminSnapshot(season) : null;
+  const userTable = season ? await getEngagementAdminUserTableRows(season) : null;
+  const periodSnapshot = snapshot?.periods[period] ?? null;
+  const periodBounds = snapshot
+    ? engagementPeriodBounds(period, snapshot.seasonCalendar)
+    : {};
 
   const sortKey = String(sortParam || "total");
   const sortDir: "asc" | "desc" = dirParam === "asc" ? "asc" : "desc";
 
-  const now = Date.now();
-  const dayAgo = now - 24 * 60 * 60 * 1000;
-  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-  const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
-  const rowsDay = rows.filter((r) => Date.parse(r.occurred_at) >= dayAgo);
-  const rowsWeek = rows.filter((r) => Date.parse(r.occurred_at) >= weekAgo);
-  const rowsMonth = rows.filter((r) => Date.parse(r.occurred_at) >= monthAgo);
+  const rows: Row[] = (userTable?.seasonRows ?? []).filter((r) =>
+    eventOccurredInPeriod(r.occurred_at, periodBounds)
+  );
+  const contentRows: Row[] = (userTable?.contentRows ?? []).filter((r) =>
+    eventOccurredInPeriod(r.occurred_at, periodBounds)
+  );
+  const dailyRows = snapshot?.dailyTrend ?? [];
 
-  const kpi = kpiCounts
+  const kpi = periodSnapshot
     ? {
-        signIns: kpiCounts.signIns,
-        signInsUnique: signInUserIds.size,
-        faAdds: kpiCounts.faAdds,
-        drops: kpiCounts.drops,
-        tradesProposed: kpiCounts.tradesProposed,
-        tradesExecuted: kpiCounts.tradesExecuted,
-        myFactionViews: kpiCounts.myFactionViews,
-        freeAgentsViews: kpiCounts.freeAgentsViews,
-        leadersViews: kpiCounts.leadersViews,
-        loggedInViews: kpiCounts.loggedInViews,
-        sessionStarts: kpiCounts.sessionStarts,
-        articleViews: kpiCounts.articleViews,
-        articleViewsUnique: articleViewUserIds.size,
-        resultsViews: kpiCounts.resultsViews,
-        resultsViewsUnique: resultsViewUserIds.size,
-        dau: uniqUsers(rowsDay),
-        wau: uniqUsers(rowsWeek),
-        mau: uniqUsers(rowsMonth),
+        signIns: periodSnapshot.kpis.signIns,
+        signInsUnique: periodSnapshot.signInUniqueUsers,
+        faAdds: periodSnapshot.kpis.faAdds,
+        drops: periodSnapshot.kpis.drops,
+        tradesProposed: periodSnapshot.kpis.tradesProposed,
+        tradesExecuted: periodSnapshot.kpis.tradesExecuted,
+        myFactionViews: periodSnapshot.kpis.myFactionViews,
+        freeAgentsViews: periodSnapshot.kpis.freeAgentsViews,
+        leadersViews: periodSnapshot.kpis.leadersViews,
+        loggedInViews: periodSnapshot.kpis.loggedInViews,
+        sessionStarts: periodSnapshot.kpis.sessionStarts,
+        articleViews: periodSnapshot.kpis.articleViews,
+        articleViewsUnique: periodSnapshot.articleViewUniqueUsers,
+        resultsViews: periodSnapshot.kpis.resultsViews,
+        resultsViewsUnique: periodSnapshot.resultsViewUniqueUsers,
+        activeUsers: periodSnapshot.activeUsers,
       }
-    : {
-        signIns: count(rows, "auth.sign_in"),
-        signInsUnique: uniqUsers(rows, (r) => r.event_name === "auth.sign_in"),
-        faAdds: count(rows, "league.fa_add"),
-        drops: count(rows, "league.drop"),
-        tradesProposed: count(rows, "league.trade_proposed"),
-        tradesExecuted: count(rows, "league.trade_executed"),
-        myFactionViews: count(rows, "page.my_faction_view"),
-        freeAgentsViews: count(rows, "page.free_agents_view"),
-        leadersViews: count(rows, "page.league_leaders_view"),
-        loggedInViews: count(rows, "page.logged_in_view"),
-        sessionStarts: count(rows, "session.logged_in_start"),
-        articleViews: count(contentRows, "page.news_article_view"),
-        articleViewsUnique: uniqUsers(contentRows, (r) => r.event_name === "page.news_article_view"),
-        resultsViews: count(contentRows, "page.event_results_view"),
-        resultsViewsUnique: uniqUsers(contentRows, (r) => r.event_name === "page.event_results_view"),
-        dau: uniqUsers(rowsDay),
-        wau: uniqUsers(rowsWeek),
-        mau: uniqUsers(rowsMonth),
-      };
+    : null;
 
   const { data: leaguesInSeason } = season
     ? await admin.from("leagues").select("id").eq("season_slug", season).limit(4000)
@@ -385,14 +284,43 @@ export default async function InternalAdminEngagementPage({
     return sortDir === "asc" ? cmp : -cmp;
   });
 
-  function sortHref(nextSort: string) {
-    const nextDir = sortKey === nextSort && sortDir === "desc" ? "asc" : "desc";
+  function queryHref(overrides: { period?: string; sort?: string; dir?: string }) {
     const q = new URLSearchParams();
     if (season) q.set("season", season);
-    q.set("sort", nextSort);
-    q.set("dir", nextDir);
+    q.set("period", overrides.period ?? period);
+    const nextSort = overrides.sort ?? sortKey;
+    const nextDir = overrides.dir ?? sortDir;
+    if (nextSort !== "total") q.set("sort", nextSort);
+    if (nextDir !== "desc") q.set("dir", nextDir);
     return `/internal-admin/engagement?${q.toString()}`;
   }
+
+  function sortHref(nextSort: string) {
+    const nextDir = sortKey === nextSort && sortDir === "desc" ? "asc" : "desc";
+    return queryHref({ sort: nextSort, dir: nextDir });
+  }
+
+  const lookbackDays = userTable?.lookbackDays ?? 120;
+  const kpiCards: [string, string][] = kpi
+    ? [
+        ["Sign-ins", `${kpi.signIns} (${kpi.signInsUnique} users)`],
+        ["FA adds", String(kpi.faAdds)],
+        ["Drops", String(kpi.drops)],
+        ["Trades proposed", String(kpi.tradesProposed)],
+        ["Trades executed", String(kpi.tradesExecuted)],
+        ["My Faction views", String(kpi.myFactionViews)],
+        ["Free Agents views", String(kpi.freeAgentsViews)],
+        ["League Leaders views", String(kpi.leadersViews)],
+        ["Article views", `${kpi.articleViews} (${kpi.articleViewsUnique} users)`],
+        ["Results views", `${kpi.resultsViews} (${kpi.resultsViewsUnique} users)`],
+        ["Logged-in page views", String(kpi.loggedInViews)],
+        ["Logged-in sessions", String(kpi.sessionStarts)],
+        ["Active users (season events)", String(kpi.activeUsers)],
+        ["Season members", String(seasonUserIds.length)],
+        ["Engaged users (table)", String(engagedCount)],
+        ["No engagement (table)", String(noEngagementCount)],
+      ]
+    : [];
 
   return (
     <div style={{ maxWidth: 980 }}>
@@ -403,13 +331,34 @@ export default async function InternalAdminEngagementPage({
       </p>
       <h1 style={{ marginTop: 0, marginBottom: 8 }}>Season engagement</h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
-        Logged-in behavior and in-league action tracking for the selected season. Article and Results headline totals
-        count all logged-in views (not scoped to the season). Daily trend uses exact per-day counts (not capped by the
-        newest 50k events). The per-user table loads season events from the last {USER_TABLE_LOOKBACK_DAYS} days (large
-        leagues may hit a row cap — totals above still use full database counts).
+        KPI totals use exact database counts (not row caps). Article and Results views are site-wide (not
+        season-tagged). Stats refresh about every {Math.round(ENGAGEMENT_ADMIN_CACHE_SECONDS / 3600)} hour
+        {ENGAGEMENT_ADMIN_CACHE_SECONDS === 3600 ? "" : "s"}; first load after expiry may take a minute.
       </p>
 
-      <form method="get" style={{ marginBottom: 18, display: "flex", gap: 10, alignItems: "center" }}>
+      {snapshot ? (
+        <p
+          style={{
+            fontSize: 13,
+            color: "var(--color-text-muted)",
+            marginTop: 0,
+            marginBottom: 16,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "var(--color-bg-elevated)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <strong>Snapshot:</strong> {formatComputedAt(snapshot.computedAt)} ·{" "}
+          {ENGAGEMENT_PERIOD_LABELS[period]} · season{" "}
+          {snapshot.seasonCalendar.startYmd
+            ? `${snapshot.seasonCalendar.startYmd} → ${snapshot.seasonCalendar.endYmd ?? "open"}`
+            : "dates unknown"}
+        </p>
+      ) : null}
+
+      <form method="get" style={{ marginBottom: 14, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <input type="hidden" name="period" value={period} />
         <label htmlFor="season" style={{ fontWeight: 600 }}>
           Season
         </label>
@@ -425,33 +374,67 @@ export default async function InternalAdminEngagementPage({
         </button>
       </form>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginBottom: 18 }}>
-        {[
-          ["Sign-ins", `${kpi.signIns} (${kpi.signInsUnique} users)`],
-          ["FA adds", String(kpi.faAdds)],
-          ["Drops", String(kpi.drops)],
-          ["Trades proposed", String(kpi.tradesProposed)],
-          ["Trades executed", String(kpi.tradesExecuted)],
-          ["My Faction views", String(kpi.myFactionViews)],
-          ["Free Agents views", String(kpi.freeAgentsViews)],
-          ["League Leaders views", String(kpi.leadersViews)],
-          [
-            "Article views",
-            `${kpi.articleViews} (${kpi.articleViewsUnique} users)`,
-          ],
-          [
-            "Results views",
-            `${kpi.resultsViews} (${kpi.resultsViewsUnique} users)`,
-          ],
-          ["Logged-in page views", String(kpi.loggedInViews)],
-          ["Logged-in sessions", String(kpi.sessionStarts)],
-          ["DAU / WAU / MAU", `${kpi.dau} / ${kpi.wau} / ${kpi.mau}`],
-          ["Season members", String(seasonUserIds.length)],
-          ["Engaged users", String(engagedCount)],
-          ["No engagement", String(noEngagementCount)],
-        ].map(([label, value]) => (
+      <nav
+        aria-label="Time period"
+        style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}
+      >
+        {ENGAGEMENT_PERIOD_KEYS.map((key) => {
+          const active = key === period;
+          return (
+            <Link
+              key={key}
+              href={queryHref({ period: key })}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 999,
+                fontSize: 13,
+                fontWeight: active ? 700 : 500,
+                textDecoration: "none",
+                border: `1px solid ${active ? "var(--color-blue)" : "var(--color-border)"}`,
+                background: active ? "var(--color-bg-elevated)" : "var(--color-bg-card)",
+                color: active ? "var(--color-blue)" : "var(--color-text)",
+              }}
+            >
+              {ENGAGEMENT_PERIOD_LABELS[key]}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {!season ? (
+        <p style={{ color: "var(--color-text-muted)" }}>No seasons found.</p>
+      ) : !snapshot || !kpi ? (
+        <p style={{ color: "var(--color-text-muted)" }}>
+          Could not load engagement snapshot. Check service role and run{" "}
+          <code>supabase/engagement_admin_distinct_user_count.sql</code> for accurate unique-user counts.
+        </p>
+      ) : (
+        <>
           <div
-            key={label}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 10,
+              marginBottom: 18,
+            }}
+          >
+            {kpiCards.map(([label, value]) => (
+              <div
+                key={label}
+                style={{
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                  background: "var(--color-bg-card)",
+                }}
+              >
+                <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>{label}</div>
+                <div style={{ fontWeight: 700, marginTop: 4 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <section
             style={{
               border: "1px solid var(--color-border)",
               borderRadius: 10,
@@ -459,127 +442,166 @@ export default async function InternalAdminEngagementPage({
               background: "var(--color-bg-card)",
             }}
           >
-            <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>{label}</div>
-            <div style={{ fontWeight: 700, marginTop: 4 }}>{value}</div>
-          </div>
-        ))}
-      </div>
+            <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Daily trend (UTC days, latest 21)</h2>
+            <p style={{ color: "var(--color-text-muted)", fontSize: 13, marginTop: 0 }}>
+              Same cached snapshot as KPIs. Season-scoped events use <code>season_slug</code>; article/results are
+              site-wide.
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                    <th style={{ padding: "8px 6px" }}>Date (UTC)</th>
+                    <th style={{ padding: "8px 6px" }}>Sign-ins</th>
+                    <th style={{ padding: "8px 6px" }}>FA adds</th>
+                    <th style={{ padding: "8px 6px" }}>Drops</th>
+                    <th style={{ padding: "8px 6px" }}>Trades executed</th>
+                    <th style={{ padding: "8px 6px" }}>Logged-in page views</th>
+                    <th style={{ padding: "8px 6px" }}>Article views</th>
+                    <th style={{ padding: "8px 6px" }}>Results views</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailyRows.map((r) => (
+                    <tr key={r.day} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "8px 6px", fontFamily: "monospace" }}>{r.day}</td>
+                      <td style={{ padding: "8px 6px" }}>{r.signIns}</td>
+                      <td style={{ padding: "8px 6px" }}>{r.faAdds}</td>
+                      <td style={{ padding: "8px 6px" }}>{r.drops}</td>
+                      <td style={{ padding: "8px 6px" }}>{r.tradesExecuted}</td>
+                      <td style={{ padding: "8px 6px" }}>{r.loggedInViews}</td>
+                      <td style={{ padding: "8px 6px" }}>{r.articleViews}</td>
+                      <td style={{ padding: "8px 6px" }}>{r.resultsViews}</td>
+                    </tr>
+                  ))}
+                  {dailyRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ padding: "12px 6px", color: "var(--color-text-muted)" }}>
+                        No engagement events recorded for this season yet.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-      <section
-        style={{
-          border: "1px solid var(--color-border)",
-          borderRadius: 10,
-          padding: "12px 14px",
-          background: "var(--color-bg-card)",
-        }}
-      >
-        <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Daily trend (latest 21 days with activity)</h2>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
-                <th style={{ padding: "8px 6px" }}>Date</th>
-                <th style={{ padding: "8px 6px" }}>Sign-ins</th>
-                <th style={{ padding: "8px 6px" }}>FA adds</th>
-                <th style={{ padding: "8px 6px" }}>Drops</th>
-                <th style={{ padding: "8px 6px" }}>Trades executed</th>
-                <th style={{ padding: "8px 6px" }}>Logged-in page views</th>
-                <th style={{ padding: "8px 6px" }}>Article views</th>
-                <th style={{ padding: "8px 6px" }}>Results views</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dailyRows.map((r) => (
-                <tr key={r.day} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <td style={{ padding: "8px 6px", fontFamily: "monospace" }}>{r.day}</td>
-                  <td style={{ padding: "8px 6px" }}>{r.signIns}</td>
-                  <td style={{ padding: "8px 6px" }}>{r.faAdds}</td>
-                  <td style={{ padding: "8px 6px" }}>{r.drops}</td>
-                  <td style={{ padding: "8px 6px" }}>{r.tradesExecuted}</td>
-                  <td style={{ padding: "8px 6px" }}>{r.loggedInViews}</td>
-                  <td style={{ padding: "8px 6px" }}>{r.articleViews}</td>
-                  <td style={{ padding: "8px 6px" }}>{r.resultsViews}</td>
-                </tr>
-              ))}
-              {dailyRows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ padding: "12px 6px", color: "var(--color-text-muted)" }}>
-                    No engagement events recorded for this season yet.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section
-        style={{
-          border: "1px solid var(--color-border)",
-          borderRadius: 10,
-          padding: "12px 14px",
-          background: "var(--color-bg-card)",
-          marginTop: 16,
-        }}
-      >
-        <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>User engagement (season members)</h2>
-        <p style={{ color: "var(--color-text-muted)", marginTop: 0, marginBottom: 12, fontSize: 13 }}>
-          Sort by clicking column headers. Includes users in this season&apos;s leagues even if they have zero events.
-        </p>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("name")}>User</Link></th>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("total")}>Total events</Link></th>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("signIns")}>Sign-ins</Link></th>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("faAdds")}>FA adds</Link></th>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("drops")}>Drops</Link></th>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("tradesExecuted")}>Trades executed</Link></th>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("loggedInViews")}>Logged-in views</Link></th>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("articleViews")}>Articles</Link></th>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("resultsViews")}>Results</Link></th>
-                <th style={{ padding: "8px 6px" }}><Link className="app-link" href={sortHref("lastSeen")}>Last seen</Link></th>
-              </tr>
-            </thead>
-            <tbody>
-              {userRows.map((u) => (
-                <tr key={u.userId} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <td style={{ padding: "8px 6px" }}>
-                    <div style={{ fontWeight: 600 }}>
-                      {u.displayName?.trim() || u.email?.trim() || "User"}
-                    </div>
-                    <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
-                      {u.email?.trim() || "No email found"}
-                    </div>
-                    <div style={{ color: "var(--color-text-muted)", fontFamily: "monospace", fontSize: 12 }}>
-                      {u.userId}
-                    </div>
-                  </td>
-                  <td style={{ padding: "8px 6px", fontWeight: 600 }}>{u.total}</td>
-                  <td style={{ padding: "8px 6px" }}>{u.signIns}</td>
-                  <td style={{ padding: "8px 6px" }}>{u.faAdds}</td>
-                  <td style={{ padding: "8px 6px" }}>{u.drops}</td>
-                  <td style={{ padding: "8px 6px" }}>{u.tradesExecuted}</td>
-                  <td style={{ padding: "8px 6px" }}>{u.loggedInViews}</td>
-                  <td style={{ padding: "8px 6px" }}>{u.articleViews}</td>
-                  <td style={{ padding: "8px 6px" }}>{u.resultsViews}</td>
-                  <td style={{ padding: "8px 6px", color: "var(--color-text-muted)" }}>
-                    {u.lastSeen ? `${u.lastSeen.slice(0, 10)} ${u.lastSeen.slice(11, 16)}Z` : "—"}
-                  </td>
-                </tr>
-              ))}
-              {userRows.length === 0 ? (
-                <tr>
-                  <td colSpan={10} style={{ padding: "12px 6px", color: "var(--color-text-muted)" }}>
-                    No season members found.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          <section
+            style={{
+              border: "1px solid var(--color-border)",
+              borderRadius: 10,
+              padding: "12px 14px",
+              background: "var(--color-bg-card)",
+              marginTop: 16,
+            }}
+          >
+            <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>User engagement (season members)</h2>
+            <p style={{ color: "var(--color-text-muted)", marginTop: 0, marginBottom: 12, fontSize: 13 }}>
+              Filtered to <strong>{ENGAGEMENT_PERIOD_LABELS[period]}</strong> from events in the last {lookbackDays}{" "}
+              days (row cap may apply; KPI cards above use full counts).
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("name")}>
+                        User
+                      </Link>
+                    </th>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("total")}>
+                        Total events
+                      </Link>
+                    </th>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("signIns")}>
+                        Sign-ins
+                      </Link>
+                    </th>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("faAdds")}>
+                        FA adds
+                      </Link>
+                    </th>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("drops")}>
+                        Drops
+                      </Link>
+                    </th>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("tradesExecuted")}>
+                        Trades executed
+                      </Link>
+                    </th>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("loggedInViews")}>
+                        Logged-in views
+                      </Link>
+                    </th>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("articleViews")}>
+                        Articles
+                      </Link>
+                    </th>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("resultsViews")}>
+                        Results
+                      </Link>
+                    </th>
+                    <th style={{ padding: "8px 6px" }}>
+                      <Link className="app-link" href={sortHref("lastSeen")}>
+                        Last seen
+                      </Link>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userRows.map((u) => (
+                    <tr key={u.userId} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "8px 6px" }}>
+                        <div style={{ fontWeight: 600 }}>
+                          {u.displayName?.trim() || u.email?.trim() || "User"}
+                        </div>
+                        <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
+                          {u.email?.trim() || "No email found"}
+                        </div>
+                        <div
+                          style={{
+                            color: "var(--color-text-muted)",
+                            fontFamily: "monospace",
+                            fontSize: 12,
+                          }}
+                        >
+                          {u.userId}
+                        </div>
+                      </td>
+                      <td style={{ padding: "8px 6px", fontWeight: 600 }}>{u.total}</td>
+                      <td style={{ padding: "8px 6px" }}>{u.signIns}</td>
+                      <td style={{ padding: "8px 6px" }}>{u.faAdds}</td>
+                      <td style={{ padding: "8px 6px" }}>{u.drops}</td>
+                      <td style={{ padding: "8px 6px" }}>{u.tradesExecuted}</td>
+                      <td style={{ padding: "8px 6px" }}>{u.loggedInViews}</td>
+                      <td style={{ padding: "8px 6px" }}>{u.articleViews}</td>
+                      <td style={{ padding: "8px 6px" }}>{u.resultsViews}</td>
+                      <td style={{ padding: "8px 6px", color: "var(--color-text-muted)" }}>
+                        {u.lastSeen ? `${u.lastSeen.slice(0, 10)} ${u.lastSeen.slice(11, 16)}Z` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {userRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} style={{ padding: "12px 6px", color: "var(--color-text-muted)" }}>
+                        No season members found.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

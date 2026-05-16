@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { EngagementPeriodBounds } from "@/lib/internalAdmin/engagementPeriods";
+import { utcNextCalendarDayYmd } from "@/lib/internalAdmin/engagementPeriods";
 
 export type EngagementRow = {
   event_name: string;
@@ -7,12 +9,22 @@ export type EngagementRow = {
   path: string | null;
 };
 
-/** Next calendar day in UTC (YYYY-MM-DD) after `ymd`. */
-export function utcNextCalendarDayYmd(ymd: string): string {
-  const d = new Date(ymd + "T12:00:00.000Z");
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
+export type EngagementKpiCounts = {
+  signIns: number;
+  faAdds: number;
+  drops: number;
+  tradesProposed: number;
+  tradesExecuted: number;
+  myFactionViews: number;
+  freeAgentsViews: number;
+  leadersViews: number;
+  loggedInViews: number;
+  sessionStarts: number;
+  articleViews: number;
+  resultsViews: number;
+};
+
+export { utcNextCalendarDayYmd };
 
 /** UTC calendar days newest-first: today = index 0, … `count - 1` days ago. */
 export function lastUtcCalendarDays(count: number): string[] {
@@ -143,24 +155,13 @@ export async function fetchDailyEngagementTrend(
   );
 }
 
-/** KPI totals for a season (no date cap). */
-export async function fetchSeasonEngagementKpiCounts(
+/** KPI totals for a season, optionally bounded by UTC window. */
+export async function fetchEngagementKpiCounts(
   admin: SupabaseClient,
-  seasonSlug: string
-): Promise<{
-  signIns: number;
-  faAdds: number;
-  drops: number;
-  tradesProposed: number;
-  tradesExecuted: number;
-  myFactionViews: number;
-  freeAgentsViews: number;
-  leadersViews: number;
-  loggedInViews: number;
-  sessionStarts: number;
-  articleViews: number;
-  resultsViews: number;
-}> {
+  seasonSlug: string,
+  bounds: EngagementPeriodBounds = {}
+): Promise<EngagementKpiCounts> {
+  const { startInclusiveIso, endExclusiveIso } = bounds;
   const [
     signIns,
     faAdds,
@@ -175,18 +176,78 @@ export async function fetchSeasonEngagementKpiCounts(
     articleViews,
     resultsViews,
   ] = await Promise.all([
-    engagementEventCount(admin, { eventName: "auth.sign_in", seasonSlug }),
-    engagementEventCount(admin, { eventName: "league.fa_add", seasonSlug }),
-    engagementEventCount(admin, { eventName: "league.drop", seasonSlug }),
-    engagementEventCount(admin, { eventName: "league.trade_proposed", seasonSlug }),
-    engagementEventCount(admin, { eventName: "league.trade_executed", seasonSlug }),
-    engagementEventCount(admin, { eventName: "page.my_faction_view", seasonSlug }),
-    engagementEventCount(admin, { eventName: "page.free_agents_view", seasonSlug }),
-    engagementEventCount(admin, { eventName: "page.league_leaders_view", seasonSlug }),
-    engagementEventCount(admin, { eventName: "page.logged_in_view", seasonSlug }),
-    engagementEventCount(admin, { eventName: "session.logged_in_start", seasonSlug }),
-    engagementEventCount(admin, { eventName: "page.news_article_view", seasonSlug: null }),
-    engagementEventCount(admin, { eventName: "page.event_results_view", seasonSlug: null }),
+    engagementEventCount(admin, {
+      eventName: "auth.sign_in",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "league.fa_add",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "league.drop",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "league.trade_proposed",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "league.trade_executed",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "page.my_faction_view",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "page.free_agents_view",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "page.league_leaders_view",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "page.logged_in_view",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "session.logged_in_start",
+      seasonSlug,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "page.news_article_view",
+      seasonSlug: null,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
+    engagementEventCount(admin, {
+      eventName: "page.event_results_view",
+      seasonSlug: null,
+      startInclusiveIso,
+      endExclusiveIso,
+    }),
   ]);
   return {
     signIns,
@@ -201,6 +262,68 @@ export async function fetchSeasonEngagementKpiCounts(
     sessionStarts,
     articleViews,
     resultsViews,
+  };
+}
+
+/** @deprecated Use {@link fetchEngagementKpiCounts} with empty bounds. */
+export async function fetchSeasonEngagementKpiCounts(
+  admin: SupabaseClient,
+  seasonSlug: string
+): Promise<EngagementKpiCounts> {
+  return fetchEngagementKpiCounts(admin, seasonSlug, {});
+}
+
+/**
+ * Exact `count(distinct user_id)` via DB RPC (see `engagement_distinct_user_count.sql`).
+ * Falls back to row scan when RPC is not deployed.
+ */
+export async function engagementDistinctUserCount(
+  admin: SupabaseClient,
+  opts: {
+    seasonSlug: string;
+    seasonScoped: boolean;
+    eventName?: string | null;
+    startInclusiveIso?: string;
+    endExclusiveIso?: string;
+  }
+): Promise<number> {
+  const { data, error } = await admin.rpc("engagement_distinct_user_count", {
+    p_event_name: opts.eventName ?? null,
+    p_season_slug: opts.seasonSlug,
+    p_season_scoped: opts.seasonScoped,
+    p_start: opts.startInclusiveIso ?? null,
+    p_end: opts.endExclusiveIso ?? null,
+  });
+  if (!error && typeof data === "number") return data;
+  if (error) {
+    console.warn("[engagement] distinct user RPC unavailable, scanning rows", error.message);
+  }
+  return distinctUserIdsForEngagementEvent(admin, {
+    eventName: opts.eventName ?? undefined,
+    seasonSlug: opts.seasonScoped ? opts.seasonSlug : null,
+    sinceIso: opts.startInclusiveIso,
+    endExclusiveIso: opts.endExclusiveIso,
+    maxScanRows: 800_000,
+  }).then((s) => s.size);
+}
+
+export async function fetchSeasonCalendarRange(
+  admin: SupabaseClient,
+  seasonSlug: string
+): Promise<import("@/lib/internalAdmin/engagementPeriods").SeasonCalendarRange> {
+  const { data } = await admin
+    .from("leagues")
+    .select("start_date, end_date")
+    .eq("season_slug", seasonSlug)
+    .limit(4000);
+  const rows = (data ?? []) as { start_date?: string | null; end_date?: string | null }[];
+  const starts = rows.map((r) => (r.start_date ?? "").trim()).filter(Boolean);
+  const ends = rows.map((r) => (r.end_date ?? "").trim()).filter(Boolean);
+  starts.sort();
+  ends.sort();
+  return {
+    startYmd: starts[0] ?? null,
+    endYmd: ends.length > 0 ? ends[ends.length - 1]! : null,
   };
 }
 
@@ -240,10 +363,11 @@ export async function paginateSeasonEngagementRows(
 export async function distinctUserIdsForEngagementEvent(
   admin: SupabaseClient,
   opts: {
-    eventName: string;
+    eventName?: string;
     seasonSlug?: string | null;
     /** When set, only rows with `occurred_at >= sinceIso`. */
     sinceIso?: string;
+    endExclusiveIso?: string;
     maxScanRows?: number;
   }
 ): Promise<Set<string>> {
@@ -255,15 +379,16 @@ export async function distinctUserIdsForEngagementEvent(
     let q = admin
       .from("engagement_events")
       .select("user_id")
-      .eq("event_name", opts.eventName)
       .not("user_id", "is", null)
       .order("occurred_at", { ascending: true })
       .range(from, to);
+    if (opts.eventName) q = q.eq("event_name", opts.eventName);
     if (opts.seasonSlug === null) q = q.is("season_slug", null);
     else if (typeof opts.seasonSlug === "string" && opts.seasonSlug.length > 0) {
       q = q.eq("season_slug", opts.seasonSlug);
     }
     if (opts.sinceIso) q = q.gte("occurred_at", opts.sinceIso);
+    if (opts.endExclusiveIso) q = q.lt("occurred_at", opts.endExclusiveIso);
     const { data, error } = await q;
     if (error || !data?.length) break;
     for (const r of data as { user_id?: string | null }[]) {
