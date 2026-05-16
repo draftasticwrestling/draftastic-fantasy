@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { formatMatchupTotalPts } from "@/lib/formatMatchupTotalPts";
 import type { LeagueMember } from "@/lib/leagues";
 import { MatchupOwnerAvatarRing } from "./MatchupOwnerHeading";
 
@@ -13,6 +14,8 @@ export type MatchupMobileTeamMasthead = {
   beltBonus: number;
   isWinner: boolean;
   isBeltHolder: boolean;
+  /** Cumulative faction points for the league season (same basis as standings). */
+  seasonTotalPts: number;
 };
 
 export type MatchupMobileRosterRow = {
@@ -63,28 +66,27 @@ function MatchupMobileWrestlerThumb({
 export function MatchupMobileH2hMasthead({
   teamA,
   teamB,
-  ownerBonusRules,
 }: {
   teamA: MatchupMobileTeamMasthead;
   teamB: MatchupMobileTeamMasthead;
-  ownerBonusRules: boolean;
 }) {
   const sum = teamA.total + teamB.total;
   const leftShare = sum > 0 ? Math.round((teamA.total / sum) * 1000) / 10 : 50;
   const rightShare = sum > 0 ? Math.round((teamB.total / sum) * 1000) / 10 : 50;
   const leading = teamA.total > teamB.total ? "a" : teamB.total > teamA.total ? "b" : null;
 
-  const bonusLine = (t: MatchupMobileTeamMasthead) => {
-    const parts: string[] = [];
-    parts.push(`${formatPts(t.eventPts)} event`);
-    if (ownerBonusRules && t.winBonus > 0) parts.push(`+${t.winBonus} win`);
-    if (ownerBonusRules && t.beltBonus > 0) parts.push(`+${t.beltBonus} belt`);
-    return parts.join(" · ");
-  };
+  const seasonSubline = (t: MatchupMobileTeamMasthead) => (
+    <div className="matchup-mobile-masthead__sub matchup-mobile-masthead__sub--season">
+      <span className="matchup-mobile-masthead__season-num">{formatMatchupTotalPts(t.seasonTotalPts)}</span>
+      <span className="matchup-mobile-masthead__season-lbl">season</span>
+    </div>
+  );
 
   const teamCol = (t: MatchupMobileTeamMasthead, side: "left" | "right") => (
     <div className={`matchup-mobile-masthead__team matchup-mobile-masthead__team--${side}`}>
-      <MatchupOwnerAvatarRing member={t.member} size={44} />
+      <div className="matchup-mobile-masthead__avatar">
+        <MatchupOwnerAvatarRing member={t.member} size={44} />
+      </div>
       <div className="matchup-mobile-masthead__team-text">
         <div className="matchup-mobile-masthead__name">{t.label}</div>
         <div className="matchup-mobile-masthead__badges">
@@ -93,7 +95,7 @@ export function MatchupMobileH2hMasthead({
             <span className="matchup-mobile-masthead__pill matchup-mobile-masthead__pill--belt">Belt</span>
           ) : null}
         </div>
-        <div className="matchup-mobile-masthead__sub">{bonusLine(t)}</div>
+        {seasonSubline(t)}
       </div>
     </div>
   );
@@ -111,7 +113,7 @@ export function MatchupMobileH2hMasthead({
                   : "matchup-mobile-masthead__score"
               }
             >
-              {formatPts(teamA.total)}
+              {formatMatchupTotalPts(teamA.total)}
             </span>
             <span className="matchup-mobile-masthead__score-sep">—</span>
             <span
@@ -121,7 +123,7 @@ export function MatchupMobileH2hMasthead({
                   : "matchup-mobile-masthead__score"
               }
             >
-              {formatPts(teamB.total)}
+              {formatMatchupTotalPts(teamB.total)}
             </span>
           </div>
           <div className="matchup-mobile-masthead__vs">VS</div>

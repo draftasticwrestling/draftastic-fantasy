@@ -3223,9 +3223,16 @@ body > .site-footer {
   min-width: 0;
 }
 
-/* H2H week detail: fantasy-app-style mobile lineup (hidden on desktop) */
-.matchup-mobile-h2h-header,
+/* H2H week detail: mobile lineup rows hidden until expanded; masthead shown on all viewports */
 .matchup-mobile-lineup {
+  display: none;
+}
+
+.matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-h2h-header {
+  display: block;
+}
+
+.matchup-h2h-mobile-lineup-only {
   display: none;
 }
 
@@ -3246,6 +3253,12 @@ body > .site-footer {
   gap: 8px;
   min-width: 0;
   text-align: center;
+}
+
+.matchup-mobile-masthead__avatar {
+  display: flex;
+  flex-shrink: 0;
+  line-height: 0;
 }
 
 .matchup-mobile-masthead__team--left {
@@ -3299,6 +3312,30 @@ body > .site-footer {
   color: var(--color-text-muted);
   margin-top: 4px;
   line-height: 1.35;
+}
+
+.matchup-mobile-masthead__sub--season {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.matchup-mobile-masthead__season-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.matchup-mobile-masthead__season-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: lowercase;
+  line-height: 1.2;
 }
 
 .matchup-mobile-masthead__center {
@@ -3362,12 +3399,12 @@ body > .site-footer {
 
 .matchup-mobile-masthead__share-seg--left {
   min-width: 2px;
-  background: linear-gradient(90deg, #16a34a, #22c55e);
+  background: linear-gradient(90deg, #9a1c1c, var(--color-red));
 }
 
 .matchup-mobile-masthead__share-seg--right {
   min-width: 2px;
-  background: linear-gradient(90deg, #f97316, #ea580c);
+  background: linear-gradient(90deg, #1557b8, var(--color-blue));
 }
 
 .matchup-mobile-masthead__share-pct {
@@ -3529,6 +3566,126 @@ body > .site-footer {
   line-height: 1;
 }
 
+.matchup-mobile-h2h-collapsible {
+  min-width: 0;
+}
+
+.matchup-mobile-h2h-collapsible__trigger {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.matchup-mobile-h2h-collapsible__trigger:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+.matchup-mobile-h2h-collapsible__affordance {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
+}
+
+.matchup-mobile-h2h-collapsible__affordance-chev {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.matchup-mobile-h2h-collapsible__rosters:not([hidden]) {
+  border-top: 1px solid var(--color-border);
+}
+
+.matchup-mobile-h2h-collapsible__trigger--lineup-toggle {
+  border-top: 1px solid var(--color-border-light);
+}
+
+/* H2H masthead: roomier type + spacing on desktop/tablet landscape */
+@media (min-width: 1025px) {
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead {
+    padding: 22px 32px 20px;
+    gap: 12px 32px;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__avatar,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__avatar {
+    transform: scale(1.12);
+    transform-origin: center top;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__name,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__name {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__season-num,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__season-num {
+    font-size: 13px;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__season-lbl,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__season-lbl {
+    font-size: 11px;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__center,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__center {
+    min-width: 152px;
+    gap: 6px;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__score,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__score {
+    font-size: 2rem;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__score-sep,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__score-sep {
+    font-size: 1.25rem;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__vs,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__vs {
+    font-size: 12px;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__share-label,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__share-label {
+    font-size: 11px;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__share-bar,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__share-bar {
+    height: 10px;
+    min-width: 200px;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-masthead__share-pct,
+  .matchups-page .scoreboard-card .matchup-mobile-masthead__share-pct {
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
+/* H2H week detail: mobile gets expandable lineup; desktop keeps roster table under masthead */
+@media (max-width: 1024px) {
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-mobile-lineup {
+    display: flex;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-roster-desktop-wrap {
+    display: none !important;
+  }
+  .matchups-detail-page .matchup-detail-card--h2h .matchup-h2h-mobile-lineup-only {
+    display: block;
+  }
+}
+
 /* Matchups scoreboard + week detail (mobile) */
 @media (max-width: 640px) {
   .matchups-page .matchups-page__toolbar {
@@ -3608,18 +3765,6 @@ body > .site-footer {
     white-space: normal;
     word-break: break-word;
     line-height: 1.3;
-  }
-  .matchup-detail-card--h2h .matchup-detail-header {
-    display: none !important;
-  }
-  .matchup-detail-card--h2h .matchup-mobile-h2h-header {
-    display: block;
-  }
-  .matchup-detail-card--h2h .matchup-mobile-lineup {
-    display: flex;
-  }
-  .matchup-detail-card--h2h .matchup-roster-desktop-wrap {
-    display: none !important;
   }
   .matchups-detail-page
     .matchup-detail-card:not(.matchup-detail-card--triple):not(.matchup-detail-card--h2h)

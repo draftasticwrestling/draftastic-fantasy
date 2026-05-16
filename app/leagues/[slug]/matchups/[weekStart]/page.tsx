@@ -17,13 +17,17 @@ import {
   getSundayOfWeek,
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
+  getPointsByOwnerForLeagueWithBonuses,
 } from "@/lib/leagueMatchups";
 import { getMatchupWrestlerChampionTitleLineBySlug } from "@/lib/matchupWrestlerCurrentTitles";
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
+import { formatMatchupTotalPts } from "@/lib/formatMatchupTotalPts";
 import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
+import { sortMatchupRosterRowsByWeekPointsDesc } from "@/lib/sortMatchupRosterRowsByWeekPoints";
 import { MatchupOwnerAvatarRing } from "../MatchupOwnerHeading";
-import { MatchupMobileH2hLineup, MatchupMobileH2hMasthead } from "../MatchupMobileH2h";
+import { MatchupMobileH2hCollapsible } from "../MatchupMobileH2hCollapsible";
+import { MatchupMobileH2hMasthead } from "../MatchupMobileH2h";
 
 type Props = { params: Promise<{ slug: string; weekStart: string }> };
 
@@ -160,12 +164,14 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
   if (!league) notFound();
 
   const { supabase, user } = await getServerAuth();
-  const [members, matchups, rosters, pointsByOwnerByWrestler, monthlyBeltBySlug] = await Promise.all([
+  const [members, matchups, rosters, pointsByOwnerByWrestler, monthlyBeltBySlug, seasonPointsByUserId] =
+    await Promise.all([
     getLeagueMembers(league.id),
     getLeagueWeeklyMatchups(league.id),
     getRostersForLeagueForWeek(league.id, weekStartDecoded),
     getPointsByOwnerByWrestlerForWeek(league.id, weekStartDecoded),
     getMonthlyBeltBySlugForWeek(league.id, weekStartDecoded),
+    getPointsByOwnerForLeagueWithBonuses(league.id, supabase),
   ]);
   const seededMemberUserIds = await getXpSeededMemberUserIds(
     members.map((m) => m.user_id),
@@ -319,6 +325,10 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   championTitles: null,
                 });
               }
+              const sortedRosterRows = sortMatchupRosterRowsByWeekPointsDesc(rosterRows).map((row, idx) => ({
+                ...row,
+                slot: idx + 1,
+              }));
               return {
                 userId: uid,
                 member: member ?? null,
@@ -329,7 +339,8 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                 beltBonus,
                 isWinner: weekMatchup.winnerUserId === uid,
                 isBeltHolder: weekMatchup.beltHolderUserId === uid,
-                rosterRows,
+                seasonTotalPts: seasonPointsByUserId[uid] ?? 0,
+                rosterRows: sortedRosterRows,
               };
             });
 
@@ -347,43 +358,25 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                   boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
                 }}
               >
-                {/* Header: team names + totals side by side (stacks on mobile for triple) */}
-                <div
-                  className="matchup-detail-header"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      mu.type === "triple"
-                        ? "1fr 1fr 1fr"
-                        : "1fr auto 1fr",
-                    gap: 16,
-                    alignItems: "center",
-                    justifyItems: "center",
-                    padding: "20px 20px 16px",
-                    borderBottom: "1px solid var(--color-border)",
-                    background: "var(--color-bg-elevated)",
-                  }}
-                >
-                  {mu.type === "h2h" ? (
-                    <>
-                      <TeamHeaderBlock data={teamData[0]!} />
-                      <div
-                        style={{
-                          textAlign: "center",
-                          fontSize: 14,
-                          fontWeight: 800,
-                          color: "var(--color-text-muted)",
-                          letterSpacing: "0.08em",
-                        }}
-                      >
-                        VS
-                      </div>
-                      <TeamHeaderBlock data={teamData[1]!} />
-                    </>
-                  ) : (
-                    teamData.map((t) => <TeamHeaderBlock key={t.userId} data={t} />)
-                  )}
-                </div>
+                {mu.type !== "h2h" ? (
+                  <div
+                    className="matchup-detail-header"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr 1fr",
+                      gap: 16,
+                      alignItems: "center",
+                      justifyItems: "center",
+                      padding: "20px 20px 16px",
+                      borderBottom: "1px solid var(--color-border)",
+                      background: "var(--color-bg-elevated)",
+                    }}
+                  >
+                    {teamData.map((t) => (
+                      <TeamHeaderBlock key={t.userId} data={t} />
+                    ))}
+                  </div>
+                ) : null}
 
                 {mu.type === "h2h" && teamData[0] && teamData[1] ? (
                   <>
@@ -398,6 +391,7 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                         beltBonus: teamData[0].beltBonus,
                         isWinner: teamData[0].isWinner,
                         isBeltHolder: teamData[0].isBeltHolder,
+                        seasonTotalPts: teamData[0].seasonTotalPts,
                       }}
                       teamB={{
                         userId: teamData[1].userId,
@@ -409,16 +403,19 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                         beltBonus: teamData[1].beltBonus,
                         isWinner: teamData[1].isWinner,
                         isBeltHolder: teamData[1].isBeltHolder,
+                        seasonTotalPts: teamData[1].seasonTotalPts,
                       }}
-                      ownerBonusRules={ownerBonusRules}
                     />
-                    <MatchupMobileH2hLineup
-                      maxSlots={maxSlots}
-                      rowsLeft={teamData[0].rosterRows}
-                      rowsRight={teamData[1].rosterRows}
-                      leagueSlug={slug}
-                      wrestlerMeta={wrestlerMeta}
-                    />
+                    <div className="matchup-h2h-mobile-lineup-only">
+                      <MatchupMobileH2hCollapsible
+                        matchupKey={`${slug}-${weekStartDecoded}-${matchupIdx}`}
+                        maxSlots={maxSlots}
+                        rowsLeft={teamData[0].rosterRows}
+                        rowsRight={teamData[1].rosterRows}
+                        leagueSlug={slug}
+                        wrestlerMeta={wrestlerMeta}
+                      />
+                    </div>
                   </>
                 ) : null}
 
@@ -437,61 +434,136 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
                       width: "100%",
                       borderCollapse: "collapse",
                       fontSize: 14,
-                      minWidth: 48 + 48 + 120 * teamData.length,
+                      tableLayout: "fixed",
+                      minWidth:
+                        mu.type === "h2h"
+                          ? 520
+                          : 48 + 48 + Math.max(120, 320 / teamData.length) * teamData.length,
                       borderTop: "1px solid var(--color-border)",
                     }}
                   >
+                    <colgroup>
+                      <col style={{ width: 40 }} />
+                      {mu.type === "h2h" ? (
+                        <>
+                          <col style={{ width: "45%" }} />
+                          <col style={{ width: 48 }} />
+                          <col style={{ width: "45%" }} />
+                        </>
+                      ) : (
+                        teamData.map((_, colIdx) => (
+                          <col
+                            key={`roster-col-${colIdx}`}
+                            style={{ width: `${100 / teamData.length}%` }}
+                          />
+                        ))
+                      )}
+                      <col style={{ width: 40 }} />
+                    </colgroup>
                     <tbody>
                       {Array.from({ length: maxSlots }, (_, rowIdx) => (
                         <tr
                           key={rowIdx}
                           style={{
                             background: rowIdx % 2 === 0 ? "#fff" : "#f8f9fa",
+                            borderTop: "1px solid var(--color-border)",
                           }}
                         >
                           <td
+                            className="matchups-slot-num"
                             style={{
-                              padding: "8px 12px",
+                              padding: "6px 12px",
                               color: "var(--color-text-muted)",
                               borderBottom: "1px solid var(--color-border)",
                               borderRight: "1px solid var(--color-border)",
                               textAlign: "center",
                               fontWeight: 600,
-                              width: 48,
-                              minWidth: 48,
+                              verticalAlign: "top",
                             }}
                           >
                             {rowIdx + 1}
                           </td>
-                          {teamData.map((t, colIdx) => {
-                            const row = t.rosterRows[rowIdx];
-                            const align: "left" | "right" = colIdx === teamData.length - 1 ? "right" : "left";
-                            return (
+                          {mu.type === "h2h" ? (
+                            <>
                               <td
-                                key={t.userId}
-                                className="matchup-roster-td-team"
+                                className="matchups-roster-cell matchup-roster-td-team"
                                 style={{
-                                  padding: "8px 12px",
+                                  padding: "6px 12px",
                                   borderLeft: "1px solid var(--color-border)",
                                   borderBottom: "1px solid var(--color-border)",
-                                  color: row?.wrestlerId ? "var(--color-text)" : "var(--color-text-muted)",
-                                  minWidth: 120,
+                                  color: teamData[0]!.rosterRows[rowIdx]?.wrestlerId
+                                    ? "var(--color-text)"
+                                    : "var(--color-text-muted)",
+                                  verticalAlign: "top",
                                 }}
                               >
-                                <MatchupDetailRosterSlot row={row} leagueSlug={slug} align={align} />
+                                <MatchupDetailRosterSlot
+                                  row={teamData[0]!.rosterRows[rowIdx]}
+                                  leagueSlug={slug}
+                                  align="left"
+                                />
                               </td>
-                            );
-                          })}
+                              <td
+                                className="matchups-vs-cell"
+                                aria-hidden
+                                style={{
+                                  padding: "6px 8px",
+                                  borderLeft: "1px solid var(--color-border)",
+                                  borderRight: "1px solid var(--color-border)",
+                                  borderBottom: "1px solid var(--color-border)",
+                                  verticalAlign: "top",
+                                }}
+                              />
+                              <td
+                                className="matchups-roster-cell matchup-roster-td-team"
+                                style={{
+                                  padding: "6px 12px",
+                                  borderLeft: "1px solid var(--color-border)",
+                                  borderBottom: "1px solid var(--color-border)",
+                                  color: teamData[1]!.rosterRows[rowIdx]?.wrestlerId
+                                    ? "var(--color-text)"
+                                    : "var(--color-text-muted)",
+                                  verticalAlign: "top",
+                                }}
+                              >
+                                <MatchupDetailRosterSlot
+                                  row={teamData[1]!.rosterRows[rowIdx]}
+                                  leagueSlug={slug}
+                                  align="right"
+                                />
+                              </td>
+                            </>
+                          ) : (
+                            teamData.map((t, colIdx) => {
+                              const row = t.rosterRows[rowIdx];
+                              const align: "left" | "right" = colIdx === teamData.length - 1 ? "right" : "left";
+                              return (
+                                <td
+                                  key={t.userId}
+                                  className="matchups-roster-cell matchup-roster-td-team"
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderLeft: "1px solid var(--color-border)",
+                                    borderBottom: "1px solid var(--color-border)",
+                                    color: row?.wrestlerId ? "var(--color-text)" : "var(--color-text-muted)",
+                                    verticalAlign: "top",
+                                  }}
+                                >
+                                  <MatchupDetailRosterSlot row={row} leagueSlug={slug} align={align} />
+                                </td>
+                              );
+                            })
+                          )}
                           <td
+                            className="matchups-slot-num"
                             style={{
-                              padding: "8px 12px",
+                              padding: "6px 12px",
                               color: "var(--color-text-muted)",
                               borderBottom: "1px solid var(--color-border)",
                               borderLeft: "1px solid var(--color-border)",
                               textAlign: "center",
                               fontWeight: 600,
-                              width: 48,
-                              minWidth: 48,
+                              verticalAlign: "top",
                             }}
                           >
                             {rowIdx + 1}
@@ -507,10 +579,6 @@ export default async function LeagueMatchupDetailPage({ params }: Props) {
         </div>
       )}
 
-      <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginTop: 24, lineHeight: 1.5 }}>
-        Event points = roster wrestlers’ points from matches this week. Winner gets +15; Draftastic
-        Championship: +5 (win) or +4 (retain).
-      </p>
       {((league.league_type ?? null) === "head_to_head" ||
         (league.league_type ?? null) === "combo" ||
         league.league_type == null) && (
@@ -598,7 +666,7 @@ function TeamHeaderBlock({
         </div>
       </div>
       <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--color-red)", lineHeight: 1.2 }}>
-        {data.total}
+        {formatMatchupTotalPts(data.total)}
         <span style={{ fontSize: "0.5em", fontWeight: 600, color: "var(--color-text-dim)", marginLeft: 2 }}>
           pts
         </span>

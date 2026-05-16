@@ -19,12 +19,16 @@ import {
   getSundayOfWeek,
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
+  getPointsByOwnerForLeagueWithBonuses,
 } from "@/lib/leagueMatchups";
 import { getMatchupWrestlerChampionTitleLineBySlug } from "@/lib/matchupWrestlerCurrentTitles";
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
+import { formatMatchupTotalPts } from "@/lib/formatMatchupTotalPts";
 import { factionDisplayName } from "@/lib/factionName";
 import { matchupRosterTransactionLines } from "@/lib/formatRosterMovePt";
+import { sortMatchupRosterRowsByWeekPointsDesc } from "@/lib/sortMatchupRosterRowsByWeekPoints";
 import { MatchupOwnerAvatarRing } from "./MatchupOwnerHeading";
+import { MatchupMobileH2hMasthead } from "./MatchupMobileH2h";
 import { MatchupWeekSelector } from "./MatchupWeekSelector";
 
 type Props = {
@@ -129,7 +133,7 @@ function ScoreHeaderCell({
           </div>
         </div>
         <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--color-red)", lineHeight: 1.2 }}>
-          {t.total}
+          {formatMatchupTotalPts(t.total)}
         </div>
         {showBreakdown && bonusLine && (
           <div style={{ fontSize: 11, color: "var(--color-text-muted)", maxWidth: "100%" }}>{bonusLine}</div>
@@ -322,11 +326,13 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
   let monthlyBeltBySlug: Record<string, number> = {};
   let beltWeekEndSunday: string | null = null;
   let championTitleByWrestlerId: Record<string, string | null> = {};
+  let seasonPointsByUserId: Record<string, number> = {};
   if (selectedWeekStart) {
-    const [pts, weekRosters, monthlyBelt] = await Promise.all([
+    const [pts, weekRosters, monthlyBelt, seasonPts] = await Promise.all([
       getPointsByOwnerByWrestlerForWeek(league.id, selectedWeekStart),
       getRostersForLeagueForWeek(league.id, selectedWeekStart),
       getMonthlyBeltBySlugForWeek(league.id, selectedWeekStart),
+      getPointsByOwnerForLeagueWithBonuses(league.id, supabase),
     ]);
     const wrestlerIds = [
       ...new Set(
@@ -347,6 +353,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     );
     championTitleByWrestlerId = await getMatchupWrestlerChampionTitleLineBySlug(wrestlerIds, wrestlerNames);
     rosters = weekRosters;
+    seasonPointsByUserId = seasonPts;
   } else {
     rosters = await getRostersForLeague(league.id);
   }
@@ -426,14 +433,6 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
         <p style={{ color: "var(--color-text-muted)" }}>Select a week above.</p>
       ) : (
         <div className="scoreboard-cards" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {((league.league_type ?? null) === "head_to_head" ||
-            (league.league_type ?? null) === "combo" ||
-            league.league_type == null) && (
-            <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 8px", lineHeight: 1.45 }}>
-              Roster rows show <strong>PT</strong> add/drop times when available. Same-day event scoring requires the
-              add by <strong>5:00 PM PT</strong> (see full matchup for details).
-            </p>
-          )}
           {weekMatchups.map((mu, idx) => {
             const teamData = mu.userIds.map((uid) => {
               const eventPts = matchupForWeek?.pointsByUserId[uid] ?? 0;
@@ -505,6 +504,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                   });
               });
             }
+            const rosterByTeamSorted = rosterByTeam.map((rows) => sortMatchupRosterRowsByWeekPointsDesc(rows));
 
             return (
               <section key={idx} style={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -523,6 +523,36 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                       overflow: "hidden",
                     }}
                   >
+                    {mu.type === "h2h" && teamData[0] && teamData[1] ? (
+                      <div className="matchups-scoreboard-h2h-masthead">
+                        <MatchupMobileH2hMasthead
+                          teamA={{
+                            userId: teamData[0].userId,
+                            label: teamData[0].label,
+                            member: teamData[0].member,
+                            total: teamData[0].total,
+                            eventPts: teamData[0].eventPts,
+                            winBonus: teamData[0].winBonus,
+                            beltBonus: teamData[0].beltBonus,
+                            isWinner: isWinner(teamData[0].userId),
+                            isBeltHolder: matchupForWeek?.beltHolderUserId === teamData[0].userId,
+                            seasonTotalPts: seasonPointsByUserId[teamData[0].userId] ?? 0,
+                          }}
+                          teamB={{
+                            userId: teamData[1].userId,
+                            label: teamData[1].label,
+                            member: teamData[1].member,
+                            total: teamData[1].total,
+                            eventPts: teamData[1].eventPts,
+                            winBonus: teamData[1].winBonus,
+                            beltBonus: teamData[1].beltBonus,
+                            isWinner: isWinner(teamData[1].userId),
+                            isBeltHolder: matchupForWeek?.beltHolderUserId === teamData[1].userId,
+                            seasonTotalPts: seasonPointsByUserId[teamData[1].userId] ?? 0,
+                          }}
+                        />
+                      </div>
+                    ) : null}
                     {/* Single table so score row and roster columns stay aligned */}
                     <div className="matchups-scoreboard-table-wrap">
                     <table
@@ -552,6 +582,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                           </>
                         )}
                       </colgroup>
+                      {mu.type !== "h2h" ? (
                       <thead>
                         {/* Score row: team name + total in same columns as roster */}
                         <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
@@ -570,71 +601,27 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                           >
                             #
                           </td>
-                          {mu.type === "h2h" ? (
-                            <>
-                              <ScoreHeaderCell t={teamData[0]!} isWinner={isWinner(teamData[0]!.userId)} />
-                              <td
-                                className="matchups-vs-cell"
-                                style={{
-                                  padding: "14px 8px",
-                                  background: "var(--color-bg-elevated)",
-                                  borderLeft: "1px solid var(--color-border)",
-                                  borderRight: "1px solid var(--color-border)",
-                                  textAlign: "center",
-                                  verticalAlign: "middle",
-                                  fontSize: 12,
-                                  fontWeight: 800,
-                                  color: "var(--color-text-muted)",
-                                  letterSpacing: "0.05em",
-                                }}
-                              >
-                                VS
-                              </td>
-                              <ScoreHeaderCell t={teamData[1]!} isWinner={isWinner(teamData[1]!.userId)} />
-                              <td
-                                className="matchups-slot-num"
-                                style={{
-                                  padding: "14px 12px",
-                                  background: "var(--color-bg-elevated)",
-                                  borderLeft: "1px solid var(--color-border)",
-                                  verticalAlign: "middle",
-                                  fontWeight: 600,
-                                  fontSize: 12,
-                                  color: "var(--color-text-muted)",
-                                  textAlign: "center",
-                                }}
-                              >
-                                #
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              {teamData.map((t) => (
-                                <ScoreHeaderCell
-                                  key={t.userId}
-                                  t={t}
-                                  isWinner={isWinner(t.userId)}
-                                />
-                              ))}
-                              <td
-                                className="matchups-slot-num"
-                                style={{
-                                  padding: "14px 12px",
-                                  background: "var(--color-bg-elevated)",
-                                  borderLeft: "1px solid var(--color-border)",
-                                  verticalAlign: "middle",
-                                  fontWeight: 600,
-                                  fontSize: 12,
-                                  color: "var(--color-text-muted)",
-                                  textAlign: "center",
-                                }}
-                              >
-                                #
-                              </td>
-                            </>
-                          )}
+                          {teamData.map((t) => (
+                            <ScoreHeaderCell key={t.userId} t={t} isWinner={isWinner(t.userId)} />
+                          ))}
+                          <td
+                            className="matchups-slot-num"
+                            style={{
+                              padding: "14px 12px",
+                              background: "var(--color-bg-elevated)",
+                              borderLeft: "1px solid var(--color-border)",
+                              verticalAlign: "middle",
+                              fontWeight: 600,
+                              fontSize: 12,
+                              color: "var(--color-text-muted)",
+                              textAlign: "center",
+                            }}
+                          >
+                            #
+                          </td>
                         </tr>
                       </thead>
+                      ) : null}
                       <tbody>
                         {Array.from({ length: maxSlots }, (_, rowIdx) => (
                           <tr
@@ -652,19 +639,19 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
                             </td>
                             {mu.type === "h2h" ? (
                               <>
-                                <RosterCell row={rosterByTeam[0]?.[rowIdx]} borderLeft leagueSlug={slug} align="left" />
+                                <RosterCell row={rosterByTeamSorted[0]?.[rowIdx]} borderLeft leagueSlug={slug} align="left" />
                                 <td
                                   className="matchups-vs-cell"
                                   aria-hidden
                                   style={{ borderLeft: "1px solid var(--color-border)", borderRight: "1px solid var(--color-border)" }}
                                 />
-                                <RosterCell row={rosterByTeam[1]?.[rowIdx]} borderLeft leagueSlug={slug} align="right" />
+                                <RosterCell row={rosterByTeamSorted[1]?.[rowIdx]} borderLeft leagueSlug={slug} align="right" />
                               </>
                             ) : (
                               teamData.map((t, colIdx) => (
                                 <RosterCell
                                   key={t.userId}
-                                  row={rosterByTeam[colIdx]?.[rowIdx]}
+                                  row={rosterByTeamSorted[colIdx]?.[rowIdx]}
                                   borderLeft
                                   leagueSlug={slug}
                                   align={colIdx === teamData.length - 1 ? "right" : "left"}
