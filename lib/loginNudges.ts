@@ -1,5 +1,6 @@
 import "server-only";
 
+import { leagueOnboardingPath, leagueUsesMemberOnboarding } from "@/lib/leagueOnboarding";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 
@@ -94,7 +95,7 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
   let memberships: unknown[] | null = null;
   const primary = await supabase
     .from("league_members")
-    .select("league_id, leagues!inner(slug, draft_status, is_archived)")
+    .select("league_id, leagues!inner(slug, draft_status, is_archived, league_type, season_slug)")
     .eq("user_id", user.id);
   if (!primary.error) {
     memberships = primary.data as unknown[] | null;
@@ -117,7 +118,13 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
 
   const leagueRows = (memberships ?? []) as Array<{
     league_id: string;
-    leagues?: { slug?: string | null; draft_status?: string | null; is_archived?: boolean | null } | null;
+    leagues?: {
+      slug?: string | null;
+      draft_status?: string | null;
+      is_archived?: boolean | null;
+      league_type?: string | null;
+      season_slug?: string | null;
+    } | null;
   }>;
   /** Leagues where the draft is not fully finished — prefs still matter (excludes completed + ready_for_review). */
   const eligibleLeagueRows = leagueRows.filter((row) => {
@@ -128,10 +135,21 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
   });
   const leagueIds = eligibleLeagueRows.map((r) => r.league_id);
   const slugByLeagueId = new Map<string, string>();
+  const leagueMetaById = new Map<string, { slug: string; league_type?: string | null; season_slug?: string | null }>();
   for (const row of eligibleLeagueRows) {
     const slug = row.leagues?.slug;
-    if (slug) slugByLeagueId.set(row.league_id, slug);
+    if (slug) {
+      slugByLeagueId.set(row.league_id, slug);
+      leagueMetaById.set(row.league_id, {
+        slug,
+        league_type: row.leagues?.league_type ?? null,
+        season_slug: row.leagues?.season_slug ?? null,
+      });
+    }
   }
+  const draftLeagueIds = eligibleLeagueRows
+    .filter((row) => row.leagues?.league_type !== "salary_cap")
+    .map((r) => r.league_id);
 
   const completedDraftRows = leagueRows.filter((row) => {
     if (Boolean(row.leagues?.is_archived)) return false;
@@ -168,24 +186,26 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
     .from("league_draft_preferences")
     .select("league_id")
     .eq("user_id", user.id)
-    .in("league_id", leagueIds);
+    .in("league_id", draftLeagueIds);
   const prefLeagueIds = new Set(((prefRows ?? []) as { league_id: string }[]).map((r) => r.league_id));
-  const missingLeagueIds = leagueIds.filter((id) => !prefLeagueIds.has(id));
+  const missingLeagueIds = draftLeagueIds.filter((id) => !prefLeagueIds.has(id));
 
   if (missingLeagueIds.length > 0) {
     const cfg = configs.missing_draft_prefs;
     if (cfg.enabled) {
-      const missingSingleSlug = missingLeagueIds.length === 1 ? slugByLeagueId.get(missingLeagueIds[0]) ?? null : null;
-      const href =
-        missingSingleSlug
-          ? `/leagues/${encodeURIComponent(missingSingleSlug)}/draft/preferences`
-          : cfg.primary_cta_href || "/leagues";
+      const missingSingleId = missingLeagueIds.length === 1 ? missingLeagueIds[0] : null;
+      const missingSingleMeta = missingSingleId ? leagueMetaById.get(missingSingleId) ?? null : null;
+      const href = missingSingleMeta
+        ? leagueUsesMemberOnboarding(missingSingleMeta)
+          ? leagueOnboardingPath(missingSingleMeta.slug)
+          : `/leagues/${encodeURIComponent(missingSingleMeta.slug)}/draft/preferences`
+        : cfg.primary_cta_href || "/leagues";
       nudges.push({
         key: cfg.nudge_key,
         title: cfg.title,
         body: renderTemplate(cfg.body, {
           missing_count: missingLeagueIds.length,
-          league_count: leagueIds.length,
+          league_count: draftLeagueIds.length,
         }),
         primaryCta:
           cfg.primary_cta_label && href

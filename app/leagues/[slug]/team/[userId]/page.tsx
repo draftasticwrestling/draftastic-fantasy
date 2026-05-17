@@ -48,7 +48,7 @@ import {
 } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormalize";
-import { getTeamScoringAudit } from "@/lib/teamScoring";
+import { getFactionStintPointsFromAudit, getTeamScoringAudit } from "@/lib/teamScoring";
 import { factionDisplayName } from "@/lib/factionName";
 import { getTodayTomorrowYmdET } from "@/lib/home/hubHomeEvents";
 import type { LeagueEventDayRow } from "@/lib/league/eventDayRosterMatches";
@@ -387,11 +387,9 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   if (simpleFactionView) {
     const initialLayout = layoutParam === "list" || layoutParam === "cards" || layoutParam === "matches" ? layoutParam : null;
     const rosterCardWrestlers = rosterTableRows.map((w) => {
-      const a = teamScoringAudit.totalsByWrestler[w.id];
-      const rsPoints = a?.rsPoints ?? w.rsPoints ?? 0;
-      const plePoints = a?.plePoints ?? w.plePoints ?? 0;
-      const beltPoints = Math.max(a?.beltPoints ?? 0, w.beltPoints ?? 0);
-      const totalPoints = rsPoints + plePoints + beltPoints;
+      const stintPts = getFactionStintPointsFromAudit(teamScoringAudit, w.id);
+      const { rsPoints, plePoints, beltPoints } = stintPts;
+      const totalPoints = stintPts.total;
       return {
         id: w.id,
         name: w.name,
@@ -878,12 +876,9 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         {rosterTableRows.length > 0 ? (
           <RosterCardGrid
             wrestlers={rosterTableRows.map((w) => {
-              const a = teamScoringAudit.totalsByWrestler[w.id];
-              const rsPoints = a?.rsPoints ?? w.rsPoints ?? 0;
-              const plePoints = a?.plePoints ?? w.plePoints ?? 0;
-              // Audit uses the same belt rules but can lag behind row math (e.g. tag member expansion); show the higher BELT value.
-              const beltPoints = Math.max(a?.beltPoints ?? 0, w.beltPoints ?? 0);
-              const totalPoints = rsPoints + plePoints + beltPoints;
+              const stintPts = getFactionStintPointsFromAudit(teamScoringAudit, w.id);
+              const { rsPoints, plePoints, beltPoints } = stintPts;
+              const totalPoints = stintPts.total;
               return {
                 id: w.id,
                 name: w.name,

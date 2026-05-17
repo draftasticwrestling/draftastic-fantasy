@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getLeagueBySlug, joinLeagueWithCode, joinLeagueWithToken } from "@/lib/leagues";
-import { leagueOnboardingPath } from "@/lib/leagueStructure";
+import { leaguePostJoinPath } from "@/lib/leagueOnboarding";
 
 /**
  * POST /api/leagues/join — join with invite token or permanent league code.
@@ -35,7 +35,10 @@ export async function POST(request: Request) {
     }
     const league = result.league_slug ? await getLeagueBySlug(result.league_slug) : null;
     const redirect_to = result.league_slug
-      ? leagueOnboardingPath(result.league_slug, league?.league_type ?? null)
+      ? leaguePostJoinPath(result.league_slug, {
+          league_type: league?.league_type ?? null,
+          season_slug: league?.season_slug ?? null,
+        })
       : "/leagues";
 
     return NextResponse.json({

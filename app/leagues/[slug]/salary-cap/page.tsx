@@ -8,6 +8,7 @@ import { isHiddenCanonicalListSlug } from "@/lib/scoring/personaResolution.js";
 import { isValidSalaryCapCost } from "@/lib/salaryCap";
 import { loadSalaryCap2026StatsByWrestlerId } from "@/lib/salaryCap2026Stats";
 import { loadWrestlerCurrentChampionshipContext } from "@/lib/wrestlerCurrentChampionships";
+import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
 import { SalaryCapRosterBuilder } from "./SalaryCapRosterBuilder";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -47,6 +48,11 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
     .eq("user_id", user.id)
     .maybeSingle();
   if (!member) notFound();
+
+  const { needsOnboarding } = await resolveMemberOnboardingState(supabase, league.id, league, user.id);
+  if (needsOnboarding) {
+    redirect(leagueOnboardingPath(slug));
+  }
 
   const leagueRow = league as { salary_cap_budget?: number | null; draft_status?: string | null };
   const budget =

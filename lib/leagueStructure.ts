@@ -38,12 +38,6 @@ export function leagueUsesSalaryCap(leagueType: string | null | undefined): bool
   return leagueType === SALARY_CAP_LEAGUE_TYPE;
 }
 
-/** First page after create/join — salary cap leagues go straight to roster build. */
-export function leagueOnboardingPath(slug: string, leagueType: string | null | undefined): string {
-  if (leagueUsesSalaryCap(leagueType)) return `/leagues/${slug}/salary-cap`;
-  return `/leagues/${slug}`;
-}
-
 /** Weekly PST title-hold belt (Mon–Sun week; credits once all PWBS events in that week are completed). */
 export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefined): boolean {
   return (

@@ -529,6 +529,14 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     })
     .sort((a, b) => b.releasedAt.localeCompare(a.releasedAt));
 
+  // Active roster wrestlers with zero stint points are omitted from event/belt loops; seed so
+  // UI can show 0 on cards instead of falling back to season-wide wrestler totals.
+  for (const s of activeStints) {
+    if (!totalsByWrestler[s.wrestler_id]) {
+      totalsByWrestler[s.wrestler_id] = emptyPoints();
+    }
+  }
+
   const teamTotal = Object.values(totalsByWrestler).reduce((sum, p) => sum + p.total, 0);
 
   return {
@@ -538,4 +546,12 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     activeStints,
     teamTotal,
   };
+}
+
+/** Points earned while on this faction only (for roster cards / tables). */
+export function getFactionStintPointsFromAudit(
+  audit: TeamScoringAudit,
+  wrestlerId: string
+): TeamWrestlerPoints {
+  return audit.totalsByWrestler[wrestlerId] ?? emptyPoints();
 }

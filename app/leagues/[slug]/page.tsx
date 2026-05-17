@@ -45,6 +45,7 @@ import { LeagueLevelUpBanner } from "./LeagueLevelUpBanner";
 import { getLeagueHomeLeaderboards } from "@/lib/weeklyLeaderboards";
 import { isLeagueHomeTop10Visible } from "@/lib/leagueHomeLeaderboardsGate";
 import { LeagueHomeSidebarTop10 } from "./LeagueHomeSidebarTop10";
+import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -126,6 +127,18 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     await processTradeTimerDeadlines();
 
     const { supabase, user: currentUser } = await getServerAuth();
+
+    if (currentUser) {
+      const { needsOnboarding } = await resolveMemberOnboardingState(
+        supabase,
+        league.id,
+        league,
+        currentUser.id
+      );
+      if (needsOnboarding) {
+        redirect(leagueOnboardingPath(slug));
+      }
+    }
 
     const [membersData, rostersData, wrestlersData, pointsByOwner] = await Promise.all([
       getLeagueMembers(league.id),

@@ -303,9 +303,9 @@ export async function saveDraftPreferencesAction(
 
 /** Form action for draft preferences: receives FormData from form submit (avoids client action reference 404). */
 export async function saveDraftPreferencesFormAction(
-  _prevState: { error?: string } | null,
+  _prevState: { error?: string; redirectTo?: string } | null,
   formData: FormData
-): Promise<{ error?: string } | null> {
+): Promise<{ error?: string; redirectTo?: string } | null> {
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return { error: "League slug is required." };
   const { getLeagueBySlug } = await import("@/lib/leagues");
@@ -362,5 +362,13 @@ export async function saveDraftPreferencesFormAction(
     priorityListSource,
   });
   if (result.error) return { error: result.error };
+
+  if (formData.get("from_onboarding") === "1") {
+    const { completeLeagueOnboardingAction } = await import("../onboarding/actions");
+    const complete = await completeLeagueOnboardingAction(leagueSlug);
+    if (complete.error) return { error: complete.error };
+    return { redirectTo: complete.redirectTo ?? `/leagues/${leagueSlug}` };
+  }
+
   return null;
 }

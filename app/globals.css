@@ -6753,3 +6753,198 @@ button.hub-leaderboard-week-nav-btn:disabled {
     padding: 22px 16px 16px;
   }
 }
+
+/* Per-league onboarding wizard (create/join → faction + draft prefs) */
+.league-onboarding-page {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+.league-onboarding-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.league-onboarding-progress {
+  height: 6px;
+  margin-bottom: 1.25rem;
+  border-radius: 999px;
+  background: var(--color-bg-elevated);
+  overflow: hidden;
+}
+
+.league-onboarding-progress__bar {
+  height: 100%;
+  min-width: 4px;
+  border-radius: 999px;
+  background: var(--color-blue);
+  transition: width 0.2s ease;
+}
+
+.league-onboarding-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.league-onboarding-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: var(--color-text);
+}
+
+.league-onboarding-sub {
+  margin: 0 0 1.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.league-onboarding-avatar-preview {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.league-onboarding-message {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.league-onboarding-message--err {
+  background: rgba(220, 53, 69, 0.12);
+  color: #f5c2c7;
+  border: 1px solid rgba(220, 53, 69, 0.35);
+}
+
+.league-onboarding-message--ok {
+  background: rgba(25, 135, 84, 0.12);
+  color: #a3cfbb;
+  border: 1px solid rgba(25, 135, 84, 0.35);
+}
+
+.league-onboarding-step h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+  color: var(--color-text);
+}
+
+.league-onboarding-step p {
+  margin: 0 0 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.league-onboarding-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.league-onboarding-label span {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.league-onboarding-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.league-onboarding-input:focus {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 1px;
+}
+
+.league-onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.league-onboarding-summary {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+}
+
+.league-onboarding-summary__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.league-onboarding-summary__name {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-text);
+}
+
+.league-onboarding-summary__catch {
+  margin-top: 0.25rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.league-onboarding-summary__muted {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.league-onboarding-avatar-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.league-onboarding-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.league-onboarding-avatar-fallback--sm {
+  width: 56px;
+  height: 56px;
+  font-size: 1.25rem;
+}
+
+.league-onboarding-callout {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}

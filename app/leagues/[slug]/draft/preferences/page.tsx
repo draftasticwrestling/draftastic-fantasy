@@ -26,7 +26,10 @@ import {
 } from "@/lib/betaAutopickSchedule";
 import { DraftPreferencesForm } from "./DraftPreferencesForm";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ from?: string }>;
+};
 
 export const metadata = {
   title: "Auto-draft preferences — Draftastic Fantasy",
@@ -35,8 +38,10 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function DraftPreferencesPage({ params }: Props) {
+export default async function DraftPreferencesPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const search = searchParams ? await searchParams : {};
+  const fromOnboarding = search.from === "onboarding";
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
@@ -285,10 +290,21 @@ export default async function DraftPreferencesPage({ params }: Props) {
   return (
     <main className="app-page" style={{ maxWidth: 640, margin: "0 auto", padding: "2rem 1rem", fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 24 }}>
-        <Link href={`/leagues/${slug}/draft`} className="app-link">
-          ← Back to draft
+        <Link
+          href={fromOnboarding ? `/leagues/${slug}/onboarding` : `/leagues/${slug}/draft`}
+          className="app-link"
+        >
+          {fromOnboarding ? "← Back to league setup" : "← Back to draft"}
         </Link>
       </p>
+      {fromOnboarding ? (
+        <div className="league-onboarding-callout" style={{ marginBottom: 24 }}>
+          <p style={{ margin: 0 }}>
+            <strong>League setup:</strong> Save your auto-draft list below, then return to setup to finish joining{" "}
+            <strong>{league.name}</strong>.
+          </p>
+        </div>
+      ) : null}
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem", color: "var(--color-text)" }}>
         Auto-draft preferences
       </h1>
@@ -325,6 +341,7 @@ export default async function DraftPreferencesPage({ params }: Props) {
         autopickRequiredPriorityCount={autopickRequiredPriorityCount}
         availableBigBoardIds={availableBigBoardIds}
         disabled={!canEdit}
+        fromOnboarding={fromOnboarding}
       />
     </main>
   );

@@ -9,7 +9,7 @@ import {
 } from "@/lib/leagueCreationAccess";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
-import { leagueOnboardingPath, leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import { leaguePostJoinPath } from "@/lib/leagueOnboarding";
 
 export type CreateLeagueState = { error?: string } | null;
 
@@ -134,8 +134,12 @@ export async function createLeagueAction(
   if (error) return { error };
   if (!league) return { error: "Failed to create league." };
 
-  if (leagueUsesSalaryCap(league.league_type)) {
-    redirect(leagueOnboardingPath(league.slug, league.league_type));
+  const dest = leaguePostJoinPath(league.slug, {
+    league_type: league.league_type,
+    season_slug: league.season_slug ?? null,
+  });
+  if (dest.includes("/onboarding")) {
+    redirect(dest);
   }
-  redirect(`${leagueOnboardingPath(league.slug, league.league_type)}?invite=1`);
+  redirect(`${dest}?invite=1`);
 }

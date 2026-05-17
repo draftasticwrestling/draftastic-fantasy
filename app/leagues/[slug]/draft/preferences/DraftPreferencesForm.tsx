@@ -119,6 +119,7 @@ type Props = {
   autopickRequiredPriorityCount?: number;
   availableBigBoardIds?: BigBoardId[];
   disabled?: boolean;
+  fromOnboarding?: boolean;
 };
 
 export function DraftPreferencesForm({
@@ -130,6 +131,7 @@ export function DraftPreferencesForm({
   autopickRequiredPriorityCount = 50,
   availableBigBoardIds = [...BIG_BOARD_IDS],
   disabled = false,
+  fromOnboarding = false,
 }: Props) {
   const minPreferred = isAutopickLeague ? autopickRequiredPriorityCount : MIN_PRIORITY;
   const availableBoardSet = useMemo(() => new Set<BigBoardId>(availableBigBoardIds), [availableBigBoardIds]);
@@ -153,7 +155,10 @@ export function DraftPreferencesForm({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const router = useRouter();
   const priorityListInputRef = useRef<HTMLInputElement>(null);
-  const [formState, formAction] = useActionState(saveDraftPreferencesFormAction, null as { error?: string } | null);
+  const [formState, formAction] = useActionState(
+    saveDraftPreferencesFormAction,
+    null as { error?: string; redirectTo?: string } | null
+  );
 
   useEffect(() => {
     if (priorityListInputRef.current) {
@@ -163,12 +168,19 @@ export function DraftPreferencesForm({
 
   useEffect(() => {
     if (formState != null && !formState.error) {
-      setMessage({ type: "success", text: "Preferences saved." });
+      if (formState.redirectTo) {
+        router.push(formState.redirectTo);
+        return;
+      }
+      setMessage({
+        type: "success",
+        text: fromOnboarding ? "Preferences saved. Return to league setup to finish." : "Preferences saved.",
+      });
       router.refresh();
     } else if (formState?.error) {
       setMessage({ type: "error", text: formState.error });
     }
-  }, [formState, router]);
+  }, [formState, fromOnboarding, router]);
 
   const wrestlerLookup = useMemo(() => buildWrestlerLookup(wrestlerOptions), [wrestlerOptions]);
   const availableToAdd = useMemo(
@@ -345,6 +357,7 @@ export function DraftPreferencesForm({
   return (
     <form action={formAction} onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <input type="hidden" name="league_slug" value={leagueSlug} />
+      {fromOnboarding ? <input type="hidden" name="from_onboarding" value="1" /> : null}
       <input type="hidden" name="list_source" value={listSource} />
       <input ref={priorityListInputRef} type="hidden" name="priority_list" defaultValue={JSON.stringify(priorityList)} />
       {isAutopickLeague && hasProvidedBoards && (
