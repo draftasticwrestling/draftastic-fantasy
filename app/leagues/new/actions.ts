@@ -9,11 +9,18 @@ import {
 } from "@/lib/leagueCreationAccess";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
+import { leagueOnboardingPath, leagueUsesSalaryCap } from "@/lib/leagueStructure";
 
 export type CreateLeagueState = { error?: string } | null;
 
 /** Matches DB / createLeague; site admins may pick any of these. */
-const ADMIN_LEAGUE_TYPES = new Set(["season_overall", "head_to_head", "combo", "legacy"]);
+const ADMIN_LEAGUE_TYPES = new Set([
+  "season_overall",
+  "head_to_head",
+  "combo",
+  "legacy",
+  "salary_cap",
+]);
 
 const BETA_MIN_TEAMS = 3;
 const BETA_MAX_TEAMS = 6;
@@ -127,5 +134,8 @@ export async function createLeagueAction(
   if (error) return { error };
   if (!league) return { error: "Failed to create league." };
 
-  redirect(`/leagues/${league.slug}?invite=1`);
+  if (leagueUsesSalaryCap(league.league_type)) {
+    redirect(leagueOnboardingPath(league.slug, league.league_type));
+  }
+  redirect(`${leagueOnboardingPath(league.slug, league.league_type)}?invite=1`);
 }

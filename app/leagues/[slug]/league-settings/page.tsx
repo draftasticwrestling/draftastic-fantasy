@@ -113,7 +113,13 @@ export default async function LeagueSettingsPage({
               League Type
             </h2>
             <p style={{ color: "var(--color-text-muted)" }}>
-              {leagueType === "season_overall" ? "Total Season Points" : leagueType === "head_to_head" ? "Head to Head Points" : leagueType ?? "—"}
+              {leagueType === "season_overall"
+                ? "Total Season Points"
+                : leagueType === "salary_cap"
+                  ? "Salary Cap — Total Season Points"
+                  : leagueType === "head_to_head"
+                    ? "Head to Head Points"
+                    : leagueType ?? "—"}
             </p>
           </section>
           <section aria-labelledby="draft-settings-heading" style={{ marginBottom: 32 }}>

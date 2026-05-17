@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/lib/leagueMatchups";
 import {
   getRosterRulesForLeague,
+  leagueUsesSalaryCap,
   ROAD_TO_SUMMERSLAM_BANNER_SRC,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
 } from "@/lib/leagueStructure";
@@ -52,6 +53,7 @@ function formatLeagueType(type: string | null | undefined): string {
     case "head_to_head": return "Head-to-Head";
     case "combo": return "Combo League (H2H+Total Season Points)";
     case "legacy": return "Legacy";
+    case "salary_cap": return "Salary Cap — Total Season Points";
     default: return type;
   }
 }
@@ -147,6 +149,18 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     rosters = rostersData;
     wrestlersResult = wrestlersData;
     const pointsByUserId = pointsByOwner ?? {};
+
+    if (
+      currentUser &&
+      leagueUsesSalaryCap(league.league_type) &&
+      (rosters[currentUser.id] ?? []).length === 0
+    ) {
+      const search = searchParams ? await searchParams : {};
+      const skipBuild = search?.skip_salary_cap === "1";
+      if (!skipBuild) {
+        redirect(`/leagues/${slug}/salary-cap`);
+      }
+    }
 
     const rosterRules = getRosterRulesForLeague(
       members.length,
@@ -281,7 +295,16 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const maxTeams = league.max_teams ?? 12;
     const leagueNotFull = members.length < maxTeams;
     const showAlert = isCommissioner && leagueNotFull;
-    const showPrepareForDraft = (league.draft_status ?? "not_started") === "not_started";
+    const myRosterCount = currentUser ? (rosters[currentUser.id] ?? []).length : 0;
+    const showPrepareForDraft = leagueUsesSalaryCap(league.league_type)
+      ? myRosterCount === 0 || (league.draft_status ?? "in_progress") === "in_progress"
+      : (league.draft_status ?? "not_started") === "not_started";
+    const rosterBuildHref = leagueUsesSalaryCap(league.league_type)
+      ? `/leagues/${slug}/salary-cap`
+      : `/leagues/${slug}/draft`;
+    const prepareForDraftLabel = leagueUsesSalaryCap(league.league_type)
+      ? "Build your salary cap roster"
+      : "Prepare for your draft";
 
     const myTeamName = factionDisplayName(currentUserMember, "My Faction");
     const myManagerName = truncateFactionDisplay(
@@ -421,7 +444,12 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                   {(league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE"}
                 </Link>
               </li>
-              <li><Link href={`/leagues/${slug}/draft`}><span className="lm-quick-link-icon">⚙</span> Draft</Link></li>
+              <li>
+                <Link href={rosterBuildHref}>
+                  <span className="lm-quick-link-icon">⚙</span>{" "}
+                  {leagueUsesSalaryCap(league.league_type) ? "Salary cap" : "Draft"}
+                </Link>
+              </li>
               <li><Link href={`/leagues/${slug}/wrestlers/league-leaders`}><span className="lm-quick-link-icon">👤</span> Wrestlers</Link></li>
               <li><Link href="/"><span className="lm-quick-link-icon">⌂</span> Home</Link></li>
             </ul>
@@ -443,7 +471,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                 {(league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE"}
               </Link>
               <span className="lm-subnav-sep">|</span>
-              <Link href={`/leagues/${slug}/draft`}>Draft</Link>
+              <Link href={rosterBuildHref}>
+                {leagueUsesSalaryCap(league.league_type) ? "Salary cap" : "Draft"}
+              </Link>
             </nav>
             <p className="lm-league-meta">
               <span>GM: {creatorLabel}</span>
@@ -466,8 +496,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                   showInviteButton
                 />
                 {showPrepareForDraft && (
-                  <Link href={`/leagues/${slug}/draft`} className="lm-btn-secondary">
-                    Prepare for your draft
+                  <Link href={rosterBuildHref} className="lm-btn-secondary">
+                    {prepareForDraftLabel}
                   </Link>
                 )}
                 <Link href={`/leagues/${slug}/proposals`} className="lm-btn-secondary">
@@ -477,8 +507,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             )}
             {!isCommissioner && showPrepareForDraft && (
               <div className="lm-actions">
-                <Link href={`/leagues/${slug}/draft`} className="lm-btn-secondary">
-                  Prepare for your draft
+                <Link href={rosterBuildHref} className="lm-btn-secondary">
+                  {prepareForDraftLabel}
                 </Link>
               </div>
             )}

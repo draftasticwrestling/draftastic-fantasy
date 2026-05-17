@@ -16,6 +16,12 @@ const LEAGUE_TYPES: Array<{
       "Earn as many points as possible over the entire season to win the championship.",
   },
   {
+    value: "salary_cap",
+    label: "Salary Cap — Total Season Points",
+    description:
+      "Site admin testing: $100 budget per faction, wrestlers priced $5–$25; same season scoring; wrestlers not exclusive across factions.",
+  },
+  {
     value: "head_to_head",
     label: "Head to Head Points",
     description:

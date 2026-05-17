@@ -156,7 +156,7 @@ export async function updateDraftSettingsFormAction(
 }
 
 const TEAM_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const;
-const VALID_LEAGUE_TYPES = ["season_overall", "head_to_head", "combo", "legacy"] as const;
+const VALID_LEAGUE_TYPES = ["season_overall", "head_to_head", "combo", "legacy", "salary_cap"] as const;
 
 export async function updateBasicSettingsAction(
   leagueSlug: string,

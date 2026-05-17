@@ -40,7 +40,12 @@ import {
   beltScoringLastWeekEndSundayInclusive,
   firstEligibleWeekEndSundayForLeagueStart,
 } from "@/lib/beltWeeklyHold";
-import { leagueIncludesNxt, leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import {
+  leagueIncludesNxt,
+  leagueUsesSalaryCap,
+  leagueUsesWeeklyPstBeltHold,
+  ROAD_TO_SUMMERSLAM_SEASON_SLUG,
+} from "@/lib/leagueStructure";
 import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
@@ -133,10 +138,17 @@ export default async function WrestlersFreeAgentsPage({
     }))
   );
   const error = wrestlersResult.error;
+  const isSalaryCap = leagueUsesSalaryCap(league.league_type);
   const onRosterIds = new Set<string>();
-  for (const entries of Object.values(rosters ?? {})) {
-    for (const e of entries) {
+  if (isSalaryCap && user) {
+    for (const e of rosters[user.id] ?? []) {
       onRosterIds.add(String(e.wrestler_id).toLowerCase());
+    }
+  } else {
+    for (const entries of Object.values(rosters ?? {})) {
+      for (const e of entries) {
+        onRosterIds.add(String(e.wrestler_id).toLowerCase());
+      }
     }
   }
 

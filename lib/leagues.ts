@@ -228,6 +228,9 @@ export async function createLeague(params: {
 
   const draft_date = null;
   const league_type = params.league_type?.trim() || null;
+  if (league_type === "salary_cap" && !isSiteAdmin) {
+    return { error: "Only site administrators can create salary cap leagues." };
+  }
   const include_nxt_requested = Boolean(params.include_nxt);
   if (include_nxt_requested && !isSiteAdmin) {
     return { error: "Only site administrators can create leagues that include NXT." };
@@ -262,6 +265,7 @@ export async function createLeague(params: {
       slug = makeSlugUnique(baseSlugPrivate, existingSlugs);
     }
     const join_code = generateJoinCode();
+    const isSalaryCapLeague = league_type === "salary_cap";
     const result = await admin
       .from("leagues")
       .insert({
@@ -273,9 +277,10 @@ export async function createLeague(params: {
         season_slug: seasonSlug,
         draft_date,
         draft_time: null,
-        draft_type: "autopick",
+        draft_type: isSalaryCapLeague ? "salary_cap" : "autopick",
         draft_style: "snake",
-        draft_order_method: "random_one_hour_before",
+        draft_order_method: isSalaryCapLeague ? "manual_by_gm" : "random_one_hour_before",
+        draft_status: isSalaryCapLeague ? "in_progress" : "not_started",
         league_type,
         include_nxt,
         max_teams,
@@ -1304,8 +1309,16 @@ export async function addWrestlerToRoster(
   if (!wid) return { error: "Wrestler is required" };
   const equivalentIds = [...new Set(draftEquivalentSlugs(wid).map((s) => s.trim()).filter(Boolean))];
 
-  // Keep dual-identity wrestlers mutually exclusive across faction rosters in the same league.
-  if (equivalentIds.length > 0) {
+  const { data: leagueTypeRow } = await supabase
+    .from("leagues")
+    .select("league_type, salary_cap_budget")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const leagueType = (leagueTypeRow as { league_type?: string | null } | null)?.league_type ?? null;
+  const isSalaryCap = leagueType === "salary_cap";
+
+  // Keep dual-identity wrestlers mutually exclusive across faction rosters (not in salary cap leagues).
+  if (!isSalaryCap && equivalentIds.length > 0) {
     const { data: leagueRows } = await supabase
       .from("league_rosters")
       .select("user_id, wrestler_id")
@@ -1321,6 +1334,12 @@ export async function addWrestlerToRoster(
 
   const rules = await getRosterRulesForLeagueId(supabase, leagueId);
 
+  if (isSalaryCap) {
+    const { validateSalaryCapAdd } = await import("@/lib/salaryCap");
+    const capCheck = await validateSalaryCapAdd(supabase, leagueId, userId, wid);
+    if (capCheck.error) return { error: capCheck.error };
+  }
+
   let brandForPool: string | null = null;
 
   if (rules) {
@@ -1335,7 +1354,7 @@ export async function addWrestlerToRoster(
     if (equivalentIds.some((id) => currentIds.includes(id))) {
       return { error: "That wrestler (or an alter ego of that wrestler) is already on this roster." };
     }
-    if (currentIds.length >= rules.rosterSize) {
+    if (!isSalaryCap && currentIds.length >= rules.rosterSize) {
       return { error: `Roster full (max ${rules.rosterSize} wrestlers).` };
     }
 
@@ -1360,7 +1379,11 @@ export async function addWrestlerToRoster(
     const newMale = currentMale + (newWrestlerGender === "M" ? 1 : 0);
     const newCount = currentIds.length + 1;
 
-    if (newCount === rules.rosterSize && (newFemale < rules.minFemale || newMale < rules.minMale)) {
+    if (
+      !isSalaryCap &&
+      newCount === rules.rosterSize &&
+      (newFemale < rules.minFemale || newMale < rules.minMale)
+    ) {
       return {
         error: `Roster must have at least ${rules.minFemale} female and ${rules.minMale} male wrestlers when full. Current would be ${newFemale}F / ${newMale}M.`,
       };

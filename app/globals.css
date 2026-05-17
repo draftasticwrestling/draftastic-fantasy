@@ -2814,11 +2814,13 @@ body > .site-footer {
 .invite-success-backdrop {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background: rgba(0, 0, 0, 0.4);
 }
 
 .invite-success-modal {
   position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 420px;
   background: var(--color-bg-card);
@@ -2966,6 +2968,172 @@ body > .site-footer {
   margin: 0;
   font-size: 14px;
   color: var(--color-red);
+}
+
+/* --- Salary cap roster build --- */
+.salary-cap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.salary-cap-pool__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.salary-cap-pool__search {
+  flex: 1 1 160px;
+  max-width: 220px;
+  padding: 8px 10px;
+  font-size: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-input);
+  color: var(--color-text);
+}
+
+.salary-cap-pool__scroll {
+  max-height: min(560px, 70vh);
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.salary-cap-pool__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.salary-cap-pool__table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 8px;
+  text-align: left;
+  font-weight: 600;
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.salary-cap-pool__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+.salary-cap-pool__sort:hover {
+  color: var(--color-blue);
+}
+
+.salary-cap-pool__sort--active {
+  color: var(--color-blue);
+}
+
+.salary-cap-pool__num .salary-cap-pool__sort {
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.salary-cap-pool__table td {
+  padding: 8px 8px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.salary-cap-pool__name-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.salary-cap-pool__headshot {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-bg-input);
+}
+
+.salary-cap-pool__wrestler-name {
+  display: block;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.salary-cap-pool__name-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.salary-cap-pool__brand {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.2;
+}
+
+.salary-cap-pool__champion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b8860b;
+  line-height: 1.25;
+}
+
+.salary-cap-pool__belt {
+  width: 48px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.salary-cap-pool__inj {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-red);
+  letter-spacing: 0.04em;
+}
+
+.salary-cap-pool__row--champ {
+  background: color-mix(in srgb, #b8860b 6%, transparent);
+}
+
+.salary-cap-pool__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.salary-cap-pool__cost {
+  font-weight: 700;
+}
+
+.salary-cap-pool__total {
+  font-weight: 700;
+  color: var(--color-blue);
 }
 
 /* --- League Manager dashboard (two-column, cards, commissioner view) --- */

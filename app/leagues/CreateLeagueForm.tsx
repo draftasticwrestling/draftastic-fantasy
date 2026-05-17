@@ -49,6 +49,12 @@ const LEAGUE_TYPES: Array<{
       "Draft your wrestlers and sign them to long-term contracts. Then go to work building your dynasty! This one is for die hard fans that want to play the long game.",
     comingSoon: true,
   },
+  {
+    id: "salary_cap",
+    title: "Salary Cap — Total Season Points",
+    description:
+      "Site admin testing: $100 budget per faction, wrestlers priced $5–$25. Same season scoring as Total Season Points; wrestlers are not exclusive across factions.",
+  },
 ];
 
 type FormProps = {
@@ -249,7 +255,10 @@ export function CreateLeagueForm({
         <label>League Format *</label>
         <div className="create-league-type-grid">
           {LEAGUE_TYPES.map((opt) => {
-            const locked = !!(opt.comingSoon && (!adminFullMode || opt.id !== "head_to_head"));
+            const locked = !!(
+              opt.comingSoon &&
+              (!adminFullMode || (opt.id !== "head_to_head" && opt.id !== "salary_cap"))
+            );
             return (
             <button
               key={opt.id}

@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const ADMIN_TYPES = new Set(["season_overall", "head_to_head", "combo", "legacy"]);
+    const ADMIN_TYPES = new Set(["season_overall", "head_to_head", "combo", "legacy", "salary_cap"]);
     const league_type =
       isSiteAdmin && league_type_raw
         ? ADMIN_TYPES.has(league_type_raw)

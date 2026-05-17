@@ -30,7 +30,7 @@ import { MakePickForm } from "./MakePickForm";
 import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
 import { CommissionerDraftActions } from "./CommissionerDraftActions";
-import { getRosterRulesForLeague, leagueIncludesNxt } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, leagueIncludesNxt, leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
@@ -93,6 +93,9 @@ export default async function LeagueDraftPage({ params }: Props) {
   try {
     league = await getLeagueBySlug(slug);
     if (!league) notFound();
+    if (leagueUsesSalaryCap(league.league_type) || String(league.draft_type ?? "") === "salary_cap") {
+      redirect(`/leagues/${slug}/salary-cap`);
+    }
 
     const { supabase: serverSupabase } = await getServerAuth();
 

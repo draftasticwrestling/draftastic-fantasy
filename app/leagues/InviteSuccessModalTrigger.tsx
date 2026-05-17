@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { InviteSuccessModal } from "./InviteSuccessModal";
 
@@ -24,11 +24,21 @@ export function InviteSuccessModalTrigger({
 }: Props) {
   const router = useRouter();
   const [localOpen, setLocalOpen] = useState(false);
-  const showModal = show || localOpen;
+  /** Dismisses post-create modal while ?invite=1 is still in the URL until navigation finishes. */
+  const [dismissedFromCreate, setDismissedFromCreate] = useState(false);
+
+  useEffect(() => {
+    if (show) setDismissedFromCreate(false);
+  }, [show]);
+
+  const showModal = localOpen || (show && !dismissedFromCreate);
 
   const handleClose = () => {
     setLocalOpen(false);
-    router.replace(`/leagues/${leagueSlug}`);
+    if (show) {
+      setDismissedFromCreate(true);
+      router.replace(`/leagues/${leagueSlug}`, { scroll: false });
+    }
   };
 
   return (

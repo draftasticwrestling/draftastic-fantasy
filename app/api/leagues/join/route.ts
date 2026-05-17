@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { joinLeagueWithCode, joinLeagueWithToken } from "@/lib/leagues";
+import { getLeagueBySlug, joinLeagueWithCode, joinLeagueWithToken } from "@/lib/leagues";
+import { leagueOnboardingPath } from "@/lib/leagueStructure";
 
 /**
  * POST /api/leagues/join — join with invite token or permanent league code.
@@ -32,9 +33,15 @@ export async function POST(request: Request) {
       const isFull = /league is full/i.test(err);
       return NextResponse.json({ error: err }, { status: isFull ? 409 : 400 });
     }
+    const league = result.league_slug ? await getLeagueBySlug(result.league_slug) : null;
+    const redirect_to = result.league_slug
+      ? leagueOnboardingPath(result.league_slug, league?.league_type ?? null)
+      : "/leagues";
+
     return NextResponse.json({
       ok: true,
       league_slug: result.league_slug,
+      redirect_to,
       message: result.message,
     });
   } catch (err) {

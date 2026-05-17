@@ -5,8 +5,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getRosterRulesForLeagueId } from "@/lib/leagueStructure";
+import { getRosterRulesForLeagueId, leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { getActivePerEvent } from "@/lib/leagueStructure";
+import { getActivePerEventForSalaryCapRosterCount } from "@/lib/salaryCap";
 import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 import { removeWrestlerFromRoster } from "@/lib/leagues";
 import { addWrestlerToRoster } from "@/lib/leagues";
@@ -199,8 +200,25 @@ export async function setLineupForEvent(
   const eventLock = await getInEventLockMessage(supabase);
   if (eventLock) return { error: eventLock };
 
+  const { data: leagueLineupMeta } = await supabase
+    .from("leagues")
+    .select("league_type")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const lineupLeagueType = (leagueLineupMeta as { league_type?: string | null } | null)?.league_type ?? null;
+
+  const { data: rosterCountRows } = await supabase
+    .from("league_rosters")
+    .select("wrestler_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .is("released_at", null);
+  const rosterCount = (rosterCountRows ?? []).length;
+
   const rulesForLineup = await getRosterRulesForLeagueId(supabase, leagueId);
-  const activePer = getActivePerEvent(rulesForLineup?.rosterSize ?? 0);
+  const activePer = leagueUsesSalaryCap(lineupLeagueType)
+    ? getActivePerEventForSalaryCapRosterCount(rosterCount)
+    : getActivePerEvent(rulesForLineup?.rosterSize ?? 0);
   if (activePer == null) return { error: "Invalid league size." };
   if (wrestlerIds.length > activePer)
     return { error: `You can start at most ${activePer} wrestlers.` };
@@ -1805,8 +1823,17 @@ export async function dropWrestlerImmediate(
     const afterTotal = total - 1;
     const afterFemale = female - (dropGender === "F" ? 1 : 0);
     const afterMale = male - (dropGender === "M" ? 1 : 0);
+    const { data: leagueDropMeta } = await supabase
+      .from("leagues")
+      .select("league_type")
+      .eq("id", leagueId)
+      .maybeSingle();
+    const dropLeagueType = (leagueDropMeta as { league_type?: string | null } | null)?.league_type ?? null;
     const minTotal = rules.minFemale + rules.minMale;
-    if (afterTotal < minTotal || afterFemale < rules.minFemale || afterMale < rules.minMale) {
+    if (
+      !leagueUsesSalaryCap(dropLeagueType) &&
+      (afterTotal < minTotal || afterFemale < rules.minFemale || afterMale < rules.minMale)
+    ) {
       return {
         error: `Dropping this wrestler would leave your roster below the minimum (${minTotal} wrestlers, ${rules.minFemale} women, ${rules.minMale} men). Add a free agent at the same time to stay in compliance.`,
       };
@@ -1844,7 +1871,14 @@ export async function addFreeAgentImmediate(
   const eventLock = await getInEventLockMessage(supabase);
   if (eventLock) return { error: eventLock };
 
-  const { data: leagueMetaFa } = await supabase.from("leagues").select("season_slug").eq("id", leagueId).maybeSingle();
+  const { data: leagueMetaFa } = await supabase
+    .from("leagues")
+    .select("season_slug, league_type")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const faLeagueType = (leagueMetaFa as { league_type?: string | null } | null)?.league_type ?? null;
+  const isSalaryCapFa = leagueUsesSalaryCap(faLeagueType);
+
   const capFa = await assertFaSigningAllowedForLeague(
     supabase,
     leagueId,
@@ -1880,6 +1914,31 @@ export async function addFreeAgentImmediate(
 
   const rules = await getRosterRulesForLeagueId(supabase, leagueId);
   if (!rules) return { error: "League roster rules could not be loaded." };
+
+  if (isSalaryCapFa) {
+    if (widToDrop && !currentIds.includes(widToDrop)) {
+      return { error: "Selected drop must be on your roster." };
+    }
+    if (widToDrop) {
+      const dropRes = await removeWrestlerFromRoster(leagueId, user.id, widToDrop, undefined, true);
+      if (dropRes.error) return dropRes;
+    }
+    const addRes = await addWrestlerToRoster(leagueId, user.id, widToAdd, null, true);
+    if (addRes.error) {
+      if (widToDrop && admin) {
+        await addWrestlerToRoster(leagueId, user.id, widToDrop, null, true);
+      }
+      return addRes;
+    }
+    await insertLeagueActivityRow(supabase, {
+      league_id: leagueId,
+      activity_type: "fa_add",
+      user_id: user.id,
+      wrestler_id: widToAdd,
+      secondary_wrestler_id: widToDrop,
+    });
+    return {};
+  }
 
   const dropGenderRequired = widToDrop ? widToDrop : null;
   const allIds = [...new Set([...(currentIds ?? []), widToAdd, ...(dropGenderRequired ? [dropGenderRequired] : [])])];

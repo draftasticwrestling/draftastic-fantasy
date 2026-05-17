@@ -478,6 +478,7 @@ export async function getLeagueWeeklyMatchups(
   const includeMonthlyBeltInMatchup =
     leagueType === "head_to_head" ||
     leagueType === "season_overall" ||
+    leagueType === "salary_cap" ||
     leagueType === "combo" ||
     leagueType === null;
 
@@ -1248,7 +1249,7 @@ export function computeMatchupWltByUserId(
   for (const id of memberUserIds) {
     out[id] = { w: 0, l: 0, t: 0 };
   }
-  if (leagueType === "season_overall" || memberUserIds.length < 2) {
+  if (leagueType === "season_overall" || leagueType === "salary_cap" || memberUserIds.length < 2) {
     return out;
   }
 
@@ -1331,7 +1332,11 @@ export async function getPointsByOwnerForLeagueWithBonuses(
 
   const scoring = await getLeagueScoring(leagueId, supabase);
   // Season-overall and pure H2H leagues should use pure event points (no owner matchup bonus points).
-  if (leagueType === "season_overall" || !leagueUsesOwnerMatchupBonuses(leagueType)) {
+  if (
+    leagueType === "season_overall" ||
+    leagueType === "salary_cap" ||
+    !leagueUsesOwnerMatchupBonuses(leagueType)
+  ) {
     return scoring.pointsByOwner ?? {};
   }
 

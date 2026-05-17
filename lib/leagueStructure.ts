@@ -24,6 +24,26 @@ export const ROAD_TO_SUMMERSLAM_BANNER_SRC = "/images/season-belts/road-to-summe
 /** Road to Survivor Series (admin beta / NXT + H2H testing). */
 export const ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG = "road-to-survivor-series";
 
+/** Admin testing: Total Season Points scoring with budget roster build (non-exclusive wrestlers). */
+export const SALARY_CAP_LEAGUE_TYPE = "salary_cap";
+
+export const SALARY_CAP_BUDGET_DEFAULT = 100;
+
+export const SALARY_CAP_COST_TIERS = [5, 10, 15, 20, 25] as const;
+
+/** Max wrestlers at $5 each with $100 budget. */
+export const SALARY_CAP_MAX_ROSTER_SIZE = 20;
+
+export function leagueUsesSalaryCap(leagueType: string | null | undefined): boolean {
+  return leagueType === SALARY_CAP_LEAGUE_TYPE;
+}
+
+/** First page after create/join — salary cap leagues go straight to roster build. */
+export function leagueOnboardingPath(slug: string, leagueType: string | null | undefined): string {
+  if (leagueUsesSalaryCap(leagueType)) return `/leagues/${slug}/salary-cap`;
+  return `/leagues/${slug}`;
+}
+
 /** Weekly PST title-hold belt (Mon–Sun week; credits once all PWBS events in that week are completed). */
 export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefined): boolean {
   return (
@@ -149,6 +169,9 @@ export function getRosterRulesForLeague(
 ): RosterRules | null {
   if (teamCount < MIN_LEAGUE_TEAMS || teamCount > MAX_LEAGUE_TEAMS) {
     return null;
+  }
+  if (leagueUsesSalaryCap(leagueType)) {
+    return { rosterSize: SALARY_CAP_MAX_ROSTER_SIZE, minFemale: 0, minMale: 0 };
   }
   if (leagueUsesHeadToHeadStyleRosterRules(leagueType)) {
     return HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;

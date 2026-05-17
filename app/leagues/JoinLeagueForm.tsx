@@ -28,13 +28,8 @@ export function JoinLeagueForm({ token, initialCode = "" }: Props) {
         return;
       }
       setJoined(true);
-      if (data.league_slug) {
-        router.push(`/leagues/${data.league_slug}`);
-        router.refresh();
-      } else {
-        router.push("/leagues");
-        router.refresh();
-      }
+      router.push(typeof data.redirect_to === "string" ? data.redirect_to : data.league_slug ? `/leagues/${data.league_slug}` : "/leagues");
+      router.refresh();
     } catch {
       setError("Request failed.");
     } finally {
@@ -62,13 +57,8 @@ export function JoinLeagueForm({ token, initialCode = "" }: Props) {
         return;
       }
       setJoined(true);
-      if (data.league_slug) {
-        router.push(`/leagues/${data.league_slug}`);
-        router.refresh();
-      } else {
-        router.push("/leagues");
-        router.refresh();
-      }
+      router.push(typeof data.redirect_to === "string" ? data.redirect_to : data.league_slug ? `/leagues/${data.league_slug}` : "/leagues");
+      router.refresh();
     } catch {
       setError("Request failed.");
     } finally {
