@@ -32,6 +32,7 @@ import { applyLeaguePlacementXp, type LeagueTeamCount } from "../lib/xp/leaguePl
 import { XP_AMOUNTS } from "../lib/xp/xpReasons";
 import { getPointsByOwnerForLeagueWithBonuses } from "../lib/leagueMatchups";
 import { backfillEngagementDailyXp } from "../lib/xp/backfillEngagementDailyXp";
+import { MIN_LEAGUE_TEAMS } from "../lib/leagueStructure";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -136,6 +137,18 @@ async function main() {
     commissionerByLeague.set(l.id, l.commissioner_id ?? null);
   }
 
+  const { data: memberRowsForStarted, error: memStartedErr } = await admin
+    .from("league_members")
+    .select("league_id");
+  if (memStartedErr) {
+    console.error(memStartedErr.message);
+    process.exit(1);
+  }
+  const memberCountByLeague = new Map<string, number>();
+  for (const m of (memberRowsForStarted ?? []) as { league_id: string }[]) {
+    memberCountByLeague.set(m.league_id, (memberCountByLeague.get(m.league_id) ?? 0) + 1);
+  }
+
   let leaguesToProcess = leagueRows;
   if (args.leagueIds) {
     leaguesToProcess = leagueRows.filter((l) => args.leagueIds!.has(l.id));
@@ -144,7 +157,9 @@ async function main() {
   for (const l of leaguesToProcess) {
     const cid = l.commissioner_id;
     if (!cid || !wantUser(cid, args.userIds)) continue;
-    log(`league_started league=${l.id} user=${cid} +${XP_AMOUNTS.league_started}`);
+    const teamCount = memberCountByLeague.get(l.id) ?? 0;
+    if (teamCount < MIN_LEAGUE_TEAMS) continue;
+    log(`league_started league=${l.id} user=${cid} teams=${teamCount} +${XP_AMOUNTS.league_started}`);
     if (!args.dryRun) {
       await applyXpGrant(admin, {
         userId: cid,

@@ -5,7 +5,7 @@ import { awardUserXp } from "@/lib/xp/awardUserXp";
 import { XP_AMOUNTS } from "@/lib/xp/xpReasons";
 
 /**
- * Award XP for joining a league (not for creating one — use league_started in createLeague).
+ * Award XP for joining a league (not for creating one — use maybeAwardLeagueStartedXp when the league reaches 3 factions).
  */
 export async function awardLeagueJoinXp(userId: string, leagueSlug: string): Promise<void> {
   const slug = leagueSlug?.trim();

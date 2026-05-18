@@ -776,7 +776,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     </main>
     </>
     );
-  } catch {
+  } catch (e) {
+    // Let Next.js handle notFound() / redirect() (e.g. onboarding, salary-cap roster build).
+    const err = e as { digest?: string };
+    if (err?.digest && String(err.digest).startsWith("NEXT_")) throw e;
     return fallback;
   }
 }

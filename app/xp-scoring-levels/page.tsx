@@ -3,7 +3,11 @@ import { XP_LEVELS } from "@/lib/xp/xpLevels";
 import { XP_AMOUNTS } from "@/lib/xp/xpReasons";
 
 const XP_GRANT_ROWS: Array<{ key: keyof typeof XP_AMOUNTS; label: string; notes?: string }> = [
-  { key: "league_started", label: "Start a league" },
+  {
+    key: "league_started",
+    label: "Start a league",
+    notes: "When your league reaches 3 factions (you plus 2 others who join)",
+  },
   { key: "league_joined", label: "Join a league" },
   { key: "free_agent_move", label: "Complete a free agent move" },
   { key: "trade_executed", label: "Complete a trade" },

@@ -372,6 +372,9 @@ export async function adminAddUserToLeagueAction(formData: FormData): Promise<vo
     .insert({ league_id: leagueId, user_id: resolved.userId, role, joined_at: new Date().toISOString() });
   if (insertRes.error) return leagueRedirect(leagueSlug, undefined, insertRes.error.message);
 
+  const { maybeAwardLeagueStartedXp } = await import("@/lib/xp/leagueStartedAward");
+  await maybeAwardLeagueStartedXp(leagueId);
+
   if (role === "commissioner") {
     await admin.from("leagues").update({ commissioner_id: resolved.userId }).eq("id", leagueId);
     await admin
