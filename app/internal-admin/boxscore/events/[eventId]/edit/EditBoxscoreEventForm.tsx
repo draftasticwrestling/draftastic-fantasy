@@ -2,12 +2,14 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { BoxscoreEventEditorRow } from "@/lib/boxscoreAdmin/boxscoreEventEditorLoad";
 import type { BoxscoreTagTeamDataMap, BoxscoreWrestlerRow } from "@/lib/boxscoreAdmin/boxscoreEditorData";
 import {
   ensureOptionInList,
+  LOCATION_HELPER,
+  LOCATION_PLACEHOLDER,
   type MergedBoxscoreUiOptions,
 } from "@/lib/boxscoreAdmin/boxscoreUiOptionsCore";
 import { updateBoxscoreEventAction, type UpdateBoxscoreEventState } from "../../actions";
@@ -15,6 +17,7 @@ import { BoxscoreEventCardPanel } from "../../new/BoxscoreEventCardPanel";
 import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
 
 const labelStyle = { display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" } as const;
+const helperStyle = { fontSize: 12, color: "var(--color-text-muted)", margin: "8px 0 0", maxWidth: 560, lineHeight: 1.45 } as const;
 const fieldStyle = {
   width: "100%",
   maxWidth: 520,
@@ -62,7 +65,7 @@ function SubmitButton() {
         opacity: pending ? 0.75 : 1,
       }}
     >
-      {pending ? "Saving…" : "Save changes"}
+      {pending ? "Saving…" : "Save Event"}
     </button>
   );
 }
@@ -117,6 +120,15 @@ function initialStatus(event: BoxscoreEventEditorRow): string {
   return "upcoming";
 }
 
+function initialEventTypeLabel(event: BoxscoreEventEditorRow, labels: string[]): string {
+  const fromType = typeof event.event_type === "string" ? event.event_type.trim() : "";
+  const fromName = (event.name ?? "").trim();
+  const raw = fromType || fromName;
+  if (!raw) return "";
+  const match = labels.find((o) => o.toLowerCase() === raw.toLowerCase());
+  return match ?? raw;
+}
+
 export function EditBoxscoreEventForm({
   event,
   wrestlers,
@@ -130,11 +142,7 @@ export function EditBoxscoreEventForm({
 }) {
   const [state, formAction] = useActionState(submitUpdateWithBroadcast, null);
   const [status, setStatus] = useState(() => initialStatus(event));
-  const [eventType, setEventType] = useState(() => {
-    const t = typeof event.event_type === "string" ? event.event_type.trim() : "";
-    if (t) return t;
-    return (event.name ?? "").trim();
-  });
+  const [eventType, setEventType] = useState("");
   const [broadcastTime, setBroadcastTime] = useState(() => isoToTimeValue(event.broadcast_start_ts));
   const [eventDate, setEventDate] = useState(() => {
     const d = event.date?.trim() ?? "";
@@ -161,10 +169,14 @@ export function EditBoxscoreEventForm({
     () =>
       ensureOptionInList(
         mergedOptions.eventTypeLabels,
-        typeof event.event_type === "string" ? event.event_type : ""
+        typeof event.event_type === "string" ? event.event_type : (event.name ?? "")
       ),
-    [mergedOptions.eventTypeLabels, event.event_type]
+    [mergedOptions.eventTypeLabels, event.event_type, event.name]
   );
+
+  useEffect(() => {
+    setEventType(initialEventTypeLabel(event, eventTypeOptions));
+  }, [event.id, event.event_type, event.name, eventTypeOptions]);
 
   const specialWinnerSelectOptions = useMemo(
     () => ensureOptionInList(mergedOptions.specialWinnerOptions, specialInit.type),
@@ -199,16 +211,12 @@ export function EditBoxscoreEventForm({
       ) : null}
 
       <p style={{ fontSize: 14, marginBottom: 18, color: "var(--color-text-muted)" }}>
-        <Link href="/internal-admin/boxscore/events" className="app-link">
-          ← Boxscore events
+        <Link href={publicHref} className="app-link" target="_blank" rel="noopener noreferrer">
+          View public page
         </Link>
         {" · "}
         <Link href={`/internal-admin/events/${encodeURIComponent(event.id)}`} className="app-link">
-          Inspector
-        </Link>
-        {" · "}
-        <Link href={publicHref} className="app-link" target="_blank" rel="noopener noreferrer">
-          View on site
+          Raw JSON
         </Link>
       </p>
 
@@ -235,28 +243,7 @@ export function EditBoxscoreEventForm({
         </button>
       ) : null}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 }}>
-        <div>
-          <label style={labelStyle} htmlFor="date">
-            Date
-          </label>
-          <input
-            id="date"
-            name="date"
-            type="date"
-            required
-            value={eventDate}
-            onChange={(e) => setEventDate(e.target.value)}
-            style={{ ...fieldStyle, maxWidth: 200 }}
-          />
-        </div>
-        <div style={{ flex: "1 1 240px" }}>
-          <label style={labelStyle} htmlFor="location">
-            Location
-          </label>
-          <input id="location" name="location" required style={fieldStyle} defaultValue={event.location ?? ""} />
-        </div>
-      </div>
+      <input type="hidden" name="status" value={status} readOnly />
 
       <div style={{ marginBottom: 18 }}>
         <label style={labelStyle} htmlFor="event_type">
@@ -270,15 +257,15 @@ export function EditBoxscoreEventForm({
           value={eventType}
           onChange={(e) => setEventType(e.target.value)}
         >
-          <option value="">— Select event type —</option>
+          <option value="">Select an event type</option>
           {eventTypeOptions.map((t) => (
             <option key={t} value={t}>
               {t}
             </option>
           ))}
         </select>
-        <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "8px 0 0", maxWidth: 560 }}>
-          This is the canonical show selector (RAW, SmackDown, or specific PLE). Manage options in{" "}
+        <p style={helperStyle}>
+          RAW, SmackDown, NXT weekly, and NXT premium events. Manage options in{" "}
           <Link href="/internal-admin/boxscore/options" className="app-link">
             Boxscore dropdown options
           </Link>
@@ -287,67 +274,38 @@ export function EditBoxscoreEventForm({
       </div>
 
       <div style={{ marginBottom: 18 }}>
-        <label style={labelStyle} htmlFor="name">
-          Event name
+        <label style={labelStyle} htmlFor="date">
+          Date
         </label>
         <input
-          id="name"
+          id="date"
+          name="date"
+          type="date"
           required
-          readOnly
-          value={eventType}
-          style={fieldStyle}
-          placeholder="Select Event type above"
-          aria-describedby="event-name-help"
+          value={eventDate}
+          onChange={(e) => setEventDate(e.target.value)}
+          style={{ ...fieldStyle, maxWidth: 220 }}
         />
-        <p id="event-name-help" style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "8px 0 0", maxWidth: 560 }}>
-          Event name follows Event type to match PWBS workflow.
-        </p>
       </div>
 
-      <input type="hidden" name="status" value={status} readOnly />
-
-      <BoxscoreEventCardPanel
-        wrestlers={wrestlers}
-        initialTagTeamData={initialTagTeamData}
-        eventStatus={status}
-        eventDate={eventDate}
-        matches={matches}
-        setMatches={setMatches}
-        eventId={event.id}
-        stipulationOptions={mergedOptions.stipulationOptions}
-        specialWinnerOptions={mergedOptions.specialWinnerOptions}
-      />
-
-      <details style={{ marginBottom: 18 }}>
-        <summary style={{ cursor: "pointer", fontSize: 14, color: "var(--color-text-muted)", marginBottom: 8 }}>
-          Raw matches JSON (read-only)
-        </summary>
-        <textarea
-          readOnly
-          rows={8}
-          value={JSON.stringify(matches, null, 2)}
-          style={{
-            ...fieldStyle,
-            maxWidth: "100%",
-            fontFamily: "ui-monospace, monospace",
-            fontSize: 12,
-            lineHeight: 1.45,
-          }}
-          spellCheck={false}
+      <div style={{ marginBottom: 18 }}>
+        <label style={labelStyle} htmlFor="location">
+          Location
+        </label>
+        <input
+          id="location"
+          name="location"
+          required
+          style={fieldStyle}
+          defaultValue={event.location ?? ""}
+          placeholder={LOCATION_PLACEHOLDER}
         />
-      </details>
-
-      <input
-        type="hidden"
-        name="matches_json"
-        value={JSON.stringify(matches)}
-        readOnly
-        onChange={() => {}}
-      />
+        <p style={helperStyle}>{LOCATION_HELPER}</p>
+      </div>
 
       <div style={{ marginBottom: 18 }}>
         <label style={labelStyle} htmlFor="broadcast_time">
-          Event Time
+          Event time
         </label>
         <input
           id="broadcast_time"
@@ -361,18 +319,63 @@ export function EditBoxscoreEventForm({
 
       <div style={{ marginBottom: 18 }}>
         <label style={labelStyle} htmlFor="preview">
-          Preview
+          Event preview (optional)
         </label>
-        <textarea id="preview" name="preview" rows={3} style={{ ...fieldStyle, maxWidth: "100%" }} defaultValue={event.preview ?? ""} />
+        <textarea
+          id="preview"
+          name="preview"
+          rows={4}
+          style={{ ...fieldStyle, maxWidth: "100%" }}
+          defaultValue={event.preview ?? ""}
+          placeholder="Briefly tease the matches, storylines, and why fans won't want to miss this event."
+        />
+        <p style={helperStyle}>Shown on event and match pages for upcoming shows.</p>
       </div>
 
-      <div style={{ marginBottom: 18 }}>
+      <div style={{ marginBottom: 24 }}>
         <label style={labelStyle} htmlFor="recap">
-          Recap
+          Event recap (optional, after event finishes)
         </label>
-        <textarea id="recap" name="recap" rows={3} style={{ ...fieldStyle, maxWidth: "100%" }} defaultValue={event.recap ?? ""} />
+        <textarea
+          id="recap"
+          name="recap"
+          rows={5}
+          style={{ ...fieldStyle, maxWidth: "100%" }}
+          defaultValue={event.recap ?? ""}
+          placeholder="Once the event is over, add a short recap highlighting what happened and why it mattered."
+        />
+        <p style={helperStyle}>Shown on completed event and match pages.</p>
       </div>
 
+      <BoxscoreEventCardPanel
+        wrestlers={wrestlers}
+        initialTagTeamData={initialTagTeamData}
+        eventStatus={status}
+        eventDate={eventDate}
+        matches={matches}
+        setMatches={setMatches}
+        eventId={event.id}
+        stipulationOptions={mergedOptions.stipulationOptions}
+        specialWinnerOptions={mergedOptions.specialWinnerOptions}
+      />
+
+      <input
+        type="hidden"
+        name="matches_json"
+        value={JSON.stringify(matches)}
+        readOnly
+        onChange={() => {}}
+      />
+
+      <details style={{ marginBottom: 18 }}>
+        <summary style={{ cursor: "pointer", fontSize: 14, color: "var(--color-text-muted)", marginBottom: 8 }}>
+          Advanced: special winner, raw JSON
+        </summary>
+        <p style={{ ...helperStyle, marginTop: 8 }}>
+          Special winner is not saved until the <code>specialWinner</code> column exists on{" "}
+          <code>events</code> (run <code>supabase/events_special_winner.sql</code> in Supabase).
+        </p>
+        <div style={{ display: "grid", gap: 14, marginTop: 10 }}>
       <fieldset style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", padding: 16, marginBottom: 18 }}>
         <legend style={{ fontSize: 14, fontWeight: 600, padding: "0 8px" }}>Special winner (optional)</legend>
         <div style={{ marginBottom: 12 }}>
@@ -400,6 +403,22 @@ export function EditBoxscoreEventForm({
           />
         </div>
       </fieldset>
+          <textarea
+            readOnly
+            rows={6}
+            value={JSON.stringify(matches, null, 2)}
+            style={{
+              ...fieldStyle,
+              maxWidth: "100%",
+              fontFamily: "ui-monospace, monospace",
+              fontSize: 12,
+              lineHeight: 1.45,
+            }}
+            spellCheck={false}
+            aria-label="Raw matches JSON"
+          />
+        </div>
+      </details>
 
       <SubmitButton />
     </form>

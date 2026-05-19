@@ -55,6 +55,21 @@ function matchesPassCompletedRules(matches: unknown[], status: string): { ok: tr
       // PWBS: empty gauntlet progression does not require method/result yet
       continue;
     }
+    const matchTypeStr = String(row.matchType ?? "");
+    if (
+      matchTypeStr === "5-on-5 War Games Match" ||
+      matchTypeStr.includes("War Games") ||
+      matchTypeStr === "Survivor Series-style 10-man Tag Team Elimination match" ||
+      matchTypeStr.includes("Survivor Series")
+    ) {
+      if (!row.result || String(row.result).trim() === "") {
+        return {
+          ok: false,
+          error: "War Games / Survivor Series matches need a result for completed/live events.",
+        };
+      }
+      continue;
+    }
     if (!row.participants) {
       return { ok: false, error: "Each wrestling match needs participants (or use matchType Promo)." };
     }
@@ -87,8 +102,6 @@ export async function insertBoxscoreEventAction(
   const matchesRaw = (formData.get("matches_json") ?? "").toString();
   const customId = (formData.get("custom_id") ?? "").toString().trim();
   const broadcastTsRaw = (formData.get("broadcast_start_ts") ?? "").toString().trim();
-  const swType = (formData.get("special_winner_type") ?? "None").toString().trim();
-  const swName = (formData.get("special_winner_name") ?? "").toString().trim();
   const eventType = (formData.get("event_type") ?? "").toString().trim();
   const name = eventType || submittedName;
 
@@ -130,15 +143,10 @@ export async function insertBoxscoreEventAction(
     recap,
     matches: parsedMatches.matches,
     status,
-    isLive: status === "live",
     broadcast_start_ts,
     broadcast_start_ts_source,
     event_type: eventType || null,
   };
-
-  if (swType !== "None" && swName) {
-    rowInput.specialWinner = { type: swType, name: swName };
-  }
 
   const sanitized = sanitizeBoxscoreEventForSupabase(rowInput);
 
@@ -163,11 +171,19 @@ export async function insertBoxscoreEventAction(
     // Table may be missing in some environments; insert already succeeded.
   }
 
+  const resultsSlug = buildEventResultsSlug({ id, name, date });
+  const editPathSegment = encodeURIComponent(resultsSlug);
+
   revalidatePath("/event-results");
+  revalidatePath(`/event-results/${editPathSegment}`);
   revalidatePath(`/event-results/${encodeURIComponent(id)}`);
   revalidatePath("/internal-admin/events");
+  revalidatePath(`/internal-admin/events/${encodeURIComponent(id)}`);
+  revalidatePath("/internal-admin/boxscore/events");
+  revalidatePath(`/internal-admin/boxscore/events/${editPathSegment}/edit`);
+  revalidatePath(`/internal-admin/boxscore/events/${encodeURIComponent(id)}/edit`);
 
-  redirect(`/internal-admin/events/${encodeURIComponent(id)}?created=1`);
+  redirect(`/internal-admin/boxscore/events/${editPathSegment}/edit?created=1`);
 }
 
 export async function updateBoxscoreEventAction(
@@ -195,8 +211,6 @@ export async function updateBoxscoreEventAction(
   const status = (formData.get("status") ?? "upcoming").toString().trim();
   const matchesRaw = (formData.get("matches_json") ?? "").toString();
   const broadcastTsRaw = (formData.get("broadcast_start_ts") ?? "").toString().trim();
-  const swType = (formData.get("special_winner_type") ?? "None").toString().trim();
-  const swName = (formData.get("special_winner_name") ?? "").toString().trim();
   const eventType = (formData.get("event_type") ?? "").toString().trim();
   const name = eventType || submittedName;
 
@@ -236,17 +250,10 @@ export async function updateBoxscoreEventAction(
     recap,
     matches: parsedMatches.matches,
     status,
-    isLive: status === "live",
     broadcast_start_ts,
     broadcast_start_ts_source,
     event_type: eventType || null,
   };
-
-  if (swType !== "None" && swName) {
-    rowInput.specialWinner = { type: swType, name: swName };
-  } else {
-    rowInput.specialWinner = null;
-  }
 
   const sanitized = sanitizeBoxscoreEventForSupabase(rowInput);
 

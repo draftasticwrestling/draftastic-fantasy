@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getEventShowType } from "@/lib/boxscore/eventShowHeader";
+import { getEventShowType, type EventShowFilter } from "@/lib/boxscore/eventShowHeader";
 import {
   EVENT_RESULTS_PAGE_SELECT,
   type EventResultsPageRow,
@@ -9,6 +9,45 @@ import {
   buildEventResultsSlug,
 } from "@/lib/event-results/eventResultsRoute";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
+import {
+  buildAdminEventStatusOrFilter,
+  eventMatchesAdminStatusFilter,
+} from "@/lib/internalAdmin/boxscoreEventListStatus";
+import {
+  parseSiteAdminEventShowFilter,
+  parseSiteAdminEventStatusFilter,
+  parseSiteAdminEventsLimit,
+  type SiteAdminEventShowFilter,
+  type SiteAdminEventStatusFilter,
+  type SiteAdminEventsLimit,
+} from "@/lib/internalAdmin/boxscoreEventsListParams";
+
+export type {
+  SiteAdminEventShowFilter,
+  SiteAdminEventStatusFilter,
+  SiteAdminEventsLimit,
+} from "@/lib/internalAdmin/boxscoreEventsListParams";
+
+export type SiteAdminSearchEventsOpts = {
+  q?: string;
+  date?: string;
+  id?: string;
+  status?: SiteAdminEventStatusFilter | string;
+  show?: SiteAdminEventShowFilter | string;
+  limit?: SiteAdminEventsLimit | number | string;
+};
+
+export type SiteAdminSearchEventsResult = {
+  rows: EventResultsPageRow[];
+  error?: string;
+  /** Rows returned from DB before show-type post-filter slice. */
+  fetchedCount: number;
+  /** True when the query hit the fetch cap — more rows may exist. */
+  hasMore: boolean;
+  limit: SiteAdminEventsLimit;
+  status: SiteAdminEventStatusFilter;
+  show: SiteAdminEventShowFilter;
+};
 
 function pickResolvedEvent(candidates: EventResultsPageRow[], decodedParam: string): EventResultsPageRow | null {
   if (candidates.length === 0) return null;
@@ -43,37 +82,122 @@ export async function siteAdminGetEventByParam(
   return pickResolvedEvent(candidates, decoded.toLowerCase());
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyShowTypeSqlFilter(qb: any, show: EventShowFilter) {
+  if (show === "raw") {
+    return qb.ilike("name", "%raw%").not("name", "ilike", "%tag team%");
+  }
+  if (show === "smackdown") {
+    return qb.or("name.ilike.%smackdown%,name.ilike.%smack down%");
+  }
+  if (show === "nxt") {
+    return qb.or("name.ilike.NXT,name.ilike.NXT %,name.ilike.WWE NXT%,name.ilike.nxt %");
+  }
+  return qb;
+}
+
+function filterRowsByShow(rows: EventResultsPageRow[], show: SiteAdminEventShowFilter): EventResultsPageRow[] {
+  if (show === "all") return rows;
+  return rows.filter((e) => getEventShowType(e) === show);
+}
+
 export async function siteAdminSearchEvents(
   admin: SupabaseClient,
-  opts: { q?: string; date?: string; id?: string }
-): Promise<{ rows: EventResultsPageRow[]; error?: string }> {
+  opts: SiteAdminSearchEventsOpts
+): Promise<SiteAdminSearchEventsResult> {
+  const status = parseSiteAdminEventStatusFilter(
+    typeof opts.status === "string" ? opts.status : opts.status
+  );
+  const show = parseSiteAdminEventShowFilter(typeof opts.show === "string" ? opts.show : opts.show ?? "all");
+  const limit = parseSiteAdminEventsLimit(
+    typeof opts.limit === "number" ? String(opts.limit) : opts.limit
+  );
+
+  const empty = (overrides?: Partial<SiteAdminSearchEventsResult>): SiteAdminSearchEventsResult => ({
+    rows: [],
+    fetchedCount: 0,
+    hasMore: false,
+    limit,
+    status,
+    show,
+    ...overrides,
+  });
+
   const id = opts.id?.trim();
   if (id) {
     const one = await siteAdminGetEventByParam(admin, id);
-    return { rows: one ? [one] : [] };
+    const rows = one
+      ? filterRowsByShow([one], show).filter((e) => eventMatchesAdminStatusFilter(e, status))
+      : [];
+    return { ...empty(), rows, fetchedCount: rows.length };
   }
 
   const date = opts.date?.trim();
   if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    const { data, error } = await admin
+    let qb = admin
       .from("events")
       .select(EVENT_RESULTS_PAGE_SELECT)
       .eq("date", date)
       .order("name", { ascending: true })
-      .limit(80);
-    if (error) return { rows: [], error: error.message };
-    return { rows: (data ?? []) as EventResultsPageRow[] };
+      .limit(Math.max(limit, 80));
+
+    const statusOr = buildAdminEventStatusOrFilter(status);
+    if (statusOr) qb = qb.or(statusOr);
+    if (show === "raw" || show === "smackdown" || show === "nxt") {
+      qb = applyShowTypeSqlFilter(qb, show);
+    }
+
+    const { data, error } = await qb;
+    if (error) return { ...empty(), error: error.message };
+    const fetched = (data ?? []) as EventResultsPageRow[];
+    const rows = filterRowsByShow(fetched, show)
+      .filter((e) => eventMatchesAdminStatusFilter(e, status))
+      .slice(0, limit);
+    return {
+      rows,
+      fetchedCount: fetched.length,
+      hasMore: fetched.length >= Math.max(limit, 80),
+      limit,
+      status,
+      show,
+    };
   }
 
   const q = opts.q?.trim();
-  let qb = admin.from("events").select(EVENT_RESULTS_PAGE_SELECT).order("date", { ascending: false }).limit(45);
+  const plePostFilter = show === "ple";
+  const sqlShow = show === "raw" || show === "smackdown" || show === "nxt" ? show : null;
+  const fetchLimit = plePostFilter || sqlShow ? Math.min(Math.max(limit * 6, limit + 25), 600) : limit;
 
+  let qb = admin
+    .from("events")
+    .select(EVENT_RESULTS_PAGE_SELECT)
+    .order("date", { ascending: false })
+    .limit(fetchLimit);
+
+  const statusOr = buildAdminEventStatusOrFilter(status);
+  if (statusOr) qb = qb.or(statusOr);
+  if (sqlShow) qb = applyShowTypeSqlFilter(qb, sqlShow);
   if (q) {
     const safe = escapeIlikePattern(q);
     qb = qb.ilike("name", `%${safe}%`);
   }
 
   const { data, error } = await qb;
-  if (error) return { rows: [], error: error.message };
-  return { rows: (data ?? []) as EventResultsPageRow[] };
+  if (error) return { ...empty(), error: error.message };
+
+  const fetched = (data ?? []) as EventResultsPageRow[];
+  const filtered = filterRowsByShow(fetched, show).filter((e) =>
+    eventMatchesAdminStatusFilter(e, status)
+  );
+  const rows = filtered.slice(0, limit);
+  const hasMore = fetched.length >= fetchLimit || (plePostFilter && filtered.length > limit);
+
+  return {
+    rows,
+    fetchedCount: fetched.length,
+    hasMore,
+    limit,
+    status,
+    show,
+  };
 }

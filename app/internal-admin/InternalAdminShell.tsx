@@ -27,14 +27,17 @@ const NAV = [
     match: (p: string) => p.startsWith("/internal-admin/weekly-leaderboards"),
   },
   {
-    href: "/internal-admin/events",
+    href: "/internal-admin/boxscore/events",
     label: "Events",
-    match: (p: string) => p.startsWith("/internal-admin/events"),
+    match: (p: string) =>
+      p.startsWith("/internal-admin/boxscore/events") ||
+      p.startsWith("/internal-admin/events"),
   },
   {
     href: "/internal-admin/boxscore",
     label: "Boxscore",
-    match: (p: string) => p.startsWith("/internal-admin/boxscore"),
+    match: (p: string) =>
+      p.startsWith("/internal-admin/boxscore") && !p.startsWith("/internal-admin/boxscore/events"),
   },
   {
     href: "/internal-admin/stat-corrections",

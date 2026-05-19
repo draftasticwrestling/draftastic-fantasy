@@ -2,6 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
+import {
+  closeOpenReignForTitleChange,
+  computeDaysHeld,
+  syncChampionshipFromHistory,
+} from "@/lib/boxscoreAdmin/championshipSync";
 import { getAdminClient } from "@/lib/supabase/admin";
 
 export type ChampionshipActionState = { error?: string; success?: string } | null;
@@ -104,6 +109,15 @@ export async function createChampionshipHistoryAction(
   const dateWon = norm(formData.get("date_won"));
   if (!championshipId || !champion || !dateWon) return { error: "Championship, champion, and date won are required." };
 
+  const reignMode = norm(formData.get("reign_mode"));
+  const dateLost = norm(formData.get("date_lost"));
+  const eventName = norm(formData.get("event_name"));
+
+  if (reignMode === "title_change") {
+    const closeResult = await closeOpenReignForTitleChange(admin, championshipId, dateWon, eventName);
+    if (closeResult.error) return { error: closeResult.error };
+  }
+
   const payload: Record<string, unknown> = {
     championship_id: championshipId,
     champion,
@@ -111,16 +125,27 @@ export async function createChampionshipHistoryAction(
     previous_champion: norm(formData.get("previous_champion")),
     previous_champion_slug: norm(formData.get("previous_champion_slug")),
     date_won: dateWon,
-    date_lost: norm(formData.get("date_lost")),
-    event_name: norm(formData.get("event_name")),
+    date_lost: dateLost,
+    event_name: eventName,
     event_lost: norm(formData.get("event_lost")),
+    days_held: computeDaysHeld(dateWon, dateLost),
   };
 
   const { error } = await admin.from("championship_history").insert(payload);
   if (error) return { error: error.message };
 
+  if (reignMode !== "historical") {
+    const syncResult = await syncChampionshipFromHistory(admin, championshipId);
+    if (syncResult.error) return { error: syncResult.error };
+  }
+
   await revalidateChampionships();
-  return { success: "History row created." };
+  return {
+    success:
+      reignMode === "historical"
+        ? "Historical reign added (current champion unchanged)."
+        : "Title change recorded and current champion updated.",
+  };
 }
 
 export async function updateChampionshipHistoryAction(
@@ -134,19 +159,35 @@ export async function updateChampionshipHistoryAction(
   const id = norm(formData.get("id"));
   if (!id) return { error: "Missing history row id." };
 
+  const dateWon = norm(formData.get("date_won"));
+  const dateLost = norm(formData.get("date_lost"));
   const payload: Record<string, unknown> = {
     champion: norm(formData.get("champion")),
     champion_slug: norm(formData.get("champion_slug")),
     previous_champion: norm(formData.get("previous_champion")),
     previous_champion_slug: norm(formData.get("previous_champion_slug")),
-    date_won: norm(formData.get("date_won")),
-    date_lost: norm(formData.get("date_lost")),
+    date_won: dateWon,
+    date_lost: dateLost,
     event_name: norm(formData.get("event_name")),
     event_lost: norm(formData.get("event_lost")),
+    days_held: dateWon ? computeDaysHeld(dateWon, dateLost) : null,
   };
+
+  const { data: existing, error: fetchErr } = await admin
+    .from("championship_history")
+    .select("championship_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (fetchErr) return { error: fetchErr.message };
 
   const { error } = await admin.from("championship_history").update(payload).eq("id", id);
   if (error) return { error: error.message };
+
+  const championshipId = (existing as { championship_id?: string } | null)?.championship_id;
+  if (championshipId) {
+    const syncResult = await syncChampionshipFromHistory(admin, championshipId);
+    if (syncResult.error) return { error: syncResult.error };
+  }
 
   await revalidateChampionships();
   return { success: "History row updated." };
@@ -158,8 +199,52 @@ export async function deleteChampionshipHistoryAction(formData: FormData): Promi
   if (!admin) return;
   const id = norm(formData.get("id"));
   if (!id) return;
+  const { data: row } = await admin.from("championship_history").select("championship_id").eq("id", id).maybeSingle();
   await admin.from("championship_history").delete().eq("id", id);
+  const championshipId = (row as { championship_id?: string } | null)?.championship_id;
+  if (championshipId) await syncChampionshipFromHistory(admin, championshipId);
   await revalidateChampionships();
+}
+
+export async function syncChampionshipFromHistoryAction(
+  _prev: ChampionshipActionState,
+  formData: FormData
+): Promise<ChampionshipActionState> {
+  await requireSiteAdmin();
+  const admin = getAdminClient();
+  if (!admin) return { error: "Missing SUPABASE_SERVICE_ROLE_KEY." };
+  const id = norm(formData.get("championship_id"));
+  if (!id) return { error: "Missing championship id." };
+  const result = await syncChampionshipFromHistory(admin, id);
+  if (result.error) return { error: result.error };
+  await revalidateChampionships();
+  return { success: "Current champion synced from title history." };
+}
+
+export async function updateChampionshipTitleFactsAction(
+  _prev: ChampionshipActionState,
+  formData: FormData
+): Promise<ChampionshipActionState> {
+  await requireSiteAdmin();
+  const admin = getAdminClient();
+  if (!admin) return { error: "Missing SUPABASE_SERVICE_ROLE_KEY." };
+  const id = norm(formData.get("id"));
+  if (!id) return { error: "Missing championship id." };
+  const raw = String(formData.get("title_facts_json") ?? "").trim();
+  let value: string | null = null;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return { error: "Title facts must be a JSON array of strings." };
+      value = JSON.stringify(parsed.map((x) => String(x ?? "").trim()).filter(Boolean));
+    } catch {
+      return { error: "Invalid title facts JSON." };
+    }
+  }
+  const { error } = await admin.from("championships").update({ title_facts: value }).eq("id", id);
+  if (error) return { error: error.message };
+  await revalidateChampionships();
+  return { success: "Title facts saved." };
 }
 
 export async function deleteChampionshipAction(

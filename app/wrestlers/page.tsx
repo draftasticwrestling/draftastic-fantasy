@@ -17,7 +17,10 @@ import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.j
 import { getListPersonaFootnote, isHiddenCanonicalListSlug } from "@/lib/scoring/personaResolution.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
-import { sortByChampionshipDisplayOrder } from "@/lib/championshipDisplayOrder";
+import {
+  NXT_CHAMPIONSHIP_SLUG_ORDER,
+  sortByChampionshipDisplayOrder,
+} from "@/lib/championshipDisplayOrder";
 import { collapseTagTeamChampionsForCard } from "@/lib/championshipCardTagChampions";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import type { TitleHistoryItem } from "@/lib/championshipTitleHistory";
@@ -313,16 +316,7 @@ export default async function WrestlersPage() {
     const t = card.title.trim().toLowerCase();
     return t.startsWith("nxt ") || /\bnxt\b/i.test(card.title);
   };
-  const NXT_CHAMP_ORDER: string[] = [
-    "nxt-championship",
-    "nxt-womens-championship",
-    "nxt-north-american-championship",
-    "nxt-womens-north-american-championship",
-    "nxt-tag-team-championship",
-    "nxt-mens-speed-championship",
-    "nxt-womens-speed-championship",
-  ];
-  const nxtOrderIndex = new Map(NXT_CHAMP_ORDER.map((slug, i) => [slug, i]));
+  const nxtOrderIndex = new Map(NXT_CHAMPIONSHIP_SLUG_ORDER.map((slug, i) => [slug, i]));
   const championCardsForToggle = [
     ...currentChampionCards.filter((c) => !isNxtChampionCard(c)),
     ...currentChampionCards

@@ -5,32 +5,50 @@ import {
 
 export type BoxscoreUiOptionCategory = "event_type" | "stipulation" | "special_winner";
 
-/** Display labels for the optional Event type field (merged with DB). */
+/**
+ * Default event-type labels aligned with PWBS AddEvent (`App.jsx` EVENT_TYPES).
+ * DB rows in boxscore_ui_options merge on top; these fill gaps (e.g. NXT PLEs).
+ */
 export const DEFAULT_EVENT_TYPE_LABELS = [
   "RAW",
   "SmackDown",
-  "NXT",
-  "Saturday Night's Main Event",
-  "WrestleMania Night 1",
-  "WrestleMania Night 2",
-  "SummerSlam Night 1",
-  "SummerSlam Night 2",
-  "WrestleMania",
-  "SummerSlam",
-  "Survivor Series",
-  "Royal Rumble",
-  "Elimination Chamber",
-  "Crown Jewel",
-  "Night of Champions",
-  "King & Queen of the Ring",
-  "Money in the Bank",
+  "WWE NXT",
+  "NXT Stand and Deliver",
+  "NXT Deadline",
+  "NXT Battleground",
+  "NXT The Great American Bash",
+  "NXT No Mercy",
+  "NXT Halloween Havoc",
+  "NXT Heatwave",
+  "NXT Vengeance Day",
+  "NXT New Year's Evil",
+  "NXT Showdown",
+  "NXT Gold Rush",
+  "NXT Roadblock",
+  "NXT Homecoming",
+  "NXT Revenge",
   "Backlash",
-  "Evolution",
+  "Bad Blood",
   "Clash in Paris",
   "Clash in Italy",
-  "WrestlePalooza",
-  "Other / PLE",
+  "Crown Jewel",
+  "Elimination Chamber",
+  "Evolution",
+  "Money in the Bank",
+  "Night of Champions",
+  "Royal Rumble",
+  "Saturday Night's Main Event",
+  "Summer Slam night 1",
+  "Summer Slam night 2",
+  "Survivor Series",
+  "WrestleMania night 1",
+  "WrestleMania night 2",
+  "Wrestlepalooza",
 ] as const;
+
+export const LOCATION_PLACEHOLDER = "e.g. Dallas, TX";
+export const LOCATION_HELPER =
+  "City and state only — do not include the arena or venue name (matches PWBS).";
 
 export function mergeWithDefaults(
   dbLabels: string[],

@@ -53,18 +53,26 @@ export default function InternalAdminHomePage() {
           </Link>
         </li>
         <li>
-          <Link href="/internal-admin/events" className={styles.cardLink}>
-            <span className={styles.cardTitle}>Events</span>
-            <span className={styles.cardDesc}>Inspect boxscore events and raw matches JSON (read-only).</span>
+          <Link href="/internal-admin/boxscore/events" className={styles.cardLink}>
+            <span className={styles.cardTitle}>Events & match card</span>
+            <span className={styles.cardDesc}>
+              Edit shows, matches, and promos (PWBS workflow). Use the Events tab in the admin bar or start here.
+            </span>
           </Link>
         </li>
         <li>
           <Link href="/internal-admin/boxscore" className={styles.cardLink}>
             <span className={styles.cardTitle}>Boxscore admin</span>
             <span className={styles.cardDesc}>
-              PWBS-style data entry: wrestlers, tag teams, titles, events/matches/promos, live results (stubs — forms
-              next).
+              Wrestlers, tag teams, championships, live results, and dropdown options. Event editing lives under Events
+              above.
             </span>
+          </Link>
+        </li>
+        <li>
+          <Link href="/internal-admin/events" className={styles.cardLink}>
+            <span className={styles.cardTitle}>Events JSON inspector</span>
+            <span className={styles.cardDesc}>Read-only search and raw matches JSON (debugging).</span>
           </Link>
         </li>
         <li>

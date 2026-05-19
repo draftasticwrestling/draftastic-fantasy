@@ -1,8 +1,10 @@
 # PWBS admin → Draftastic internal-admin (source map)
 
+**Status (2026-05):** Event and championship admin tools are **implemented** under `/internal-admin/boxscore/*`. Use `docs/BOXSCORE_ADMIN_OPS.md` for day-to-day workflows.
+
 **PWBS repo (local):** `/Users/thisguytoph/wrestling-boxscore`  
 **Stack:** Vite + React Router + `src/supabaseClient.js` (anon key in browser)  
-**Draftastic target:** `/internal-admin/boxscore/*` with `is_site_admin` + server-side writes (`getAdminClient`) + `admin_audit_log` where appropriate.
+**Draftastic:** `/internal-admin/boxscore/*` with `is_site_admin` + server-side writes (`getAdminClient`) + `admin_audit_log` where appropriate.
 
 ## Auth model (important difference)
 
@@ -11,18 +13,18 @@
 
 ## React Router routes (PWBS) → Draftastic URL ideas
 
-| PWBS route | Role | Draftastic (planned) |
-|------------|------|----------------------|
-| `/` | Event list + **+ Add Event** if `user` | Public hub stays on PWBS or fantasy; add flow → `/internal-admin/boxscore/events/new` |
-| `/add-event` | `AddEvent` form | `/internal-admin/boxscore/events/new` |
-| `/edit-event/:eventSlug` | `EditEvent` (full card, matches, promos) | `/internal-admin/boxscore/events/[eventId]/edit` |
-| `/events/:eventSlug` | `EventBoxScore` (view + edit/delete/notify if `user`) | Keep public on PWBS; editor-only in Draftastic |
-| `/events/:eventSlug/match/:matchOrder` | `MatchPageNewWrapper` + inline `MatchEdit` / `PromoMatchEdit` | Can merge into event editor or dedicated match route |
-| `/wrestlers` | `WrestlersPage` | `/internal-admin/boxscore/wrestlers` |
-| `/wrestler/:slug` | `WrestlerProfile` (+ `onUpdateWrestler`) | `/internal-admin/boxscore/wrestlers/[slug]/edit` |
-| `/championships` | `ChampionshipsPage` | `/internal-admin/boxscore/championships` |
-| `/championship/:id` | `ChampionshipDetailPage` | `/internal-admin/boxscore/championships/[id]` |
-| `/admin` | `AdminLoginPage` (OTP only) | N/A — use Draftastic auth |
+| PWBS route | Role | Draftastic |
+|------------|------|------------|
+| `/` | Event list + **+ Add Event** if `user` | Public: `/event-results`; add → `/internal-admin/boxscore/events/new` |
+| `/add-event` | `AddEvent` form | `/internal-admin/boxscore/events/new` ✅ |
+| `/edit-event/:eventSlug` | `EditEvent` (full card, matches, promos) | `/internal-admin/boxscore/events/[eventId]/edit` ✅ |
+| `/events/:eventSlug` | `EventBoxScore` (view + edit matches) | Public: `/event-results/{slug}`; admin bar → edit ✅ |
+| `/events/:eventSlug/match/:matchOrder` | Match detail + `MatchEdit` | Public match page + event editor ✅ |
+| `/wrestlers` | `WrestlersPage` | `/internal-admin/boxscore/wrestlers` ✅ |
+| `/wrestler/:slug` | `WrestlerProfile` | `/internal-admin/boxscore/wrestlers` (list manager) ✅ |
+| `/championships` | `ChampionshipsPage` | Public: `/championship`; admin: `/internal-admin/boxscore/championships` ✅ |
+| `/championship/:id` | `ChampionshipDetailPage` | Same admin page (title picker + PWBS title-change flow) ✅ |
+| `/admin` | `AdminLoginPage` (OTP only) | Draftastic login + `is_site_admin` |
 
 ## Where the logic lives (PWBS)
 

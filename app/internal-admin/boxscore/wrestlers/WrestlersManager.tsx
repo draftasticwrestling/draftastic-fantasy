@@ -1,51 +1,27 @@
 "use client";
 
-import { useActionState, useMemo, useState, type CSSProperties } from "react";
+import Link from "next/link";
+import { useActionState, useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { WrestlerActionState } from "./actions";
 import { createWrestlerAction, updateWrestlerAction, deleteWrestlerAction } from "./actions";
+import { WrestlerForm, WrestlerQuickEditHeader, type WrestlerFormRow } from "./WrestlerForm";
 
-type WrestlerRow = {
-  id: string;
-  name: string;
-  nickname?: string | null;
-  brand?: string | null;
-  classification?: string | null;
-  person_type?: string | null;
-  status?: string | null;
-  Status?: string | null;
-  dob?: string | null;
-  nationality?: string | null;
-  billed_from?: string | null;
-  height?: string | null;
-  weight?: string | null;
-  image_url?: string | null;
-  full_body_image_url?: string | null;
-  accomplishments?: string | null;
-  tag_team_name?: string | null;
-  tag_team_partner_slug?: string | null;
-  stable?: string | null;
-  is_stable_leader?: boolean | null;
+type Props = {
+  wrestlers: WrestlerFormRow[];
+  tagTeamNames: string[];
+  stableNames: string[];
 };
-
-type Props = { wrestlers: WrestlerRow[] };
 
 const defaultState: WrestlerActionState = null;
 
-const CLASSIFICATIONS = ["Active", "Part-timer", "Celebrity Guests", "Alumni", "Non-wrestlers", "Inactive"];
-const PERSON_TYPES = ["Wrestler", "Head of Creative", "GM", "Manager", "Announcer"];
-const BRANDS = ["RAW", "SmackDown", "NXT", "AAA", "Unassigned", "N/A"];
-const STATUSES = ["", "Injured", "On Hiatus", "Inactive", "Non-wrestler"];
-
-function rowStatus(w: WrestlerRow): string {
-  return String(w.status ?? w.Status ?? "");
-}
-
-export function WrestlersManager({ wrestlers }: Props) {
+export function WrestlersManager({ wrestlers, tagTeamNames, stableNames }: Props) {
   const [selectedId, setSelectedId] = useState<string>(wrestlers[0]?.id ?? "");
   const [mode, setMode] = useState<"edit" | "create">(wrestlers.length > 0 ? "edit" : "create");
   const [search, setSearch] = useState("");
+  const [editFormKey, setEditFormKey] = useState(0);
   const [createState, createFormAction, createPending] = useActionState(createWrestlerAction, defaultState);
   const [updateState, updateFormAction, updatePending] = useActionState(updateWrestlerAction, defaultState);
+  const [deleteState, deleteFormAction, deletePending] = useActionState(deleteWrestlerAction, defaultState);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -60,12 +36,30 @@ export function WrestlersManager({ wrestlers }: Props) {
   }, [wrestlers, search]);
 
   const selected = wrestlers.find((w) => w.id === selectedId) ?? null;
+  const allWrestlers = useMemo(() => wrestlers.map((w) => ({ id: w.id, name: w.name })), [wrestlers]);
+
+  useEffect(() => {
+    if (createState?.newId) {
+      setSelectedId(createState.newId);
+      setMode("edit");
+    }
+  }, [createState?.newId]);
+
+  useEffect(() => {
+    if (updateState?.newId) {
+      setSelectedId(updateState.newId);
+    }
+  }, [updateState?.newId]);
+
+  useEffect(() => {
+    setEditFormKey(0);
+  }, [selectedId]);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 320px) minmax(0, 1fr)", gap: 16 }}>
-      <aside style={{ border: "1px solid var(--color-border)", borderRadius: 8, background: "var(--color-bg-card)", overflow: "hidden" }}>
+      <aside style={sidebarStyle}>
         <div style={{ padding: 12, borderBottom: "1px solid var(--color-border)" }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <button
               type="button"
               className={mode === "edit" ? "btn-primary" : "btn-secondary"}
@@ -75,13 +69,13 @@ export function WrestlersManager({ wrestlers }: Props) {
               Edit selected
             </button>
             <button type="button" className={mode === "create" ? "btn-primary" : "btn-secondary"} onClick={() => setMode("create")}>
-              Add wrestler
+              + Add wrestler
             </button>
           </div>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search wrestlers..."
+            placeholder="Search wrestlers…"
             style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--color-border)" }}
           />
         </div>
@@ -114,13 +108,18 @@ export function WrestlersManager({ wrestlers }: Props) {
       </aside>
 
       <section style={{ display: "grid", gap: 16 }}>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-muted)", maxWidth: 720 }}>
+          PWBS workflow: classification controls brand/status; gender required for wrestlers; tag partner syncs both
+          wrestlers and tag_team_members. Headshots upload to the wrestler-images bucket (.png / .webp).
+        </p>
+
         {mode === "create" ? (
-          <form action={createFormAction} style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: 14, background: "var(--color-bg-card)" }}>
-            <h2 style={{ marginTop: 0, fontSize: 18 }}>Add wrestler</h2>
-            <WrestlerFields />
-            <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+          <form action={createFormAction} style={cardStyle}>
+            <h2 style={h2Style}>Add wrestler</h2>
+            <WrestlerForm mode="create" allWrestlers={allWrestlers} tagTeamNames={tagTeamNames} stableNames={stableNames} />
+            <div style={footerStyle}>
               <button type="submit" disabled={createPending} className="btn-primary">
-                {createPending ? "Creating..." : "Create wrestler"}
+                {createPending ? "Creating…" : "Create wrestler"}
               </button>
               {createState?.error ? <span style={{ color: "var(--color-red)" }}>{createState.error}</span> : null}
               {createState?.success ? <span style={{ color: "var(--color-green)" }}>{createState.success}</span> : null}
@@ -129,153 +128,103 @@ export function WrestlersManager({ wrestlers }: Props) {
         ) : null}
 
         {mode === "edit" && selected ? (
-          <div style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: 14, background: "var(--color-bg-card)" }}>
-            <h2 style={{ marginTop: 0, fontSize: 18 }}>Edit wrestler: {selected.name}</h2>
-            <form key={selected.id} action={updateFormAction}>
-              <WrestlerFields wrestler={selected} />
-              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+              <Link href={`/wrestler/${encodeURIComponent(selected.id)}`} className="app-link" target="_blank">
+                View public profile →
+              </Link>
+            </div>
+            <WrestlerQuickEditHeader wrestler={selected} />
+            <form key={`${selected.id}-${editFormKey}`} action={updateFormAction}>
+              <WrestlerForm
+                mode="edit"
+                wrestler={selected}
+                allWrestlers={allWrestlers}
+                tagTeamNames={tagTeamNames}
+                stableNames={stableNames}
+              />
+              <div style={{ ...footerStyle, justifyContent: "flex-end" }}>
+                <button type="button" className="btn-secondary" onClick={() => setEditFormKey((k) => k + 1)}>
+                  Cancel
+                </button>
                 <button type="submit" disabled={updatePending} className="btn-primary">
-                  {updatePending ? "Saving..." : "Save wrestler"}
+                  {updatePending ? "Saving…" : "Save Changes"}
                 </button>
                 {updateState?.error ? <span style={{ color: "var(--color-red)" }}>{updateState.error}</span> : null}
                 {updateState?.success ? <span style={{ color: "var(--color-green)" }}>{updateState.success}</span> : null}
               </div>
             </form>
-            <div style={{ marginTop: 8 }}>
-              <form action={deleteWrestlerAction} style={{ margin: 0 }}>
-                <input type="hidden" name="id" value={selected.id} />
-                <button
-                  type="submit"
-                  className="btn-secondary"
-                  onClick={(e) => {
-                    if (!confirm(`Delete ${selected.name}?`)) e.preventDefault();
-                  }}
-                >
-                  Delete
-                </button>
-              </form>
-            </div>
+            <form
+              key={`delete-${selected.id}`}
+              action={deleteFormAction}
+              style={{
+                marginTop: 16,
+                border: "1px solid #fecaca",
+                borderRadius: 6,
+                padding: 12,
+                background: "#fff7f7",
+              }}
+            >
+                  <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "#991b1b" }}>Delete wrestler</h3>
+                  <input type="hidden" name="id" value={selected.id} />
+              <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
+                Permanently removes <strong>{selected.name}</strong> ({selected.id}). Requires a reason and typing{" "}
+                <strong>DELETE</strong> below. Blocked if they appear in title history, tag teams, championships, or
+                league rosters.
+              </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+                    <label style={{ gridColumn: "1 / span 2" }}>
+                      Reason (required)
+                      <input name="reason" required style={dangerInputStyle} placeholder="Why is this wrestler being removed?" />
+                    </label>
+                    <label>
+                      Type DELETE to confirm
+                      <input name="confirm_text" required placeholder="DELETE" style={dangerInputStyle} autoComplete="off" />
+                    </label>
+                  </div>
+                  <div style={{ ...footerStyle, marginTop: 10 }}>
+                    <button
+                      type="submit"
+                      className="btn-secondary"
+                      disabled={deletePending}
+                      style={{ background: "#b91c1c", borderColor: "#991b1b", color: "#fff" }}
+                    >
+                      {deletePending ? "Deleting…" : "Permanently delete wrestler"}
+                    </button>
+                    {deleteState?.error ? <span style={{ color: "var(--color-red)" }}>{deleteState.error}</span> : null}
+                    {deleteState?.success ? (
+                      <span style={{ color: "var(--color-green)" }}>{deleteState.success}</span>
+                    ) : null}
+                  </div>
+            </form>
           </div>
+        ) : mode === "edit" ? (
+          <p style={{ color: "var(--color-text-muted)" }}>Select a wrestler from the list.</p>
         ) : null}
       </section>
     </div>
   );
 }
 
-function WrestlerFields({ wrestler }: { wrestler?: WrestlerRow }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
-      <label>
-        Slug
-        <input name="id" defaultValue={wrestler?.id ?? ""} required style={inputStyle} />
-      </label>
-      <label>
-        Name
-        <input name="name" defaultValue={wrestler?.name ?? ""} required style={inputStyle} />
-      </label>
-      <label>
-        Nickname
-        <input name="nickname" defaultValue={wrestler?.nickname ?? ""} style={inputStyle} />
-      </label>
-      <label>
-        Classification
-        <select name="classification" defaultValue={wrestler?.classification ?? "Active"} style={inputStyle}>
-          {CLASSIFICATIONS.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Person Type
-        <select name="person_type" defaultValue={wrestler?.person_type ?? "Wrestler"} style={inputStyle}>
-          {PERSON_TYPES.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Brand
-        <select name="brand" defaultValue={wrestler?.brand ?? ""} style={inputStyle}>
-          <option value="">None</option>
-          {BRANDS.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Status
-        <select name="status" defaultValue={rowStatus(wrestler ?? { id: "", name: "" })} style={inputStyle}>
-          {STATUSES.map((v) => (
-            <option key={v || "none"} value={v}>
-              {v || "Active"}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        DOB
-        <input name="dob" type="date" defaultValue={wrestler?.dob ?? ""} style={inputStyle} />
-      </label>
-      <label>
-        Nationality
-        <input name="nationality" defaultValue={wrestler?.nationality ?? ""} style={inputStyle} />
-      </label>
-      <label>
-        Billed From
-        <input name="billed_from" defaultValue={wrestler?.billed_from ?? ""} style={inputStyle} />
-      </label>
-      <label>
-        Height
-        <input name="height" defaultValue={wrestler?.height ?? ""} style={inputStyle} />
-      </label>
-      <label>
-        Weight
-        <input name="weight" defaultValue={wrestler?.weight ?? ""} style={inputStyle} />
-      </label>
-      <label>
-        Tag Team Name
-        <input name="tag_team_name" defaultValue={wrestler?.tag_team_name ?? ""} style={inputStyle} />
-      </label>
-      <label>
-        Tag Team Partner Slug
-        <input name="tag_team_partner_slug" defaultValue={wrestler?.tag_team_partner_slug ?? ""} style={inputStyle} />
-      </label>
-      <label>
-        Stable
-        <input name="stable" defaultValue={wrestler?.stable ?? ""} style={inputStyle} />
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 20 }}>
-        <input name="is_stable_leader" type="checkbox" defaultChecked={Boolean(wrestler?.is_stable_leader)} />
-        Stable leader
-      </label>
-      <label style={{ gridColumn: "1 / span 3" }}>
-        Image URL
-        <input name="image_url" defaultValue={wrestler?.image_url ?? ""} style={inputStyle} />
-      </label>
-      <label style={{ gridColumn: "1 / span 3" }}>
-        Full-body Image URL
-        <input name="full_body_image_url" defaultValue={wrestler?.full_body_image_url ?? ""} style={inputStyle} />
-      </label>
-      <label style={{ gridColumn: "1 / span 3" }}>
-        Accomplishments
-        <textarea name="accomplishments" defaultValue={wrestler?.accomplishments ?? ""} style={{ ...inputStyle, minHeight: 80 }} />
-      </label>
-    </div>
-  );
-}
-
-const inputStyle: CSSProperties = {
+const sidebarStyle: CSSProperties = {
+  border: "1px solid var(--color-border)",
+  borderRadius: 8,
+  background: "var(--color-bg-card)",
+  overflow: "hidden",
+};
+const cardStyle: CSSProperties = {
+  border: "1px solid var(--color-border)",
+  borderRadius: 8,
+  padding: 14,
+  background: "var(--color-bg-card)",
+};
+const h2Style: CSSProperties = { marginTop: 0, fontSize: 18 };
+const footerStyle: CSSProperties = { marginTop: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" };
+const dangerInputStyle: CSSProperties = {
   display: "block",
   width: "100%",
   marginTop: 4,
   padding: "8px 10px",
   borderRadius: 6,
-  border: "1px solid var(--color-border)",
+  border: "1px solid #fecaca",
 };
-

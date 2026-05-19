@@ -5,7 +5,7 @@ import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
 import styles from "../internal-admin.module.css";
 
 export const metadata = {
-  title: "Events — Site admin",
+  title: "Events JSON inspector — Site admin",
 };
 
 export default async function InternalAdminEventsPage({
@@ -30,14 +30,32 @@ export default async function InternalAdminEventsPage({
     );
   }
 
-  const { rows, error } = await siteAdminSearchEvents(admin, { q, date, id });
+  const { rows, error } = await siteAdminSearchEvents(admin, { q, date, id, limit: 45 });
 
   return (
     <div style={{ maxWidth: 960 }}>
-      <h1 className={styles.pageTitle}>Events</h1>
+      <h1 className={styles.pageTitle}>Events JSON inspector</h1>
+      <p
+        style={{
+          marginBottom: 20,
+          maxWidth: 640,
+          padding: "12px 14px",
+          borderRadius: 8,
+          background: "var(--color-blue-bg)",
+          border: "1px solid var(--color-border)",
+          fontSize: 14,
+          lineHeight: 1.5,
+        }}
+      >
+        <strong>Editing matches or promos?</strong> Use the{" "}
+        <Link href="/internal-admin/boxscore/events" className="app-link">
+          Events editor
+        </Link>{" "}
+        (Site admin → <strong>Events</strong> in the top bar). This page is read-only for raw JSON debugging.
+      </p>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 20, maxWidth: 620 }}>
-        Read-only: search by <strong>event id</strong>, <strong>show date</strong> (YYYY-MM-DD), or <strong>name</strong>.
-        Open a row for full fields and raw <code>matches</code> JSON.
+        Search by <strong>event id</strong>, <strong>show date</strong> (YYYY-MM-DD), or <strong>name</strong>. Open a row
+        for full fields and raw <code>matches</code> JSON.
       </p>
 
       <form
@@ -86,6 +104,7 @@ export default async function InternalAdminEventsPage({
                 <th style={{ padding: "10px 8px" }}>Date</th>
                 <th style={{ padding: "10px 8px" }}>Status</th>
                 <th style={{ padding: "10px 8px" }}>Id</th>
+                <th style={{ padding: "10px 8px" }}>Edit</th>
               </tr>
             </thead>
             <tbody>
@@ -104,6 +123,15 @@ export default async function InternalAdminEventsPage({
                   <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>{e.status ?? "—"}</td>
                   <td style={{ padding: "10px 8px", fontFamily: "monospace", fontSize: 12, color: "var(--color-text-muted)" }}>
                     {e.id}
+                  </td>
+                  <td style={{ padding: "10px 8px" }}>
+                    <Link
+                      href={`/internal-admin/boxscore/events/${encodeURIComponent(e.id)}/edit`}
+                      className="app-link"
+                      style={{ fontWeight: 600 }}
+                    >
+                      Edit event
+                    </Link>
                   </td>
                 </tr>
               ))}

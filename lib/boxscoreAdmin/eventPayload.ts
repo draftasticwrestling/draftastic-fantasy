@@ -12,7 +12,6 @@ const ALLOWED_TOP_LEVEL = [
   "recap",
   "matches",
   "status",
-  "isLive",
 ] as const;
 
 export type SanitizedBoxscoreEventRow = Record<string, unknown>;
@@ -28,9 +27,6 @@ export function sanitizeBoxscoreEventForSupabase(event: Record<string, unknown>)
   const out: Record<string, unknown> = {};
   for (const key of ALLOWED_TOP_LEVEL) {
     if (event[key] !== undefined) out[key] = event[key];
-  }
-  if (event.specialWinner !== undefined) {
-    out.specialWinner = event.specialWinner;
   }
   if (event.event_type !== undefined) {
     const et = typeof event.event_type === "string" ? event.event_type.trim() : "";

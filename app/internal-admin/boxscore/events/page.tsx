@@ -1,46 +1,110 @@
 import Link from "next/link";
 import styles from "../../internal-admin.module.css";
 import { siteAdminSearchEvents } from "@/lib/internalAdmin/siteAdminEvents";
+import {
+  buildBoxscoreEventsListHref,
+  nextSiteAdminEventsLimit,
+  parseSiteAdminEventShowFilter,
+  parseSiteAdminEventStatusFilter,
+  parseSiteAdminEventsLimit,
+  SITE_ADMIN_EVENTS_DEFAULT_LIMIT,
+  SITE_ADMIN_EVENTS_DEFAULT_STATUS,
+} from "@/lib/internalAdmin/boxscoreEventsListParams";
+import { isEventResultsPending } from "@/lib/internalAdmin/boxscoreEventListStatus";
 import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
 import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
+import { getEventShowType } from "@/lib/boxscore/eventShowHeader";
 import { DeleteBoxscoreEventForm } from "./DeleteBoxscoreEventForm";
-import { JumpToBoxscoreEventEditor } from "./JumpToBoxscoreEventEditor";
+import { BoxscoreEventsListToolbar } from "./BoxscoreEventsListToolbar";
 
-export const metadata = { title: "Events (Boxscore) — Site admin" };
+export const metadata = { title: "Events — Site admin" };
+
+const editButtonStyle = {
+  display: "inline-block",
+  padding: "6px 14px",
+  fontWeight: 600,
+  fontSize: 13,
+  borderRadius: "var(--radius-sm)",
+  border: "none",
+  background: "var(--color-blue)",
+  color: "#fff",
+  textDecoration: "none",
+} as const;
+
+const SHOW_BADGE: Record<string, { label: string; bg: string }> = {
+  raw: { label: "RAW", bg: "#b91c1c" },
+  smackdown: { label: "SD", bg: "#1d4ed8" },
+  nxt: { label: "NXT", bg: "#7c3aed" },
+  ple: { label: "PLE", bg: "#b45309" },
+};
 
 export default async function BoxscoreEventsEditorPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; date?: string; id?: string; ok?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    date?: string;
+    id?: string;
+    ok?: string;
+    status?: string;
+    show?: string;
+    limit?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const q = sp.q ?? "";
   const date = sp.date ?? "";
   const id = sp.id ?? "";
   const ok = sp.ok ?? "";
+  const status = parseSiteAdminEventStatusFilter(sp.status);
+  const show = parseSiteAdminEventShowFilter(sp.show);
+  const limit = parseSiteAdminEventsLimit(sp.limit);
   const admin = getServiceRoleClient();
 
-  const { rows, error } = admin ? await siteAdminSearchEvents(admin, { q, date, id }) : { rows: [], error: undefined };
+  const result = admin
+    ? await siteAdminSearchEvents(admin, { q, date, id, status, show, limit })
+    : {
+        rows: [],
+        error: undefined,
+        fetchedCount: 0,
+        hasMore: false,
+        limit,
+        status,
+        show,
+      };
+
+  const { rows, error, hasMore } = result;
 
   return (
     <div>
-      <p style={{ marginBottom: 16 }}>
-        <Link href="/internal-admin/boxscore" className="app-link">
-          ← Boxscore admin
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+          marginBottom: 8,
+        }}
+      >
+        <div>
+          <h1 className={styles.pageTitle} style={{ marginBottom: 8 }}>
+            Events
+          </h1>
+          <p className={styles.intro} style={{ margin: 0, maxWidth: 640 }}>
+            Filter by status and show type, then click <strong>Edit event</strong> to manage the card. Default view is{" "}
+            <strong>Completed</strong> (includes today&apos;s shows still marked upcoming — <em>results pending</em>).
+          </p>
+        </div>
+        <Link href="/internal-admin/boxscore/events/new" className="admin-article-submit" style={{ textDecoration: "none", flexShrink: 0 }}>
+          + Add event
         </Link>
-      </p>
-      <h1 className={styles.pageTitle}>Events, matches &amp; promos</h1>
-      <p className={styles.intro}>
-        Editors for the shared PWBS <code>events</code> table. Search and manage events here, or use the read-only inspector under{" "}
-        <Link href="/internal-admin/events" className="app-link">
-          /internal-admin/events
-        </Link>
-        .
-      </p>
+      </div>
+
       {ok ? (
         <p
           style={{
-            marginTop: 12,
+            marginTop: 16,
             color: "#166534",
             background: "#ecfdf3",
             border: "1px solid #bbf7d0",
@@ -52,62 +116,53 @@ export default async function BoxscoreEventsEditorPage({
           {ok}
         </p>
       ) : null}
-      <ul style={{ listStyle: "none", padding: 0, margin: "24px 0 0", display: "flex", flexDirection: "column", gap: 12 }}>
-        <li>
-          <Link href="/internal-admin/boxscore/events/new" className={styles.cardLink}>
-            <span className={styles.cardTitle}>Add event</span>
-            <span className={styles.cardDesc}>
-              Create a new event with the visual match builder and inline MatchEdit (PWBS-shaped payloads).
-            </span>
-          </Link>
-        </li>
-        <li
-          className={styles.cardLink}
-          style={{ display: "block", cursor: "default", textDecoration: "none", color: "inherit" }}
-        >
-          <span className={styles.cardTitle}>Edit an existing event</span>
-          <span className={styles.cardDesc} style={{ display: "block" }}>
-            Use the full editor at{" "}
-            <code style={{ fontSize: 12 }}>/internal-admin/boxscore/events/[eventId]/edit</code>. Easiest path: open an event in
-            the inspector and click <strong>Edit in boxscore</strong>.
-          </span>
-          <p style={{ margin: "12px 0 0", fontSize: 14 }}>
-            <Link href="/internal-admin/events" className="app-link">
-              Open Events inspector →
-            </Link>
-          </p>
-          <JumpToBoxscoreEventEditor />
-        </li>
-      </ul>
+
       <section style={{ marginTop: 28 }}>
-        <h2 className={styles.pageTitle} style={{ fontSize: "1.06rem", marginBottom: 10 }}>
-          Manage existing events
-        </h2>
         {!admin ? (
           <p style={{ color: "var(--color-text-muted)", maxWidth: 520 }}>
             Set <code>SUPABASE_SERVICE_ROLE_KEY</code> to list and manage events.
           </p>
         ) : (
           <>
-            <form method="get" action="/internal-admin/boxscore/events" style={{ display: "grid", gap: 12, marginBottom: 20, maxWidth: 560 }}>
+            <BoxscoreEventsListToolbar
+              status={status}
+              show={show}
+              limit={limit}
+              q={q}
+              date={date}
+              id={id}
+              rowCount={rows.length}
+              hasMore={hasMore}
+            />
+
+            <form
+              method="get"
+              action="/internal-admin/boxscore/events"
+              style={{ display: "grid", gap: 12, marginBottom: 20, maxWidth: 560 }}
+            >
+              {status === "all" || status !== SITE_ADMIN_EVENTS_DEFAULT_STATUS ? (
+                <input type="hidden" name="status" value={status} />
+              ) : null}
+              {show !== "all" ? <input type="hidden" name="show" value={show} /> : null}
+              {limit !== 25 ? <input type="hidden" name="limit" value={String(limit)} /> : null}
               <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 14, fontWeight: 600 }}>
                 Event id (exact)
-                <input name="id" defaultValue={id} className="admin-article-input" placeholder="e.g. raw-2026-04-01 or UUID" />
+                <input name="id" defaultValue={id} className="admin-article-input" placeholder="e.g. raw-2026-05-18" />
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 14, fontWeight: 600 }}>
                 Date (YYYY-MM-DD)
-                <input name="date" type="text" defaultValue={date} className="admin-article-input" placeholder="2026-04-03" />
+                <input name="date" type="text" defaultValue={date} className="admin-article-input" placeholder="2026-05-18" />
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 14, fontWeight: 600 }}>
                 Name contains
-                <input name="q" defaultValue={q} className="admin-article-input" placeholder="SmackDown" />
+                <input name="q" defaultValue={q} className="admin-article-input" placeholder="Royal Rumble, Backlash…" />
               </label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                 <button type="submit" className="admin-article-submit">
                   Search
                 </button>
-                <Link href="/internal-admin/boxscore/events" className="app-link" style={{ fontSize: 14 }}>
-                  Reset
+                <Link href={buildBoxscoreEventsListHref({ status, show, limit })} className="app-link" style={{ fontSize: 14 }}>
+                  Clear search fields
                 </Link>
               </div>
             </form>
@@ -118,51 +173,142 @@ export default async function BoxscoreEventsEditorPage({
               </p>
             ) : null}
             {!error && rows.length === 0 ? (
-              <p style={{ color: "var(--color-text-muted)" }}>No events match this search.</p>
+              <p style={{ color: "var(--color-text-muted)" }}>
+                No events match these filters. Try <strong>All statuses</strong> / <strong>All shows</strong>, or{" "}
+                <Link href="/internal-admin/boxscore/events" className="app-link">
+                  reset everything
+                </Link>
+                .
+              </p>
             ) : null}
             {!error && rows.length > 0 ? (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
-                      <th style={{ padding: "10px 8px" }}>Event</th>
-                      <th style={{ padding: "10px 8px" }}>Date</th>
-                      <th style={{ padding: "10px 8px" }}>Status</th>
-                      <th style={{ padding: "10px 8px" }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                        <td style={{ padding: "10px 8px" }}>
-                          <div style={{ fontWeight: 600 }}>{row.name ?? "—"}</div>
-                          <div style={{ fontFamily: "monospace", fontSize: 12, color: "var(--color-text-muted)" }}>{row.id}</div>
-                        </td>
-                        <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>{row.date ?? "—"}</td>
-                        <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>{row.status ?? "—"}</td>
-                        <td style={{ padding: "10px 8px", minWidth: 360 }}>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-                            <Link href={`/internal-admin/boxscore/events/${encodeURIComponent(row.id)}/edit`} className="app-link">
-                              Edit
-                            </Link>
-                            <Link href={`/internal-admin/events/${encodeURIComponent(row.id)}`} className="app-link">
-                              Inspect
-                            </Link>
-                            <Link href={eventResultsHref(row)} className="app-link" target="_blank" rel="noopener noreferrer">
-                              View public
-                            </Link>
-                            <DeleteBoxscoreEventForm eventId={row.id} eventName={row.name ?? row.id} />
-                          </div>
-                        </td>
+              <>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                        <th style={{ padding: "10px 8px" }}>Event</th>
+                        <th style={{ padding: "10px 8px" }}>Date</th>
+                        <th style={{ padding: "10px 8px" }}>Status</th>
+                        <th style={{ padding: "10px 8px" }}>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => {
+                        const showType = getEventShowType(row);
+                        const badge = SHOW_BADGE[showType];
+                        return (
+                          <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                            <td style={{ padding: "10px 8px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                {badge ? (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      padding: "2px 6px",
+                                      borderRadius: 4,
+                                      background: badge.bg,
+                                      color: "#fff",
+                                      letterSpacing: "0.03em",
+                                    }}
+                                  >
+                                    {badge.label}
+                                  </span>
+                                ) : null}
+                                <Link
+                                  href={`/internal-admin/boxscore/events/${encodeURIComponent(row.id)}/edit`}
+                                  className="app-link"
+                                  style={{ fontWeight: 600, fontSize: 15 }}
+                                >
+                                  {row.name ?? "—"}
+                                </Link>
+                                {isEventResultsPending(row) ? (
+                                  <span
+                                    style={{
+                                      color: "#b45309",
+                                      fontWeight: 600,
+                                      fontSize: 13,
+                                      fontStyle: "italic",
+                                    }}
+                                  >
+                                    (results pending)
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div
+                                style={{
+                                  fontFamily: "monospace",
+                                  fontSize: 12,
+                                  color: "var(--color-text-muted)",
+                                  marginTop: 4,
+                                }}
+                              >
+                                {row.id}
+                              </div>
+                            </td>
+                            <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>{row.date ?? "—"}</td>
+                            <td style={{ padding: "10px 8px", color: "var(--color-text-muted)" }}>
+                              {isEventResultsPending(row) ? "results pending" : (row.status ?? "—")}
+                            </td>
+                            <td style={{ padding: "10px 8px", minWidth: 280 }}>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                                <Link
+                                  href={`/internal-admin/boxscore/events/${encodeURIComponent(row.id)}/edit`}
+                                  style={editButtonStyle}
+                                >
+                                  Edit event
+                                </Link>
+                                <Link href={eventResultsHref(row)} className="app-link" target="_blank" rel="noopener noreferrer">
+                                  Public page
+                                </Link>
+                                <Link
+                                  href={`/internal-admin/events/${encodeURIComponent(row.id)}`}
+                                  className="app-link"
+                                  style={{ fontSize: 13 }}
+                                >
+                                  JSON
+                                </Link>
+                                <DeleteBoxscoreEventForm eventId={row.id} eventName={row.name ?? row.id} />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {hasMore && nextSiteAdminEventsLimit(limit) ? (
+                  <p style={{ marginTop: 16 }}>
+                    <Link
+                      href={buildBoxscoreEventsListHref({
+                        q,
+                        date,
+                        id,
+                        status,
+                        show,
+                        limit: nextSiteAdminEventsLimit(limit)!,
+                      })}
+                      className="admin-article-submit"
+                      style={{ display: "inline-block", textDecoration: "none" }}
+                    >
+                      Load more events ({nextSiteAdminEventsLimit(limit)} total)
+                    </Link>
+                  </p>
+                ) : null}
+              </>
             ) : null}
           </>
         )}
       </section>
+
+      <p style={{ marginTop: 28, fontSize: 13, color: "var(--color-text-muted)", maxWidth: 560 }}>
+        Need raw <code>matches</code> JSON only? Use the{" "}
+        <Link href="/internal-admin/events" className="app-link">
+          read-only Events inspector
+        </Link>
+        .
+      </p>
     </div>
   );
 }

@@ -51,6 +51,7 @@ export default async function BoxscoreWrestlersAdminPage() {
       hydrate("tag_team_partner_slug", "tag_team_partner_slug"),
       hydrate("stable", "stable"),
       hydrate("is_stable_leader", "is_stable_leader"),
+      hydrate("gender", "gender"),
       // These columns vary by environment/casing in legacy PWBS data.
       hydrate("classification", "classification"),
       hydrate('"Classification"', "Classification"),
@@ -65,6 +66,36 @@ export default async function BoxscoreWrestlersAdminPage() {
     }));
   }
 
+  let tagTeamNames: string[] = [];
+  let stableNames: string[] = [];
+  if (admin) {
+    const [{ data: teams }, { data: stableTeams }] = await Promise.all([
+      admin.from("tag_teams").select("name").eq("active", true),
+      admin.from("tag_teams").select("name").eq("active", true).eq("is_stable", true),
+    ]);
+    const tagSet = new Set<string>();
+    for (const t of teams ?? []) {
+      const n = String((t as { name?: string }).name ?? "").trim();
+      if (n) tagSet.add(n);
+    }
+    for (const w of wrestlers) {
+      const n = String((w as { tag_team_name?: string }).tag_team_name ?? "").trim();
+      if (n) tagSet.add(n);
+    }
+    tagTeamNames = Array.from(tagSet).sort((a, b) => a.localeCompare(b));
+
+    const stableSet = new Set<string>();
+    for (const t of stableTeams ?? []) {
+      const n = String((t as { name?: string }).name ?? "").trim();
+      if (n) stableSet.add(n);
+    }
+    for (const w of wrestlers) {
+      const n = String((w as { stable?: string }).stable ?? "").trim();
+      if (n) stableSet.add(n);
+    }
+    stableNames = Array.from(stableSet).sort((a, b) => a.localeCompare(b));
+  }
+
   return (
     <div>
       <p style={{ marginBottom: 16 }}>
@@ -77,7 +108,11 @@ export default async function BoxscoreWrestlersAdminPage() {
         Manage wrestler records used by results pages and fantasy scoring. This ports the PWBS add/edit workflow into the
         internal admin panel.
       </p>
-      <WrestlersManager wrestlers={wrestlers as never[]} />
+      <WrestlersManager
+        wrestlers={wrestlers as never[]}
+        tagTeamNames={tagTeamNames}
+        stableNames={stableNames}
+      />
     </div>
   );
 }

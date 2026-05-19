@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { EventResultsMatchScroll } from "./EventResultsMatchScroll";
 
+import { BoxscoreAdminQuickLinks } from "@/app/components/BoxscoreAdminQuickLinks";
 import { EventPageHeader } from "@/components/boxscore-port/EventPageHeader";
 import EventBoxscoreMatchList from "@/components/boxscore-port/EventBoxscoreMatchList";
 import {
@@ -672,6 +673,7 @@ export default async function EventResultsPage({
       <Suspense fallback={null}>
         <EventResultsMatchScroll />
       </Suspense>
+      <BoxscoreAdminQuickLinks eventId={event.id} />
       <EventPageHeader
         eventName={event.name ?? "Event"}
         eventId={event.id}

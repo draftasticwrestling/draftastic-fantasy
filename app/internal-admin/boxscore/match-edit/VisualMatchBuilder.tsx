@@ -104,6 +104,15 @@ const dismissButtonHoverStyle = {
   color: '#999',
 };
 
+function isAllTagTeamsOfTwo(structure) {
+  return (
+    Array.isArray(structure) &&
+    structure.length > 0 &&
+    structure.every((side) => side.type === 'team') &&
+    structure.every((side) => side.participants && side.participants.length === 2)
+  );
+}
+
 export default function VisualMatchBuilder({ 
   wrestlers = [], 
   value, 
@@ -111,6 +120,7 @@ export default function VisualMatchBuilder({
   maxParticipants = 30,
   initialStructure = null,
   initialTagTeamData = null,
+  matchType: selectedMatchType = null,
   isTitleMatch = false,
   defendingChampion = null,
   onDefendingChampionChange = null
@@ -248,10 +258,14 @@ export default function VisualMatchBuilder({
       return [];
     }
 
-    // Always show tag team suggestions unless it's explicitly a Gauntlet Match
-    const isGauntletMatch = Array.isArray(matchStructure) && matchStructure.length >= 5 && 
-      matchStructure.every(side => side.type === 'individual' && side.participants.length === 1);
-    
+    const nSides = Array.isArray(matchStructure) ? matchStructure.length : 0;
+    const isGauntletMatch =
+      Array.isArray(matchStructure) &&
+      nSides >= 5 &&
+      nSides <= 10 &&
+      matchStructure.every((side) => side.type === 'individual' && side.participants.length === 1) &&
+      selectedMatchType === 'Gauntlet Match';
+
     if (isGauntletMatch) {
       console.log('Returning empty suggestions due to Gauntlet Match');
       return [];
@@ -440,6 +454,18 @@ export default function VisualMatchBuilder({
               const foundByName = safeWrestlers.find(w => w.name === potentialSlug);
               return foundByName ? foundByName.id : potentialSlug;
             });
+            if (
+              selectedMatchType === 'Handicap Match (Tag)' &&
+              wrestlerSlugs.length === 2
+            ) {
+              return { type: 'team', name: '', participants: wrestlerSlugs };
+            }
+            if (
+              selectedMatchType === 'Handicap Match (singles)' &&
+              wrestlerSlugs.length > 1
+            ) {
+              return { type: 'team', name: '', participants: wrestlerSlugs };
+            }
             return { type: 'individual', participants: wrestlerSlugs };
           }
         });
@@ -600,22 +626,28 @@ export default function VisualMatchBuilder({
       return;
     }
     
-    // Determine match type based on structure
     const totalParticipants = Array.isArray(structure) ? structure.flatMap(side => side.participants).filter(Boolean).length : 0;
     const hasTeams = Array.isArray(structure) && structure.some(side => side.type === 'team');
-    const isBattleRoyal = totalParticipants > 8 && !hasTeams; // Only treat as battle royal if no teams and more than 8 participants
-    const isGauntletMatch = Array.isArray(structure) && structure.length >= 5 && structure.length <= 10 && structure.every(side => side.type === 'individual');
-    const isTagTeamGauntletMatch = Array.isArray(structure) && structure.length >= 4 && structure.length <= 10 &&
-      structure.every(side => side.type === 'team') &&
-      structure.every(side => side.participants && side.participants.length === 2);
-    
-    console.log('updateParentValue called with structure:', structure);
-    console.log('totalParticipants:', totalParticipants, 'isBattleRoyal:', isBattleRoyal, 'isGauntletMatch:', isGauntletMatch, 'isTagTeamGauntletMatch:', isTagTeamGauntletMatch);
-    
-    // Determine match type based on structure
+    const isBattleRoyal =
+      !hasTeams &&
+      (selectedMatchType === 'Battle Royal' ||
+        selectedMatchType === 'Royal Rumble' ||
+        selectedMatchType === 'Elimination Chamber');
+    const nIndiv = Array.isArray(structure) ? structure.length : 0;
+    const isGauntletMatch =
+      Array.isArray(structure) &&
+      nIndiv >= 5 &&
+      nIndiv <= 10 &&
+      structure.every((side) => side.type === 'individual') &&
+      selectedMatchType === 'Gauntlet Match';
+    const tagTwoOfTwo = isAllTagTeamsOfTwo(structure);
+    const n = Array.isArray(structure) ? structure.length : 0;
+    const isTagTeamGauntletMatch =
+      tagTwoOfTwo && n >= 3 && n <= 10 && selectedMatchType === 'Tag Team Gauntlet Match';
+
     let matchType = 'Singles Match';
     const numSides = Array.isArray(structure) ? structure.length : 0;
-    
+
     if (isBattleRoyal) {
       matchType = 'Battle Royal';
     } else if (isTagTeamGauntletMatch) {
@@ -623,40 +655,57 @@ export default function VisualMatchBuilder({
     } else if (isGauntletMatch) {
       matchType = 'Gauntlet Match';
     } else if (numSides === 3) {
-      // Check if it's 3-way tag team or triple threat
-      const hasTeams = structure.some(side => side.type === 'team');
-      matchType = hasTeams ? '3-way Tag Team' : 'Triple Threat match';
-    } else if (numSides === 4) {
-      // Check if it's 4-way tag team or fatal four-way
-      const hasTeams = structure.some(side => side.type === 'team');
-      matchType = hasTeams ? '4-way Tag Team' : 'Fatal Four-way match';
-    } else if (numSides === 5) {
-      // 5-team tag team
-      const hasTeams = structure.some(side => side.type === 'team');
-      const participantsPerSide = structure[0]?.participants?.length || 1;
-      if (hasTeams && participantsPerSide === 2) {
-        matchType = '5-team Tag Team';
-      } else if (hasTeams && participantsPerSide > 2) {
-        matchType = '6-person Tag Team';
+      const hasTeamsInStructure = structure.some(side => side.type === 'team');
+      const allTwoMemberTeams =
+        structure.every((side) => side.type === 'team') &&
+        structure.every((side) => Array.isArray(side.participants) && side.participants.length === 2);
+      if (selectedMatchType === 'Handicap Match (Tag)' && allTwoMemberTeams) {
+        matchType = 'Handicap Match (Tag)';
+      } else if (hasTeamsInStructure) {
+        matchType = '3-way Tag Team';
       } else {
-        matchType = 'Fatal Four-way match'; // 5 individuals -> treat as multi-way
+        matchType = 'Triple Threat match';
       }
-    } else if (numSides === 6) {
-      // Check if it's 6-team tag team or other 6-person match
-      const hasTeams = structure.some(side => side.type === 'team');
+    } else if (numSides === 4) {
+      const hasTeamsInStructure = structure.some(side => side.type === 'team');
+      matchType = hasTeamsInStructure ? '4-way Tag Team' : 'Fatal Four-way match';
+    } else if (numSides === 5) {
+      const hasTeamsInStructure = structure.some(side => side.type === 'team');
       const participantsPerSide = structure[0]?.participants?.length || 1;
-      if (hasTeams && participantsPerSide === 2) {
-        matchType = '6-team Tag Team';
-      } else if (hasTeams && participantsPerSide > 2) {
+      if (hasTeamsInStructure && participantsPerSide === 2) {
+        matchType = '5-team Tag Team';
+      } else if (hasTeamsInStructure && participantsPerSide > 2) {
         matchType = '6-person Tag Team';
       } else {
-        matchType = 'Battle Royal'; // Default for 6 individual participants
+        matchType = '5-way Match';
+      }
+    } else if (numSides >= 6) {
+      const hasTeamsInStructure = structure.some(side => side.type === 'team');
+      const participantsPerSide = structure[0]?.participants?.length || 1;
+      if (hasTeamsInStructure && participantsPerSide === 2 && numSides === 6) {
+        matchType = '6-team Tag Team';
+      } else if (hasTeamsInStructure && participantsPerSide > 2 && numSides === 2) {
+        matchType = '6-person Tag Team';
+      } else if (!hasTeamsInStructure) {
+        matchType = `${numSides}-way Match`;
       }
     } else if (numSides === 2) {
-      // Check if it's tag team or singles
-      const hasTeams = structure.some(side => side.type === 'team');
+      const hasTeamsInStructure = structure.some(side => side.type === 'team');
       const participantsPerSide = structure[0]?.participants?.length || 1;
-      if (hasTeams) {
+      if (selectedMatchType === 'Handicap Match (singles)') {
+        const hasInd = structure.some((s) => s.type === 'individual');
+        const hasTm = structure.some((s) => s.type === 'team');
+        if (hasInd && hasTm) {
+          matchType = 'Handicap Match (singles)';
+        } else if (hasTeamsInStructure) {
+          if (participantsPerSide === 3) matchType = '6-person Tag Team';
+          else if (participantsPerSide === 4) matchType = '8-person Tag Team';
+          else if (participantsPerSide === 5) matchType = '10-man Tag Team';
+          else matchType = 'Tag Team';
+        } else {
+          matchType = 'Singles Match';
+        }
+      } else if (hasTeamsInStructure) {
         if (participantsPerSide === 3) matchType = '6-person Tag Team';
         else if (participantsPerSide === 4) matchType = '8-person Tag Team';
         else if (participantsPerSide === 5) matchType = '10-man Tag Team';

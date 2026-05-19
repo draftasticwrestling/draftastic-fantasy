@@ -47,3 +47,27 @@ export function compareChampionshipTitleNames(a: string, b: string): number {
 export function sortByChampionshipDisplayOrder<T extends { title: string }>(cards: T[]): T[] {
   return [...cards].sort((x, y) => compareChampionshipTitleNames(x.title, y.title));
 }
+
+/** NXT tab on Current Champions (/wrestlers) — keep admin + public cards aligned. */
+export const NXT_CHAMPIONSHIP_SLUG_ORDER: readonly string[] = [
+  "nxt-championship",
+  "nxt-womens-championship",
+  "nxt-north-american-championship",
+  "nxt-womens-north-american-championship",
+  "nxt-tag-team-championship",
+  "nxt-mens-speed-championship",
+  "nxt-womens-speed-championship",
+];
+
+export function isNxtChampionshipSlug(slug: string): boolean {
+  return String(slug || "").trim().toLowerCase().startsWith("nxt-");
+}
+
+export function compareNxtChampionshipSlugs(slugA: string, slugB: string): number {
+  const ia = NXT_CHAMPIONSHIP_SLUG_ORDER.indexOf(slugA);
+  const ib = NXT_CHAMPIONSHIP_SLUG_ORDER.indexOf(slugB);
+  const ha = ia === -1 ? 999 : ia;
+  const hb = ib === -1 ? 999 : ib;
+  if (ha !== hb) return ha - hb;
+  return slugA.localeCompare(slugB, undefined, { sensitivity: "base" });
+}

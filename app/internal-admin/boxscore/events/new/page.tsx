@@ -18,15 +18,11 @@ export default async function BoxscoreAddEventPage() {
   return (
     <div>
       <p style={{ marginBottom: 16 }}>
-        <Link href="/internal-admin/boxscore/events" className="app-link">
-          ← Boxscore events
-        </Link>
-        {" · "}
-        <Link href="/internal-admin/events" className="app-link">
-          Events inspector
+        <Link href="/internal-admin/boxscore/events" className="app-link" style={{ fontWeight: 600 }}>
+          ← Back to Events
         </Link>
       </p>
-      <h1 className={styles.pageTitle}>Add boxscore event</h1>
+      <h1 className={styles.pageTitle}>Add Event</h1>
       <p className={styles.intro}>
         Creates a row in <code>events</code> with the same field allowlist as PWBS. The <strong>visual match builder</strong> and{" "}
         <strong>MatchEdit</strong> flows are ported from Pro Wrestling Boxscore. Use <strong>Upcoming</strong> for an empty card; completed or live

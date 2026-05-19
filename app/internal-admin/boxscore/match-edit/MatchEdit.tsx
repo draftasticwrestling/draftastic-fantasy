@@ -7,7 +7,8 @@ import {
   METHOD_OPTIONS,
   TITLE_OPTIONS,
   SPECIAL_WINNER_OPTIONS,
-  TITLE_OUTCOME_OPTIONS
+  TITLE_OUTCOME_OPTIONS,
+  PROMO_OUTCOME_OPTIONS,
 } from '@/lib/boxscoreAdmin/boxscoreMatchOptions';
 import { persistEventMatchCommentaryAction } from '@/app/internal-admin/boxscore/events/commentaryActions';
 
@@ -32,17 +33,6 @@ const inputStyle = {
 
 const gold = '#C6A04F';
 
-// Local copy of promo outcome options (kept in sync with App.jsx)
-const PROMO_OUTCOME_OPTIONS = [
-  'None',
-  'Title Vacated',
-  'Match Announced',
-  'Wrestler Going Inactive',
-  'Championship Challenge',
-  'Return Announced',
-  'Other',
-];
-
 /** Map stored promoOutcome (possibly a custom string) to select + Other field state */
 function getPromoOutcomeInitialState(initialMatch) {
   const raw = (initialMatch.promoOutcome || 'None').trim();
@@ -65,7 +55,20 @@ function getPromoOutcomeInitialState(initialMatch) {
  * Promo editor is a separate component so hooks stay valid (no early return before other MatchEdit hooks).
  * Save merges into initialMatch so order, cardType, commentary, etc. are never dropped vs internal match state.
  */
-export function PromoMatchEdit({ initialMatch = {}, onSave, onCancel, wrestlers }) {
+export function PromoMatchEdit({
+  initialMatch = {},
+  onSave,
+  onCancel,
+  wrestlers,
+  variant = 'edit',
+}: {
+  initialMatch?: Record<string, unknown>;
+  onSave: (match: Record<string, unknown>) => void;
+  onCancel: () => void;
+  wrestlers: { id: string; name: string }[];
+  variant?: 'add' | 'edit';
+}) {
+  const isAdd = variant === 'add';
   const safeWrestlers = Array.isArray(wrestlers) ? wrestlers : [];
   const [promoTitle, setPromoTitle] = useState(() => initialMatch.title || '');
   const [promoParticipants, setPromoParticipants] = useState(() =>
@@ -113,7 +116,7 @@ export function PromoMatchEdit({ initialMatch = {}, onSave, onCancel, wrestlers 
 
   return (
     <div>
-      <h3 style={{ color: gold, marginBottom: 16 }}>Edit Promo / Segment</h3>
+      <h3 style={{ color: gold, marginBottom: 16 }}>{isAdd ? 'Add Promo' : 'Edit Promo / Segment'}</h3>
       <form onSubmit={handleSavePromo}>
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>
@@ -239,7 +242,7 @@ export function PromoMatchEdit({ initialMatch = {}, onSave, onCancel, wrestlers 
             type="submit"
             style={{ flex: 1, background: '#C6A04F', color: '#232323', border: 'none', borderRadius: 4, padding: 10, fontWeight: 700, cursor: 'pointer' }}
           >
-            Save Promo
+            {isAdd ? 'Add Promo' : 'Save Promo'}
           </button>
           <button
             type="button"
@@ -267,7 +270,9 @@ export default function MatchEdit({
   initialTagTeamData,
   stipulationOptions,
   specialWinnerOptions,
+  variant = 'edit',
 }) {
+  const isAdd = variant === 'add';
   const stipulationOptionsResolved =
     Array.isArray(stipulationOptions) && stipulationOptions.length > 0
       ? stipulationOptions
@@ -317,6 +322,14 @@ export default function MatchEdit({
   const [editingCommentText, setEditingCommentText] = useState("");
   const [useVisualBuilder, setUseVisualBuilder] = useState(true);
   const [isAddingCommentary, setIsAddingCommentary] = useState(false);
+
+  const effectiveStatus = status || eventStatus || 'completed';
+  const isSurvivorSeriesMatch =
+    match.matchType === 'Survivor Series-style 10-man Tag Team Elimination match' ||
+    (typeof match.matchType === 'string' && match.matchType.includes('Survivor Series'));
+  const isWarGamesMatch =
+    match.matchType === '5-on-5 War Games Match' ||
+    (typeof match.matchType === 'string' && match.matchType.includes('War Games'));
 
   // Auto-sync isLive with status (now controlled by Begin Match button)
   useEffect(() => {
@@ -548,7 +561,7 @@ export default function MatchEdit({
   }, [initialMatch, winnerOptions, match.participants]);
 
   function isMethodRequired() {
-    return status === 'completed' && resultType === 'Winner';
+    return effectiveStatus === 'completed' && resultType === 'Winner';
   }
 
   function getElapsedMinutes(ts) {
@@ -633,6 +646,7 @@ export default function MatchEdit({
   const handleSave = (e) => {
     e.preventDefault();
     console.log('🔴🔴🔴 handleSave STARTING 🔴🔴🔴');
+    const saveStatus = status || eventStatus || 'completed';
     
     try {
     let result = '';
@@ -640,7 +654,7 @@ export default function MatchEdit({
     // --- Battle Royal branch ---
     if (isBattleRoyal) {
       console.log('Battle Royal branch executing');
-      if (status === 'completed' && brWinner) {
+      if (saveStatus === 'completed' && brWinner) {
         const winnerName = safeWrestlers.find(w => w.id === brWinner)?.name || brWinner;
         const participants = Array.isArray(brParticipants) ? brParticipants.filter(Boolean).map(slug => 
           safeWrestlers.find(w => w.id === slug)?.name || slug
@@ -667,13 +681,13 @@ export default function MatchEdit({
         result = `${winnerName} won the Battle Royal${eliminationsText}`;
         console.log('Battle Royal result generated:', result);
         console.log('Eliminations text:', eliminationsText);
-      } else if (status === 'completed') {
+      } else if (saveStatus === 'completed') {
         result = 'No winner';
       }
     } else if (isRoyalRumble) {
       // --- Royal Rumble branch ---
       console.log('Royal Rumble branch executing');
-      if (status === 'completed' && rrWinner) {
+      if (saveStatus === 'completed' && rrWinner) {
         const winnerName = safeWrestlers.find(w => w.id === rrWinner)?.name || rrWinner;
         
         // Format eliminations if they exist
@@ -695,13 +709,13 @@ export default function MatchEdit({
         }
         
         result = `${winnerName} won the Royal Rumble${eliminationsText}`;
-      } else if (status === 'completed') {
+      } else if (saveStatus === 'completed') {
         result = 'No winner';
       }
     } else if (isEliminationChamber) {
       // --- Elimination Chamber branch ---
       console.log('Elimination Chamber branch executing');
-      if (status === 'completed' && ecWinner) {
+      if (saveStatus === 'completed' && ecWinner) {
         const winnerName = safeWrestlers.find(w => w.id === ecWinner)?.name || ecWinner;
         
         // Format eliminations if they exist
@@ -728,12 +742,12 @@ export default function MatchEdit({
         }
 
         result = `${winnerName} won the Elimination Chamber${eliminationsText}`;
-      } else if (status === 'completed') {
+      } else if (saveStatus === 'completed') {
         result = 'No winner';
       }
     } else {
       // --- Default (non-Battle Royal) branch ---
-      if (status === 'completed' && resultType === 'Winner' && winner && winnerOptions.length >= 2) {
+      if (saveStatus === 'completed' && resultType === 'Winner' && winner && winnerOptions.length >= 2) {
         const { participants, tagTeams } = parseParticipantsWithTagTeams(match.participants);
         const winnerIndex = winnerOptions.indexOf(winner);
         if (winnerIndex !== -1) {
@@ -746,7 +760,7 @@ export default function MatchEdit({
           });
           result = `${winnerName} def. ${loserNames.join(' & ')}`;
         }
-      } else if (status === 'completed' && resultType === 'No Winner') {
+      } else if (saveStatus === 'completed' && resultType === 'No Winner') {
         result = 'No winner';
       }
     }
@@ -782,7 +796,7 @@ export default function MatchEdit({
     
     // Automatically set "Champion Retains" when champion loses by DQ or Count Out
     let titleOutcome = match.titleOutcome;
-    if (status === 'completed' && match.title && match.title !== 'None' && match.defendingChampion) {
+    if (saveStatus === 'completed' && match.title && match.title !== 'None' && match.defendingChampion) {
       const method = match.method?.toLowerCase() || '';
       const isDQOrCountOut = method === 'dq' || method === 'count out' || method === 'double count out';
       
@@ -810,8 +824,8 @@ export default function MatchEdit({
     const updatedMatch = {
       ...match,
       result,
-      status,
-      isLive: shouldBeLive,
+      status: saveStatus,
+      isLive: saveStatus === 'live' ? true : shouldBeLive,
       liveStart,
       liveEnd,
       commentary,
@@ -1034,6 +1048,17 @@ export default function MatchEdit({
           { type: 'team', participants: ['', ''], name: '' },
           { type: 'team', participants: ['', ''], name: '' }
         ];
+      case 'Handicap Match (singles)':
+        return [
+          { type: 'individual', participants: [''] },
+          { type: 'team', participants: ['', ''], name: '' }
+        ];
+      case 'Handicap Match (Tag)':
+        return [
+          { type: 'team', participants: ['', ''], name: '' },
+          { type: 'team', participants: ['', ''], name: '' },
+          { type: 'team', participants: ['', ''], name: '' }
+        ];
       case '3-way Tag Team':
         return [
           { type: 'team', participants: ['', ''], name: '' },
@@ -1086,6 +1111,24 @@ export default function MatchEdit({
           { type: 'individual', participants: [''] },
           { type: 'individual', participants: [''] }
         ];
+      case '5-way Match':
+        return [
+          { type: 'individual', participants: [''] },
+          { type: 'individual', participants: [''] },
+          { type: 'individual', participants: [''] },
+          { type: 'individual', participants: [''] },
+          { type: 'individual', participants: [''] }
+        ];
+      case '6-way Match':
+        return Array.from({ length: 6 }, () => ({ type: 'individual', participants: [''] }));
+      case '7-way Match':
+        return Array.from({ length: 7 }, () => ({ type: 'individual', participants: [''] }));
+      case '8-way Match':
+        return Array.from({ length: 8 }, () => ({ type: 'individual', participants: [''] }));
+      case '9-way Match':
+        return Array.from({ length: 9 }, () => ({ type: 'individual', participants: [''] }));
+      case '10-way Match':
+        return Array.from({ length: 10 }, () => ({ type: 'individual', participants: [''] }));
       case 'Triple Threat match':
         return [
           { type: 'individual', participants: [''] },
@@ -1222,27 +1265,16 @@ export default function MatchEdit({
           <span style={{ color: 'white', fontWeight: 600 }}>LIVE MATCH</span>
         </div>
       )}
-      {/* Always show Match Status for all match types */}
       <div>
         <label style={labelStyle}>Match Status:</label>
         <select
           style={inputStyle}
           value={status}
-          onChange={e => {
+          onChange={(e) => {
             const newStatus = e.target.value;
             setStatus(newStatus);
-
-            // Changing status to "Live (in progress)" should mark the match as live
-            // for display purposes, but NOT automatically start commentary.
-            if (newStatus === 'live') {
-              setIsLive(true);
-            }
-
-            // If the user marks the match as Upcoming or Completed via dropdown,
-            // clear the live flag so the "Match in progress" indicator turns off.
-            if (newStatus === 'upcoming' || newStatus === 'completed') {
-              setIsLive(false);
-            }
+            if (newStatus === 'live') setIsLive(true);
+            if (newStatus === 'upcoming' || newStatus === 'completed') setIsLive(false);
           }}
         >
           <option value="upcoming">Upcoming</option>
@@ -1250,14 +1282,25 @@ export default function MatchEdit({
           <option value="completed">Completed</option>
         </select>
       </div>
-      {/* Main Event toggle (only relevant once event is not upcoming) */}
-      {eventStatus !== 'upcoming' && (
+      {isAdd ? (
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Card Type:</label>
+          <select
+            value={match.cardType || 'Undercard'}
+            onChange={(e) => setMatch({ ...match, cardType: e.target.value })}
+            style={inputStyle}
+          >
+            <option value="Undercard">Undercard</option>
+            <option value="Main Event">Main Event</option>
+          </select>
+        </div>
+      ) : eventStatus !== 'upcoming' ? (
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>
             <input
               type="checkbox"
               checked={match.cardType === 'Main Event'}
-              onChange={e =>
+              onChange={(e) =>
                 setMatch({
                   ...match,
                   cardType: e.target.checked ? 'Main Event' : 'Undercard',
@@ -1268,8 +1311,8 @@ export default function MatchEdit({
             Mark as Main Event
           </label>
         </div>
-      )}
-      <h2 style={{ color: '#C6A04F', marginBottom: 12 }}>Edit Match</h2>
+      ) : null}
+      <h2 style={{ color: '#C6A04F', marginBottom: 12 }}>{isAdd ? 'Add Match' : 'Edit Match'}</h2>
       <div style={{ marginBottom: 16 }}>
         <label style={labelStyle}>Match Type:</label>
         <select
@@ -1546,7 +1589,7 @@ export default function MatchEdit({
           )}
 
           {/* Winner Selection - After Eliminations */}
-          {status === 'completed' && brParticipants.filter(Boolean).length >= 2 && (
+          {effectiveStatus === 'completed' && brParticipants.filter(Boolean).length >= 2 && (
             <div style={{ marginTop: 16 }}>
               <label style={{ color: gold, fontWeight: 600 }}>Winner:</label>
               <select 
@@ -1825,7 +1868,7 @@ export default function MatchEdit({
           )}
 
           {/* Winner Selection */}
-          {status === 'completed' && rrParticipants.filter(Boolean).length > 0 && (
+          {effectiveStatus === 'completed' && rrParticipants.filter(Boolean).length > 0 && (
             <>
               <div style={{ marginTop: 16 }}>
                 <label style={{ color: gold, fontWeight: 600 }}>Winner:</label>
@@ -2203,6 +2246,86 @@ export default function MatchEdit({
             </div>
           )}
         </>
+      ) : isSurvivorSeriesMatch ? (
+        <div style={{ marginBottom: 16 }}>
+          <SurvivorSeriesMatchBuilder
+            wrestlers={safeWrestlers}
+            value={match.participants}
+            onChange={(value, matchType) => {
+              const newMatch = { ...match, participants: value };
+              if (matchType) newMatch.matchType = matchType;
+              setMatch(newMatch);
+            }}
+            onResultChange={(ssResult) => {
+              const winningTeamNames =
+                ssResult.winningTeam === 1
+                  ? ssResult.team1Names.join(' & ')
+                  : ssResult.team2Names.join(' & ');
+              const losingTeamNames =
+                ssResult.winningTeam === 1
+                  ? ssResult.team2Names.join(' & ')
+                  : ssResult.team1Names.join(' & ');
+              const survivorLabel = ssResult.survivorName || ssResult.survivor;
+              const resultText = `${winningTeamNames} def. ${losingTeamNames} (Survivor: ${survivorLabel}${ssResult.time ? `, ${ssResult.time}` : ''})`;
+              setMatch((prev) => ({
+                ...prev,
+                survivorSeriesData: ssResult,
+                winner: survivorLabel,
+                method: 'Pinfall',
+                time: ssResult.time || prev.time,
+                result: resultText,
+              }));
+            }}
+          />
+        </div>
+      ) : isWarGamesMatch ? (
+        <div style={{ marginBottom: 16 }}>
+          <WarGamesMatchBuilder
+            wrestlers={safeWrestlers}
+            value={match.participants}
+            onChange={(value, matchType) => {
+              const newMatch = { ...match, participants: value };
+              if (matchType) newMatch.matchType = matchType;
+              setMatch(newMatch);
+            }}
+            onResultChange={(warGamesResult) => {
+              const winningTeamNames =
+                warGamesResult.winningTeam === 1
+                  ? warGamesResult.team1Names.join(' & ')
+                  : warGamesResult.team2Names.join(' & ');
+              const losingTeamNames =
+                warGamesResult.winningTeam === 1
+                  ? warGamesResult.team2Names.join(' & ')
+                  : warGamesResult.team1Names.join(' & ');
+              const pinWinnerName =
+                warGamesResult.pinWinnerName || warGamesResult.pinSubmissionWinner;
+              let entryOrderText = '';
+              if (
+                warGamesResult.entryOrder &&
+                Array.isArray(warGamesResult.entryOrder) &&
+                warGamesResult.entryOrder.length > 0
+              ) {
+                const sortedEntries = [...warGamesResult.entryOrder].sort(
+                  (a, b) => a.entryNumber - b.entryNumber
+                );
+                const entryNames = sortedEntries.map((entry) => {
+                  const wrestler = safeWrestlers.find((w) => w.id === entry.wrestler);
+                  return wrestler ? wrestler.name : entry.wrestler;
+                });
+                entryOrderText = ` [Entry Order: ${entryNames.join(' → ')}]`;
+              }
+              const resultText = `${winningTeamNames} def. ${losingTeamNames} (${warGamesResult.method} by ${pinWinnerName}${entryOrderText}${warGamesResult.time ? `, ${warGamesResult.time}` : ''})`;
+              setMatch((prev) => ({
+                ...prev,
+                warGamesData: warGamesResult,
+                winner: winningTeamNames,
+                method: warGamesResult.method,
+                time: warGamesResult.time,
+                result: resultText,
+              }));
+            }}
+          />
+        </div>
       ) : (
         <>
           {/* Check if this is a title match - if so, always use visual builder */}
@@ -2213,7 +2336,7 @@ export default function MatchEdit({
             return (
               <>
                 {/* Participant Input Toggle - hide for title matches since visual builder is required */}
-                {!isTitleMatch && (
+                {!isTitleMatch && !isSurvivorSeriesMatch && !isWarGamesMatch && (
                   <div style={{ marginBottom: 16 }}>
                     <label style={{ color: gold, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <input
@@ -2307,57 +2430,11 @@ export default function MatchEdit({
                     }));
                   }}
                 />
-              ) : match.matchType === '5-on-5 War Games Match' ? (
-                <WarGamesMatchBuilder
-                  wrestlers={safeWrestlers}
-                  value={match.participants}
-                  onChange={(value, matchType) => {
-                    console.log('WarGamesMatchBuilder onChange called with value:', value, 'matchType:', matchType);
-                    const newMatch = { ...match, participants: value };
-                    if (matchType) {
-                      newMatch.matchType = matchType;
-                    }
-                    setMatch(newMatch);
-                  }}
-                  onResultChange={warGamesResult => {
-                    console.log('War Games result:', warGamesResult);
-                    // Store the war games data
-                    const winningTeamNames = warGamesResult.winningTeam === 1 
-                      ? warGamesResult.team1Names.join(' & ')
-                      : warGamesResult.team2Names.join(' & ');
-                    const losingTeamNames = warGamesResult.winningTeam === 1 
-                      ? warGamesResult.team2Names.join(' & ')
-                      : warGamesResult.team1Names.join(' & ');
-                    const pinWinnerName = warGamesResult.pinWinnerName || warGamesResult.pinSubmissionWinner;
-                    
-                    // Format entry order
-                    let entryOrderText = '';
-                    if (warGamesResult.entryOrder && Array.isArray(warGamesResult.entryOrder) && warGamesResult.entryOrder.length > 0) {
-                      // Sort entry order by entry number
-                      const sortedEntries = [...warGamesResult.entryOrder].sort((a, b) => a.entryNumber - b.entryNumber);
-                      const entryNames = sortedEntries.map(entry => {
-                        const wrestler = safeWrestlers.find(w => w.id === entry.wrestler);
-                        return wrestler ? wrestler.name : entry.wrestler;
-                      });
-                      entryOrderText = ` [Entry Order: ${entryNames.join(' → ')}]`;
-                    }
-                    
-                    const resultText = `${winningTeamNames} def. ${losingTeamNames} (${warGamesResult.method} by ${pinWinnerName}${entryOrderText}${warGamesResult.time ? `, ${warGamesResult.time}` : ''})`;
-                    
-                    setMatch(prev => ({
-                      ...prev,
-                      warGamesData: warGamesResult,
-                      winner: winningTeamNames,
-                      method: warGamesResult.method,
-                      time: warGamesResult.time,
-                      result: resultText
-                    }));
-                  }}
-                />
               ) : (
                 <VisualMatchBuilder
                   wrestlers={safeWrestlers}
                   initialTagTeamData={initialTagTeamData ?? null}
+                  matchType={match.matchType}
                   value={match.participants}
                   onChange={(value, matchType) => {
                     console.log('VisualMatchBuilder onChange called with value:', value, 'matchType:', matchType);
@@ -2397,7 +2474,15 @@ export default function MatchEdit({
           })()}
         </>
       )}
-      {status === 'completed' && !isBattleRoyal && (
+      {effectiveStatus === 'completed' &&
+        !isBattleRoyal &&
+        !isRoyalRumble &&
+        !isEliminationChamber &&
+        !isSurvivorSeriesMatch &&
+        !isWarGamesMatch &&
+        match.matchType !== 'Gauntlet Match' &&
+        match.matchType !== 'Tag Team Gauntlet Match' &&
+        match.matchType !== '2 out of 3 Falls' && (
         <>
           <div>
             <label>
@@ -2460,7 +2545,7 @@ export default function MatchEdit({
           </div>
         </>
       )}
-      {status === 'completed' && (
+      {effectiveStatus === 'completed' && (
         <div>
           <label>
             Match Summary (optional):<br />
@@ -2754,7 +2839,7 @@ export default function MatchEdit({
           }}
           style={{ flex: 1, background: '#e63946', color: '#fff', border: 'none', borderRadius: 4, padding: 10 }}
         >
-          Save
+          {isAdd ? 'Add Match' : 'Save Match'}
         </button>
       </div>
     </div>

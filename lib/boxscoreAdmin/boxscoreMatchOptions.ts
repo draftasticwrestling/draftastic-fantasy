@@ -1,8 +1,11 @@
 /** PWBS `src/options.js` — match editor dropdowns. */
 
+/** Keep in sync with PWBS `src/options.js` MATCH_TYPE_OPTIONS. */
 export const MATCH_TYPE_OPTIONS = [
   "Singles Match",
   "Tag Team",
+  "Handicap Match (singles)",
+  "Handicap Match (Tag)",
   "3-way Tag Team",
   "4-way Tag Team",
   "5-team Tag Team",
@@ -13,8 +16,14 @@ export const MATCH_TYPE_OPTIONS = [
   "Battle Royal",
   "Royal Rumble",
   "Elimination Chamber",
-  "Fatal Four-way match",
   "Triple Threat match",
+  "Fatal Four-way match",
+  "5-way Match",
+  "6-way Match",
+  "7-way Match",
+  "8-way Match",
+  "9-way Match",
+  "10-way Match",
   "Gauntlet Match",
   "Tag Team Gauntlet Match",
   "2 out of 3 Falls",
@@ -35,6 +44,7 @@ export const STIPULATION_OPTIONS = [
   "King of the Ring Semi-Final",
   "Last Man Standing",
   "Last Woman Standing",
+  "Ladder Match",
   "Men's Elimination Chamber qualifier",
   "Men's Money in the Bank qualifier",
   "Men's Survivor Series Qualifier",
@@ -71,21 +81,46 @@ export const METHOD_OPTIONS = [
   "Referee Decision",
 ] as const;
 
+/** Keep in sync with PWBS `src/options.js` TITLE_OPTIONS. */
 export const TITLE_OPTIONS = [
   "None",
   "Undisputed WWE Championship",
   "World Heavyweight Championship",
+  "NXT Championship",
   "Men's IC Championship",
+  "NXT North American Championship",
   "Men's U.S. Championship",
   "Raw Tag Team Championship",
   "SmackDown Tag Team Championship",
   "Men's Speed Championship",
   "WWE Women's Championship",
+  "NXT Women's Championship",
   "Women's World Championship",
   "Women's IC Championship",
+  "NXT Women's North American Championship",
   "Women's U.S. Championship",
   "Women's Tag Team Championship",
   "Women's Speed Championship",
+  "NXT Tag Team Championship",
+  "NXT Speed Championship",
+  "NXT Women's Speed Championship",
+] as const;
+
+/** PWBS `App.jsx` PROMO_OUTCOME_OPTIONS */
+export const PROMO_OUTCOME_OPTIONS = [
+  "None",
+  "Title Vacated",
+  "Match Announced",
+  "Wrestler Going Inactive",
+  "Championship Challenge",
+  "Return Announced",
+  "Feud Started",
+  "Feud Ended",
+  "Alliance Formed",
+  "Alliance Broken",
+  "Retirement Announcement",
+  "Contract Signing",
+  "Other",
 ] as const;
 
 export const SPECIAL_WINNER_OPTIONS = [

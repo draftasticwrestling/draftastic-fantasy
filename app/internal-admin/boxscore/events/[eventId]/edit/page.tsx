@@ -29,7 +29,7 @@ export default async function BoxscoreEditEventPage({
       <div>
         <p>
           <Link href="/internal-admin/boxscore/events" className="app-link">
-            ← Boxscore events
+            ← Back to Events
           </Link>
         </p>
         <p style={{ color: "var(--color-red)" }}>Service role key is not configured.</p>
@@ -62,9 +62,14 @@ export default async function BoxscoreEditEventPage({
           Changes saved.
         </p>
       ) : null}
-      <h1 className={styles.pageTitle}>Edit boxscore event</h1>
+      <p style={{ marginBottom: 12 }}>
+        <Link href="/internal-admin/boxscore/events" className="app-link" style={{ fontSize: 15, fontWeight: 600 }}>
+          ← Back to Events
+        </Link>
+      </p>
+      <h1 className={styles.pageTitle}>Edit Event</h1>
       <p className={styles.intro} style={{ marginBottom: 20 }}>
-        Updates the shared <code>events</code> row (PWBS field allowlist). Live match commentary still writes through the server while you edit.
+        Update show details, then edit or reorder matches and promos on the card below. Same workflow as PWBS Edit Event.
       </p>
       {wrestlers.length === 0 ? (
         <p style={{ color: "var(--color-red)", marginBottom: 16, fontSize: 14 }}>

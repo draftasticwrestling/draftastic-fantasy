@@ -7,6 +7,11 @@ export const metadata = {
 
 const SECTIONS = [
   {
+    href: "/internal-admin/boxscore/events",
+    title: "Events & card",
+    desc: "List shows, edit the match card (matches, promos, reorder) — same workflow as PWBS Edit Event.",
+  },
+  {
     href: "/internal-admin/boxscore/wrestlers",
     title: "Wrestlers",
     desc: "Add and edit wrestlers, profile fields, and image uploads (PWBS parity).",
@@ -20,16 +25,6 @@ const SECTIONS = [
     href: "/internal-admin/boxscore/championships",
     title: "Champions & title history",
     desc: "Current champions and championship_history-style edits.",
-  },
-  {
-    href: "/internal-admin/boxscore/events",
-    title: "Events & card",
-    desc: "Add and edit events (completed and upcoming), matches, and promos.",
-  },
-  {
-    href: "/internal-admin/boxscore/live-results",
-    title: "Live results",
-    desc: "Update live / in-progress show results.",
   },
   {
     href: "/internal-admin/boxscore/options",
@@ -48,13 +43,14 @@ export default function BoxscoreAdminHubPage() {
       </p>
       <h1 className={styles.pageTitle}>Boxscore admin (PWBS tools)</h1>
       <p className={styles.intro} style={{ maxWidth: 720 }}>
-        Port of Pro Wrestling Boxscore data-entry workflows into this portal. PWBS repo:{" "}
-        <code style={{ fontSize: 13 }}>/Users/thisguytoph/wrestling-boxscore</code>. File/route mapping lives in{" "}
-        <code style={{ fontSize: 13 }}>docs/PWBS_ADMIN_SOURCE_MAP.md</code>. Same Supabase tables and storage as PWBS;
-        Draftastic uses <code>is_site_admin</code> and server-side writes (service role + audit), unlike PWBS (any logged-in
-        user can edit). Read-only JSON inspection stays under{" "}
+        Official home for event results and championship history (same Supabase as{" "}
+        <a href="https://prowrestlingboxscore.com" target="_blank" rel="noopener noreferrer" className="app-link">
+          prowrestlingboxscore.com
+        </a>
+        ). Admin runbook: <code style={{ fontSize: 13 }}>docs/BOXSCORE_ADMIN_OPS.md</code>. Technical mapping:{" "}
+        <code style={{ fontSize: 13 }}>docs/PWBS_ADMIN_SOURCE_MAP.md</code>. Read-only <code>matches</code> JSON:{" "}
         <Link href="/internal-admin/events" className="app-link">
-          Events
+          Events inspector
         </Link>
         .
       </p>

@@ -118,7 +118,8 @@ type WrestlerMini = {
   gender: string | null;
 };
 
-function canonicalChampionshipSlugFromId(idRaw: string): string {
+/** Map DB championship_id to PWBS route slug (legacy ids included). */
+export function canonicalChampionshipSlugFromId(idRaw: string): string {
   const id = String(idRaw || "").trim().toLowerCase();
   if (!id) return "";
   if (id === "intercontinental-championship") return "mens-ic-championship";

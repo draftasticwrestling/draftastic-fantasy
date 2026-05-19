@@ -10,6 +10,7 @@ import {
 import type { EventListingRow } from "@/lib/event-results/listingQueries";
 import { fetchCompletedEventsPage, fetchUpcomingEventsForListing } from "@/lib/event-results/listingQueries";
 import { eventResultsHref } from "@/lib/event-results/eventResultsRoute";
+import { BoxscoreAdminQuickLinks } from "@/app/components/BoxscoreAdminQuickLinks";
 import { CompletedEventResultsList } from "./CompletedEventResultsList";
 
 import styles from "./event-results.module.css";
@@ -67,6 +68,7 @@ export default async function EventResultsPage({ searchParams }: { searchParams:
             ← Home
           </Link>
         </div>
+        <BoxscoreAdminQuickLinks />
 
         <header className={styles.hero}>
           <h1 className={styles.heroH1}>WWE Event Results</h1>

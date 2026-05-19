@@ -61,19 +61,24 @@ export default async function InternalAdminEventDetailPage({
         </p>
       ) : null}
       <p style={{ marginBottom: 16 }}>
-        <Link href="/internal-admin/events" className="app-link">
+        <Link href="/internal-admin/boxscore/events" className="app-link">
           ← Events
-        </Link>
-        {" · "}
-        <Link href={eventResultsHref(event)} className="app-link" target="_blank" rel="noopener noreferrer">
-          View on site
         </Link>
         {" · "}
         <Link
           href={`/internal-admin/boxscore/events/${encodeURIComponent(buildEventResultsSlug(event))}/edit`}
           className="app-link"
+          style={{ fontWeight: 600 }}
         >
-          Edit in boxscore
+          Edit event
+        </Link>
+        {" · "}
+        <Link href={`/internal-admin/events/${encodeURIComponent(event.id)}`} className="app-link">
+          JSON inspector
+        </Link>
+        {" · "}
+        <Link href={eventResultsHref(event)} className="app-link" target="_blank" rel="noopener noreferrer">
+          View on site
         </Link>
       </p>
 
