@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { persistEventMatchesAction } from "../actions";
 import type { BoxscoreTagTeamDataMap, BoxscoreWrestlerRow } from "@/lib/boxscoreAdmin/boxscoreEditorData";
 import MatchEdit, { PromoMatchEdit } from "../../match-edit/MatchEdit";
 
@@ -73,9 +74,27 @@ export function BoxscoreEventCardPanel({
   specialWinnerOptions?: string[];
 }) {
   const [modal, setModal] = useState<ModalState>(null);
+  const [persistNotice, setPersistNotice] = useState<string | null>(null);
+  const [persistError, setPersistError] = useState<string | null>(null);
   const inlineEditorRef = useRef<HTMLDivElement | null>(null);
 
   const closeModal = useCallback(() => setModal(null), []);
+
+  const persistCardToDatabase = useCallback(
+    async (nextMatches: Record<string, unknown>[]) => {
+      if (!eventId) return;
+      setPersistError(null);
+      const res = await persistEventMatchesAction(eventId, nextMatches);
+      if (res.error) {
+        setPersistError(res.error);
+        setPersistNotice(null);
+        return;
+      }
+      setPersistNotice("Match card saved to the database — results are visible on the public site.");
+      setTimeout(() => setPersistNotice(null), 5000);
+    },
+    [eventId]
+  );
 
   useEffect(() => {
     if (!modal) return;
@@ -87,43 +106,51 @@ export function BoxscoreEventCardPanel({
   }, [modal]);
 
   const handleSaveWrestling = useCallback(
-    (updated: Record<string, unknown>) => {
+    async (updated: Record<string, unknown>) => {
       if (!modal || modal.kind === "new-promo" || modal.kind === "edit-promo") return;
       const nextOrder =
         modal.kind === "edit-wrestling"
           ? Number((matches[modal.index] as { order?: number })?.order) || modal.index + 1
           : matches.length + 1;
       const withOrder = { ...updated, order: nextOrder };
+      let nextMatches: Record<string, unknown>[];
       if (modal.kind === "edit-wrestling") {
         const copy = [...matches];
         copy[modal.index] = withOrder;
+        nextMatches = copy;
         setMatches(copy);
       } else {
-        setMatches([...matches, withOrder]);
+        nextMatches = [...matches, withOrder];
+        setMatches(nextMatches);
       }
       closeModal();
+      await persistCardToDatabase(nextMatches);
     },
-    [modal, matches, setMatches, closeModal]
+    [modal, matches, setMatches, closeModal, persistCardToDatabase]
   );
 
   const handleSavePromo = useCallback(
-    (updated: Record<string, unknown>) => {
+    async (updated: Record<string, unknown>) => {
       if (!modal || modal.kind === "new-wrestling" || modal.kind === "edit-wrestling") return;
       const nextOrder =
         modal.kind === "edit-promo"
           ? Number((matches[modal.index] as { order?: number })?.order) || modal.index + 1
           : matches.length + 1;
       const withOrder = { ...updated, order: nextOrder };
+      let nextMatches: Record<string, unknown>[];
       if (modal.kind === "edit-promo") {
         const copy = [...matches];
         copy[modal.index] = withOrder;
+        nextMatches = copy;
         setMatches(copy);
       } else {
-        setMatches([...matches, withOrder]);
+        nextMatches = [...matches, withOrder];
+        setMatches(nextMatches);
       }
       closeModal();
+      await persistCardToDatabase(nextMatches);
     },
-    [modal, matches, setMatches, closeModal]
+    [modal, matches, setMatches, closeModal, persistCardToDatabase]
   );
 
   const wrestlingInitial = useMemo(() => {
@@ -229,8 +256,28 @@ export function BoxscoreEventCardPanel({
       <h2 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700 }}>Add matches</h2>
       <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--color-text-muted)", lineHeight: 1.45, maxWidth: 640 }}>
         Choose <strong>Match</strong> to open the visual match builder (singles, tags, title matches, gauntlets, and more).
-        Use <strong>Promo</strong> for segments. Completed and live events require valid match results before saving.
+        Use <strong>Promo</strong> for segments.{" "}
+        {eventId ? (
+          <>
+            <strong>Save Match</strong> / <strong>Save Promo</strong> writes to the database immediately (same as PWBS). Use{" "}
+            <strong>Save Event</strong> for show details (status, preview, recap).
+          </>
+        ) : (
+          <>
+            After adding matches, click <strong>Save Event</strong> at the bottom to create the show.
+          </>
+        )}
       </p>
+      {persistNotice ? (
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: "#166534", background: "#ecfdf3", padding: "8px 10px", borderRadius: 6 }}>
+          {persistNotice}
+        </p>
+      ) : null}
+      {persistError ? (
+        <p role="alert" style={{ margin: "0 0 12px", fontSize: 13, color: "var(--color-red)" }}>
+          {persistError}
+        </p>
+      ) : null}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14, alignItems: "center" }}>
         <button type="button" onClick={() => setModal({ kind: "new-wrestling" })} style={isMatchModal ? pillActive : pillIdle}>

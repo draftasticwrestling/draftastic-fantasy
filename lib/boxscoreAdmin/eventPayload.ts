@@ -12,6 +12,7 @@ const ALLOWED_TOP_LEVEL = [
   "recap",
   "matches",
   "status",
+  "isLive",
 ] as const;
 
 export type SanitizedBoxscoreEventRow = Record<string, unknown>;
@@ -31,6 +32,10 @@ export function sanitizeBoxscoreEventForSupabase(event: Record<string, unknown>)
   if (event.event_type !== undefined) {
     const et = typeof event.event_type === "string" ? event.event_type.trim() : "";
     out.event_type = et || null;
+  }
+  // PWBS addEvent: include specialWinner when provided (not in allowedFields loop).
+  if (event.specialWinner !== undefined) {
+    out.specialWinner = event.specialWinner;
   }
   return out;
 }

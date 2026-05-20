@@ -42,6 +42,8 @@ export async function persistEventMatchCommentaryAction(
 
   revalidatePath("/internal-admin/events");
   revalidatePath(`/internal-admin/events/${encodeURIComponent(eventId)}`);
+  revalidatePath("/internal-admin/boxscore/events");
+  revalidatePath(`/internal-admin/boxscore/events/${encodeURIComponent(eventId)}/edit`);
   revalidatePath("/event-results");
   revalidatePath(`/event-results/${encodeURIComponent(eventId)}`);
 

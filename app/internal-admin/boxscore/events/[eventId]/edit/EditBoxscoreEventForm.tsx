@@ -142,7 +142,15 @@ export function EditBoxscoreEventForm({
 }) {
   const [state, formAction] = useActionState(submitUpdateWithBroadcast, null);
   const [status, setStatus] = useState(() => initialStatus(event));
-  const [eventType, setEventType] = useState("");
+  const [eventType, setEventType] = useState(() =>
+    initialEventTypeLabel(
+      event,
+      ensureOptionInList(
+        mergedOptions.eventTypeLabels,
+        typeof event.event_type === "string" ? event.event_type : (event.name ?? "")
+      )
+    )
+  );
   const [broadcastTime, setBroadcastTime] = useState(() => isoToTimeValue(event.broadcast_start_ts));
   const [eventDate, setEventDate] = useState(() => {
     const d = event.date?.trim() ?? "";
@@ -174,9 +182,11 @@ export function EditBoxscoreEventForm({
     [mergedOptions.eventTypeLabels, event.event_type, event.name]
   );
 
+  // Only re-sync event type when navigating to a different event (not after failed Save Event).
   useEffect(() => {
     setEventType(initialEventTypeLabel(event, eventTypeOptions));
-  }, [event.id, event.event_type, event.name, eventTypeOptions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: event.id only
+  }, [event.id]);
 
   const specialWinnerSelectOptions = useMemo(
     () => ensureOptionInList(mergedOptions.specialWinnerOptions, specialInit.type),
@@ -372,8 +382,8 @@ export function EditBoxscoreEventForm({
           Advanced: special winner, raw JSON
         </summary>
         <p style={{ ...helperStyle, marginTop: 8 }}>
-          Special winner is not saved until the <code>specialWinner</code> column exists on{" "}
-          <code>events</code> (run <code>supabase/events_special_winner.sql</code> in Supabase).
+          Event-level special winner is saved when <strong>creating</strong> a new event (same as PWBS Add
+          Event). Run <code>supabase/events_special_winner.sql</code> if the column is missing.
         </p>
         <div style={{ display: "grid", gap: 14, marginTop: 10 }}>
       <fieldset style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", padding: 16, marginBottom: 18 }}>

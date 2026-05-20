@@ -102,6 +102,9 @@ export function BoxscoreOptionsManager({ rows }: { rows: Row[] }) {
   for (const r of rows) {
     if (grouped[r.category]) grouped[r.category].push(r);
   }
+  for (const cat of Object.keys(grouped) as BoxscoreUiOptionCategory[]) {
+    grouped[cat].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
@@ -110,11 +113,11 @@ export function BoxscoreOptionsManager({ rows }: { rows: Row[] }) {
           <h2 style={{ fontSize: 17, marginBottom: 8 }}>{CATEGORY_LABELS[cat]}</h2>
           <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 10, maxWidth: 640 }}>
             {cat === "event_type" &&
-              "Shown in Event type on add/edit event. Built-in labels (RAW, SmackDown, etc.) always appear; extras from the database are listed first."}
+              "Shown in Event type on add/edit event. Built-in and custom labels are merged and sorted A–Z."}
             {cat === "stipulation" &&
-              "Merged with built-in stipulations in MatchEdit. New rows appear at the top of the merged list."}
+              "Merged with built-in stipulations in MatchEdit (A–Z; None first, Custom/Other last)."}
             {cat === "special_winner" &&
-              "Used for event-level special winner and per-match Special Match Winner. Merged with built-in options."}
+              "Used for event-level special winner and per-match Special Match Winner (A–Z; None first)."}
           </p>
           <AddForm category={cat} />
           {grouped[cat].length === 0 ? (

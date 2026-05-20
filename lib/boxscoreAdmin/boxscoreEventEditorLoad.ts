@@ -20,6 +20,7 @@ export type BoxscoreEventEditorRow = Record<string, unknown> & {
   isLive?: boolean | null;
   broadcast_start_ts?: string | null;
   broadcast_start_ts_source?: string | null;
+  event_type?: string | null;
   specialWinner?: unknown | null;
 };
 

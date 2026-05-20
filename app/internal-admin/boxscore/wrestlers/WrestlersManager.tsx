@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { WrestlerActionState } from "./actions";
 import { createWrestlerAction, updateWrestlerAction, deleteWrestlerAction } from "./actions";
@@ -15,6 +16,7 @@ type Props = {
 const defaultState: WrestlerActionState = null;
 
 export function WrestlersManager({ wrestlers, tagTeamNames, stableNames }: Props) {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string>(wrestlers[0]?.id ?? "");
   const [mode, setMode] = useState<"edit" | "create">(wrestlers.length > 0 ? "edit" : "create");
   const [search, setSearch] = useState("");
@@ -42,14 +44,21 @@ export function WrestlersManager({ wrestlers, tagTeamNames, stableNames }: Props
     if (createState?.newId) {
       setSelectedId(createState.newId);
       setMode("edit");
+      router.refresh();
     }
-  }, [createState?.newId]);
+  }, [createState?.newId, router]);
 
   useEffect(() => {
     if (updateState?.newId) {
       setSelectedId(updateState.newId);
     }
   }, [updateState?.newId]);
+
+  useEffect(() => {
+    if (createState?.success || updateState?.success) {
+      router.refresh();
+    }
+  }, [createState?.success, updateState?.success, router]);
 
   useEffect(() => {
     setEditFormKey(0);
@@ -114,7 +123,7 @@ export function WrestlersManager({ wrestlers, tagTeamNames, stableNames }: Props
         </p>
 
         {mode === "create" ? (
-          <form action={createFormAction} style={cardStyle}>
+          <form action={createFormAction} encType="multipart/form-data" style={cardStyle}>
             <h2 style={h2Style}>Add wrestler</h2>
             <WrestlerForm mode="create" allWrestlers={allWrestlers} tagTeamNames={tagTeamNames} stableNames={stableNames} />
             <div style={footerStyle}>
@@ -135,7 +144,7 @@ export function WrestlersManager({ wrestlers, tagTeamNames, stableNames }: Props
               </Link>
             </div>
             <WrestlerQuickEditHeader wrestler={selected} />
-            <form key={`${selected.id}-${editFormKey}`} action={updateFormAction}>
+            <form key={`${selected.id}-${editFormKey}`} action={updateFormAction} encType="multipart/form-data">
               <WrestlerForm
                 mode="edit"
                 wrestler={selected}

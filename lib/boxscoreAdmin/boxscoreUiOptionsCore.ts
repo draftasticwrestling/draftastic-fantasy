@@ -50,27 +50,71 @@ export const LOCATION_PLACEHOLDER = "e.g. Dallas, TX";
 export const LOCATION_HELPER =
   "City and state only — do not include the arena or venue name (matches PWBS).";
 
+export type DropdownSortPins = {
+  /** Kept at top in this order (e.g. stipulation "None"). */
+  pinFirst?: readonly string[];
+  /** Kept at bottom in this order (e.g. stipulation "Custom/Other"). */
+  pinLast?: readonly string[];
+};
+
+function normLabelKey(label: string): string {
+  return label.trim().toLowerCase();
+}
+
+/** Case-insensitive A–Z; pinned labels stay first/last (PWBS-style sentinels). */
+export function sortDropdownLabelsAlphabetically(
+  labels: string[],
+  pins?: DropdownSortPins
+): string[] {
+  const pinFirst = pins?.pinFirst ?? [];
+  const pinLast = pins?.pinLast ?? [];
+  const used = new Set<string>();
+  const first: string[] = [];
+  const last: string[] = [];
+
+  for (const pin of pinFirst) {
+    const match = labels.find((l) => normLabelKey(l) === normLabelKey(pin));
+    if (match) {
+      first.push(match);
+      used.add(normLabelKey(match));
+    }
+  }
+  for (const pin of pinLast) {
+    const match = labels.find((l) => normLabelKey(l) === normLabelKey(pin));
+    if (match) {
+      last.push(match);
+      used.add(normLabelKey(match));
+    }
+  }
+
+  const middle = labels.filter((l) => !used.has(normLabelKey(l)));
+  middle.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+  return [...first, ...middle, ...last];
+}
+
 export function mergeWithDefaults(
   dbLabels: string[],
-  defaults: readonly string[]
+  defaults: readonly string[],
+  sortPins?: DropdownSortPins
 ): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of dbLabels) {
     const t = raw.trim();
     if (!t) continue;
-    const key = t.toLowerCase();
+    const key = normLabelKey(t);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(t);
   }
   for (const d of defaults) {
-    const key = d.toLowerCase();
+    const key = normLabelKey(d);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(d);
   }
-  return out;
+  return sortDropdownLabelsAlphabetically(out, sortPins);
 }
 
 /** If a stored value is not in the merged list (legacy/custom), surface it in the dropdown. */
@@ -89,7 +133,12 @@ export type MergedBoxscoreUiOptions = {
 };
 
 export const FALLBACK_MERGED_BOXSCORE_UI_OPTIONS: MergedBoxscoreUiOptions = {
-  eventTypeLabels: [...DEFAULT_EVENT_TYPE_LABELS],
-  stipulationOptions: [...STIPULATION_OPTIONS],
-  specialWinnerOptions: [...SPECIAL_WINNER_OPTIONS],
+  eventTypeLabels: sortDropdownLabelsAlphabetically([...DEFAULT_EVENT_TYPE_LABELS]),
+  stipulationOptions: sortDropdownLabelsAlphabetically([...STIPULATION_OPTIONS], {
+    pinFirst: ["None"],
+    pinLast: ["Custom/Other"],
+  }),
+  specialWinnerOptions: sortDropdownLabelsAlphabetically([...SPECIAL_WINNER_OPTIONS], {
+    pinFirst: ["None"],
+  }),
 };

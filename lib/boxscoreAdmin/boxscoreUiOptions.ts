@@ -14,7 +14,12 @@ import {
 } from "@/lib/boxscoreAdmin/boxscoreMatchOptions";
 
 export type { BoxscoreUiOptionCategory, MergedBoxscoreUiOptions } from "@/lib/boxscoreAdmin/boxscoreUiOptionsCore";
-export { DEFAULT_EVENT_TYPE_LABELS, ensureOptionInList, mergeWithDefaults } from "@/lib/boxscoreAdmin/boxscoreUiOptionsCore";
+export {
+  DEFAULT_EVENT_TYPE_LABELS,
+  ensureOptionInList,
+  mergeWithDefaults,
+  sortDropdownLabelsAlphabetically,
+} from "@/lib/boxscoreAdmin/boxscoreUiOptionsCore";
 
 export async function fetchBoxscoreUiOptionRows(
   admin: SupabaseClient,
@@ -39,18 +44,14 @@ export async function getMergedBoxscoreUiOptions(admin: SupabaseClient | null): 
       fetchBoxscoreUiOptionRows(admin, "special_winner"),
     ]);
     return {
-      eventTypeLabels: mergeWithDefaults(
-        et.map((r) => r.label),
-        DEFAULT_EVENT_TYPE_LABELS
-      ),
-      stipulationOptions: mergeWithDefaults(
-        st.map((r) => r.label),
-        STIPULATION_OPTIONS
-      ),
-      specialWinnerOptions: mergeWithDefaults(
-        sw.map((r) => r.label),
-        SPECIAL_WINNER_OPTIONS
-      ),
+      eventTypeLabels: mergeWithDefaults(et.map((r) => r.label), DEFAULT_EVENT_TYPE_LABELS),
+      stipulationOptions: mergeWithDefaults(st.map((r) => r.label), STIPULATION_OPTIONS, {
+        pinFirst: ["None"],
+        pinLast: ["Custom/Other"],
+      }),
+      specialWinnerOptions: mergeWithDefaults(sw.map((r) => r.label), SPECIAL_WINNER_OPTIONS, {
+        pinFirst: ["None"],
+      }),
     };
   } catch {
     return FALLBACK_MERGED_BOXSCORE_UI_OPTIONS;

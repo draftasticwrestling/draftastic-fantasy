@@ -7,6 +7,7 @@ import {
   type EventResultsPageRow,
   parseEventResultsSlugParam,
   buildEventResultsSlug,
+  normalizeEventDateForUrl,
 } from "@/lib/event-results/eventResultsRoute";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
 import {
@@ -101,6 +102,26 @@ function filterRowsByShow(rows: EventResultsPageRow[], show: SiteAdminEventShowF
   return rows.filter((e) => getEventShowType(e) === show);
 }
 
+/** Upcoming: soonest show first. Completed / live / all: newest first (PWBS-style). */
+function sortAdminEventRowsByDate(
+  rows: EventResultsPageRow[],
+  status: SiteAdminEventStatusFilter
+): EventResultsPageRow[] {
+  const copy = [...rows];
+  copy.sort((a, b) => {
+    const da = normalizeEventDateForUrl(a.date) ?? "";
+    const db = normalizeEventDateForUrl(b.date) ?? "";
+    const cmp = da.localeCompare(db);
+    if (status === "upcoming") return cmp;
+    return -cmp;
+  });
+  return copy;
+}
+
+function adminEventsDateAscending(status: SiteAdminEventStatusFilter): boolean {
+  return status === "upcoming";
+}
+
 export async function siteAdminSearchEvents(
   admin: SupabaseClient,
   opts: SiteAdminSearchEventsOpts
@@ -171,7 +192,7 @@ export async function siteAdminSearchEvents(
   let qb = admin
     .from("events")
     .select(EVENT_RESULTS_PAGE_SELECT)
-    .order("date", { ascending: false })
+    .order("date", { ascending: adminEventsDateAscending(status) })
     .limit(fetchLimit);
 
   const statusOr = buildAdminEventStatusOrFilter(status);
@@ -189,7 +210,7 @@ export async function siteAdminSearchEvents(
   const filtered = filterRowsByShow(fetched, show).filter((e) =>
     eventMatchesAdminStatusFilter(e, status)
   );
-  const rows = filtered.slice(0, limit);
+  const rows = sortAdminEventRowsByDate(filtered, status).slice(0, limit);
   const hasMore = fetched.length >= fetchLimit || (plePostFilter && filtered.length > limit);
 
   return {

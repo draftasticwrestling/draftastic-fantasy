@@ -8,8 +8,10 @@ import {
   normalizeEventDateInput,
   sanitizeBoxscoreEventForSupabase,
 } from "@/lib/boxscoreAdmin/eventPayload";
+import { applyResultRegenerationToMatches } from "@/lib/boxscoreAdmin/regenerateSpecialMatchResults";
 import { buildEventResultsSlug } from "@/lib/event-results/eventResultsRoute";
 import { getAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type InsertBoxscoreEventState = { error?: string } | null;
 export type UpdateBoxscoreEventState = { error?: string } | null;
@@ -29,8 +31,22 @@ function parseMatchesJson(raw: string): { ok: true; matches: unknown[] } | { ok:
   }
 }
 
-/** PWBS-style checks from AddEvent `handleSaveEvent` (simplified match validation). */
-function matchesPassCompletedRules(matches: unknown[], status: string): { ok: true } | { ok: false; error: string } {
+function hasMatchParticipants(row: Record<string, unknown>): boolean {
+  const p = row.participants;
+  if (Array.isArray(p)) return p.length > 0;
+  if (typeof p === "string") return p.trim().length > 0;
+  return false;
+}
+
+function hasMatchResult(row: Record<string, unknown>): boolean {
+  return !!(row.result && String(row.result).trim());
+}
+
+/** PWBS AddEvent `handleSaveEvent` — completed/live card validation. */
+function matchesPassAddEventRules(
+  matches: unknown[],
+  status: string
+): { ok: true } | { ok: false; error: string } {
   if (status !== "completed" && status !== "live") return { ok: true };
   if (!matches.length) {
     return {
@@ -38,49 +54,94 @@ function matchesPassCompletedRules(matches: unknown[], status: string): { ok: tr
       error: "Completed or live events need at least one match. Use Upcoming to create an empty card, or paste a matches JSON array.",
     };
   }
-  for (const m of matches) {
-    if (!m || typeof m !== "object") {
-      return { ok: false, error: "Each match must be a JSON object." };
-    }
+
+  const invalidMatch = matches.some((m) => {
+    if (!m || typeof m !== "object") return true;
     const row = m as Record<string, unknown>;
-    if (row.matchType === "Promo") continue;
-    if (row.matchType === "Gauntlet Match" || row.matchType === "Tag Team Gauntlet Match" || row.matchType === "2 out of 3 Falls") {
-      const prog = row.gauntletProgression;
-      if (Array.isArray(prog) && prog.length > 0) {
-        if (!row.result || String(row.result).trim() === "") {
-          return { ok: false, error: "Gauntlet / 2-of-3 matches need a result when progression is set." };
-        }
-        continue;
-      }
-      // PWBS: empty gauntlet progression does not require method/result yet
-      continue;
-    }
-    const matchTypeStr = String(row.matchType ?? "");
+    if (row.matchType === "Promo") return false;
+    if (!hasMatchParticipants(row)) return true;
+    const matchType = String(row.matchType ?? "");
     if (
-      matchTypeStr === "5-on-5 War Games Match" ||
-      matchTypeStr.includes("War Games") ||
-      matchTypeStr === "Survivor Series-style 10-man Tag Team Elimination match" ||
-      matchTypeStr.includes("Survivor Series")
+      matchType === "Gauntlet Match" ||
+      matchType === "Tag Team Gauntlet Match" ||
+      matchType === "2 out of 3 Falls"
     ) {
-      if (!row.result || String(row.result).trim() === "") {
-        return {
-          ok: false,
-          error: "War Games / Survivor Series matches need a result for completed/live events.",
-        };
-      }
-      continue;
+      const prog = row.gauntletProgression;
+      if (Array.isArray(prog) && prog.length > 0) return !hasMatchResult(row);
+      return false;
     }
-    if (!row.participants) {
-      return { ok: false, error: "Each wrestling match needs participants (or use matchType Promo)." };
-    }
-    if (!row.method || String(row.method).trim() === "") {
-      return { ok: false, error: "Each wrestling match needs a method for completed/live events." };
-    }
-    if (!row.result || String(row.result).trim() === "") {
-      return { ok: false, error: "Each wrestling match needs a result for completed/live events." };
-    }
+    return !row.method || String(row.method).trim() === "" || !hasMatchResult(row);
+  });
+
+  if (invalidMatch) {
+    return { ok: false, error: "Please fill out all required match fields for completed events." };
   }
   return { ok: true };
+}
+
+/** PWBS EditEvent `handleSaveEvent` — only requires ≥1 match when completed/live. */
+function matchesPassEditEventRules(
+  matches: unknown[],
+  status: string
+): { ok: true } | { ok: false; error: string } {
+  if (status !== "completed" && status !== "live") return { ok: true };
+  if (!matches.length) {
+    return {
+      ok: false,
+      error: "Completed or live events need at least one match. Use Upcoming to create an empty card, or paste a matches JSON array.",
+    };
+  }
+  return { ok: true };
+}
+
+function parseSpecialWinnerFromForm(formData: FormData): { type: string; name: string } | undefined {
+  const type = (formData.get("special_winner_type") ?? "None").toString().trim();
+  const name = (formData.get("special_winner_name") ?? "").toString().trim();
+  if (type !== "None" && name) return { type, name };
+  return undefined;
+}
+
+function isMissingEventsColumn(message: string, column: string): boolean {
+  const m = message.toLowerCase();
+  const col = column.toLowerCase();
+  return m.includes(col) && (m.includes("schema cache") || m.includes("column") || m.includes("does not exist"));
+}
+
+async function prepareMatchesForEventSave(
+  admin: SupabaseClient,
+  matches: unknown[],
+  status: string
+): Promise<Record<string, unknown>[]> {
+  const { data: wrestlers } = await admin.from("wrestlers").select("id, name");
+  return applyResultRegenerationToMatches(matches, wrestlers ?? [], status);
+}
+
+async function persistEventRow(
+  admin: SupabaseClient,
+  mode: "insert" | "update",
+  sanitized: Record<string, unknown>,
+  eventId?: string
+) {
+  const payload = { ...sanitized };
+  const run = () =>
+    mode === "insert"
+      ? admin.from("events").insert(payload)
+      : admin.from("events").update(payload).eq("id", eventId!);
+
+  let res = await run();
+  if (!res.error) return res;
+
+  const msg = res.error.message ?? "";
+  if (isMissingEventsColumn(msg, "specialWinner") && "specialWinner" in payload) {
+    delete payload.specialWinner;
+    res = await run();
+    if (!res.error) return res;
+  }
+  if (isMissingEventsColumn(res.error?.message ?? msg, "isLive") && "isLive" in payload) {
+    delete payload.isLive;
+    res = await run();
+  }
+  return res;
 }
 
 export async function insertBoxscoreEventAction(
@@ -118,8 +179,11 @@ export async function insertBoxscoreEventAction(
   const parsedMatches = parseMatchesJson(matchesRaw);
   if (!parsedMatches.ok) return { error: parsedMatches.error };
 
-  const matchRules = matchesPassCompletedRules(parsedMatches.matches, status);
+  const matchRules = matchesPassAddEventRules(parsedMatches.matches, status);
   if (!matchRules.ok) return { error: matchRules.error };
+
+  const preparedMatches = await prepareMatchesForEventSave(admin, parsedMatches.matches, status);
+  const specialWinner = parseSpecialWinnerFromForm(formData);
 
   let broadcast_start_ts: string | null = null;
   let broadcast_start_ts_source: string | null = null;
@@ -141,16 +205,18 @@ export async function insertBoxscoreEventAction(
     location,
     preview,
     recap,
-    matches: parsedMatches.matches,
+    matches: preparedMatches,
     status,
+    isLive: status === "live",
     broadcast_start_ts,
     broadcast_start_ts_source,
     event_type: eventType || null,
+    ...(specialWinner ? { specialWinner } : {}),
   };
 
   const sanitized = sanitizeBoxscoreEventForSupabase(rowInput);
 
-  const { error: insErr } = await admin.from("events").insert(sanitized);
+  const { error: insErr } = await persistEventRow(admin, "insert", sanitized);
 
   if (insErr) {
     if (insErr.code === "23505") {
@@ -227,8 +293,10 @@ export async function updateBoxscoreEventAction(
   const parsedMatches = parseMatchesJson(matchesRaw);
   if (!parsedMatches.ok) return { error: parsedMatches.error };
 
-  const matchRules = matchesPassCompletedRules(parsedMatches.matches, status);
+  const matchRules = matchesPassEditEventRules(parsedMatches.matches, status);
   if (!matchRules.ok) return { error: matchRules.error };
+
+  const preparedMatches = await prepareMatchesForEventSave(admin, parsedMatches.matches, status);
 
   let broadcast_start_ts: string | null = null;
   let broadcast_start_ts_source: string | null = null;
@@ -248,8 +316,9 @@ export async function updateBoxscoreEventAction(
     location,
     preview,
     recap,
-    matches: parsedMatches.matches,
+    matches: preparedMatches,
     status,
+    isLive: status === "live",
     broadcast_start_ts,
     broadcast_start_ts_source,
     event_type: eventType || null,
@@ -257,7 +326,7 @@ export async function updateBoxscoreEventAction(
 
   const sanitized = sanitizeBoxscoreEventForSupabase(rowInput);
 
-  const { error: upErr } = await admin.from("events").update(sanitized).eq("id", eventId);
+  const { error: upErr } = await persistEventRow(admin, "update", sanitized, eventId);
 
   if (upErr) return { error: upErr.message };
 
@@ -273,18 +342,57 @@ export async function updateBoxscoreEventAction(
     // optional table
   }
 
-  const resultsSlug = buildEventResultsSlug({ id: eventId, name, date });
-  const editPathSegment = encodeURIComponent(resultsSlug);
+  revalidateAfterEventMatchesChange(eventId, name, date);
 
+  const resultsSlug = buildEventResultsSlug({ id: eventId, name, date });
+  redirect(`/internal-admin/boxscore/events/${encodeURIComponent(resultsSlug)}/edit?saved=1`);
+}
+
+function revalidateAfterEventMatchesChange(eventId: string, name?: string | null, date?: string | null) {
+  const resultsSlug = buildEventResultsSlug({ id: eventId, name: name ?? undefined, date: date ?? undefined });
+  const editPathSegment = encodeURIComponent(resultsSlug);
   revalidatePath("/event-results");
   revalidatePath(`/event-results/${editPathSegment}`);
   revalidatePath(`/event-results/${encodeURIComponent(eventId)}`);
   revalidatePath("/internal-admin/events");
   revalidatePath(`/internal-admin/events/${encodeURIComponent(eventId)}`);
+  revalidatePath("/internal-admin/boxscore/events");
   revalidatePath(`/internal-admin/boxscore/events/${editPathSegment}/edit`);
   revalidatePath(`/internal-admin/boxscore/events/${encodeURIComponent(eventId)}/edit`);
+}
 
-  redirect(`/internal-admin/boxscore/events/${editPathSegment}/edit?saved=1`);
+/**
+ * PWBS `onEditMatch` / EventBoxScore `handleSaveMatch` — persist card to Supabase immediately
+ * so completed matches appear on the public site without waiting for Save Event.
+ */
+export async function persistEventMatchesAction(
+  eventId: string,
+  matches: unknown[]
+): Promise<{ error?: string; ok?: boolean }> {
+  await requireSiteAdmin();
+  const admin = getAdminClient();
+  if (!admin) return { error: "Service role not configured." };
+
+  const id = eventId.trim();
+  if (!id) return { error: "Missing event id." };
+  if (!Array.isArray(matches)) return { error: "Matches must be an array." };
+
+  const { data: row, error: fetchErr } = await admin
+    .from("events")
+    .select("id, name, date, status")
+    .eq("id", id)
+    .maybeSingle();
+  if (fetchErr) return { error: fetchErr.message };
+  if (!row) return { error: "Event not found." };
+
+  const status = String(row.status ?? "upcoming").trim();
+  const prepared = await prepareMatchesForEventSave(admin, matches, status);
+
+  const { error: updateErr } = await admin.from("events").update({ matches: prepared }).eq("id", id);
+  if (updateErr) return { error: updateErr.message };
+
+  revalidateAfterEventMatchesChange(id, row.name, row.date);
+  return { ok: true };
 }
 
 export async function deleteBoxscoreEventAction(

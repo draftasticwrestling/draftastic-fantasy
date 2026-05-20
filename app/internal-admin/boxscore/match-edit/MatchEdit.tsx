@@ -117,7 +117,17 @@ export function PromoMatchEdit({
   return (
     <div>
       <h3 style={{ color: gold, marginBottom: 16 }}>{isAdd ? 'Add Promo' : 'Edit Promo / Segment'}</h3>
-      <form onSubmit={handleSavePromo}>
+      {/* No nested <form> — sits inside Edit Event's server <form>. */}
+      <div
+        role="group"
+        aria-label={isAdd ? "Add promo" : "Edit promo"}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+            e.preventDefault();
+            handleSavePromo(e);
+          }
+        }}
+      >
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>
             Promo Type:
@@ -239,7 +249,8 @@ export function PromoMatchEdit({
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <button
-            type="submit"
+            type="button"
+            onClick={handleSavePromo}
             style={{ flex: 1, background: '#C6A04F', color: '#232323', border: 'none', borderRadius: 4, padding: 10, fontWeight: 700, cursor: 'pointer' }}
           >
             {isAdd ? 'Add Promo' : 'Save Promo'}
@@ -252,7 +263,7 @@ export function PromoMatchEdit({
             Cancel
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
