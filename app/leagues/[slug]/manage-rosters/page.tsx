@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { supabase as publicSupabase } from "@/lib/supabase";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, leagueIncludesNxt } from "@/lib/leagueStructure";
 import { normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { RostersSection } from "../RostersSection";
@@ -35,7 +35,7 @@ export default async function ManageRostersPage({
   const rosterRules = getRosterRulesForLeague(
     members.length,
     league.season_slug ?? null,
-    Boolean(league.include_nxt),
+    leagueIncludesNxt(league),
     league.league_type ?? null
   );
 

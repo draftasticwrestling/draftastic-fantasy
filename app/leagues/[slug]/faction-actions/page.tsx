@@ -3,12 +3,20 @@ import { notFound } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { factionDisplayName } from "@/lib/factionName";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import {
+  getRosterRulesForLeague,
+  leagueIncludesNxt,
+  leagueUsesSalaryCap,
+  SALARY_CAP_MAX_ROSTER_SIZE,
+} from "@/lib/leagueStructure";
+import { getSalaryCapWeeklyFaBudgetStatus } from "@/lib/salaryCapWeeklyLimits";
 import { getTradeProposalsForLeague, getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { ProposeTradeForm } from "../team/ProposeTradeForm";
 import { ProposeReleaseForm } from "../team/ProposeReleaseForm";
 import { ProposeFreeAgentForm } from "../team/ProposeFreeAgentForm";
+import { SalaryCapFreeAgentPicker } from "../team/SalaryCapFreeAgentPicker";
+import { SalaryCapWeeklyFaBudget } from "../team/SalaryCapWeeklyFaBudget";
 import { TradeProposalRespond } from "../team/TradeProposalRespond";
 import { CancelTradeButton } from "../team/CancelTradeButton";
 
@@ -42,7 +50,7 @@ export default async function FactionActionsPage({ params, searchParams }: Props
   const rosterRules = getRosterRulesForLeague(
     members.length,
     league.season_slug ?? null,
-    Boolean(league.include_nxt),
+    leagueIncludesNxt(league),
     league.league_type ?? null
   );
   const rosterEntries = rosters[user.id] ?? [];
@@ -70,7 +78,10 @@ export default async function FactionActionsPage({ params, searchParams }: Props
       gender: wr?.gender ?? null,
     };
   });
-  const freeAgents = wrestlers.filter((w) => !Object.values(rosters).some((entries) => entries.some((e) => e.wrestler_id === w.id)));
+  const isSalaryCapLeague = leagueUsesSalaryCap(league.league_type);
+  const freeAgents = isSalaryCapLeague
+    ? wrestlers.filter((w) => !myRosterIds.has(w.id))
+    : wrestlers.filter((w) => !Object.values(rosters).some((entries) => entries.some((e) => e.wrestler_id === w.id)));
 
   const otherMembers = members.filter((m) => m.user_id !== user.id);
   const otherRosters = Object.fromEntries(
@@ -83,6 +94,10 @@ export default async function FactionActionsPage({ params, searchParams }: Props
   } catch {
     tradeLockedWrestlerIds = [];
   }
+
+  const salaryCapWeeklyFaBudget = leagueUsesSalaryCap(league.league_type)
+    ? await getSalaryCapWeeklyFaBudgetStatus(supabase, league.id, user.id)
+    : null;
 
   let tradeProposals: Awaited<ReturnType<typeof getTradeProposalsForLeague>> = [];
   try {
@@ -101,6 +116,8 @@ export default async function FactionActionsPage({ params, searchParams }: Props
         </Link>
       </p>
       <h1 style={{ fontSize: "1.35rem", marginBottom: 12, color: "var(--color-text)" }}>Add / Drop / Trade</h1>
+
+      {salaryCapWeeklyFaBudget ? <SalaryCapWeeklyFaBudget status={salaryCapWeeklyFaBudget} /> : null}
 
       <section id="propose-trade" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 10 }}>Propose trade</h2>
@@ -147,9 +164,19 @@ export default async function FactionActionsPage({ params, searchParams }: Props
       <section id="sign-free-agent" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 10 }}>Add free agent</h2>
         <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-          Add a wrestler who is not currently rostered.
+          {isSalaryCapLeague
+            ? "Browse the free agent pool to sign wrestlers. Same stars can be on multiple factions."
+            : "Add a wrestler who is not currently rostered."}
         </p>
-        {freeAgents.length === 0 ? (
+        {isSalaryCapLeague ? (
+          <SalaryCapFreeAgentPicker
+            leagueSlug={slug}
+            myRosterWrestlers={rosterWrestlers.map((w) => ({ id: w.id, name: w.name }))}
+            rosterSize={rosterRules?.rosterSize ?? SALARY_CAP_MAX_ROSTER_SIZE}
+            tradeLockedWrestlerIds={tradeLockedWrestlerIds}
+            initialWrestlerId={addFa || undefined}
+          />
+        ) : freeAgents.length === 0 ? (
           <p style={{ color: "#666" }}>No free agents available.</p>
         ) : (
           <ProposeFreeAgentForm

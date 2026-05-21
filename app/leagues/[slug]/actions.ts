@@ -273,7 +273,9 @@ export async function updateLeagueTypeAction(
   }
 
   const updatePayload: { league_type: string | null; include_nxt?: boolean } = { league_type };
-  if (league_type && league_type !== "head_to_head" && Boolean((league as { include_nxt?: boolean | null }).include_nxt)) {
+  if (league_type === "salary_cap") {
+    updatePayload.include_nxt = true;
+  } else if (league_type && league_type !== "head_to_head" && Boolean((league as { include_nxt?: boolean | null }).include_nxt)) {
     updatePayload.include_nxt = false;
   }
   let { error } = await supabase.from("leagues").update(updatePayload).eq("id", league.id);

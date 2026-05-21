@@ -13,7 +13,7 @@ import {
   getXpSeededMemberUserIds,
 } from "@/lib/leagueMatchups";
 import type { LeagueMember } from "@/lib/leagues";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, leagueIncludesNxt } from "@/lib/leagueStructure";
 import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
 import {
   adminAddRosterEntryAction,
@@ -142,7 +142,7 @@ export default async function InternalAdminLeagueDetailPage({
   const rules = getRosterRulesForLeague(
     members.length,
     league.season_slug ?? null,
-    Boolean(league.include_nxt),
+    leagueIncludesNxt(league),
     league.league_type ?? null
   );
   const rosterWarnings: string[] = [];

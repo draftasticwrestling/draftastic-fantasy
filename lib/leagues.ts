@@ -234,12 +234,12 @@ export async function createLeague(params: {
   if (include_nxt_requested && !isSiteAdmin) {
     return { error: "Only site administrators can create leagues that include NXT." };
   }
-  if (include_nxt_requested && league_type !== "head_to_head") {
+  if (include_nxt_requested && league_type !== "head_to_head" && league_type !== "salary_cap") {
     return {
       error: "Include NXT is only available for Head-to-Head leagues (admin testing).",
     };
   }
-  const include_nxt = include_nxt_requested;
+  const include_nxt = league_type === "salary_cap" ? true : include_nxt_requested;
 
   const leagueSelect =
     "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, created_at";
@@ -1391,7 +1391,7 @@ export async function addWrestlerToRoster(
   }
 
   if (!options?.skipMainBrandPoolCheck) {
-    const poolRes = await supabase.from("leagues").select("include_nxt").eq("id", leagueId).maybeSingle();
+    const poolRes = await supabase.from("leagues").select("include_nxt, league_type").eq("id", leagueId).maybeSingle();
     const includeNxt =
       poolRes.error && /include_nxt/i.test(poolRes.error.message ?? "")
         ? false

@@ -11,7 +11,24 @@ import {
   dropWrestlerImmediate,
   addFreeAgentImmediate,
 } from "@/lib/leagueOwner";
+import type { SalaryCapWrestlerOption } from "@/app/leagues/[slug]/salary-cap/SalaryCapRosterBuilder";
+import { getLeagueBySlug, getRostersForLeague } from "@/lib/leagues";
+import { leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEFAULT } from "@/lib/leagueStructure";
+import {
+  FA_SALARY_CAP_WEEKLY_BUDGET,
+  getSalaryCapWeeklyFaBudgetStatus,
+} from "@/lib/salaryCapWeeklyLimits";
+import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser } from "@/lib/salaryCap";
+import { buildSalaryCapWrestlerPool } from "@/lib/salaryCapWrestlerPool";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
+
+export type SalaryCapFreeAgentPoolPayload = {
+  pool: SalaryCapWrestlerOption[];
+  budget: number;
+  spent: number;
+  weeklyAddRemaining: number;
+  myRosterIds: string[];
+};
 
 export async function setLineupAction(
   leagueSlug: string,
@@ -61,7 +78,49 @@ export async function dropWrestlerAction(
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/proposals`);
   revalidatePath(`/leagues/${leagueSlug}/transactions`);
+  revalidatePath(`/leagues/${leagueSlug}/wrestlers/league-leaders`);
+  revalidatePath(`/leagues/${leagueSlug}/wrestlers/free-agents`);
   return {};
+}
+
+/** Lazy-load salary cap FA pool (same data as onboarding roster builder). */
+export async function loadSalaryCapFreeAgentPoolAction(
+  leagueSlug: string
+): Promise<SalaryCapFreeAgentPoolPayload | { error: string }> {
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+  if (!leagueUsesSalaryCap(league.league_type)) {
+    return { error: "This league is not a salary cap league." };
+  }
+
+  const { supabase, user } = await getServerAuth();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: member } = await supabase
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", league.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!member) return { error: "You are not in this league." };
+
+  const [pool, meta, { spent }, weekly, rosters] = await Promise.all([
+    buildSalaryCapWrestlerPool(supabase, league),
+    getSalaryCapLeagueMeta(supabase, league.id),
+    getSalaryCapSpentForUser(supabase, league.id, user.id),
+    getSalaryCapWeeklyFaBudgetStatus(supabase, league.id, user.id),
+    getRostersForLeague(league.id),
+  ]);
+
+  const leagueBudget = (league as { salary_cap_budget?: number | null }).salary_cap_budget;
+  const budget =
+    meta?.budget ??
+    (typeof leagueBudget === "number" && leagueBudget > 0 ? leagueBudget : SALARY_CAP_BUDGET_DEFAULT);
+
+  const myRosterIds = (rosters[user.id] ?? []).map((e) => e.wrestler_id);
+  const weeklyAddRemaining = weekly?.addRemaining ?? FA_SALARY_CAP_WEEKLY_BUDGET;
+
+  return { pool, budget, spent, weeklyAddRemaining, myRosterIds };
 }
 
 /** Owner adds a free agent to their roster immediately (first come, first serve; no commissioner approval). */
@@ -79,6 +138,8 @@ export async function addFreeAgentAction(
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/proposals`);
   revalidatePath(`/leagues/${leagueSlug}/transactions`);
+  revalidatePath(`/leagues/${leagueSlug}/wrestlers/league-leaders`);
+  revalidatePath(`/leagues/${leagueSlug}/wrestlers/free-agents`);
   return {};
 }
 

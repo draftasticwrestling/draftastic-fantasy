@@ -441,7 +441,7 @@ async function validateAutopickPriorityCoverage(
 
   const { data: leagueRow } = await admin
     .from("leagues")
-    .select("include_nxt")
+    .select("include_nxt, league_type")
     .eq("id", leagueId)
     .maybeSingle();
   const requiredPriorityCount = getAutopickRequiredPriorityCount(
@@ -1523,7 +1523,7 @@ export async function getTopAvailableWrestlerByPoints(
   }
   list = list.filter(isDraftableWrestler).filter((w): w is (DraftPoolRow & { id: string; gender?: string | null }) => Boolean(w.id));
 
-  const nxtPoolRes = await supabase.from("leagues").select("include_nxt").eq("id", leagueId).maybeSingle();
+  const nxtPoolRes = await supabase.from("leagues").select("include_nxt, league_type").eq("id", leagueId).maybeSingle();
   const poolOptionsAutopick = {
     includeNxt:
       nxtPoolRes.error && /include_nxt/i.test(nxtPoolRes.error.message ?? "")
@@ -1612,7 +1612,7 @@ export async function getTopAvailableWrestlerForUser(
 ): Promise<string | null> {
   /** Autopick passes service role via opts; otherwise prefer admin so prefs bypass RLS. */
   const supabase = opts?.supabase ?? getAdminClient() ?? (await createClient());
-  const nxtLg = await supabase.from("leagues").select("include_nxt").eq("id", leagueId).maybeSingle();
+  const nxtLg = await supabase.from("leagues").select("include_nxt, league_type").eq("id", leagueId).maybeSingle();
   const poolOptionsForUser = {
     includeNxt:
       nxtLg.error && /include_nxt/i.test(nxtLg.error.message ?? "")
@@ -2395,7 +2395,7 @@ async function performOneAutoPick(
   if (simplifiedAutopick) {
     const { data: nxtRow, error: nxtErr } = await admin
       .from("leagues")
-      .select("include_nxt")
+      .select("include_nxt, league_type")
       .eq("id", leagueId)
       .maybeSingle();
     const poolOptions = {

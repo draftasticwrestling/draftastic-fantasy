@@ -38,6 +38,8 @@ type Props = {
   upcomingMatches: UpcomingMatch[];
   /** From server searchParams — optional `layout=list|cards|matches` */
   initialLayout?: ViewMode | null;
+  /** Season salary cap spent / budget (salary cap leagues). */
+  salaryCapSummary?: { spent: number; budget: number } | null;
 };
 
 export function FactionSimpleRoster({
@@ -56,7 +58,9 @@ export function FactionSimpleRoster({
   tradeLockedWrestlerIds,
   upcomingMatches,
   initialLayout,
+  salaryCapSummary = null,
 }: Props) {
+  const showSalaryCapCost = wrestlers.some((w) => w.salaryCapCost != null);
   const router = useRouter();
   const storageKey = `${STORAGE_PREFIX}${leagueSlug}`;
   const scoreboardHref = `/leagues/${leagueSlug}/team/${encodeURIComponent(teamUserId)}/scoreboard`;
@@ -166,8 +170,19 @@ export function FactionSimpleRoster({
         <div>
           <h1 style={{ fontSize: "1.35rem", margin: 0, lineHeight: 1.2 }}>{teamLabel}</h1>
           <p style={{ margin: "6px 0 0", fontSize: 14, color: "#555" }}>
-            <strong style={{ color: "#111" }}>{totalPoints}</strong> season points · {rosterSize} / {rosterCap}{" "}
-            wrestlers (min {minFemale} female, min {minMale} male)
+            <strong style={{ color: "#111" }}>{totalPoints}</strong> season points
+            {salaryCapSummary ? (
+              <>
+                {" "}
+                · <strong style={{ color: "#111" }}>${salaryCapSummary.spent}</strong> / ${salaryCapSummary.budget}{" "}
+                roster value · {rosterSize} wrestlers
+              </>
+            ) : (
+              <>
+                {" "}
+                · {rosterSize} / {rosterCap} wrestlers (min {minFemale} female, min {minMale} male)
+              </>
+            )}
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
@@ -347,6 +362,9 @@ export function FactionSimpleRoster({
             <thead>
               <tr style={{ textAlign: "left", color: "#666", fontSize: 12, textTransform: "uppercase" }}>
                 <th style={{ padding: "8px 6px", borderBottom: "1px solid #eee" }}>Wrestler</th>
+                {showSalaryCapCost ? (
+                  <th style={{ padding: "8px 6px", borderBottom: "1px solid #eee", width: 56 }}>Value</th>
+                ) : null}
                 <th style={{ padding: "8px 6px", borderBottom: "1px solid #eee", width: 72 }}>R/S</th>
                 <th style={{ padding: "8px 6px", borderBottom: "1px solid #eee", width: 72 }}>PLE</th>
                 <th style={{ padding: "8px 6px", borderBottom: "1px solid #eee", width: 72 }}>Belt</th>
@@ -363,6 +381,11 @@ export function FactionSimpleRoster({
                         {w.name ?? w.id}
                       </Link>
                     </td>
+                    {showSalaryCapCost ? (
+                      <td style={{ padding: "10px 6px", fontWeight: 800, color: "#166534" }}>
+                        {w.salaryCapCost != null ? `$${w.salaryCapCost}` : "—"}
+                      </td>
+                    ) : null}
                     <td style={{ padding: "10px 6px", color: "#333" }}>{w.rsPoints}</td>
                     <td style={{ padding: "10px 6px", color: "#333" }}>{w.plePoints}</td>
                     <td style={{ padding: "10px 6px", color: "#333" }}>{w.beltPoints}</td>

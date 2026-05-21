@@ -1690,12 +1690,18 @@ export async function createFreeAgentProposal(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.id !== userId) return { error: "Not authenticated." };
 
-  const { data: leagueMeta } = await supabase.from("leagues").select("season_slug").eq("id", leagueId).maybeSingle();
+  const { data: leagueMeta } = await supabase
+    .from("leagues")
+    .select("season_slug, league_type")
+    .eq("id", leagueId)
+    .maybeSingle();
   const cap = await assertFaSigningAllowedForLeague(
     supabase,
     leagueId,
     userId,
-    (leagueMeta as { season_slug?: string | null } | null)?.season_slug
+    (leagueMeta as { season_slug?: string | null } | null)?.season_slug,
+    (leagueMeta as { league_type?: string | null } | null)?.league_type,
+    { addWrestlerId: wrestlerId, dropWrestlerId: dropWrestlerId ?? null }
   );
   if (cap.error) return cap;
 
@@ -1741,14 +1747,19 @@ export async function respondToFreeAgentProposal(
   if (approve) {
     const { data: leagueMetaApprove } = await supabase
       .from("leagues")
-      .select("season_slug")
+      .select("season_slug, league_type")
       .eq("id", proposal.league_id)
       .maybeSingle();
     const capApprove = await assertFaSigningAllowedForLeague(
       supabase,
       proposal.league_id,
       proposal.user_id,
-      (leagueMetaApprove as { season_slug?: string | null } | null)?.season_slug
+      (leagueMetaApprove as { season_slug?: string | null } | null)?.season_slug,
+      (leagueMetaApprove as { league_type?: string | null } | null)?.league_type,
+      {
+        addWrestlerId: proposal.wrestler_id,
+        dropWrestlerId: proposal.drop_wrestler_id ?? null,
+      }
     );
     if (capApprove.error) return capApprove;
 
@@ -1793,6 +1804,14 @@ export async function dropWrestlerImmediate(
   const tradeLock = await assertWrestlerNotTradeLocked(leagueId, user.id, wid);
   if (tradeLock.error) return tradeLock;
 
+  const { data: leagueDropMeta } = await supabase
+    .from("leagues")
+    .select("league_type, season_slug")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const dropLeagueType = (leagueDropMeta as { league_type?: string | null } | null)?.league_type ?? null;
+  const dropSeasonSlug = (leagueDropMeta as { season_slug?: string | null } | null)?.season_slug;
+
   const rules = await getRosterRulesForLeagueId(supabase, leagueId);
   if (rules) {
     const { data: rosterRows } = await supabase
@@ -1823,12 +1842,6 @@ export async function dropWrestlerImmediate(
     const afterTotal = total - 1;
     const afterFemale = female - (dropGender === "F" ? 1 : 0);
     const afterMale = male - (dropGender === "M" ? 1 : 0);
-    const { data: leagueDropMeta } = await supabase
-      .from("leagues")
-      .select("league_type")
-      .eq("id", leagueId)
-      .maybeSingle();
-    const dropLeagueType = (leagueDropMeta as { league_type?: string | null } | null)?.league_type ?? null;
     const minTotal = rules.minFemale + rules.minMale;
     if (
       !leagueUsesSalaryCap(dropLeagueType) &&
@@ -1839,6 +1852,16 @@ export async function dropWrestlerImmediate(
       };
     }
   }
+
+  const capDrop = await assertFaSigningAllowedForLeague(
+    supabase,
+    leagueId,
+    user.id,
+    dropSeasonSlug,
+    dropLeagueType,
+    { dropWrestlerId: wid }
+  );
+  if (capDrop.error) return capDrop;
 
   const res = await removeWrestlerFromRoster(leagueId, user.id, wid, undefined, true);
   if (res.error) return res;
@@ -1883,7 +1906,9 @@ export async function addFreeAgentImmediate(
     supabase,
     leagueId,
     user.id,
-    (leagueMetaFa as { season_slug?: string | null } | null)?.season_slug
+    (leagueMetaFa as { season_slug?: string | null } | null)?.season_slug,
+    faLeagueType,
+    { addWrestlerId: wrestlerId, dropWrestlerId: dropWrestlerId ?? null }
   );
   if (capFa.error) return capFa;
 

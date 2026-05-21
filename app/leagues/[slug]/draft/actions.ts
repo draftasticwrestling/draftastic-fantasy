@@ -24,6 +24,7 @@ import {
   isBigBoardId,
   type BigBoardId,
 } from "@/lib/draftBigBoards";
+import { leagueIncludesNxt } from "@/lib/leagueStructure";
 
 function isAvailableBigBoardId(
   id: string | null | undefined,
@@ -258,7 +259,7 @@ export async function saveDraftPreferencesAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
   const availableBigBoardIds = getAvailableBigBoardIdsForLeague({
-    includeNxt: Boolean(league.include_nxt),
+    includeNxt: leagueIncludesNxt(league),
   });
   const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated." };
@@ -312,9 +313,9 @@ export async function saveDraftPreferencesFormAction(
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
   const availableBigBoardIds = getAvailableBigBoardIdsForLeague({
-    includeNxt: Boolean(league.include_nxt),
+    includeNxt: leagueIncludesNxt(league),
   });
-  const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(Boolean(league.include_nxt));
+  const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(leagueIncludesNxt(league));
 
   const rawListSource = (formData.get("list_source") as string)?.trim();
   const listSource =

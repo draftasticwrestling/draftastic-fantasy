@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     if (isSiteAdmin && league_type_raw && !league_type) {
       return NextResponse.json({ error: "Invalid league_type." }, { status: 400 });
     }
-    if (isSiteAdmin && include_nxt && league_type !== "head_to_head") {
+    if (isSiteAdmin && include_nxt && league_type !== "head_to_head" && league_type !== "salary_cap") {
       return NextResponse.json(
         { error: "include_nxt requires league_type head_to_head." },
         { status: 400 }

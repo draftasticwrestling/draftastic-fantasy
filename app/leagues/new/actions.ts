@@ -84,7 +84,7 @@ export async function createLeagueAction(
       if (!isSiteAdmin) {
         return { error: "Only site administrators can create leagues that include NXT." };
       }
-      if (league_type !== "head_to_head") {
+      if (league_type !== "head_to_head" && league_type !== "salary_cap") {
         return {
           error: "Include NXT is only available for Head-to-Head leagues (admin testing).",
         };

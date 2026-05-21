@@ -24,6 +24,7 @@ import {
   BETA_AUTOPICK_DRAFT_WINDOW_LABEL,
   BETA_AUTOPICK_PREF_DEADLINE_LABEL,
 } from "@/lib/betaAutopickSchedule";
+import { leagueIncludesNxt } from "@/lib/leagueStructure";
 import { DraftPreferencesForm } from "./DraftPreferencesForm";
 
 type Props = {
@@ -254,14 +255,14 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
 
   const draftStatus = state?.draft_status ?? "not_started";
   const canEdit = draftStatus === "not_started";
-  const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(Boolean(league.include_nxt));
+  const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(leagueIncludesNxt(league));
 
   const wrestlerOptions = wrestlersData;
   const eligibleIds = new Set(wrestlerOptions.map((w) => String(w.id).toLowerCase()));
   const keepEligibleOnly = (ids: string[]) => ids.filter((id) => eligibleIds.has(String(id).toLowerCase()));
   const initialPriorityList = keepEligibleOnly(prefs?.priority_list ?? []);
   const availableBigBoardIds = getAvailableBigBoardIdsForLeague({
-    includeNxt: Boolean(league.include_nxt),
+    includeNxt: leagueIncludesNxt(league),
   });
   const isAvailableBoardId = (id: string | null | undefined): id is BigBoardId =>
     Boolean(id) && isBigBoardId(id) && availableBigBoardIds.includes(id as BigBoardId);

@@ -1,6 +1,7 @@
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { assertOnboardingRequired } from "./actions";
+import { leagueIncludesNxt } from "@/lib/leagueStructure";
 import { LeagueOnboardingWizard } from "./LeagueOnboardingWizard";
 
 type Props = {
@@ -43,7 +44,7 @@ export default async function LeagueOnboardingPage({ params, searchParams }: Pro
         leagueName={league.name}
         isSalaryCap={isSalaryCap}
         draftType={draftType}
-        includeNxt={Boolean(league.include_nxt)}
+        includeNxt={leagueIncludesNxt(league)}
         initialTeamName={member?.team_name?.trim() ?? ""}
         initialCatchphrase={member?.manager_catchphrase?.trim() ?? ""}
         initialLeagueAvatarUrl={member?.manager_avatar_url ?? null}

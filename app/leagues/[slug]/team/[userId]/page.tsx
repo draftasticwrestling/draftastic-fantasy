@@ -15,10 +15,19 @@ import {
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getTradeProposalsForLeague, getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
-import { getRosterRulesForLeague, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import {
+  getRosterRulesForLeague,
+  leagueIncludesNxt,
+  leagueUsesSalaryCap,
+  leagueUsesWeeklyPstBeltHold,
+} from "@/lib/leagueStructure";
+import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser, isValidSalaryCapCost } from "@/lib/salaryCap";
+import { getSalaryCapWeeklyFaBudgetStatus } from "@/lib/salaryCapWeeklyLimits";
 import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
 import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
+import { SalaryCapFreeAgentPicker } from "../SalaryCapFreeAgentPicker";
+import { SalaryCapWeeklyFaBudget } from "../SalaryCapWeeklyFaBudget";
 import { TradeProposalRespond } from "../TradeProposalRespond";
 import { CancelTradeButton } from "../CancelTradeButton";
 import { RosterCardGrid } from "../RosterCardGrid";
@@ -169,6 +178,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   if (!targetMember) notFound();
 
   const isOwnTeam = currentUser.id === userId;
+  const isSalaryCapLeague = leagueUsesSalaryCap(league.league_type);
   const simpleFactionView = view === "simple";
   const teamLabel = factionDisplayName(targetMember, "Unknown");
 
@@ -194,7 +204,9 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     (
       await supabase
         .from("wrestlers")
-        .select('id, name, gender, brand, image_url, full_body_image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+        .select(
+          'id, name, gender, brand, image_url, full_body_image_url, dob, "Status", "2K26 rating", "2K25 rating", salary_cap_cost'
+        )
         .order("name", { ascending: true })
     ).data ?? [];
   const brandBySlugTeamPage = brandByWrestlerSlugFromRows(
@@ -214,9 +226,25 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   const rosterRules = getRosterRulesForLeague(
     members.length,
     league.season_slug ?? null,
-    Boolean(league.include_nxt),
+    leagueIncludesNxt(league),
     league.league_type ?? null
   );
+
+  const salaryCapCostForWrestler = (wrestlerId: string): number | null => {
+    if (!isSalaryCapLeague) return null;
+    const row = wrestlers.find((w) => w.id === wrestlerId) as { salary_cap_cost?: number | null } | undefined;
+    const c = row?.salary_cap_cost;
+    return typeof c === "number" && isValidSalaryCapCost(c) ? c : null;
+  };
+
+  let salaryCapRosterSummary: { spent: number; budget: number } | null = null;
+  if (isSalaryCapLeague) {
+    const [meta, { spent }] = await Promise.all([
+      getSalaryCapLeagueMeta(supabase, league.id),
+      getSalaryCapSpentForUser(supabase, league.id, userId),
+    ]);
+    if (meta) salaryCapRosterSummary = { spent, budget: meta.budget };
+  }
   const rosterWrestlers = rosterEntries.map((e) => {
     const w = wrestlers.find((x) => x.id === e.wrestler_id) as { id: string; name: string | null; gender?: string | null } | undefined;
     return { id: e.wrestler_id, name: w?.name ?? e.wrestler_id, gender: w?.gender ?? null };
@@ -376,11 +404,15 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   }
 
   let tradeLockedWrestlerIds: string[] = [];
+  let salaryCapWeeklyFaBudget: Awaited<ReturnType<typeof getSalaryCapWeeklyFaBudgetStatus>> = null;
   if (isOwnTeam) {
     try {
       tradeLockedWrestlerIds = await getWrestlerIdsLockedByPendingTrades(league.id, currentUser.id);
     } catch {
       tradeLockedWrestlerIds = [];
+    }
+    if (leagueUsesSalaryCap(league.league_type)) {
+      salaryCapWeeklyFaBudget = await getSalaryCapWeeklyFaBudgetStatus(supabase, league.id, currentUser.id);
     }
   }
 
@@ -405,6 +437,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         championBeltImageUrl: w.championBeltImageUrl,
         image_url: w.image_url,
         full_body_image_url: (w as { full_body_image_url?: string | null }).full_body_image_url ?? null,
+        salaryCapCost: salaryCapCostForWrestler(w.id),
       };
     });
     const wrestlerNameByIdForSimple = Object.fromEntries(
@@ -469,6 +502,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           minFemale={rosterRules?.minFemale ?? 0}
           minMale={rosterRules?.minMale ?? 0}
           wrestlers={rosterCardWrestlers}
+          salaryCapSummary={salaryCapRosterSummary}
           tradeLockedWrestlerIds={tradeLockedWrestlerIds}
           upcomingMatches={upcomingFactionCardsSimple.map((c) => ({
             key: c.key,
@@ -868,11 +902,17 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>
           {isOwnTeam ? "My faction roster" : "Roster"}
         </h2>
-        {rosterRules && (
+        {isSalaryCapLeague && salaryCapRosterSummary ? (
           <p style={{ fontSize: 14, color: "#666", marginBottom: 24 }}>
-            {rosterEntries.length} / {rosterRules.rosterSize} wrestlers (min {rosterRules.minFemale} female, min {rosterRules.minMale} male).
+            <strong style={{ color: "#166534" }}>${salaryCapRosterSummary.spent}</strong> / $
+            {salaryCapRosterSummary.budget} roster value · {rosterEntries.length} wrestlers
           </p>
-        )}
+        ) : rosterRules ? (
+          <p style={{ fontSize: 14, color: "#666", marginBottom: 24 }}>
+            {rosterEntries.length} / {rosterRules.rosterSize} wrestlers (min {rosterRules.minFemale} female, min{" "}
+            {rosterRules.minMale} male).
+          </p>
+        ) : null}
         {rosterTableRows.length > 0 ? (
           <RosterCardGrid
             wrestlers={rosterTableRows.map((w) => {
@@ -894,6 +934,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 championBeltImageUrl: w.championBeltImageUrl,
                 image_url: w.image_url,
                 full_body_image_url: (w as { full_body_image_url?: string | null }).full_body_image_url ?? null,
+                salaryCapCost: salaryCapCostForWrestler(w.id),
               };
             })}
             leagueSlug={slug}
@@ -984,6 +1025,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
 
       {isOwnTeam && (
         <>
+          {salaryCapWeeklyFaBudget ? <SalaryCapWeeklyFaBudget status={salaryCapWeeklyFaBudget} /> : null}
           <section id="propose-trade" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
             <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Propose trade</h2>
             {proposeTradeTo && (() => {
@@ -1060,7 +1102,9 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           <section id="sign-free-agent" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
             <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Add free agent</h2>
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Add a wrestler who isn’t on any roster. If your roster is full, drop one to make room. Takes effect immediately (first come, first serve).
+              {isSalaryCapLeague
+                ? "Browse the free agent pool (same as roster build). Signings take effect immediately. Drop someone first if you need cap room or roster space."
+                : "Add a wrestler who isn’t on any roster. If your roster is full, drop one to make room. Takes effect immediately (first come, first serve)."}
             </p>
             {tradeLockedWrestlerIds.length > 0 && rosterRules && rosterWrestlers.length >= rosterRules.rosterSize && (
               <p style={{ fontSize: 13, color: "#92400e", marginBottom: 10 }}>
@@ -1068,7 +1112,15 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 trade (see note under Drop wrestler).
               </p>
             )}
-            {freeAgents.length === 0 ? (
+            {isSalaryCapLeague ? (
+              <SalaryCapFreeAgentPicker
+                leagueSlug={slug}
+                myRosterWrestlers={rosterWrestlers}
+                rosterSize={rosterRules?.rosterSize ?? 0}
+                tradeLockedWrestlerIds={tradeLockedWrestlerIds}
+                initialWrestlerId={addFa}
+              />
+            ) : freeAgents.length === 0 ? (
               <p style={{ color: "#666" }}>No free agents available.</p>
             ) : (
               <ProposeFreeAgentForm
@@ -1130,7 +1182,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                     .join(", ")}
                 </span>
                 {(() => {
-                  const rosterRules = getRosterRulesForLeague(members.length, league.season_slug ?? null, Boolean(league.include_nxt));
+                  const rosterRules = getRosterRulesForLeague(
+                    members.length,
+                    league.season_slug ?? null,
+                    leagueIncludesNxt(league),
+                    league.league_type ?? null
+                  );
                   const myRosterIds = (rosters[currentUser.id] ?? []).map((e) => e.wrestler_id);
                   const giveCount = p.items.filter((i) => i.direction === "give").length; // recipient receives
                   const receiveCount = p.items.filter((i) => i.direction === "receive").length; // recipient gives

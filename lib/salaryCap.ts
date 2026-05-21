@@ -9,9 +9,15 @@ import {
 } from "@/lib/leagueStructure";
 
 export { SALARY_CAP_BUDGET_DEFAULT, SALARY_CAP_COST_TIERS, leagueUsesSalaryCap };
+export { FA_SALARY_CAP_WEEKLY_BUDGET } from "@/lib/salaryCapWeeklyLimits";
 
 export function isValidSalaryCapCost(n: number): boolean {
   return (SALARY_CAP_COST_TIERS as readonly number[]).includes(n);
+}
+
+/** Parse `wrestlers.salary_cap_cost` for display (league tables, etc.). */
+export function salaryCapCostFromDb(value: unknown): number | null {
+  return typeof value === "number" && isValidSalaryCapCost(value) ? value : null;
 }
 
 export type SalaryCapLeagueMeta = {

@@ -237,7 +237,7 @@ export async function getPointsByOwnerForLeagueForWeek(
   const supabase = supabaseOverride ?? (await createClient());
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date, season_slug, include_nxt")
+    .select("id, start_date, end_date, draft_date, season_slug, include_nxt, league_type")
     .eq("id", leagueId)
     .single();
   if (!league) return {};
@@ -245,7 +245,9 @@ export async function getPointsByOwnerForLeagueForWeek(
   const leagueStart = (league.draft_date || league.start_date) ?? "";
   const leagueEnd = league.end_date ?? "";
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
-  const includeNxt = leagueIncludesNxt(league as { include_nxt?: boolean | null });
+  const includeNxt = leagueIncludesNxt(
+    league as { include_nxt?: boolean | null; league_type?: string | null }
+  );
 
   const eventsSelectWithStart = supabase
     .from("events")
@@ -354,7 +356,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date, season_slug, include_nxt")
+    .select("id, start_date, end_date, draft_date, season_slug, include_nxt, league_type")
     .eq("id", leagueId)
     .single();
   if (!league) return {};
@@ -362,7 +364,9 @@ export async function getPointsByOwnerByWrestlerForWeek(
   const leagueStart = (league.draft_date || league.start_date) ?? "";
   const leagueEnd = league.end_date ?? "";
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
-  const includeNxt = leagueIncludesNxt(league as { include_nxt?: boolean | null });
+  const includeNxt = leagueIncludesNxt(
+    league as { include_nxt?: boolean | null; league_type?: string | null }
+  );
 
   const eventsSelectWithStart = supabase
     .from("events")

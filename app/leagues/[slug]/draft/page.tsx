@@ -268,7 +268,7 @@ export default async function LeagueDraftPage({ params }: Props) {
     rosterRules = getRosterRulesForLeague(
       members.length,
       league.season_slug ?? null,
-      Boolean(league.include_nxt),
+      leagueIncludesNxt(league),
       league.league_type ?? null
     );
     const draftedIds = new Set<string>();
@@ -302,7 +302,7 @@ export default async function LeagueDraftPage({ params }: Props) {
     const prefSrc = userDraftPrefs?.strategy_options as { priorityListSource?: string } | undefined;
     const customPrefs = prefSrc?.priorityListSource === "custom";
     const listLen = userDraftPrefs?.priority_list?.length ?? 0;
-    const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(Boolean(league.include_nxt));
+    const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(leagueIncludesNxt(league));
     const hasAutoDraftSettingsSaved =
       league.draft_type === "autopick"
         ? !customPrefs || listLen >= autopickRequiredPriorityCount

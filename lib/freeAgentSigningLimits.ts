@@ -2,9 +2,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { addWeeks, startOfWeek } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
 
-import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { leagueUsesSalaryCap, leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
 import { FA_SIGNINGS_PER_WEEK } from "@/lib/publicLeagueRosterRules";
 import { BELT_HOLD_TIMEZONE } from "@/lib/pstCivilTime";
+import {
+  assertSalaryCapWeeklyFaMoveAllowed,
+  type SalaryCapWeeklyFaMove,
+} from "@/lib/salaryCapWeeklyLimits";
 
 /**
  * Half-open UTC window [start, end) for the Pacific calendar week containing refNowMs:
@@ -54,13 +58,24 @@ export async function countFaSigningsInPacificWeek(
   return count ?? 0;
 }
 
-/** Road to SummerSlam / Survivor Series: max FA signings per Mon–Sun Pacific week; trades uncapped. */
+export type FaSigningLimitMove = SalaryCapWeeklyFaMove;
+
+/** Salary cap: $25 signings + $25 drops per Pacific week. RTS/RTSS: 2 signings/week. */
 export async function assertFaSigningAllowedForLeague(
   supabase: Pick<SupabaseClient, "from">,
   leagueId: string,
   userId: string,
-  seasonSlug: string | null | undefined
+  seasonSlug: string | null | undefined,
+  leagueType?: string | null,
+  move?: FaSigningLimitMove
 ): Promise<{ error?: string }> {
+  if (leagueUsesSalaryCap(leagueType)) {
+    return assertSalaryCapWeeklyFaMoveAllowed(supabase, leagueId, userId, {
+      addWrestlerId: move?.addWrestlerId,
+      dropWrestlerId: move?.dropWrestlerId,
+    });
+  }
+
   if (!leagueUsesWeeklyPstBeltHold(seasonSlug)) return {};
 
   const n = await countFaSigningsInPacificWeek(supabase, leagueId, userId);

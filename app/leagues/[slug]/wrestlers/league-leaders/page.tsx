@@ -11,6 +11,8 @@ import {
   type LeagueRosterEntry,
 } from "@/lib/leagues";
 import WrestlerList, { type WrestlerRow } from "@/app/wrestlers/WrestlerList";
+import { salaryCapCostFromDb } from "@/lib/salaryCap";
+import { leagueIncludesNxt, leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   aggregateWrestlerMatchStats,
@@ -62,6 +64,7 @@ import {
   loadLeagueLeadersAllTimeScoringBundle,
 } from "@/lib/leagueLeadersAllTimeScoring";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
+import { getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
 import {
   isWrestlerStatsCachePointColumnsSane,
   isWrestlerStatsCacheUsable,
@@ -165,8 +168,10 @@ export default async function LeagueLeadersPage({
   }
 
   const enforceNxtPendingOnlyForRts = league.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  const isSalaryCapLeague = leagueUsesSalaryCap(league.league_type);
   let rows: WrestlerRow[] = [];
   let rosterByWrestler: Record<string, { ownerName: string; ownerUserId: string }> = {};
+  let myRosterIdsForSalaryCap: string[] = [];
   let error: { message: string } | null = null;
   let computeFailed = false;
 
@@ -180,7 +185,9 @@ export default async function LeagueLeadersPage({
           // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
           return await supabase
             .from("wrestlers")
-            .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+            .select(
+              'id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating", salary_cap_cost'
+            )
             .order("name", { ascending: true });
         } catch {
           return { data: null, error: { message: "Network error loading wrestlers" } as { message: string } };
@@ -267,6 +274,9 @@ export default async function LeagueLeadersPage({
     for (const e of entries) {
       rosterByWrestler[e.wrestler_id] = { ownerName, ownerUserId: uid };
     }
+  }
+  if (user && isSalaryCapLeague) {
+    myRosterIdsForSalaryCap = (rostersByUser[user.id] ?? []).map((e) => e.wrestler_id);
   }
 
   const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
@@ -577,6 +587,7 @@ export default async function LeagueLeadersPage({
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
       championBeltImageUrl: primaryTitle ? getBeltImageUrlForTitle(primaryTitle, w.gender) : null,
       unparsedCount,
+      salary_cap_cost: isSalaryCapLeague ? salaryCapCostFromDb(raw.salary_cap_cost) : null,
     };
   });
   } catch (err) {
@@ -584,7 +595,22 @@ export default async function LeagueLeadersPage({
     computeFailed = true;
     rows = [];
     rosterByWrestler = {};
+    myRosterIdsForSalaryCap = [];
     error = null;
+  }
+
+  let salaryCapRosterActions: { myRosterIds: string[]; tradeLockedWrestlerIds: string[] } | undefined;
+  if (isSalaryCapLeague && user) {
+    let tradeLockedWrestlerIds: string[] = [];
+    try {
+      tradeLockedWrestlerIds = await getWrestlerIdsLockedByPendingTrades(league.id, user.id);
+    } catch {
+      tradeLockedWrestlerIds = [];
+    }
+    salaryCapRosterActions = {
+      myRosterIds: myRosterIdsForSalaryCap,
+      tradeLockedWrestlerIds,
+    };
   }
 
   return (
@@ -667,13 +693,15 @@ export default async function LeagueLeadersPage({
           wrestlers={rows}
           defaultSortColumn="totalPoints"
           defaultSortDir="desc"
-          defaultPointsPeriod="allTime"
+          defaultPointsPeriod={isSalaryCapLeague ? "2026" : "allTime"}
           leagueSlug={slug}
           wrestlerProfileFrom="league-leaders"
-          rosterByWrestler={rosterByWrestler}
+          rosterByWrestler={isSalaryCapLeague ? null : rosterByWrestler}
           enableViewToggle
           rtsNxtPointsFootnote={enforceNxtPendingOnlyForRts}
-          includeNxtInDefaultRosterFilter={Boolean(league.include_nxt)}
+          includeNxtInDefaultRosterFilter={isSalaryCapLeague || leagueIncludesNxt(league)}
+          showSalaryCapCost={isSalaryCapLeague}
+          salaryCapRosterActions={salaryCapRosterActions}
         />
       )}
     </main>

@@ -46,11 +46,13 @@ import {
   leagueUsesWeeklyPstBeltHold,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
 } from "@/lib/leagueStructure";
+import { salaryCapCostFromDb } from "@/lib/salaryCap";
 import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
+import { getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -114,13 +116,16 @@ export default async function WrestlersFreeAgentsPage({
   }
 
   const startDate = getEffectiveLeagueStartDate(league);
+  const isSalaryCapLeague = leagueUsesSalaryCap(league.league_type);
 
   const [wrestlersResult, rosters, { data: rawReigns }, currentFromTable, currentFromChanges] = await Promise.all([
     (async () => {
       // Column is "Status" (capital S) in DB; avoid .or("status...") and select "Status" only
       const r = await supabase
         .from("wrestlers")
-        .select('id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating"')
+        .select(
+          'id, name, gender, brand, image_url, dob, "Status", "2K26 rating", "2K25 rating", salary_cap_cost'
+        )
         .order("name", { ascending: true });
       return r;
     })(),
@@ -138,9 +143,8 @@ export default async function WrestlersFreeAgentsPage({
     }))
   );
   const error = wrestlersResult.error;
-  const isSalaryCap = leagueUsesSalaryCap(league.league_type);
   const onRosterIds = new Set<string>();
-  if (isSalaryCap && user) {
+  if (isSalaryCapLeague && user) {
     for (const e of rosters[user.id] ?? []) {
       onRosterIds.add(String(e.wrestler_id).toLowerCase());
     }
@@ -343,8 +347,21 @@ export default async function WrestlersFreeAgentsPage({
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
       championBeltImageUrl: primaryTitle ? getBeltImageUrlForTitle(primaryTitle, w.gender) : null,
+      salary_cap_cost: isSalaryCapLeague ? salaryCapCostFromDb(raw.salary_cap_cost) : null,
     };
   });
+
+  let salaryCapRosterActions: { myRosterIds: string[]; tradeLockedWrestlerIds: string[] } | undefined;
+  if (isSalaryCapLeague && user) {
+    const myRosterIds = (rosters[user.id] ?? []).map((e) => e.wrestler_id);
+    let tradeLockedWrestlerIds: string[] = [];
+    try {
+      tradeLockedWrestlerIds = await getWrestlerIdsLockedByPendingTrades(league.id, user.id);
+    } catch {
+      tradeLockedWrestlerIds = [];
+    }
+    salaryCapRosterActions = { myRosterIds, tradeLockedWrestlerIds };
+  }
 
   return (
     <main className="app-page" style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -419,12 +436,14 @@ export default async function WrestlersFreeAgentsPage({
           wrestlers={rows}
           defaultSortColumn="totalPoints"
           defaultSortDir="desc"
-          defaultPointsPeriod="allTime"
+          defaultPointsPeriod={isSalaryCapLeague ? "2026" : "allTime"}
           leagueSlug={slug}
           wrestlerProfileFrom="free-agents"
           enableViewToggle
           rtsNxtPointsFootnote={enforceNxtPendingOnlyForRts}
-          includeNxtInDefaultRosterFilter={Boolean(league.include_nxt)}
+          includeNxtInDefaultRosterFilter={isSalaryCapLeague || leagueIncludesNxt(league)}
+          showSalaryCapCost={isSalaryCapLeague}
+          salaryCapRosterActions={salaryCapRosterActions}
         />
       )}
     </main>

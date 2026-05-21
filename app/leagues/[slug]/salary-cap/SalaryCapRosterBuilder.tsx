@@ -41,7 +41,8 @@ function isInjured(status: string | null | undefined): boolean {
   return /injur/i.test(status.trim());
 }
 
-type SortKey = "name" | "cost" | "rating2k" | "total2026" | "rs" | "ple" | "belt";
+export type SalaryCapPoolSortKey = "name" | "cost" | "rating2k" | "total2026" | "rs" | "ple" | "belt";
+type SortKey = SalaryCapPoolSortKey;
 
 function ratingForSort(w: { rating2k26?: number | null; rating2k25?: number | null }): number {
   const r = w.rating2k26 ?? w.rating2k25;
@@ -53,7 +54,12 @@ function total2026ForSort(stats?: SalaryCap2026Stats | null): number {
   return stats.totalPoints ?? stats.rsPoints + stats.plePoints + stats.beltPoints;
 }
 
-function comparePoolRows(a: SalaryCapWrestlerOption, b: SalaryCapWrestlerOption, sortKey: SortKey, dir: 1 | -1): number {
+export function compareSalaryCapPoolRows(
+  a: SalaryCapWrestlerOption,
+  b: SalaryCapWrestlerOption,
+  sortKey: SortKey,
+  dir: 1 | -1
+): number {
   let out = 0;
   switch (sortKey) {
     case "name":
@@ -82,6 +88,15 @@ function comparePoolRows(a: SalaryCapWrestlerOption, b: SalaryCapWrestlerOption,
   return out * dir;
 }
 
+function comparePoolRows(
+  a: SalaryCapWrestlerOption,
+  b: SalaryCapWrestlerOption,
+  sortKey: SortKey,
+  dir: 1 | -1
+): number {
+  return compareSalaryCapPoolRows(a, b, sortKey, dir);
+}
+
 function rosterToSortRow(r: SalaryCapRosterEntry, pool: SalaryCapWrestlerOption[]): SalaryCapWrestlerOption {
   const w = pool.find((p) => p.id === r.wrestlerId);
   return {
@@ -100,7 +115,7 @@ function rosterToSortRow(r: SalaryCapRosterEntry, pool: SalaryCapWrestlerOption[
   };
 }
 
-function SortableTh({
+export function SalaryCapPoolSortableTh({
   label,
   sortKey: key,
   activeSort,
@@ -131,7 +146,7 @@ function SortableTh({
   );
 }
 
-function PoolTableHead({
+export function SalaryCapPoolTableHead({
   sortKey,
   sortDir,
   onSort,
@@ -142,8 +157,8 @@ function PoolTableHead({
 }) {
   return (
     <tr>
-      <SortableTh label="Wrestler" sortKey="name" activeSort={sortKey} sortDir={sortDir} onSort={onSort} />
-      <SortableTh
+      <SalaryCapPoolSortableTh label="Wrestler" sortKey="name" activeSort={sortKey} sortDir={sortDir} onSort={onSort} />
+      <SalaryCapPoolSortableTh
         label="Cost"
         sortKey="cost"
         activeSort={sortKey}
@@ -151,7 +166,7 @@ function PoolTableHead({
         onSort={onSort}
         className="salary-cap-pool__num"
       />
-      <SortableTh
+      <SalaryCapPoolSortableTh
         label="2K"
         sortKey="rating2k"
         activeSort={sortKey}
@@ -159,7 +174,7 @@ function PoolTableHead({
         onSort={onSort}
         className="salary-cap-pool__num"
       />
-      <SortableTh
+      <SalaryCapPoolSortableTh
         label="2026"
         sortKey="total2026"
         activeSort={sortKey}
@@ -167,7 +182,7 @@ function PoolTableHead({
         onSort={onSort}
         className="salary-cap-pool__num"
       />
-      <SortableTh
+      <SalaryCapPoolSortableTh
         label="R/S"
         sortKey="rs"
         activeSort={sortKey}
@@ -175,7 +190,7 @@ function PoolTableHead({
         onSort={onSort}
         className="salary-cap-pool__num"
       />
-      <SortableTh
+      <SalaryCapPoolSortableTh
         label="PLE"
         sortKey="ple"
         activeSort={sortKey}
@@ -183,7 +198,7 @@ function PoolTableHead({
         onSort={onSort}
         className="salary-cap-pool__num"
       />
-      <SortableTh
+      <SalaryCapPoolSortableTh
         label="Belt"
         sortKey="belt"
         activeSort={sortKey}
@@ -211,7 +226,7 @@ function formatPts(n: number | null | undefined): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function WrestlerStatsCells({ stats, rating2k }: { stats?: SalaryCap2026Stats | null; rating2k?: number | null }) {
+export function SalaryCapPoolStatsCells({ stats, rating2k }: { stats?: SalaryCap2026Stats | null; rating2k?: number | null }) {
   const total = stats?.totalPoints ?? (stats ? stats.rsPoints + stats.plePoints + stats.beltPoints : null);
   return (
     <>
@@ -224,7 +239,7 @@ function WrestlerStatsCells({ stats, rating2k }: { stats?: SalaryCap2026Stats | 
   );
 }
 
-function WrestlerNameCell({
+export function SalaryCapPoolNameCell({
   name,
   imageUrl,
   brand,
@@ -401,7 +416,7 @@ export function SalaryCapRosterBuilder({
             <div className="salary-cap-pool__scroll">
               <table className="salary-cap-pool__table">
                 <thead>
-                  <PoolTableHead sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                  <SalaryCapPoolTableHead sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 </thead>
                 <tbody>
                   {sortedRoster.map((r) => {
@@ -409,7 +424,7 @@ export function SalaryCapRosterBuilder({
                     const rating = w?.rating2k26 ?? w?.rating2k25 ?? null;
                     return (
                       <tr key={r.wrestlerId} className={r.currentChampionship ? "salary-cap-pool__row--champ" : undefined}>
-                        <WrestlerNameCell
+                        <SalaryCapPoolNameCell
                           name={r.name}
                           imageUrl={r.imageUrl}
                           brand={r.brand ?? w?.brand}
@@ -418,7 +433,7 @@ export function SalaryCapRosterBuilder({
                           championBeltImageUrl={r.championBeltImageUrl ?? w?.championBeltImageUrl}
                         />
                         <td className="salary-cap-pool__num salary-cap-pool__cost">${r.salaryCapCost}</td>
-                        <WrestlerStatsCells stats={r.stats2026} rating2k={rating} />
+                        <SalaryCapPoolStatsCells stats={r.stats2026} rating2k={rating} />
                         <td>
                           <button
                             type="button"
@@ -454,14 +469,14 @@ export function SalaryCapRosterBuilder({
           <div className="salary-cap-pool__scroll">
             <table className="salary-cap-pool__table">
               <thead>
-                <PoolTableHead sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SalaryCapPoolTableHead sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               </thead>
               <tbody>
                 {sortedAvailable.map((w) => {
                   const rating = w.rating2k26 ?? w.rating2k25 ?? null;
                   return (
                     <tr key={w.id} className={w.currentChampionship ? "salary-cap-pool__row--champ" : undefined}>
-                      <WrestlerNameCell
+                      <SalaryCapPoolNameCell
                         name={w.name}
                         imageUrl={w.imageUrl}
                         brand={w.brand}
@@ -470,7 +485,7 @@ export function SalaryCapRosterBuilder({
                         championBeltImageUrl={w.championBeltImageUrl}
                       />
                       <td className="salary-cap-pool__num salary-cap-pool__cost">${w.salaryCapCost}</td>
-                      <WrestlerStatsCells stats={w.stats2026} rating2k={rating} />
+                      <SalaryCapPoolStatsCells stats={w.stats2026} rating2k={rating} />
                       <td>
                         <button
                           type="button"

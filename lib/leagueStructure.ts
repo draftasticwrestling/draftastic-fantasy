@@ -45,11 +45,13 @@ export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefine
   );
 }
 
-/** Admin/beta leagues that include NXT in the player pool and scoring. */
+/** Leagues that include NXT in the player pool and scoring. Salary cap leagues always include NXT. */
 export function leagueIncludesNxt(
-  league: { include_nxt?: boolean | null } | null | undefined
+  league: { include_nxt?: boolean | null; league_type?: string | null } | null | undefined
 ): boolean {
-  return Boolean(league?.include_nxt);
+  if (!league) return false;
+  if (leagueUsesSalaryCap(league.league_type)) return true;
+  return Boolean(league.include_nxt);
 }
 
 export type RosterRules = {
@@ -195,8 +197,10 @@ export async function getRosterRulesForLeagueId(
   ]);
   const teamCount = count ?? 0;
   const seasonSlug = (league as { season_slug?: string | null } | null)?.season_slug ?? null;
-  const includeNxt = (league as { include_nxt?: boolean | null } | null)?.include_nxt ?? false;
   const leagueType = (league as { league_type?: string | null } | null)?.league_type ?? null;
+  const includeNxt = leagueIncludesNxt(
+    league as { include_nxt?: boolean | null; league_type?: string | null } | null
+  );
   return getRosterRulesForLeague(teamCount, seasonSlug, includeNxt, leagueType);
 }
 

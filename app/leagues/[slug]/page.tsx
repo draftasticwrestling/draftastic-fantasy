@@ -13,6 +13,7 @@ import {
 } from "@/lib/leagueMatchups";
 import {
   getRosterRulesForLeague,
+  leagueIncludesNxt,
   leagueUsesSalaryCap,
   ROAD_TO_SUMMERSLAM_BANNER_SRC,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
@@ -178,7 +179,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const rosterRules = getRosterRulesForLeague(
       members.length,
       league.season_slug ?? null,
-      Boolean(league.include_nxt),
+      leagueIncludesNxt(league),
       league.league_type ?? null
     );
 

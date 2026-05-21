@@ -10,6 +10,7 @@ import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
 import { getNationalityFlagDisplay } from "@/lib/nationalityFlag";
 import { wrestlerRosterFromBrand, type WrestlerRosterBucket } from "@/lib/wrestlerRosterFromBrand";
 import WrestlerHeadshotImage from "@/app/components/WrestlerHeadshotImage";
+import { SalaryCapTableAddDrop } from "./SalaryCapTableAddDrop";
 
 /** Mobile list view: short roster labels (Raw / SD) per product request. */
 function mobileListRosterAbbrev(bucket: WrestlerRosterBucket): string {
@@ -104,6 +105,8 @@ export type WrestlerRow = {
   championBeltImageUrl?: string | null;
   /** Number of matches needing review on this wrestler's profile (all-time). When set, shown next to name on League Leaders. */
   unparsedCount?: number;
+  /** Salary cap tier ($5–$25) for salary cap leagues. */
+  salary_cap_cost?: number | null;
 };
 
 /** True when status indicates injured (Injured, INJ, etc.). */
@@ -355,6 +358,7 @@ export type SortColumn =
   | "gender"
   | "age"
   | "rating2k"
+  | "salaryCapCost"
   | "rsPoints"
   | "plePoints"
   | "beltPoints"
@@ -409,6 +413,12 @@ function compare(a: WrestlerRow, b: WrestlerRow, col: SortColumn, dir: SortDir, 
       const ra = a.rating_2k26 ?? a.rating_2k25 ?? -1;
       const rb = b.rating_2k26 ?? b.rating_2k25 ?? -1;
       out = ra - rb;
+      break;
+    }
+    case "salaryCapCost": {
+      const ca = a.salary_cap_cost ?? -1;
+      const cb = b.salary_cap_cost ?? -1;
+      out = ca - cb;
       break;
     }
     case "rsPoints":
@@ -479,6 +489,7 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: "gender", label: "Gender", minW: 68, align: "center", section: "INFO" },
   { key: "age", label: "Age", minW: 52, align: "center", section: "INFO" },
   { key: "rating2k", label: "2K", minW: 48, align: "center", section: "INFO" },
+  { key: "salaryCapCost", label: "Value", minW: 56, align: "center", section: "INFO" },
   { key: "rsPoints", label: "R/S", minW: 72, align: "center", section: "POINTS" },
   { key: "plePoints", label: "PLE", minW: 72, align: "center", section: "POINTS" },
   { key: "beltPoints", label: "Belt", minW: 72, align: "center", section: "POINTS" },
@@ -495,11 +506,46 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: "dqPct", label: "DQ%", minW: 52, align: "center", section: "MATCHES" },
 ];
 
-const STICKY_COLUMN_COUNT = 6; // Roster, Rank, Image, Name, Titles, Status
-const STICKY_WIDTHS = [56, 48, 76, 160, 64, 96] as const;
-const STICKY_TOTAL_WIDTH = STICKY_WIDTHS.reduce((a, b) => a + b, 0);
-const SCROLL_HEADERS = HEADER_CONFIG.slice(STICKY_COLUMN_COUNT);
-const SCROLL_TOTAL_WIDTH = SCROLL_HEADERS.reduce((s, h) => s + h.minW, 0);
+const STICKY_COLUMN_COUNT = 6; // Default sticky columns before scroll area
+type StickyColDef = {
+  id: string;
+  label: string;
+  minW: number;
+  sortKey: SortColumn | null;
+  align: "left" | "center";
+};
+
+const DEFAULT_STICKY_COLUMNS: StickyColDef[] = [
+  { id: "roster", label: "Roster", minW: 56, sortKey: "roster", align: "center" },
+  { id: "rank", label: "Rank", minW: 48, sortKey: "rank", align: "center" },
+  { id: "image", label: "", minW: 76, sortKey: null, align: "center" },
+  { id: "name", label: "Name", minW: 160, sortKey: "name", align: "left" },
+  { id: "titles", label: "Titles", minW: 64, sortKey: null, align: "center" },
+  { id: "faction", label: "Faction", minW: 96, sortKey: null, align: "center" },
+];
+
+const SALARY_CAP_STICKY_COLUMNS: StickyColDef[] = [
+  { id: "roster", label: "Roster", minW: 56, sortKey: "roster", align: "center" },
+  { id: "rank", label: "Rank", minW: 48, sortKey: "rank", align: "center" },
+  { id: "addDrop", label: "Add/Drop", minW: 72, sortKey: null, align: "center" },
+  { id: "image", label: "", minW: 76, sortKey: null, align: "center" },
+  { id: "name", label: "Name", minW: 160, sortKey: "name", align: "left" },
+  { id: "titles", label: "Titles", minW: 64, sortKey: null, align: "center" },
+  { id: "value", label: "Value", minW: 56, sortKey: "salaryCapCost", align: "center" },
+];
+
+function getStickyColumns(showSalaryCapCost: boolean): StickyColDef[] {
+  return showSalaryCapCost ? SALARY_CAP_STICKY_COLUMNS : DEFAULT_STICKY_COLUMNS;
+}
+
+function stickyGridTemplate(cols: StickyColDef[]): string {
+  return cols.map((c) => `${c.minW}px`).join(" ");
+}
+
+function scrollHeadersForTable(showSalaryCapCost: boolean) {
+  const all = HEADER_CONFIG.slice(STICKY_COLUMN_COUNT);
+  return all.filter((h) => h.key !== "salaryCapCost");
+}
 /** Fixed body row height so left and right table rows match. */
 const BODY_ROW_HEIGHT = 80;
 /** Fixed header row heights so left and right table headers match and body rows align. */
@@ -602,8 +648,15 @@ type WrestlerListProps = {
   enableViewToggle?: boolean;
   /** Show * footnote legend for Road to SummerSlam NXT-brand scoring scope. */
   rtsNxtPointsFootnote?: boolean;
-  /** When true, Include filter defaults to Raw + SmackDown + NXT. */
+  /** When true, Include filter defaults to Raw + SmackDown + NXT (also implied by showSalaryCapCost). */
   includeNxtInDefaultRosterFilter?: boolean;
+  /** Show salary cap Value column (salary cap leagues). */
+  showSalaryCapCost?: boolean;
+  /** My roster + trade locks for salary cap Add/Drop column (logged-in member only). */
+  salaryCapRosterActions?: {
+    myRosterIds: string[];
+    tradeLockedWrestlerIds?: string[];
+  } | null;
 };
 
 function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | "team" | null): string {
@@ -685,8 +738,36 @@ export default function WrestlerList({
   enableViewToggle = false,
   rtsNxtPointsFootnote = false,
   includeNxtInDefaultRosterFilter = false,
+  showSalaryCapCost = false,
+  salaryCapRosterActions = null,
 }: WrestlerListProps) {
+  const includeNxtByDefault = includeNxtInDefaultRosterFilter || showSalaryCapCost;
   const isBoxscore = variant === "boxscore";
+  const stickyColumns = useMemo(() => getStickyColumns(showSalaryCapCost), [showSalaryCapCost]);
+  const stickyGridCols = useMemo(() => stickyGridTemplate(stickyColumns), [stickyColumns]);
+  const stickyTotalWidth = useMemo(
+    () => stickyColumns.reduce((sum, c) => sum + c.minW, 0),
+    [stickyColumns]
+  );
+  const myRosterIdSet = useMemo(
+    () => new Set(salaryCapRosterActions?.myRosterIds ?? []),
+    [salaryCapRosterActions]
+  );
+  const tradeLockedSet = useMemo(
+    () =>
+      new Set(
+        (salaryCapRosterActions?.tradeLockedWrestlerIds ?? [])
+          .map((id) => String(id).trim())
+          .filter(Boolean)
+      ),
+    [salaryCapRosterActions]
+  );
+  const scrollHeaders = useMemo(() => scrollHeadersForTable(showSalaryCapCost), [showSalaryCapCost]);
+  const scrollTotalWidth = useMemo(() => scrollHeaders.reduce((s, h) => s + h.minW, 0), [scrollHeaders]);
+  const infoColCount = useMemo(() => scrollHeaders.filter((h) => h.section === "INFO").length, [scrollHeaders]);
+  const pointsColCount = useMemo(() => scrollHeaders.filter((h) => h.section === "POINTS").length, [scrollHeaders]);
+  const pointsStartCol = 1 + infoColCount;
+  const matchesStartCol = pointsStartCol + pointsColCount;
   const [sortColumn, setSortColumn] = useState<SortColumn>(defaultSortColumn);
   const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
   const [search, setSearch] = useState("");
@@ -694,7 +775,7 @@ export default function WrestlerList({
     () =>
       hideRosterFilter
         ? new Set(ALL_ROSTER_VALUES)
-        : new Set(includeNxtInDefaultRosterFilter ? ["Raw", "SmackDown", "NXT"] : ["Raw", "SmackDown"])
+        : new Set(includeNxtByDefault ? ["Raw", "SmackDown", "NXT"] : ["Raw", "SmackDown"])
   );
   const [includeMale, setIncludeMale] = useState(true);
   const [includeFemale, setIncludeFemale] = useState(true);
@@ -1301,6 +1382,9 @@ export default function WrestlerList({
                   {(w.rating_2k26 != null || w.rating_2k25 != null) && (
                     <> · 2K <span style={{ color: "#c00", fontWeight: 700 }}>{(w.rating_2k26 ?? w.rating_2k25) ?? ""}</span></>
                   )}
+                  {showSalaryCapCost && w.salary_cap_cost != null && (
+                    <> · <span style={{ color: "#166534", fontWeight: 800 }}>${w.salary_cap_cost}</span></>
+                  )}
                 </span>
                 <span className="wrestler-card-pts">
                   R/S {formatFantasyPoints(pts.rsPoints)}
@@ -1334,12 +1418,22 @@ export default function WrestlerList({
                 <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
                   <SortableColumnHeader label="Roster" column="roster" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
                 </th>
+                {showSalaryCapCost ? (
+                  <>
+                    <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                      <SortableColumnHeader label="Rank" column="rank" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                    </th>
+                    <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>Add/Drop</th>
+                  </>
+                ) : null}
                 <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
                   <SortableColumnHeader label="Name" column="name" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
                 </th>
-                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
-                  <SortableColumnHeader label="Rank" column="rank" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
-                </th>
+                {!showSalaryCapCost ? (
+                  <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                    <SortableColumnHeader label="Rank" column="rank" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                  </th>
+                ) : null}
                 <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
                   <SortableColumnHeader label="Gender" column="gender" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
                 </th>
@@ -1349,9 +1443,15 @@ export default function WrestlerList({
                 <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
                   <SortableColumnHeader label="2K" column="rating2k" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
                 </th>
-                <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
-                  Status
-                </th>
+                {showSalaryCapCost ? (
+                  <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                    <SortableColumnHeader label="Value" column="salaryCapCost" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
+                  </th>
+                ) : (
+                  <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
+                    Status
+                  </th>
+                )}
                 <th style={{ padding: "6px 6px", borderBottom: "1px solid var(--color-border-light)" }}>
                   <SortableColumnHeader label="R/S" column="rsPoints" sortColumn={sortColumn} sortDir={sortDir} onSort={handleSort} align="left" />
                 </th>
@@ -1413,6 +1513,22 @@ export default function WrestlerList({
                 return (
                   <tr key={w.id} style={{ borderBottom: "1px solid var(--color-border-light)" }}>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{rosterShort}</td>
+                    {showSalaryCapCost ? (
+                      <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{rankByWrestlerId.get(w.id) ?? "—"}</td>
+                    ) : null}
+                    {showSalaryCapCost && leagueSlug && salaryCapRosterActions ? (
+                      <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
+                        <SalaryCapTableAddDrop
+                          leagueSlug={leagueSlug}
+                          wrestlerId={w.id}
+                          wrestlerName={w.name}
+                          isOnMyRoster={myRosterIdSet.has(w.id)}
+                          tradeLocked={tradeLockedSet.has(w.id)}
+                        />
+                      </td>
+                    ) : showSalaryCapCost ? (
+                      <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>—</td>
+                    ) : null}
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap", fontWeight: 600 }}>
                       <Link
                         href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)}
@@ -1427,11 +1543,19 @@ export default function WrestlerList({
                         ) : null}
                       </Link>
                     </td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{rankByWrestlerId.get(w.id) ?? "—"}</td>
+                    {!showSalaryCapCost ? (
+                      <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{rankByWrestlerId.get(w.id) ?? "—"}</td>
+                    ) : null}
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{normalizeGender(w.gender)}</td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{age != null ? age : "—"}</td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{rating != null ? rating : "—"}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{statusText}</td>
+                    {showSalaryCapCost ? (
+                      <td style={{ padding: "7px 6px", whiteSpace: "nowrap", fontWeight: 800, color: "#166534" }}>
+                        {w.salary_cap_cost != null ? `$${w.salary_cap_cost}` : "—"}
+                      </td>
+                    ) : (
+                      <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{statusText}</td>
+                    )}
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                       {formatFantasyPoints(pts.rsPoints)}
                       <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
@@ -1478,7 +1602,7 @@ export default function WrestlerList({
       {(() => {
         const gridTemplateRows = "40px 40px " + flatList.map(() => "80px").join(" ");
         const cellBorder = "1px solid " + BORDER_TABLE;
-        const scrollCols = SCROLL_HEADERS.map((h) => h.minW + "px").join(" ");
+        const scrollCols = scrollHeaders.map((h) => h.minW + "px").join(" ");
         return (
           <div
             className="wrestler-list-table-wrap"
@@ -1488,30 +1612,37 @@ export default function WrestlerList({
               borderRadius: 8,
               overflow: "hidden",
               background: ROW_BG_MAIN,
-              gridTemplateColumns: STICKY_TOTAL_WIDTH + "px 1fr",
+              gridTemplateColumns: stickyTotalWidth + "px 1fr",
               gridTemplateRows,
             }}
           >
             {/* Left column: one grid row per table row */}
-            <div style={{ gridColumn: 1, gridRow: 1, display: "grid", gridTemplateColumns: "56px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
-              {HEADER_CONFIG.slice(0, 6).map((_, i) => (
-                <div key={i} style={{ ...thBase, borderRight: cellBorder, borderBottom: "none" }} />
+            <div style={{ gridColumn: 1, gridRow: 1, display: "grid", gridTemplateColumns: stickyGridCols, borderBottom: cellBorder }}>
+              {stickyColumns.map((col) => (
+                <div key={col.id} style={{ ...thBase, borderRight: cellBorder, borderBottom: "none" }} />
               ))}
             </div>
-            <div style={{ gridColumn: 1, gridRow: 2, display: "grid", gridTemplateColumns: "56px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
-              {HEADER_CONFIG.slice(0, 6).map((h, i) => {
-                const isSortable = h.key != null;
-                const style: React.CSSProperties = { ...thBase, textAlign: h.align, borderRight: cellBorder, borderBottom: "none", display: "flex", alignItems: "center" };
-                if (!isSortable) return <div key={i} style={style}>{h.label}</div>;
+            <div style={{ gridColumn: 1, gridRow: 2, display: "grid", gridTemplateColumns: stickyGridCols, borderBottom: cellBorder }}>
+              {stickyColumns.map((col) => {
+                const isSortable = col.sortKey != null;
+                const style: React.CSSProperties = {
+                  ...thBase,
+                  textAlign: col.align,
+                  borderRight: cellBorder,
+                  borderBottom: "none",
+                  display: "flex",
+                  alignItems: "center",
+                };
+                if (!isSortable) return <div key={col.id} style={style}>{col.label}</div>;
                 return (
-                  <div key={i} style={style}>
+                  <div key={col.id} style={style}>
                     <SortableColumnHeader
-                      label={h.label}
-                      column={h.key as SortColumn}
+                      label={col.label}
+                      column={col.sortKey as SortColumn}
                       sortColumn={sortColumn}
                       sortDir={sortDir}
                       onSort={handleSort}
-                      align={h.align}
+                      align={col.align}
                     />
                   </div>
                 );
@@ -1522,131 +1653,357 @@ export default function WrestlerList({
               const style = BRAND_STYLES[roster] ?? BRAND_STYLES.Other;
               const brandLogo = BRAND_LOGO_URLS[roster];
               const rowBg = rowIndex % 2 === 0 ? ROW_BG_MAIN : ROW_BG_ALT;
+              const cellBase: React.CSSProperties = {
+                borderRight: cellBorder,
+                background: rowBg,
+                color: "#1a1a1a",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              };
               return (
-                <div key={w.id} style={{ gridColumn: 1, gridRow: rowIndex + 3, display: "grid", gridTemplateColumns: "56px 48px 76px 160px 64px 96px", borderBottom: cellBorder }}>
-                  <div
-                    style={{
-                      padding: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRight: cellBorder,
-                      background: style.showBg,
-                    }}
-                  >
-                    {brandLogo ? (
-                      <img
-                        src={brandLogo}
-                        alt={roster}
-                        width={48}
-                        height={48}
-                        loading="lazy"
-                        decoding="async"
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          height: "100%",
-                          maxWidth: "none",
-                          maxHeight: "none",
-                          objectFit: "contain",
-                          transform: "rotate(-90deg)",
-                        }}
-                      />
-                    ) : (
-                      <span
-                        style={{
-                          writingMode: "vertical-rl",
-                          transform: "rotate(-180deg)",
-                          fontSize: 11,
-                          fontWeight: 700,
-                          letterSpacing: 0.5,
-                          color: "#fff",
-                        }}
-                      >
-                        {style.label}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ padding: "10px 6px", textAlign: "center", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center" }}>{rankByWrestlerId.get(w.id) ?? "—"}</div>
-                  <div style={{ padding: 6, borderRight: cellBorder, background: rowBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <WrestlerHeadshotImage
-                      src={w.image_url ?? null}
-                      alt={w.name || w.id}
-                      width={60}
-                      height={60}
-                      sizes="60px"
-                      style={{
-                        width: 60,
-                        height: 60,
-                        objectFit: "cover",
-                        borderRadius: "50%",
-                        display: "block",
-                        background: BORDER_TABLE,
-                      }}
-                    />
-                  </div>
-                  <div style={{ padding: "10px 12px", fontWeight: 600, borderRight: cellBorder, background: rowBg, color: "#1a1a1a", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      <Link href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)} style={{ color: "var(--color-blue)", textDecoration: "none" }}>{w.name || w.id}</Link>
-                      {isInjured(w.status) && <><InjuryBadge size={18} /><span style={{ color: "#c00", fontWeight: 600, fontSize: 11 }}>INJ</span></>}
-                    </span>
-                    {w.currentChampionship && <div style={{ fontSize: 11, fontWeight: 500, color: "#b8860b", marginTop: 2 }}>{w.currentChampionship}</div>}
-                    {w.personaDisplay && <div style={{ fontSize: 11, fontWeight: 400, color: "var(--color-text-muted)", fontStyle: "italic", marginTop: 2 }}>{w.personaDisplay}</div>}
-                  </div>
-                  <div style={{ padding: 6, textAlign: "center", borderRight: cellBorder, background: rowBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {w.championBeltImageUrl ? (
-                      <img
-                        src={w.championBeltImageUrl}
-                        alt=""
-                        width={56}
-                        height={32}
-                        aria-hidden
-                        loading="lazy"
-                        decoding="async"
-                        style={{
-                          width: 56,
-                          height: 32,
-                          objectFit: "contain",
-                          display: "block",
-                        }}
-                      />
-                    ) : null}
-                  </div>
-                  <div style={{ padding: "8px", textAlign: "center", background: rowBg, color: "#1a1a1a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                    {rosterByWrestler?.[w.id] ? (
-                      <>
-                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>{rosterByWrestler[w.id].ownerName}</div>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                          {leagueSlug && <Link href={`/leagues/${encodeURIComponent(leagueSlug)}/team?proposeTradeTo=${encodeURIComponent(rosterByWrestler[w.id].ownerUserId)}`} style={{ width: 32, height: 32, borderRadius: "50%", background: "#e5e5e5", border: "none", color: "#000", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }} title="Propose trade" aria-label={`Propose trade with ${rosterByWrestler[w.id].ownerName}`}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M13 5H4M4 5L6 3M4 5l2 2" /><path d="M3 11h9M12 11l-2-2M12 11l-2 2" /></svg></Link>}
+                <div
+                  key={w.id}
+                  style={{
+                    gridColumn: 1,
+                    gridRow: rowIndex + 3,
+                    display: "grid",
+                    gridTemplateColumns: stickyGridCols,
+                    borderBottom: cellBorder,
+                  }}
+                >
+                  {stickyColumns.map((col) => {
+                    if (col.id === "roster") {
+                      return (
+                        <div
+                          key={col.id}
+                          style={{
+                            padding: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRight: cellBorder,
+                            background: style.showBg,
+                          }}
+                        >
+                          {brandLogo ? (
+                            <img
+                              src={brandLogo}
+                              alt={roster}
+                              width={48}
+                              height={48}
+                              loading="lazy"
+                              decoding="async"
+                              style={{
+                                display: "block",
+                                width: "100%",
+                                height: "100%",
+                                maxWidth: "none",
+                                maxHeight: "none",
+                                objectFit: "contain",
+                                transform: "rotate(-90deg)",
+                              }}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                writingMode: "vertical-rl",
+                                transform: "rotate(-180deg)",
+                                fontSize: 11,
+                                fontWeight: 700,
+                                letterSpacing: 0.5,
+                                color: "#fff",
+                              }}
+                            >
+                              {style.label}
+                            </span>
+                          )}
                         </div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>FA</div>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                          <Link href={leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}/team?addFa=${encodeURIComponent(w.id)}` : `/wrestlers/${encodeURIComponent(w.id)}`} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-blue)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontWeight: 700, fontSize: 18, lineHeight: 1 }} title={leagueSlug ? "Sign free agent (go to My Faction)" : "View wrestler"} aria-label={leagueSlug ? `Sign ${w.name || w.id} as free agent` : `View ${w.name || w.id}`}>+</Link>
-                          <Link href={leagueSlug ? `/leagues/${encodeURIComponent(leagueSlug)}/watchlist?add=${encodeURIComponent(w.id)}` : `/wrestlers/watch?add=${encodeURIComponent(w.id)}`} style={{ width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "1px solid " + BORDER_TABLE, color: "var(--color-text)", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: 14 }} title="Watchlist" aria-label="Add to watch list">⚑</Link>
+                      );
+                    }
+                    if (col.id === "rank") {
+                      return (
+                        <div
+                          key={col.id}
+                          style={{
+                            ...cellBase,
+                            padding: "10px 6px",
+                            textAlign: "center",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {rankByWrestlerId.get(w.id) ?? "—"}
                         </div>
-                      </>
-                    )}
-                  </div>
+                      );
+                    }
+                    if (col.id === "addDrop") {
+                      return (
+                        <div key={col.id} style={{ ...cellBase, padding: "8px 4px" }}>
+                          {leagueSlug && salaryCapRosterActions ? (
+                            <SalaryCapTableAddDrop
+                              leagueSlug={leagueSlug}
+                              wrestlerId={w.id}
+                              wrestlerName={w.name}
+                              isOnMyRoster={myRosterIdSet.has(w.id)}
+                              tradeLocked={tradeLockedSet.has(w.id)}
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </div>
+                      );
+                    }
+                    if (col.id === "image") {
+                      return (
+                        <div key={col.id} style={{ ...cellBase, padding: 6 }}>
+                          <WrestlerHeadshotImage
+                            src={w.image_url ?? null}
+                            alt={w.name || w.id}
+                            width={60}
+                            height={60}
+                            sizes="60px"
+                            style={{
+                              width: 60,
+                              height: 60,
+                              objectFit: "cover",
+                              borderRadius: "50%",
+                              display: "block",
+                              background: BORDER_TABLE,
+                            }}
+                          />
+                        </div>
+                      );
+                    }
+                    if (col.id === "name") {
+                      return (
+                        <div
+                          key={col.id}
+                          style={{
+                            ...cellBase,
+                            padding: "10px 12px",
+                            fontWeight: 600,
+                            overflow: "hidden",
+                            flexDirection: "column",
+                            justifyContent: "center",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <Link
+                              href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)}
+                              style={{ color: "var(--color-blue)", textDecoration: "none" }}
+                            >
+                              {w.name || w.id}
+                            </Link>
+                            {isInjured(w.status) && (
+                              <>
+                                <InjuryBadge size={18} />
+                                <span style={{ color: "#c00", fontWeight: 600, fontSize: 11 }}>INJ</span>
+                              </>
+                            )}
+                          </span>
+                          {w.currentChampionship && (
+                            <div style={{ fontSize: 11, fontWeight: 500, color: "#b8860b", marginTop: 2 }}>
+                              {w.currentChampionship}
+                            </div>
+                          )}
+                          {w.personaDisplay && (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 400,
+                                color: "var(--color-text-muted)",
+                                fontStyle: "italic",
+                                marginTop: 2,
+                              }}
+                            >
+                              {w.personaDisplay}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    if (col.id === "titles") {
+                      return (
+                        <div key={col.id} style={{ ...cellBase, padding: 6, textAlign: "center" }}>
+                          {w.championBeltImageUrl ? (
+                            <img
+                              src={w.championBeltImageUrl}
+                              alt=""
+                              width={56}
+                              height={32}
+                              aria-hidden
+                              loading="lazy"
+                              decoding="async"
+                              style={{
+                                width: 56,
+                                height: 32,
+                                objectFit: "contain",
+                                display: "block",
+                              }}
+                            />
+                          ) : null}
+                        </div>
+                      );
+                    }
+                    if (col.id === "value") {
+                      return (
+                        <div
+                          key={col.id}
+                          style={{
+                            ...cellBase,
+                            padding: "8px",
+                            fontWeight: 800,
+                            color: "#166534",
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {w.salary_cap_cost != null ? `$${w.salary_cap_cost}` : "—"}
+                        </div>
+                      );
+                    }
+                    if (col.id === "faction") {
+                      return (
+                        <div
+                          key={col.id}
+                          style={{
+                            ...cellBase,
+                            padding: "8px",
+                            textAlign: "center",
+                            flexDirection: "column",
+                          }}
+                        >
+                          {rosterByWrestler?.[w.id] ? (
+                            <>
+                              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>
+                                {rosterByWrestler[w.id].ownerName}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                                {leagueSlug && (
+                                  <Link
+                                    href={`/leagues/${encodeURIComponent(leagueSlug)}/team?proposeTradeTo=${encodeURIComponent(rosterByWrestler[w.id].ownerUserId)}`}
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: "50%",
+                                      background: "#e5e5e5",
+                                      border: "none",
+                                      color: "#000",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      textDecoration: "none",
+                                    }}
+                                    title="Propose trade"
+                                    aria-label={`Propose trade with ${rosterByWrestler[w.id].ownerName}`}
+                                  >
+                                    <svg
+                                      width="16"
+                                      height="16"
+                                      viewBox="0 0 16 16"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="1.8"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      aria-hidden
+                                    >
+                                      <path d="M13 5H4M4 5L6 3M4 5l2 2" />
+                                      <path d="M3 11h9M12 11l-2-2M12 11l-2 2" />
+                                    </svg>
+                                  </Link>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--color-text-muted)" }}>FA</div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                                <Link
+                                  href={
+                                    leagueSlug
+                                      ? `/leagues/${encodeURIComponent(leagueSlug)}/team?addFa=${encodeURIComponent(w.id)}`
+                                      : `/wrestlers/${encodeURIComponent(w.id)}`
+                                  }
+                                  style={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: "50%",
+                                    background: "var(--color-blue)",
+                                    color: "#fff",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    textDecoration: "none",
+                                    fontWeight: 700,
+                                    fontSize: 18,
+                                    lineHeight: 1,
+                                  }}
+                                  title={leagueSlug ? "Sign free agent (go to My Faction)" : "View wrestler"}
+                                  aria-label={leagueSlug ? `Sign ${w.name || w.id} as free agent` : `View ${w.name || w.id}`}
+                                >
+                                  +
+                                </Link>
+                                <Link
+                                  href={
+                                    leagueSlug
+                                      ? `/leagues/${encodeURIComponent(leagueSlug)}/watchlist?add=${encodeURIComponent(w.id)}`
+                                      : `/wrestlers/watch?add=${encodeURIComponent(w.id)}`
+                                  }
+                                  style={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: "50%",
+                                    background: "transparent",
+                                    border: "1px solid " + BORDER_TABLE,
+                                    color: "var(--color-text)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    textDecoration: "none",
+                                    fontSize: 14,
+                                  }}
+                                  title="Watchlist"
+                                  aria-label="Add to watch list"
+                                >
+                                  ⚑
+                                </Link>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    }
+                    return <div key={col.id} style={cellBase} />;
+                  })}
                 </div>
               );
             })}
             {/* Right column: single cell spanning all rows, inner grid with same row template */}
             <div style={{ gridColumn: 2, gridRow: "1 / -1", minWidth: 0, overflowX: "auto", WebkitOverflowScrolling: "touch", borderLeft: "1px solid " + BORDER_TABLE, background: HEADER_BG }}>
-              <div style={{ display: "grid", gridTemplateColumns: scrollCols, gridTemplateRows, width: SCROLL_TOTAL_WIDTH + "px", minWidth: SCROLL_TOTAL_WIDTH + "px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: scrollCols, gridTemplateRows, width: scrollTotalWidth + "px", minWidth: scrollTotalWidth + "px" }}>
                 <div style={{ gridRow: 1, display: "grid", gridTemplateColumns: scrollCols, borderBottom: cellBorder }}>
-                  <div style={{ ...thBase, gridColumn: "1 / 4", borderRight: cellBorder, borderBottom: cellBorder }} />
-                  <div style={{ ...thBase, gridColumn: "4 / 9", textAlign: "center", borderLeft: SECTION_BORDER, borderRight: SECTION_BORDER, borderBottom: cellBorder }}>Points</div>
-                  <div style={{ ...thBase, gridColumn: "9 / -1", textAlign: "center", borderLeft: SECTION_BORDER, borderRight: cellBorder, borderBottom: cellBorder }}>Matches</div>
+                  <div style={{ ...thBase, gridColumn: `1 / ${pointsStartCol}`, borderRight: cellBorder, borderBottom: cellBorder }} />
+                  <div style={{ ...thBase, gridColumn: `${pointsStartCol} / ${matchesStartCol}`, textAlign: "center", borderLeft: SECTION_BORDER, borderRight: SECTION_BORDER, borderBottom: cellBorder }}>Points</div>
+                  <div style={{ ...thBase, gridColumn: `${matchesStartCol} / -1`, textAlign: "center", borderLeft: SECTION_BORDER, borderRight: cellBorder, borderBottom: cellBorder }}>Matches</div>
                 </div>
                 <div style={{ gridRow: 2, display: "grid", gridTemplateColumns: scrollCols, borderBottom: cellBorder }}>
-                  {SCROLL_HEADERS.map((h, i) => {
+                  {scrollHeaders.map((h, i) => {
                     const isSortable = h.key != null;
-                    const idx = i + STICKY_COLUMN_COUNT;
                     const highlightTOT = wrestlerProfileFrom === "team" && h.key === "totalPoints";
-                    const style: React.CSSProperties = { ...thBase, minWidth: h.minW, textAlign: h.align, borderRight: idx === HEADER_CONFIG.length - 1 ? cellBorder : cellBorder, borderBottom: cellBorder, display: "flex", alignItems: "center", ...(h.section === "POINTS" && idx === 9 ? { borderLeft: SECTION_BORDER } : {}), ...(h.section === "POINTS" && idx === 13 ? { borderRight: SECTION_BORDER } : {}), ...(h.section === "MATCHES" && idx === 14 ? { borderLeft: SECTION_BORDER } : {}), ...(highlightTOT ? TOT_HIGHLIGHT_STYLE : {}) };
+                    const style: React.CSSProperties = {
+                      ...thBase,
+                      minWidth: h.minW,
+                      textAlign: h.align,
+                      borderRight: cellBorder,
+                      borderBottom: cellBorder,
+                      display: "flex",
+                      alignItems: "center",
+                      ...(h.key === "rsPoints" ? { borderLeft: SECTION_BORDER } : {}),
+                      ...(h.key === "ppm" ? { borderRight: SECTION_BORDER } : {}),
+                      ...(h.key === "mw" ? { borderLeft: SECTION_BORDER } : {}),
+                      ...(highlightTOT ? TOT_HIGHLIGHT_STYLE : {}),
+                    };
                     if (!isSortable) return <div key={i} style={style}>{h.label}</div>;
                     return (
                       <div key={i} style={style}>

@@ -16,7 +16,7 @@ const SORT_OPTIONS = [
   { value: "ppm", label: "PPM" },
   { value: "total", label: "Total Points" },
 ] as const;
-type SortKey = (typeof SORT_OPTIONS)[number]["value"];
+type SortKey = (typeof SORT_OPTIONS)[number]["value"] | "value";
 
 export type RosterCardWrestler = {
   id: string;
@@ -33,6 +33,8 @@ export type RosterCardWrestler = {
   championBeltImageUrl?: string | null;
   image_url?: string | null;
   full_body_image_url?: string | null;
+  /** Salary cap tier ($5–$25) when league uses salary cap. */
+  salaryCapCost?: number | null;
 };
 
 function uniqueImageUrls(urls: (string | null | undefined)[]): string[] {
@@ -349,6 +351,29 @@ function WrestlerCard({
               fullBodyCandidates={fullBodyCandidates}
               headshotUrl={w.image_url}
             />
+            {w.salaryCapCost != null ? (
+              <span
+                title="Salary cap value"
+                style={{
+                  position: "absolute",
+                  top: 6,
+                  left: 6,
+                  zIndex: 2,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  color: "#bbf7d0",
+                  background: "rgba(22, 101, 52, 0.92)",
+                  border: "1px solid rgba(74, 222, 128, 0.55)",
+                  borderRadius: 6,
+                  padding: "3px 8px",
+                  lineHeight: 1.2,
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.45)",
+                  pointerEvents: "none",
+                }}
+              >
+                ${w.salaryCapCost}
+              </span>
+            ) : null}
             {w.championBeltImageUrl && (
               <div
                 style={{
@@ -490,6 +515,8 @@ function getSortValue(w: RosterCardWrestler, key: SortKey): number {
       return w.mw > 0 ? w.totalPoints / w.mw : 0;
     case "total":
       return w.totalPoints;
+    case "value":
+      return w.salaryCapCost ?? 0;
     default:
       return 0;
   }
@@ -512,6 +539,15 @@ export function RosterCardGrid({
   const tradeLockedSet = useMemo(
     () => new Set((tradeLockedWrestlerIds ?? []).map((id) => String(id).trim()).filter(Boolean)),
     [tradeLockedWrestlerIds]
+  );
+
+  const showSalaryCapCost = wrestlers.some((w) => w.salaryCapCost != null);
+  const sortOptions = useMemo(
+    () =>
+      showSalaryCapCost
+        ? ([...SORT_OPTIONS, { value: "value" as const, label: "Value" }] as const)
+        : SORT_OPTIONS,
+    [showSalaryCapCost]
   );
 
   const sortedWrestlers = useMemo(() => {
@@ -590,7 +626,7 @@ export function RosterCardGrid({
             minWidth: 140,
           }}
         >
-          {SORT_OPTIONS.map((opt) => (
+          {sortOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
