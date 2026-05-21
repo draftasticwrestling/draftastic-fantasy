@@ -43,6 +43,8 @@ export async function setLineupAction(
   const result = await setLineupForEvent(league.id, user.id, eventId, wrestlerIds);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}/faction`);
+  revalidatePath(`/leagues/${leagueSlug}/faction-actions`);
   revalidatePath(`/leagues/${leagueSlug}`);
   return {};
 }
@@ -75,6 +77,8 @@ export async function dropWrestlerAction(
   const result = await dropWrestlerImmediate(league.id, wrestlerId);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}/faction`);
+  revalidatePath(`/leagues/${leagueSlug}/faction-actions`);
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/proposals`);
   revalidatePath(`/leagues/${leagueSlug}/transactions`);
@@ -135,6 +139,8 @@ export async function addFreeAgentAction(
   const result = await addFreeAgentImmediate(league.id, wrestlerId, dropWrestlerId);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}/faction`);
+  revalidatePath(`/leagues/${leagueSlug}/faction-actions`);
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/proposals`);
   revalidatePath(`/leagues/${leagueSlug}/transactions`);
@@ -152,6 +158,8 @@ export async function respondToTradeAction(
   const result = await respondToTradeProposal(proposalId, accept, toUserDropIds);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}/faction`);
+  revalidatePath(`/leagues/${leagueSlug}/faction-actions`);
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/proposals`);
   return {};
@@ -164,6 +172,8 @@ export async function cancelTradeAction(
   const result = await cancelTradeProposal(proposalId);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}/faction`);
+  revalidatePath(`/leagues/${leagueSlug}/faction-actions`);
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/proposals`);
   return {};
@@ -189,6 +199,8 @@ export async function respondToTradeByGmAction(
   const result = await respondToTradeByGm(proposalId, approve);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}/team`);
+  revalidatePath(`/leagues/${leagueSlug}/faction`);
+  revalidatePath(`/leagues/${leagueSlug}/faction-actions`);
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/proposals`);
   return {};

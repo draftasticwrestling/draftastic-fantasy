@@ -7,8 +7,10 @@ import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import {
   getRosterRulesForLeagueId,
   leagueIncludesNxt,
+  leagueUsesSalaryCap,
   leagueUsesWeeklyPstBeltHold,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
+  SALARY_CAP_MAX_ROSTER_SIZE,
 } from "@/lib/leagueStructure";
 import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getDefaultStartEndForSeason, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
@@ -1348,8 +1350,14 @@ export async function addWrestlerToRoster(
     if (equivalentIds.some((id) => currentIds.includes(id))) {
       return { error: "That wrestler (or an alter ego of that wrestler) is already on this roster." };
     }
-    if (!isSalaryCap && currentIds.length >= rules.rosterSize) {
-      return { error: `Roster full (max ${rules.rosterSize} wrestlers).` };
+    const maxRoster = rules.rosterSize;
+    if (isSalaryCap) {
+      const capMax = maxRoster > 0 ? maxRoster : SALARY_CAP_MAX_ROSTER_SIZE;
+      if (currentIds.length >= capMax) {
+        return { error: `Roster full (max ${capMax} wrestlers). Drop someone first.` };
+      }
+    } else if (currentIds.length >= maxRoster) {
+      return { error: `Roster full (max ${maxRoster} wrestlers).` };
     }
 
     const wrestlerIdsToFetch = [...new Set([...currentIds, wid])];

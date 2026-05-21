@@ -20,8 +20,8 @@ export function SalaryCapWeeklyFaBudget({ status }: Props) {
         maxWidth: 640,
       }}
     >
-      <strong>Weekly roster moves</strong> (resets Monday, Pacific Time): up to ${budget} in signings and ${budget} in
-      drops per week. You have <strong>${addRemaining}</strong> left to sign (${addSpent} used) and{" "}
+      <strong>Weekly roster moves</strong> (resets Monday, Pacific Time): up to ${budget} in adds and ${budget} in
+      drops per week. You have <strong>${addRemaining}</strong> left to add (${addSpent} used) and{" "}
       <strong>${dropRemaining}</strong> left to drop ({dropSpent} used). Moves can be spread across the week. Trades are
       unlimited.
     </p>

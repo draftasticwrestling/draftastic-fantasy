@@ -5,7 +5,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getRosterRulesForLeagueId, leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import {
+  getRosterRulesForLeagueId,
+  leagueUsesSalaryCap,
+  SALARY_CAP_MAX_ROSTER_SIZE,
+} from "@/lib/leagueStructure";
 import { getActivePerEvent } from "@/lib/leagueStructure";
 import { getActivePerEventForSalaryCapRosterCount } from "@/lib/salaryCap";
 import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
@@ -1941,6 +1945,10 @@ export async function addFreeAgentImmediate(
   if (!rules) return { error: "League roster rules could not be loaded." };
 
   if (isSalaryCapFa) {
+    const maxRoster = rules?.rosterSize ?? SALARY_CAP_MAX_ROSTER_SIZE;
+    if (!widToDrop && currentIds.length >= maxRoster) {
+      return { error: `Roster full (max ${maxRoster} wrestlers). Drop someone first.` };
+    }
     if (widToDrop && !currentIds.includes(widToDrop)) {
       return { error: "Selected drop must be on your roster." };
     }

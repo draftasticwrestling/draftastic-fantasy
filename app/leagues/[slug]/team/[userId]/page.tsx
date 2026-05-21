@@ -20,6 +20,7 @@ import {
   leagueIncludesNxt,
   leagueUsesSalaryCap,
   leagueUsesWeeklyPstBeltHold,
+  SALARY_CAP_MAX_ROSTER_SIZE,
 } from "@/lib/leagueStructure";
 import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser, isValidSalaryCapCost } from "@/lib/salaryCap";
 import { getSalaryCapWeeklyFaBudgetStatus } from "@/lib/salaryCapWeeklyLimits";
@@ -1103,7 +1104,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
             <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Add free agent</h2>
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
               {isSalaryCapLeague
-                ? "Browse the free agent pool (same as roster build). Signings take effect immediately. Drop someone first if you need cap room or roster space."
+                ? "Browse the free agent pool (same as roster build). Adds take effect immediately. Drop someone first if you need cap room or roster space."
                 : "Add a wrestler who isn’t on any roster. If your roster is full, drop one to make room. Takes effect immediately (first come, first serve)."}
             </p>
             {tradeLockedWrestlerIds.length > 0 && rosterRules && rosterWrestlers.length >= rosterRules.rosterSize && (
@@ -1116,7 +1117,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
               <SalaryCapFreeAgentPicker
                 leagueSlug={slug}
                 myRosterWrestlers={rosterWrestlers}
-                rosterSize={rosterRules?.rosterSize ?? 0}
+                rosterSize={rosterRules?.rosterSize ?? SALARY_CAP_MAX_ROSTER_SIZE}
                 tradeLockedWrestlerIds={tradeLockedWrestlerIds}
                 initialWrestlerId={addFa}
               />

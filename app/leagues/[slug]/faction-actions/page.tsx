@@ -165,7 +165,7 @@ export default async function FactionActionsPage({ params, searchParams }: Props
         <h2 style={{ fontSize: "1.1rem", marginBottom: 10 }}>Add free agent</h2>
         <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
           {isSalaryCapLeague
-            ? "Browse the free agent pool to sign wrestlers. Same stars can be on multiple factions."
+            ? "Browse the free agent pool to add wrestlers. Same stars can be on multiple factions."
             : "Add a wrestler who is not currently rostered."}
         </p>
         {isSalaryCapLeague ? (

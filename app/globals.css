@@ -3069,6 +3069,7 @@ body > .site-footer {
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--color-bg-input);
+  overflow: hidden;
 }
 
 .salary-cap-pool__wrestler-name {

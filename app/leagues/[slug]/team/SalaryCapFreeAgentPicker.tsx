@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { SALARY_CAP_MAX_ROSTER_SIZE } from "@/lib/leagueStructure";
 import {
   compareSalaryCapPoolRows,
   SalaryCapPoolNameCell,
@@ -43,6 +45,10 @@ export function SalaryCapFreeAgentPicker({
   const [dropWrestlerId, setDropWrestlerId] = useState("");
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  const dropPanelRef = useRef<HTMLDivElement>(null);
+
+  const effectiveRosterSize = rosterSize > 0 ? rosterSize : SALARY_CAP_MAX_ROSTER_SIZE;
 
   const tradeLocked = useMemo(
     () => new Set(tradeLockedWrestlerIds.map((id) => String(id).trim()).filter(Boolean)),
@@ -75,10 +81,18 @@ export function SalaryCapFreeAgentPicker({
     }
   }, [open, poolData, loadingPool, loadError, loadPool]);
 
+  useEffect(() => {
+    if (pendingAdd && dropPanelRef.current) {
+      dropPanelRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [pendingAdd]);
+
   const onRosterIds = useMemo(
     () => new Set(poolData?.myRosterIds ?? myRosterWrestlers.map((w) => w.id)),
     [poolData?.myRosterIds, myRosterWrestlers]
   );
+
+  const rosterCount = poolData?.myRosterIds.length ?? myRosterWrestlers.length;
 
   const budget = poolData?.budget ?? 0;
   const spent = poolData?.spent ?? 0;
@@ -112,15 +126,15 @@ export function SalaryCapFreeAgentPicker({
   function addDisabledReason(w: SalaryCapWrestlerOption): string | null {
     if (onRosterIds.has(w.id)) return "Already on your roster";
     if (w.salaryCapCost > seasonRemaining) return `Need $${w.salaryCapCost - seasonRemaining} more cap room`;
-    if (w.salaryCapCost > weeklyAddRemaining) return "Weekly signing budget exceeded";
-    if (myRosterWrestlers.length >= rosterSize && rosterSize > 0) {
+    if (w.salaryCapCost > weeklyAddRemaining) return "Weekly add budget exceeded";
+    if (rosterCount >= effectiveRosterSize) {
       return "Roster full — drop someone first";
     }
     return null;
   }
 
   function needsDropFor(w: SalaryCapWrestlerOption): boolean {
-    if (myRosterWrestlers.length >= rosterSize && rosterSize > 0) return true;
+    if (rosterCount >= effectiveRosterSize) return true;
     if (w.salaryCapCost > seasonRemaining) return true;
     return false;
   }
@@ -128,15 +142,23 @@ export function SalaryCapFreeAgentPicker({
   function confirmAdd(w: SalaryCapWrestlerOption, dropId: string | null) {
     setMessage(null);
     startTransition(async () => {
-      const result = await addFreeAgentAction(leagueSlug, w.id, dropId);
-      if (result.error) {
-        setMessage({ type: "err", text: result.error });
-        return;
+      try {
+        const result = await addFreeAgentAction(leagueSlug, w.id, dropId);
+        if (result.error) {
+          setMessage({ type: "err", text: result.error });
+          return;
+        }
+        setMessage({ type: "ok", text: `${w.name} added to your roster.` });
+        setPendingAdd(null);
+        setDropWrestlerId("");
+        await loadPool();
+        router.refresh();
+      } catch (err) {
+        setMessage({
+          type: "err",
+          text: err instanceof Error ? err.message : "Add failed. Try again.",
+        });
       }
-      setMessage({ type: "ok", text: `${w.name} added to your roster.` });
-      setPendingAdd(null);
-      setDropWrestlerId("");
-      await loadPool();
     });
   }
 
@@ -149,7 +171,10 @@ export function SalaryCapFreeAgentPicker({
     if (needsDropFor(w)) {
       setPendingAdd(w);
       setDropWrestlerId("");
-      setMessage(null);
+      setMessage({
+        type: "ok",
+        text: `Choose who to drop below to add ${w.name} ($${w.salaryCapCost}).`,
+      });
       return;
     }
     confirmAdd(w, null);
@@ -228,11 +253,11 @@ export function SalaryCapFreeAgentPicker({
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Weekly signings left</div>
+                <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Weekly adds left</div>
                 <div style={{ fontWeight: 700, fontSize: "1.15rem" }}>${weeklyAddRemaining}</div>
               </div>
               <div style={{ flex: "1 1 180px", fontSize: 13, color: "var(--color-text-muted)", alignSelf: "center" }}>
-                Same pool as roster build: headshots, costs, and 2026 stats. Signings take effect immediately.
+                Same pool as roster build: headshots, costs, and 2026 stats. Adds take effect immediately.
               </div>
             </div>
           ) : null}
@@ -291,7 +316,7 @@ export function SalaryCapFreeAgentPicker({
                             title={disabled ?? undefined}
                             onClick={() => handleAddClick(w)}
                           >
-                            Sign
+                            Add
                           </button>
                         </td>
                       </tr>
@@ -312,16 +337,17 @@ export function SalaryCapFreeAgentPicker({
 
       {pendingAdd ? (
         <div
+          ref={dropPanelRef}
           style={{
             marginTop: 16,
             padding: 14,
             borderRadius: 10,
-            border: "1px solid var(--color-border)",
+            border: "2px solid var(--color-blue)",
             background: "var(--color-bg-elevated)",
           }}
         >
           <p style={{ margin: "0 0 10px", fontWeight: 700 }}>
-            Sign {pendingAdd.name} (${pendingAdd.salaryCapCost}) — drop someone to make room
+            Add {pendingAdd.name} (${pendingAdd.salaryCapCost}) — drop someone to make room
           </p>
           <label htmlFor="sc-fa-drop" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
             Drop from your roster
@@ -346,7 +372,7 @@ export function SalaryCapFreeAgentPicker({
               disabled={pending || !dropWrestlerId.trim()}
               onClick={handleConfirmWithDrop}
             >
-              {pending ? "Signing…" : "Confirm sign"}
+              {pending ? "Adding…" : "Confirm add"}
             </button>
             <button
               type="button"

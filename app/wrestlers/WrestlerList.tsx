@@ -11,6 +11,11 @@ import { getNationalityFlagDisplay } from "@/lib/nationalityFlag";
 import { wrestlerRosterFromBrand, type WrestlerRosterBucket } from "@/lib/wrestlerRosterFromBrand";
 import WrestlerHeadshotImage from "@/app/components/WrestlerHeadshotImage";
 import { SalaryCapTableAddDrop } from "./SalaryCapTableAddDrop";
+import { SalaryCapTableActionsProvider } from "./SalaryCapTableActionsProvider";
+import {
+  isSalaryCapRosterActionsConfig,
+  type SalaryCapRosterActionsConfig,
+} from "@/lib/salaryCapRosterActionsTypes";
 
 /** Mobile list view: short roster labels (Raw / SD) per product request. */
 function mobileListRosterAbbrev(bucket: WrestlerRosterBucket): string {
@@ -652,11 +657,8 @@ type WrestlerListProps = {
   includeNxtInDefaultRosterFilter?: boolean;
   /** Show salary cap Value column (salary cap leagues). */
   showSalaryCapCost?: boolean;
-  /** My roster + trade locks for salary cap Add/Drop column (logged-in member only). */
-  salaryCapRosterActions?: {
-    myRosterIds: string[];
-    tradeLockedWrestlerIds?: string[];
-  } | null;
+  /** My roster + cap context for salary cap Add/Drop column (logged-in member only). */
+  salaryCapRosterActions?: SalaryCapRosterActionsConfig | null;
 };
 
 function wrestlerProfileHref(wrestlerId: string, leagueSlug?: string | null, from?: "league-leaders" | "free-agents" | "team" | null): string {
@@ -1069,7 +1071,7 @@ export default function WrestlerList({
         )
       : null;
 
-  return (
+  const listContent = (
     <>
       {isMobileFiltersUi && !isBoxscore && (
         <div style={{ marginBottom: 12 }}>
@@ -1519,11 +1521,11 @@ export default function WrestlerList({
                     {showSalaryCapCost && leagueSlug && salaryCapRosterActions ? (
                       <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                         <SalaryCapTableAddDrop
-                          leagueSlug={leagueSlug}
                           wrestlerId={w.id}
                           wrestlerName={w.name}
                           isOnMyRoster={myRosterIdSet.has(w.id)}
                           tradeLocked={tradeLockedSet.has(w.id)}
+                          salaryCapCost={w.salary_cap_cost}
                         />
                       </td>
                     ) : showSalaryCapCost ? (
@@ -1741,11 +1743,11 @@ export default function WrestlerList({
                         <div key={col.id} style={{ ...cellBase, padding: "8px 4px" }}>
                           {leagueSlug && salaryCapRosterActions ? (
                             <SalaryCapTableAddDrop
-                              leagueSlug={leagueSlug}
                               wrestlerId={w.id}
                               wrestlerName={w.name}
                               isOnMyRoster={myRosterIdSet.has(w.id)}
                               tradeLocked={tradeLockedSet.has(w.id)}
+                              salaryCapCost={w.salary_cap_cost}
                             />
                           ) : (
                             "—"
@@ -2171,4 +2173,14 @@ export default function WrestlerList({
       </p>
     </>
   );
+
+  if (showSalaryCapCost && leagueSlug && isSalaryCapRosterActionsConfig(salaryCapRosterActions)) {
+    return (
+      <SalaryCapTableActionsProvider leagueSlug={leagueSlug} config={salaryCapRosterActions}>
+        {listContent}
+      </SalaryCapTableActionsProvider>
+    );
+  }
+
+  return listContent;
 }

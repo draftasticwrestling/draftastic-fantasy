@@ -163,11 +163,12 @@ export function getRosterRulesForLeague(
   includeNxt?: boolean | null,
   leagueType?: string | null
 ): RosterRules | null {
-  if (teamCount < MIN_LEAGUE_TEAMS || teamCount > MAX_LEAGUE_TEAMS) {
-    return null;
-  }
+  // Salary cap leagues may run with 1–2 managers during setup/testing; cap rules do not depend on team count.
   if (leagueUsesSalaryCap(leagueType)) {
     return { rosterSize: SALARY_CAP_MAX_ROSTER_SIZE, minFemale: 0, minMale: 0 };
+  }
+  if (teamCount < MIN_LEAGUE_TEAMS || teamCount > MAX_LEAGUE_TEAMS) {
+    return null;
   }
   if (leagueUsesHeadToHeadStyleRosterRules(leagueType)) {
     return HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;

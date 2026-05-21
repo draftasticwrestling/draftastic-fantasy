@@ -145,7 +145,7 @@ export async function assertSalaryCapWeeklyFaMoveAllowed(
     if (spend.addSpent + cost > budget) {
       const left = Math.max(0, budget - spend.addSpent);
       return {
-        error: `You've used $${spend.addSpent} of $${budget} in free agent signings this week (${weekNote}). This wrestler costs $${cost}; only $${left} remains for signings.`,
+        error: `You've used $${spend.addSpent} of $${budget} in free agent adds this week (${weekNote}). This wrestler costs $${cost}; only $${left} remains for adds.`,
       };
     }
   }

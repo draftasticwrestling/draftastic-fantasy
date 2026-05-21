@@ -65,6 +65,8 @@ import {
 } from "@/lib/leagueLeadersAllTimeScoring";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
 import { getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
+import { buildSalaryCapRosterActionsConfig } from "@/lib/salaryCapRosterActionsPayload";
+import type { SalaryCapRosterActionsConfig } from "@/lib/salaryCapRosterActionsTypes";
 import {
   isWrestlerStatsCachePointColumnsSane,
   isWrestlerStatsCacheUsable,
@@ -599,7 +601,7 @@ export default async function LeagueLeadersPage({
     error = null;
   }
 
-  let salaryCapRosterActions: { myRosterIds: string[]; tradeLockedWrestlerIds: string[] } | undefined;
+  let salaryCapRosterActions: SalaryCapRosterActionsConfig | undefined;
   if (isSalaryCapLeague && user) {
     let tradeLockedWrestlerIds: string[] = [];
     try {
@@ -607,10 +609,18 @@ export default async function LeagueLeadersPage({
     } catch {
       tradeLockedWrestlerIds = [];
     }
-    salaryCapRosterActions = {
-      myRosterIds: myRosterIdsForSalaryCap,
-      tradeLockedWrestlerIds,
-    };
+    salaryCapRosterActions = await buildSalaryCapRosterActionsConfig(
+      supabase,
+      league,
+      user.id,
+      myRosterIdsForSalaryCap,
+      rows.map((w) => ({
+        id: w.id,
+        name: w.name ?? null,
+        salary_cap_cost: w.salary_cap_cost,
+      })),
+      tradeLockedWrestlerIds
+    );
   }
 
   return (

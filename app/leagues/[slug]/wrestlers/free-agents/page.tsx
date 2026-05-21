@@ -53,6 +53,8 @@ import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/ev
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
 import { getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
+import { buildSalaryCapRosterActionsConfig } from "@/lib/salaryCapRosterActionsPayload";
+import type { SalaryCapRosterActionsConfig } from "@/lib/salaryCapRosterActionsTypes";
 
 function read2kRating(row: Record<string, unknown>, key: string): number | null {
   const v = row[key];
@@ -351,7 +353,7 @@ export default async function WrestlersFreeAgentsPage({
     };
   });
 
-  let salaryCapRosterActions: { myRosterIds: string[]; tradeLockedWrestlerIds: string[] } | undefined;
+  let salaryCapRosterActions: SalaryCapRosterActionsConfig | undefined;
   if (isSalaryCapLeague && user) {
     const myRosterIds = (rosters[user.id] ?? []).map((e) => e.wrestler_id);
     let tradeLockedWrestlerIds: string[] = [];
@@ -360,7 +362,18 @@ export default async function WrestlersFreeAgentsPage({
     } catch {
       tradeLockedWrestlerIds = [];
     }
-    salaryCapRosterActions = { myRosterIds, tradeLockedWrestlerIds };
+    salaryCapRosterActions = await buildSalaryCapRosterActionsConfig(
+      supabase,
+      league,
+      user.id,
+      myRosterIds,
+      (wrestlers ?? []).map((w) => ({
+        id: w.id,
+        name: (w as { name?: string | null }).name ?? null,
+        salary_cap_cost: (w as { salary_cap_cost?: unknown }).salary_cap_cost,
+      })),
+      tradeLockedWrestlerIds
+    );
   }
 
   return (
