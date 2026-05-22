@@ -9,7 +9,7 @@ type Props = {
 export function HowItWorksSpecialMatches({ variant }: Props) {
   const royalRumbleNote =
     variant === "rts"
-      ? "Does not apply to the Royal Rumble premium live event — that match uses its own scoring (see the Legacy League tab, Royal Rumble)."
+      ? "Does not apply to the Royal Rumble premium live event — that match uses its own scoring (see the Public League tab, Royal Rumble)."
       : "The Royal Rumble premium live event uses the separate scoring listed on the Royal Rumble card under major PLEs below.";
 
   return (

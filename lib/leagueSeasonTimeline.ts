@@ -10,12 +10,14 @@ import {
   isPLE,
 } from "@/lib/scoring/parsers/eventClassifier.js";
 import { isRoadToSummerSlam2026WithSummerslamFinale } from "@/lib/beltRts2026JulyDeferral";
-import { leagueUsesWeeklyPstBeltHold } from "@/lib/leagueStructure";
+import { isRoadToWarGamesSeasonSlug, leagueUsesWeeklyPstBeltHold, SALARY_CAP_CHAMPIONSHIP_PATHWAY_TITLE } from "@/lib/leagueStructure";
+import { PUBLIC_SALARY_CAP_SEASON_SLUG } from "@/lib/publicLeagueSchedule";
 
 export type SeasonPhaseId =
   | "road-to-summerslam"
-  | "road-to-survivor-series"
-  | "road-to-wrestlemania";
+  | "road-to-war-games"
+  | "road-to-wrestlemania"
+  | "public-salary-cap";
 
 export type SeasonPhaseInfo = {
   id: SeasonPhaseId;
@@ -108,10 +110,16 @@ export type LeagueSeasonTimelinePayload = {
 /**
  * Three annual arcs (approximate WWE calendar):
  * - May–Jul: Road to SummerSlam
- * - Aug–Oct: Road to Survivor Series
+ * - Aug–Oct: Road to War Games
  * - Nov–Apr: Road to WrestleMania (wraps year)
  */
-export function seasonPhaseFromYmd(ymd: string): SeasonPhaseInfo {
+export function seasonPhaseFromYmd(ymd: string, seasonSlug?: string | null): SeasonPhaseInfo {
+  if (seasonSlug === PUBLIC_SALARY_CAP_SEASON_SLUG) {
+    return { id: "public-salary-cap", title: SALARY_CAP_CHAMPIONSHIP_PATHWAY_TITLE };
+  }
+  if (isRoadToWarGamesSeasonSlug(seasonSlug)) {
+    return { id: "road-to-war-games", title: "The Road to War Games" };
+  }
   if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
     return { id: "road-to-wrestlemania", title: "The Road to WrestleMania" };
   }
@@ -120,7 +128,7 @@ export function seasonPhaseFromYmd(ymd: string): SeasonPhaseInfo {
     return { id: "road-to-summerslam", title: "The Road to SummerSlam" };
   }
   if (month >= 8 && month <= 10) {
-    return { id: "road-to-survivor-series", title: "The Road to Survivor Series" };
+    return { id: "road-to-war-games", title: "The Road to War Games" };
   }
   return { id: "road-to-wrestlemania", title: "The Road to WrestleMania" };
 }
@@ -240,12 +248,17 @@ export function buildLeagueSeasonTimeline(params: {
   seasonSlug?: string | null;
   /** NXT weekly shows and NXT-brand PLEs appear on the track; weekly belt hints consider NXT vs SmackDown order. */
   includeNxt?: boolean;
+  /** Salary-cap leagues use the Championship Pathway title instead of Road to… arcs. */
+  isSalaryCapFormat?: boolean;
 }): LeagueSeasonTimelinePayload {
-  const { events, effectiveStartYmd, endDateYmd, todayYmd, seasonSlug, includeNxt = false } = params;
+  const { events, effectiveStartYmd, endDateYmd, todayYmd, seasonSlug, includeNxt = false, isSalaryCapFormat = false } =
+    params;
   const windowStart = effectiveStartYmd;
   const windowEnd = endDateYmd && /^\d{4}-\d{2}-\d{2}$/.test(endDateYmd) ? endDateYmd : "2099-12-31";
 
-  const seasonPhase = seasonPhaseFromYmd(windowStart);
+  const seasonPhase = isSalaryCapFormat
+    ? { id: "public-salary-cap" as const, title: SALARY_CAP_CHAMPIONSHIP_PATHWAY_TITLE }
+    : seasonPhaseFromYmd(windowStart, seasonSlug);
   const mergeJulyMonthEndIntoSummerslamFinale = isRoadToSummerSlam2026WithSummerslamFinale(windowEnd);
 
   const inWindow = (dateStr: string | null): dateStr is string => {

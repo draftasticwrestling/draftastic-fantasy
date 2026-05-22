@@ -452,7 +452,7 @@ export type GetLeagueWeeklyMatchupsOptions = {
 /**
  * All weekly matchups for a league. Winner = most event points that week (tie = no winner).
  * Draftastic Championship: first week winner gets +5; same holder next week +4 retain; new winner +5.
- * Road to SummerSlam / Survivor Series: weekly title-hold each Mon–Sun week — credits once every PWBS event
+ * Road to SummerSlam / War Games: weekly title-hold each Mon–Sun week — credits once every PWBS event
  * dated in that week is `completed` (Friday after SmackDown, weekend after a PLE, etc.). Snapshot uses the
  * calendar date of the last show in the week.
  * Other seasons: legacy full-tier points on each calendar month-end that falls in the matchup week.

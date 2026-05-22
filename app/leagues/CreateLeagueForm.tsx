@@ -5,6 +5,7 @@ import { createLeagueAction, type CreateLeagueState } from "./new/actions";
 import {
   SEASON_OPTIONS,
   STANDARD_USER_CREATE_SEASON_SLUG,
+  PUBLIC_SALARY_CAP_SEASON_WEEKS,
   getSeasonBySlug,
 } from "@/lib/leagueSeasons";
 
@@ -101,6 +102,18 @@ export function CreateLeagueForm({
     }
   }, []);
 
+  const handleVisibilityClick = useCallback(
+    (next: "private" | "public") => {
+      setVisibilityType(next);
+      if (next === "public") {
+        setLeagueType("salary_cap");
+      } else if (useStandardRules) {
+        setLeagueType("season_overall");
+      }
+    },
+    [useStandardRules]
+  );
+
   return (
     <form action={formAction} className="create-league-form">
       {isSiteAdmin ? (
@@ -144,7 +157,16 @@ export function CreateLeagueForm({
       ) : null}
 
       <div className="form-group">
-        {useStandardRules ? (
+        {visibilityType === "public" ? (
+          <>
+            <label style={{ display: "block", marginBottom: 8 }}>Season</label>
+            <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.5 }}>
+              <strong>Public League — {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> — Your league&apos;s start and end
+              dates are set automatically when at least 3 factions have joined. The season begins on the next Monday and
+              runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks of WWE events.
+            </p>
+          </>
+        ) : useStandardRules ? (
           <>
             <label id="league-season-locked-label" style={{ display: "block", marginBottom: 8 }}>
               Season *
@@ -185,7 +207,7 @@ export function CreateLeagueForm({
           <button
             type="button"
             className={`create-league-type-option ${visibilityType === "private" ? "selected" : ""}`}
-            onClick={() => setVisibilityType("private")}
+            onClick={() => handleVisibilityClick("private")}
             aria-pressed={visibilityType === "private"}
           >
             <strong>Private League</strong>
@@ -194,11 +216,14 @@ export function CreateLeagueForm({
           <button
             type="button"
             className={`create-league-type-option ${visibilityType === "public" ? "selected" : ""}`}
-            onClick={() => setVisibilityType("public")}
+            onClick={() => handleVisibilityClick("public")}
             aria-pressed={visibilityType === "public"}
           >
             <strong>Public League</strong>
-            <span className="create-league-type-desc">You become commissioner. League auto-fills up to 6 teams.</span>
+            <span className="create-league-type-desc">
+              Salary Cap — Total Season Points. Open enrollment with no team cap; your season starts the Monday after 3
+              factions join and runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
+            </span>
           </button>
         </div>
         <input type="hidden" name="visibility_type" value={visibilityType} />
@@ -217,38 +242,40 @@ export function CreateLeagueForm({
         />
         {visibilityType === "public" ? (
           <p className="form-note" style={{ marginTop: 8 }}>
-            Public leagues use a standard generated name (for example, R2Summer 12).
+            Public leagues use a standard generated name (for example, Public League 12).
           </p>
         ) : null}
       </div>
 
+      {visibilityType === "public" ? (
+        <div className="form-group">
+          <label>League format</label>
+          <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.55 }}>
+            Public leagues use <strong>Salary Cap — Total Season Points</strong>. After onboarding, you build your roster
+            from the shared pool ($100 budget, wrestlers $5–$25). NXT is included. There is no team maximum — anyone can
+            join until the season starts.
+          </p>
+          <input type="hidden" name="league_type" value="salary_cap" />
+          <input type="hidden" name="season_slug" value="public-salary-cap" />
+        </div>
+      ) : (
+        <>
       <div className="form-group">
         <label>Number of Teams *</label>
-        {visibilityType === "public" ? (
-          <>
-            <p className="form-note" style={{ marginTop: 0, marginBottom: 0 }}>
-              Public leagues always start with 6 team spots and close at 6/6.
-            </p>
-            <input type="hidden" name="team_count" value={6} />
-          </>
-        ) : (
-          <>
-            <div className={`create-league-teams-row${adminFullMode ? " create-league-teams-row--admin" : ""}`}>
-              {teamCountOptions.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className={`create-league-teams-option ${teamCount === n ? "selected" : ""}`}
-                  onClick={() => handleTeamClick(n)}
-                  aria-pressed={teamCount === n}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            <input type="hidden" name="team_count" value={teamCount} />
-          </>
-        )}
+        <div className={`create-league-teams-row${adminFullMode ? " create-league-teams-row--admin" : ""}`}>
+          {teamCountOptions.map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`create-league-teams-option ${teamCount === n ? "selected" : ""}`}
+              onClick={() => handleTeamClick(n)}
+              aria-pressed={teamCount === n}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+        <input type="hidden" name="team_count" value={teamCount} />
       </div>
 
       <div className="form-group">
@@ -277,6 +304,8 @@ export function CreateLeagueForm({
         </div>
         <input type="hidden" name="league_type" value={leagueType} />
       </div>
+        </>
+      )}
 
       {adminFullMode && leagueType === "head_to_head" ? (
         <div className="form-group">

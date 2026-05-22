@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
@@ -13,9 +12,10 @@ import {
 } from "@/lib/leagueMatchups";
 import {
   getRosterRulesForLeague,
+  getLeagueSeasonBelt,
   leagueIncludesNxt,
+  leagueIsSalaryCapFormat,
   leagueUsesSalaryCap,
-  ROAD_TO_SUMMERSLAM_BANNER_SRC,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
 } from "@/lib/leagueStructure";
 import { pleDefaultHref } from "@/lib/pleLeagueMenu";
@@ -27,6 +27,7 @@ import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { LeagueHomeMobileLeagueView } from "./LeagueHomeMobileLeagueView";
 import { TradeProposalRespond } from "./team/TradeProposalRespond";
 import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
+import { LeagueSeasonBeltBanner } from "@/app/components/LeagueSeasonBeltBanner";
 import { ManagerAvatar } from "@/app/components/ManagerAvatar";
 import { MyFactionAvatarEditor } from "./MyFactionAvatarEditor";
 import { MyFactionCatchphraseBlock } from "./MyFactionCatchphraseBlock";
@@ -345,6 +346,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         ? await getLeagueEventDayViewerSection(supabase, league, currentUser.id, rosters, wrestlersResult)
         : null;
 
+    const seasonBelt = getLeagueSeasonBelt(league);
+    const isSalaryCapFormat = leagueIsSalaryCapFormat(league);
+
     return (
     <>
     <main className="lm-dashboard lm-league-home">
@@ -372,7 +376,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         showRecordOnly={isHeadToHeadHomeStandings}
         showSeasonTop10={showSeasonTop10InSidebar}
         isHeadToHead={isHeadToHeadHomeStandings}
-        isSalaryCapLeague={leagueUsesSalaryCap(league.league_type)}
+        isSalaryCapLeague={isSalaryCapFormat}
+        seasonBelt={seasonBelt}
         currentUserId={currentUser?.id ?? null}
         xpByUserId={xpByUserId}
         showTop10Leaderboards={showTop10}
@@ -761,18 +766,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         </div>
 
         <aside className="lm-season-rail" aria-label="League season timeline">
-          {league.season_slug === "road-to-summerslam" && (
-            <div className="lm-season-rail-banner">
-              <Image
-                src={ROAD_TO_SUMMERSLAM_BANNER_SRC}
-                alt="Road to SummerSlam"
-                width={560}
-                height={120}
-                className="lm-season-rail-banner-img"
-                sizes="(max-width: 900px) 100vw, 280px"
-              />
-            </div>
-          )}
+          {seasonBelt ? <LeagueSeasonBeltBanner belt={seasonBelt} /> : null}
           <SeasonTimelineRail leagueSlug={slug} />
         </aside>
       </div>

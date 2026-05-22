@@ -10,11 +10,12 @@ type Props = {
   maxTeams: number | null | undefined;
   autoReactivate: boolean | null | undefined;
   visibilityType?: string | null | undefined;
+  isPublicSalaryCap?: boolean;
   teamCountOptions: number[];
 };
 
 export function BasicSettingsSection(props: Props) {
-  const { leagueSlug, leagueName, maxTeams, autoReactivate, visibilityType, teamCountOptions } = props;
+  const { leagueSlug, leagueName, maxTeams, autoReactivate, visibilityType, isPublicSalaryCap = false, teamCountOptions } = props;
   const effectiveMaxTeams = maxTeams ?? 6;
   const isPublicLeague = String(visibilityType ?? "").toLowerCase() === "public";
   const router = useRouter();
@@ -56,9 +57,13 @@ export function BasicSettingsSection(props: Props) {
           {isPublicLeague ? (
             <>
               <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
-                Public leagues always use 6 team spots.
+                {isPublicSalaryCap
+                  ? "Public salary cap leagues have no team maximum — anyone can join until the season starts."
+                  : "Public leagues always use 6 team spots."}
               </p>
-              <input type="hidden" id="max_teams" name="max_teams" value="6" />
+              {!isPublicSalaryCap ? (
+                <input type="hidden" id="max_teams" name="max_teams" value="6" />
+              ) : null}
             </>
           ) : (
             <select

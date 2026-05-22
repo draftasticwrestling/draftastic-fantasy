@@ -1,6 +1,6 @@
 /**
  * Point tables for How it Works /points documentation.
- * Legacy League tab shows the full year; season tabs use subsets.
+ * Public League tab shows the full event-type reference; Road to season tabs use subsets.
  * Rows are ordered by point value (highest → lowest); ties keep a sensible narrative order.
  */
 

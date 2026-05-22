@@ -14,7 +14,7 @@ import { getTradeProposalsForLeague } from "@/lib/leagueOwner";
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { ProposeTradeForm } from "../team/ProposeTradeForm";
 import { ProposeReleaseForm } from "../team/ProposeReleaseForm";
-import { ProposeFreeAgentForm } from "../team/ProposeFreeAgentForm";
+import { LeagueFreeAgentPicker } from "../team/LeagueFreeAgentPicker";
 import { SalaryCapFreeAgentPicker } from "../team/SalaryCapFreeAgentPicker";
 import { SalaryCapWeeklyFaBudget } from "../team/SalaryCapWeeklyFaBudget";
 import { TradeProposalRespond } from "../team/TradeProposalRespond";
@@ -184,17 +184,13 @@ export default async function FactionActionsPage({ params, searchParams }: Props
             tradeLockedWrestlerIds={tradeLockedWrestlerIds}
             initialWrestlerId={addFa || undefined}
           />
-        ) : freeAgents.length === 0 ? (
-          <p style={{ color: "#666" }}>No free agents available.</p>
         ) : (
-          <ProposeFreeAgentForm
+          <LeagueFreeAgentPicker
             leagueSlug={slug}
-            freeAgents={freeAgents.map((w) => ({ id: w.id, name: w.name }))}
             myRosterWrestlers={rosterWrestlers.map((w) => ({ id: w.id, name: w.name }))}
             rosterSize={rosterRules?.rosterSize ?? 0}
-            pendingFaIds={[]}
-            initialWrestlerId={addFa || undefined}
             tradeLockedWrestlerIds={tradeLockedWrestlerIds}
+            initialWrestlerId={addFa || undefined}
           />
         )}
       </section>

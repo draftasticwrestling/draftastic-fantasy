@@ -7,26 +7,26 @@ import { HOW_IT_WORKS_TAB_IDS } from "./howItWorksTabConfig";
 import styles from "./HowItWorks.module.css";
 
 const TAB_LABELS: Record<HowItWorksTabId, string> = {
+  "public-league": "Public League",
   "road-to-summerslam": "Road to SummerSlam",
-  "road-to-survivor-series": "Road to Survivor Series",
+  "road-to-war-games": "Road to War Games",
   "road-to-wrestlemania": "Road to WrestleMania",
-  legacy: "Legacy League",
 };
 
 type Props = {
   initialTab: HowItWorksTabId;
+  publicLeague: React.ReactNode;
   roadToSummerSlam: React.ReactNode;
-  roadToSurvivorSeries: React.ReactNode;
+  roadToWarGames: React.ReactNode;
   roadToWrestleMania: React.ReactNode;
-  legacyLeague: React.ReactNode;
 };
 
 export function HowItWorksTabs({
   initialTab,
+  publicLeague,
   roadToSummerSlam,
-  roadToSurvivorSeries,
+  roadToWarGames,
   roadToWrestleMania,
-  legacyLeague,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -41,7 +41,7 @@ export function HowItWorksTabs({
     (id: HowItWorksTabId) => {
       setActive(id);
       const q = new URLSearchParams(searchParams.toString());
-      if (id === "road-to-summerslam") {
+      if (id === "public-league") {
         q.delete("tab");
       } else {
         q.set("tab", id);
@@ -53,10 +53,10 @@ export function HowItWorksTabs({
   );
 
   const panels: Record<HowItWorksTabId, React.ReactNode> = {
+    "public-league": publicLeague,
     "road-to-summerslam": roadToSummerSlam,
-    "road-to-survivor-series": roadToSurvivorSeries,
+    "road-to-war-games": roadToWarGames,
     "road-to-wrestlemania": roadToWrestleMania,
-    legacy: legacyLeague,
   };
 
   return (

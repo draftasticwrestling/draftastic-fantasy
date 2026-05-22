@@ -20,6 +20,7 @@ import {
 } from "@/lib/salaryCapWeeklyLimits";
 import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser } from "@/lib/salaryCap";
 import { buildSalaryCapWrestlerPool } from "@/lib/salaryCapWrestlerPool";
+import { buildLeagueFreeAgentPool } from "@/lib/leagueFreeAgentPool";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 
 export type SalaryCapFreeAgentPoolPayload = {
@@ -85,6 +86,44 @@ export async function dropWrestlerAction(
   revalidatePath(`/leagues/${leagueSlug}/wrestlers/league-leaders`);
   revalidatePath(`/leagues/${leagueSlug}/wrestlers/free-agents`);
   return {};
+}
+
+export type LeagueFreeAgentPoolPayload = {
+  pool: SalaryCapWrestlerOption[];
+  myRosterIds: string[];
+};
+
+/** Lazy-load exclusive-league FA pool (headshots, 2026 stats, championship context). */
+export async function loadLeagueFreeAgentPoolAction(
+  leagueSlug: string
+): Promise<LeagueFreeAgentPoolPayload | { error: string }> {
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) return { error: "League not found." };
+  if (leagueUsesSalaryCap(league.league_type)) {
+    return { error: "Use the salary cap free agent picker for this league." };
+  }
+
+  const { supabase, user } = await getServerAuth();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: member } = await supabase
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", league.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!member) return { error: "You are not in this league." };
+
+  const rosters = await getRostersForLeague(league.id);
+  const rosteredIds = new Set<string>();
+  for (const entries of Object.values(rosters)) {
+    for (const e of entries) rosteredIds.add(e.wrestler_id);
+  }
+
+  const pool = await buildLeagueFreeAgentPool(supabase, league, rosteredIds);
+  const myRosterIds = (rosters[user.id] ?? []).map((e) => e.wrestler_id);
+
+  return { pool, myRosterIds };
 }
 
 /** Lazy-load salary cap FA pool (same data as onboarding roster builder). */

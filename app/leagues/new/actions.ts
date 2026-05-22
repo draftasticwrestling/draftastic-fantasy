@@ -8,7 +8,8 @@ import {
   consumeLeagueCreationAccessCode,
 } from "@/lib/leagueCreationAccess";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
-import { STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
+import { STANDARD_USER_CREATE_SEASON_SLUG, PUBLIC_SALARY_CAP_SEASON_SLUG } from "@/lib/leagueSeasons";
+import { SALARY_CAP_LEAGUE_TYPE } from "@/lib/leagueStructure";
 import { leaguePostJoinPath } from "@/lib/leagueOnboarding";
 
 export type CreateLeagueState = { error?: string } | null;
@@ -61,20 +62,24 @@ export async function createLeagueAction(
   }
 
   if (enforceStandardRules) {
-    if (season_slug !== STANDARD_USER_CREATE_SEASON_SLUG) {
-      return {
-        error:
-          "During the beta, new leagues use the Road to SummerSlam season window. Other seasons are available when creating a league with full admin options.",
-      };
-    }
-    if (league_type !== "season_overall") {
-      return {
-        error:
-          "For the Road to SummerSlam beta, only Total Season Points leagues are available. Head-to-Head and other formats are coming soon.",
-      };
-    }
-    if (team_count < BETA_MIN_TEAMS || team_count > BETA_MAX_TEAMS) {
-      return { error: `Choose between ${BETA_MIN_TEAMS} and ${BETA_MAX_TEAMS} teams for this season.` };
+    if (visibility_type === "public") {
+      // Public leagues: salary cap + rolling 12-week season (dates set when 3 factions join).
+    } else {
+      if (season_slug !== STANDARD_USER_CREATE_SEASON_SLUG) {
+        return {
+          error:
+            "During the beta, new private leagues use the Road to SummerSlam season window. Other seasons are available when creating a league with full admin options.",
+        };
+      }
+      if (league_type !== "season_overall") {
+        return {
+          error:
+            "For the Road to SummerSlam beta, only Total Season Points leagues are available. Head-to-Head and other formats are coming soon.",
+        };
+      }
+      if (team_count < BETA_MIN_TEAMS || team_count > BETA_MAX_TEAMS) {
+        return { error: `Choose between ${BETA_MIN_TEAMS} and ${BETA_MAX_TEAMS} teams for this season.` };
+      }
     }
   } else {
     if (!ADMIN_LEAGUE_TYPES.has(league_type)) {
@@ -123,13 +128,20 @@ export async function createLeagueAction(
     }
   }
 
+  const effectiveVisibility = visibility_type;
+  const effectiveSeasonSlug =
+    effectiveVisibility === "public" ? PUBLIC_SALARY_CAP_SEASON_SLUG : season_slug;
+  const effectiveLeagueType =
+    effectiveVisibility === "public" ? SALARY_CAP_LEAGUE_TYPE : league_type;
+  const effectiveMaxTeams = effectiveVisibility === "public" ? null : team_count;
+
   const { league, error } = await createLeague({
-    name: visibility_type === "public" ? "Public League" : name,
-    season_slug,
-    max_teams: team_count,
-    league_type,
+    name: effectiveVisibility === "public" ? "Public League" : name,
+    season_slug: effectiveSeasonSlug,
+    max_teams: effectiveMaxTeams,
+    league_type: effectiveLeagueType,
     include_nxt: !enforceStandardRules && include_nxt,
-    visibility_type,
+    visibility_type: effectiveVisibility,
   });
   if (error) return { error };
   if (!league) return { error: "Failed to create league." };

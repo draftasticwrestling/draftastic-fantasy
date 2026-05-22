@@ -58,19 +58,32 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
     return null;
   }
 
+  const awaitingMinimum = Boolean(
+    (data as { awaitingMinimum?: boolean }).awaitingMinimum ||
+      (!data.windowStart && data.seasonPhase?.id === "public-salary-cap")
+  );
+
   const { seasonPhase, steps } = data;
 
   return (
     <nav className={styles.rail} aria-label="League season progress">
       <h2 className={styles.heading}>{seasonPhase.title}</h2>
       <p className={styles.sub}>
-        From {formatShortDate(data.windowStart)}
-        {data.windowEnd === "2099-12-31"
-          ? " · no league end date set"
-          : ` · through ${formatShortDate(data.windowEnd)}`}
+        {awaitingMinimum ? (
+          <>Waiting for at least 3 factions — your 12-week season schedule will appear here once the league is set.</>
+        ) : (
+          <>
+            From {formatShortDate(data.windowStart)}
+            {data.windowEnd === "2099-12-31"
+              ? " · no league end date set"
+              : ` · through ${formatShortDate(data.windowEnd)}`}
+          </>
+        )}
       </p>
 
-      {steps.length === 0 ? (
+      {awaitingMinimum ? (
+        <p className={styles.empty}>Invite managers or share your league code to reach 3 factions.</p>
+      ) : steps.length === 0 ? (
         <p className={styles.empty}>No scheduled TV or PLE events in this league window yet.</p>
       ) : (
         <ol className={styles.trackList}>

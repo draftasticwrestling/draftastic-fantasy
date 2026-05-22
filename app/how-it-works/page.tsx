@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { HowItWorksLegacyContent } from "./HowItWorksLegacyContent";
-import { HowItWorksRoadToSurvivorSeries } from "./HowItWorksRoadToSurvivorSeries";
+import { HowItWorksPublicLeague } from "./HowItWorksPublicLeague";
+import { HowItWorksRoadToWarGames } from "./HowItWorksRoadToWarGames";
 import { HowItWorksRoadToSummerSlam } from "./HowItWorksRoadToSummerSlam";
 import { HowItWorksSeasonPlaceholder } from "./HowItWorksSeasonPlaceholder";
 import { HowItWorksTabs } from "./HowItWorksTabs";
@@ -11,7 +11,7 @@ import styles from "./HowItWorks.module.css";
 export const metadata = {
   title: "How it Works — Draftastic Fantasy",
   description:
-    "Season scoring (Road to SummerSlam, Survivor Series, WrestleMania) and Legacy year-round rules: fantasy points, event types, and titles.",
+    "Public salary cap leagues and Road to season scoring (SummerSlam, War Games, WrestleMania).",
 };
 
 function TabsFallback() {
@@ -38,22 +38,22 @@ export default async function HowItWorksPage({
 
       <h1 style={{ marginBottom: 8 }}>How it Works</h1>
       <p style={{ color: "#555", marginBottom: 20 }}>
-        Choose a <strong>season</strong> to see what counts for that league window, or open <strong>Legacy League</strong> for
-        the full year-round reference (all event types).
+        Choose a <strong>season</strong> or <strong>Public League</strong> to see roster rules and scoring for that league
+        window.
       </p>
 
       <Suspense fallback={<TabsFallback />}>
         <HowItWorksTabs
           initialTab={initialTab}
+          publicLeague={<HowItWorksPublicLeague />}
           roadToSummerSlam={<HowItWorksRoadToSummerSlam />}
-          roadToSurvivorSeries={<HowItWorksRoadToSurvivorSeries />}
+          roadToWarGames={<HowItWorksRoadToWarGames />}
           roadToWrestleMania={
             <HowItWorksSeasonPlaceholder
               seasonName="Road to WrestleMania"
               windowHint="winter–spring season (typically December through WrestleMania Night 2)"
             />
           }
-          legacyLeague={<HowItWorksLegacyContent />}
         />
       </Suspense>
     </main>

@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { LeagueMember } from "@/lib/leagues";
 import { pleDefaultHref } from "@/lib/pleLeagueMenu";
-import { ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import { ROAD_TO_SUMMERSLAM_SEASON_SLUG, type LeagueSeasonBelt } from "@/lib/leagueStructure";
+import { LeagueSeasonBeltBanner } from "@/app/components/LeagueSeasonBeltBanner";
 import type { XpDisplay } from "@/lib/xp/getXpDisplayByUserIds";
 import type { LevelUpCelebration } from "@/lib/xp/xpLevelUpFlavor";
 import type { LeagueHomeXpBannerKind } from "@/lib/xp/leagueHomeXpBannerKind";
@@ -34,6 +35,7 @@ type Props = {
   isHeadToHead?: boolean;
   /** Salary cap leagues use Add/Drop only (no trades) and skip draft nav elsewhere. */
   isSalaryCapLeague?: boolean;
+  seasonBelt?: LeagueSeasonBelt | null;
   latestWeekStart: string | null;
   levelUpCelebration?: LevelUpCelebration | null;
   xpBannerKind?: LeagueHomeXpBannerKind | null;
@@ -72,6 +74,7 @@ export function LeagueHomeMobileLeagueView({
   showSeasonTop10 = true,
   isHeadToHead = false,
   isSalaryCapLeague = false,
+  seasonBelt = null,
   latestWeekStart,
   levelUpCelebration = null,
   xpBannerKind = null,
@@ -83,8 +86,13 @@ export function LeagueHomeMobileLeagueView({
   const items: { href: string; label: string }[] = [
     { href: `${base}/standings`, label: "Standings" },
     ...(isHeadToHead ? [{ href: `${base}/matchups`, label: "Matchups" }] : []),
-    ...(seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG
-      ? [{ href: `${base}/pathway`, label: "Your Pathway" }]
+    ...(seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG || isSalaryCapLeague
+      ? [
+          {
+            href: `${base}/pathway`,
+            label: seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "Your Pathway" : "Season schedule",
+          },
+        ]
       : []),
     { href: `${base}/faction-actions`, label: isSalaryCapLeague ? "Add / Drop" : "Add / Drop / Trade" },
     { href: `${base}/transactions`, label: "Transactions" },
@@ -95,6 +103,21 @@ export function LeagueHomeMobileLeagueView({
 
   return (
     <div className="league-home-mobile">
+      {seasonBelt ? (
+        <div
+          className="league-home-mobile__section"
+          style={{
+            marginBottom: 12,
+            border: "1px solid var(--color-border)",
+            borderRadius: 18,
+            overflow: "hidden",
+            background: "var(--color-bg-card)",
+          }}
+        >
+          <LeagueSeasonBeltBanner belt={seasonBelt} variant="full" />
+        </div>
+      ) : null}
+
       {levelUpCelebration ? (
         <div className="league-home-mobile__section" style={{ marginBottom: 12 }}>
           <LeagueLevelUpBanner celebration={levelUpCelebration} bannerKind={xpBannerKind} />

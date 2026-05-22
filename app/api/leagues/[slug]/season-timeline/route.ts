@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getEffectiveLeagueStartDate, getLeagueBySlug } from "@/lib/leagues";
 import { buildLeagueSeasonTimeline } from "@/lib/leagueSeasonTimeline";
+import { leagueIsSalaryCapFormat, SALARY_CAP_CHAMPIONSHIP_PATHWAY_TITLE } from "@/lib/leagueStructure";
+import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 
 type RouteContext = { params: Promise<{ slug: string }> };
 
@@ -17,7 +19,23 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "League not found or access denied." }, { status: 404 });
   }
 
-  const effectiveStart = getEffectiveLeagueStartDate(league);
+  const publicSalaryCap = isPublicSalaryCapLeague(league);
+  const isSalaryCapFormat = leagueIsSalaryCapFormat(league);
+  const scheduledStart = league.start_date ? String(league.start_date).slice(0, 10) : null;
+  const todayYmd = new Date().toISOString().slice(0, 10);
+
+  if (publicSalaryCap && !scheduledStart) {
+    return NextResponse.json({
+      seasonPhase: { id: "public-salary-cap", title: SALARY_CAP_CHAMPIONSHIP_PATHWAY_TITLE },
+      windowStart: "",
+      windowEnd: "",
+      steps: [],
+      today: todayYmd,
+      awaitingMinimum: true,
+    });
+  }
+
+  const effectiveStart = scheduledStart ?? getEffectiveLeagueStartDate(league);
   const endRaw = league.end_date ? String(league.end_date).slice(0, 10) : null;
   const windowEnd = endRaw && /^\d{4}-\d{2}-\d{2}$/.test(endRaw) ? endRaw : "2099-12-31";
 
@@ -33,7 +51,6 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const todayYmd = new Date().toISOString().slice(0, 10);
   const payload = buildLeagueSeasonTimeline({
     events: (eventRows ?? []) as { id: string; name: string | null; date: string | null; status: string | null }[],
     effectiveStartYmd: effectiveStart,
@@ -41,6 +58,7 @@ export async function GET(_request: Request, context: RouteContext) {
     todayYmd,
     seasonSlug: (league as { season_slug?: string | null }).season_slug ?? null,
     includeNxt: Boolean((league as { include_nxt?: boolean | null }).include_nxt),
+    isSalaryCapFormat,
   });
 
   return NextResponse.json(payload);

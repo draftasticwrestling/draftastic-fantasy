@@ -9,11 +9,17 @@ import {
   leagueIncludesNxt,
   leagueUsesSalaryCap,
   leagueUsesWeeklyPstBeltHold,
+  MIN_LEAGUE_TEAMS,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
+  SALARY_CAP_LEAGUE_TYPE,
   SALARY_CAP_MAX_ROSTER_SIZE,
 } from "@/lib/leagueStructure";
 import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
-import { getDefaultStartEndForSeason, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
+import { getDefaultStartEndForSeason, PUBLIC_SALARY_CAP_SEASON_SLUG, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
+import {
+  computePublicLeagueSeasonWindow,
+  isPublicSalaryCapLeague,
+} from "@/lib/publicLeagueSchedule";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
@@ -191,8 +197,11 @@ export async function createLeague(params: {
   const requestedName = params.name?.trim();
   if (!requestedName) return { error: "League name is required" };
 
-  const seasonSlug = params.season_slug?.trim();
-  if (!seasonSlug) return { error: "Select a season." };
+  const seasonSlugInput = params.season_slug?.trim();
+  if (!seasonSlugInput) return { error: "Select a season." };
+
+  const visibilityType: "private" | "public" = params.visibility_type === "public" ? "public" : "private";
+  const isPublicSalaryCapCreate = visibilityType === "public";
 
   const yearParsed = Math.floor(Number(params.season_year));
   const year =
@@ -200,16 +209,26 @@ export async function createLeague(params: {
       ? yearParsed
       : new Date().getFullYear();
 
-  const window = getDefaultStartEndForSeason(seasonSlug, year);
-  if (!window) return { error: "Invalid season." };
+  const seasonSlug = isPublicSalaryCapCreate ? PUBLIC_SALARY_CAP_SEASON_SLUG : seasonSlugInput;
 
-  const visibilityType: "private" | "public" = params.visibility_type === "public" ? "public" : "private";
+  let start_date: string | null;
+  let end_date: string | null;
+  if (isPublicSalaryCapCreate) {
+    start_date = null;
+    end_date = null;
+  } else {
+    const window = getDefaultStartEndForSeason(seasonSlug, year);
+    if (!window) return { error: "Invalid season." };
+    start_date = window.start_date;
+    end_date = window.end_date;
+  }
+
   const maxTeamsCapForUser = isSiteAdmin ? 16 : 6;
   const maxTeamsRequested =
     params.max_teams != null && Number.isFinite(Number(params.max_teams))
       ? Math.min(maxTeamsCapForUser, Math.max(3, Math.floor(Number(params.max_teams))))
       : null;
-  const max_teams = visibilityType === "public" ? 6 : maxTeamsRequested;
+  const max_teams = isPublicSalaryCapCreate ? null : maxTeamsRequested;
   const admin = getAdminClient();
   if (!admin) {
     return {
@@ -228,8 +247,10 @@ export async function createLeague(params: {
   const existingSlugs = new Set((existing ?? []).map((r) => r.slug));
 
   const draft_date = null;
-  const league_type = params.league_type?.trim() || null;
-  if (league_type === "salary_cap" && !isSiteAdmin) {
+  let league_type = params.league_type?.trim() || null;
+  if (isPublicSalaryCapCreate) {
+    league_type = SALARY_CAP_LEAGUE_TYPE;
+  } else if (league_type === SALARY_CAP_LEAGUE_TYPE && !isSiteAdmin) {
     return { error: "Only site administrators can create salary cap leagues." };
   }
   const include_nxt_requested = Boolean(params.include_nxt);
@@ -260,7 +281,7 @@ export async function createLeague(params: {
         .limit(1);
       const maxSeq = Number((seqRows?.[0] as { public_sequence?: number } | undefined)?.public_sequence ?? 0);
       publicSequenceUsed = Number.isFinite(maxSeq) ? maxSeq + 1 : 1;
-      name = `R2Summer ${publicSequenceUsed}`;
+      name = `Public League ${publicSequenceUsed}`;
       slug = slugify(name);
     } else {
       slug = makeSlugUnique(baseSlugPrivate, existingSlugs);
@@ -273,8 +294,8 @@ export async function createLeague(params: {
         name,
         slug,
         commissioner_id: user.id,
-        start_date: window.start_date,
-        end_date: window.end_date,
+        start_date,
+        end_date,
         season_slug: seasonSlug,
         draft_date,
         draft_time: null,
@@ -998,8 +1019,8 @@ export async function quickJoinOldestPublicLeague(): Promise<{
 
   const created = await createLeague({
     name: "Public League",
-    season_slug: STANDARD_USER_CREATE_SEASON_SLUG,
-    league_type: "season_overall",
+    season_slug: PUBLIC_SALARY_CAP_SEASON_SLUG,
+    league_type: SALARY_CAP_LEAGUE_TYPE,
     visibility_type: "public",
   });
   if (created.error) return { ok: false, error: created.error };
@@ -1019,7 +1040,7 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
   if (!admin || !slug) return;
   const { data: league } = await admin
     .from("leagues")
-    .select("id, visibility_type, max_teams, draft_status")
+    .select("id, visibility_type, max_teams, draft_status, league_type, season_slug, start_date, end_date")
     .eq("slug", slug)
     .maybeSingle();
   const row = league as {
@@ -1027,6 +1048,10 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
     visibility_type?: string | null;
     max_teams?: number | null;
     draft_status?: string | null;
+    league_type?: string | null;
+    season_slug?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
   } | null;
   if (!row?.id || row.visibility_type !== "public") return;
   const { count } = await admin
@@ -1034,17 +1059,29 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
     .select("*", { count: "exact", head: true })
     .eq("league_id", row.id);
   const memberCount = count ?? 0;
-  const cap = row.max_teams ?? 6;
   const draftStatus = String(row.draft_status ?? "not_started");
+  const publicSalaryCap = isPublicSalaryCapLeague(row);
+  const cap = publicSalaryCap ? null : row.max_teams ?? 6;
+
+  const updatePayload: Record<string, unknown> = {};
+  if (publicSalaryCap && memberCount >= MIN_LEAGUE_TEAMS && !row.start_date) {
+    const window = computePublicLeagueSeasonWindow(new Date());
+    updatePayload.start_date = window.start_date;
+    updatePayload.end_date = window.end_date;
+  }
+
   const status =
     draftStatus === "in_progress" || draftStatus === "ready_for_review" || draftStatus === "completed"
       ? "active"
-      : memberCount >= cap
+      : cap != null && memberCount >= cap
         ? "full"
-        : memberCount >= 3
+        : memberCount >= MIN_LEAGUE_TEAMS
           ? "open"
           : "awaiting_minimum";
-  await admin.from("leagues").update({ public_status: status }).eq("id", row.id);
+  updatePayload.public_status = status;
+
+  await admin.from("leagues").update(updatePayload).eq("id", row.id);
+  await maybeAwardLeagueStartedXpBySlug(slug);
 }
 
 // --- Commissioner manual rosters (league_rosters) ---

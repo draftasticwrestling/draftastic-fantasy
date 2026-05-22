@@ -21,8 +21,26 @@ export const ROAD_TO_SUMMERSLAM_SEASON_SLUG = "road-to-summerslam";
  */
 export const ROAD_TO_SUMMERSLAM_BANNER_SRC = "/images/season-belts/road-to-summer-belt-26.png";
 
-/** Road to Survivor Series (admin beta / NXT + H2H testing). */
-export const ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG = "road-to-survivor-series";
+/** Salary-cap league season championship (public leagues and admin salary-cap leagues). */
+export const PUBLIC_LEAGUE_CHAMPIONSHIP_BANNER_SRC =
+  "/images/season-belts/public-league-championship-26.png";
+
+/** Heading on the salary-cap league season timeline (status bar). */
+export const SALARY_CAP_CHAMPIONSHIP_PATHWAY_TITLE = "Championship Pathway";
+
+/** Road to War Games (admin beta / NXT + H2H testing). */
+export const ROAD_TO_WAR_GAMES_SEASON_SLUG = "road-to-war-games";
+
+/** Pre-rename slug; accepted until DB rows are migrated. */
+export const LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG = "road-to-survivor-series";
+
+/** @deprecated Use {@link ROAD_TO_WAR_GAMES_SEASON_SLUG} */
+export const ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG = ROAD_TO_WAR_GAMES_SEASON_SLUG;
+
+export function isRoadToWarGamesSeasonSlug(seasonSlug: string | null | undefined): boolean {
+  const s = (seasonSlug ?? "").trim();
+  return s === ROAD_TO_WAR_GAMES_SEASON_SLUG || s === LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG;
+}
 
 /** Admin testing: Total Season Points scoring with budget roster build (non-exclusive wrestlers). */
 export const SALARY_CAP_LEAGUE_TYPE = "salary_cap";
@@ -38,10 +56,44 @@ export function leagueUsesSalaryCap(leagueType: string | null | undefined): bool
   return leagueType === SALARY_CAP_LEAGUE_TYPE;
 }
 
+/** Slug for rolling public salary-cap seasons (also used by some admin test leagues). */
+export const PUBLIC_SALARY_CAP_SEASON_SLUG = "public-salary-cap";
+
+export type LeagueSeasonBelt = { src: string; alt: string };
+
+type LeagueSeasonBeltInput = {
+  league_type?: string | null;
+  draft_type?: string | null;
+  season_slug?: string | null;
+};
+
+/**
+ * Salary-cap roster/scoring format: explicit type, salary-cap draft flow, or public season slug.
+ * Admin test leagues may only set `draft_type = salary_cap` without `league_type = salary_cap`.
+ */
+export function leagueIsSalaryCapFormat(league: LeagueSeasonBeltInput | null | undefined): boolean {
+  if (!league) return false;
+  if (leagueUsesSalaryCap(league.league_type)) return true;
+  if (String(league.draft_type ?? "").trim() === "salary_cap") return true;
+  if (String(league.season_slug ?? "").trim() === PUBLIC_SALARY_CAP_SEASON_SLUG) return true;
+  return false;
+}
+
+/** Season championship belt for the league home rail and mobile pathway header. */
+export function getLeagueSeasonBelt(league: LeagueSeasonBeltInput | null | undefined): LeagueSeasonBelt | null {
+  if (leagueIsSalaryCapFormat(league)) {
+    return { src: PUBLIC_LEAGUE_CHAMPIONSHIP_BANNER_SRC, alt: "Public League Championship" };
+  }
+  if (league?.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG) {
+    return { src: ROAD_TO_SUMMERSLAM_BANNER_SRC, alt: "Road to SummerSlam" };
+  }
+  return null;
+}
+
 /** Weekly PST title-hold belt (Mon–Sun week; credits once all PWBS events in that week are completed). */
 export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefined): boolean {
   return (
-    seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG || seasonSlug === ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG
+    seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG || isRoadToWarGamesSeasonSlug(seasonSlug)
   );
 }
 

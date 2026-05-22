@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { DraftOrderMethod } from "@/lib/leagues";
-import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster } from "@/lib/leagues";
+import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster, syncPublicLeagueStatusBySlug } from "@/lib/leagues";
+import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 import { assertWrestlerNotTradeLocked } from "@/lib/leagueOwner";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { isLeagueTypeChangeAllowed } from "@/lib/leagueSettingsRules";
@@ -186,7 +187,7 @@ export async function updateBasicSettingsAction(
       : null;
 
   if (isPublicLeague) {
-    max_teams = 6;
+    max_teams = isPublicSalaryCapLeague(league) ? null : 6;
   } else if (max_teams != null) {
     if (max_teams < allowedMinTeams || max_teams > allowedMaxTeams) {
       return { error: `Choose between ${allowedMinTeams} and ${allowedMaxTeams} teams.` };
@@ -395,6 +396,7 @@ export async function removeMemberFromLeagueAction(
     .eq("user_id", userId);
   if (memberErr) return { error: memberErr.message };
 
+  await syncPublicLeagueStatusBySlug(leagueSlug);
   revalidatePath(`/leagues/${leagueSlug}`);
   return {};
 }

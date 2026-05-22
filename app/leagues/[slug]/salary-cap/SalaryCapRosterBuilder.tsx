@@ -150,22 +150,26 @@ export function SalaryCapPoolTableHead({
   sortKey,
   sortDir,
   onSort,
+  showCost = true,
 }: {
   sortKey: SortKey;
   sortDir: "asc" | "desc";
   onSort: (key: SortKey) => void;
+  showCost?: boolean;
 }) {
   return (
     <tr>
       <SalaryCapPoolSortableTh label="Wrestler" sortKey="name" activeSort={sortKey} sortDir={sortDir} onSort={onSort} />
-      <SalaryCapPoolSortableTh
-        label="Cost"
-        sortKey="cost"
-        activeSort={sortKey}
-        sortDir={sortDir}
-        onSort={onSort}
-        className="salary-cap-pool__num"
-      />
+      {showCost ? (
+        <SalaryCapPoolSortableTh
+          label="Cost"
+          sortKey="cost"
+          activeSort={sortKey}
+          sortDir={sortDir}
+          onSort={onSort}
+          className="salary-cap-pool__num"
+        />
+      ) : null}
       <SalaryCapPoolSortableTh
         label="2K"
         sortKey="rating2k"

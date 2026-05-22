@@ -48,8 +48,8 @@ export default async function LeaguesPage() {
           fontSize: 14,
         }}
       >
-        Public leagues are now live. Existing private leagues cannot be converted in place; create a new public
-        league if you want open enrollment.
+        Public leagues use Salary Cap — Total Season Points with open enrollment. Your season starts the Monday after
+        3 factions join and runs for 12 weeks. Private leagues still use Road to season windows.
       </div>
 
       <p style={{ marginBottom: 16 }}>

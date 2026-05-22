@@ -14,6 +14,7 @@ import { LeagueTransactionStatsSection } from "./LeagueTransactionStatsSection";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { isLeagueTypeChangeAllowed } from "@/lib/leagueSettingsRules";
 import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 
 const OFFLINE_DRAFT_SHEET_EXPORT_URL =
   "https://docs.google.com/spreadsheets/d/19v4VhgG0kYhHr1HGbAPb29flqIPxeNgY/export?format=xlsx";
@@ -56,6 +57,7 @@ export default async function LeagueSettingsPage({
           ? "Autopick (legacy)"
           : String(draftType);
   const leagueType = league.league_type ?? null;
+  const isPublicSalaryCap = isPublicSalaryCapLeague(league);
   const isSalaryCapLeague = leagueUsesSalaryCap(leagueType);
   const maxTeams = league.max_teams ?? null;
   const autoReactivate = league.auto_reactivate ?? false;
@@ -83,6 +85,7 @@ export default async function LeagueSettingsPage({
             maxTeams={maxTeams}
             autoReactivate={autoReactivate}
             visibilityType={league.visibility_type}
+            isPublicSalaryCap={isPublicSalaryCap}
             teamCountOptions={teamCountOptions}
           />
           <LeagueTypeSection

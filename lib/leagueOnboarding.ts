@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { leagueUsesSalaryCap, ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG } from "@/lib/leagueStructure";
+import { leagueUsesSalaryCap, isRoadToWarGamesSeasonSlug } from "@/lib/leagueStructure";
 import { getDraftPreferences } from "@/lib/leagueDraft";
 
 export type LeagueOnboardingContext = {
@@ -8,13 +8,13 @@ export type LeagueOnboardingContext = {
   slug: string;
 };
 
-/** Salary cap (admin testing now) and Road to Survivor Series leagues use per-league onboarding. */
+/** Salary cap (admin testing now) and Road to War Games leagues use per-league onboarding. */
 export function leagueUsesMemberOnboarding(league: {
   season_slug?: string | null;
   league_type?: string | null;
 }): boolean {
   if (leagueUsesSalaryCap(league.league_type)) return true;
-  if ((league.season_slug ?? "").trim() === ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG) return true;
+  if (isRoadToWarGamesSeasonSlug(league.season_slug)) return true;
   return false;
 }
 

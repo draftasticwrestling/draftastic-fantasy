@@ -38,7 +38,7 @@
 /* Monthly: 6 columns (Men's name | belt | pts | Women's name | belt | pts) ---------- */
 .titlePointsGrid {
   display: grid;
-  grid-template-columns: 1fr minmax(72px, 72px) 96px 1fr minmax(72px, 72px) 96px;
+  grid-template-columns: 1fr minmax(72px, 72px) 112px 1fr minmax(72px, 72px) 112px;
   gap: 0;
   border: 1px solid #ccc;
   border-radius: 8px;

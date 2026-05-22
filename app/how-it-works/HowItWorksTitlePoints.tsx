@@ -32,27 +32,48 @@ const beltWrapStyle = {
   flexShrink: 0,
 };
 
+/** Weekly title-holder credit = ¼ of the monthly value shown in How it Works tables. */
+export function weeklyBeltHolderPoints(monthly: number): number {
+  return monthly / 4;
+}
+
+/** Display e.g. `12 / 3` for monthly and weekly title-holder points. */
+export function formatMoWkBeltPoints(monthly: number): string {
+  const weekly = weeklyBeltHolderPoints(monthly);
+  const weeklyLabel = Number.isInteger(weekly) ? String(weekly) : String(weekly);
+  return `${monthly} / ${weeklyLabel}`;
+}
+
+/** Short note; tables use {@link formatMoWkBeltPoints} in each Mo./Wk. cell. */
+export const BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER = (
+  <>
+    In each <strong>Mo./Wk.</strong> cell, the first number is the <strong>monthly</strong> belt-holder value and the
+    second is what your league credits <strong>each week</strong> (one quarter of the monthly amount) while your wrestler
+    holds the title.
+  </>
+);
+
 export function HowItWorksTitlePoints() {
   return (
     <section style={{ marginBottom: 40 }}>
       <h2 className={styles.sectionTitle}>Belt Points</h2>
 
-      <h3 className={styles.beltPointsSubheading}>Monthly belt points (displayed values)</h3>
+      <h3 className={styles.beltPointsSubheading}>Title holder points</h3>
+      <p className={styles.sectionSubtitle}>{BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER}</p>
       <p className={styles.sectionSubtitle}>
-        The table below shows <strong>monthly-equivalent values</strong> for consistency. In scoring, points are
-        still awarded weekly at <strong>one quarter</strong> of these values. For <strong>Road to SummerSlam</strong> leagues,
-        title-holder points lock at <strong>11:59 PM PT</strong> (Los Angeles time) at the end of each TV week: after{" "}
-        <strong>SmackDown</strong> and before the next <strong>Raw</strong> when there is no PLE that week, or after the last{" "}
-        <strong>PLE</strong> in that Monday–Sunday window and before the next Raw when a PLE airs that week. The cutoff uses
-        Pacific time so late shows still count before the lock.
+        For <strong>Road to SummerSlam</strong> and <strong>Road to War Games</strong> leagues, weekly title-holder
+        points lock at <strong>11:59 PM PT</strong> (Los Angeles time) at the end of each TV week: after{" "}
+        <strong>SmackDown</strong> and before the next <strong>Raw</strong> when there is no PLE that week, or after the
+        last <strong>PLE</strong> in that Monday–Sunday window and before the next Raw when a PLE airs that week. The
+        cutoff uses Pacific time so late shows still count before the lock.
       </p>
       <div className={styles.titlePointsGrid}>
         <div className={styles.titlePointsThMens}>Men&apos;s Division</div>
         <div className={styles.titlePointsThBeltMens} aria-hidden />
-        <div className={styles.titlePointsThPtsMens}>Points</div>
+        <div className={styles.titlePointsThPtsMens}>Mo./Wk.</div>
         <div className={styles.titlePointsThWomens}>Women&apos;s Division</div>
         <div className={styles.titlePointsThBeltWomens} aria-hidden />
-        <div className={styles.titlePointsThPtsWomens}>Points</div>
+        <div className={styles.titlePointsThPtsWomens}>Mo./Wk.</div>
         {TITLE_POINTS_MENS.map((mensRow, i) => {
           const womensRow = TITLE_POINTS_WOMENS[i];
           const rowAlt = i % 2 === 1 ? styles.titlePointsRowAlt : "";
@@ -79,7 +100,9 @@ export function HowItWorksTitlePoints() {
                   <div className={styles.beltPlaceholder}>Belt</div>
                 )}
               </div>
-              <div className={`${styles.titlePointsTdPtsMens} ${rowAlt}`}>{mensRow.points}</div>
+              <div className={`${styles.titlePointsTdPtsMens} ${rowAlt}`}>
+                {formatMoWkBeltPoints(mensRow.points)}
+              </div>
               <div className={`${styles.titlePointsTdNameWomens} ${rowAlt}`}>{womensRow.name}</div>
               <div className={`${styles.titlePointsTdBeltWomens} ${rowAlt}`}>
                 {womensBeltUrl ? (
@@ -97,7 +120,9 @@ export function HowItWorksTitlePoints() {
                   <div className={styles.beltPlaceholder}>Belt</div>
                 )}
               </div>
-              <div className={`${styles.titlePointsTdPtsWomens} ${rowAlt}`}>{womensRow.points}</div>
+              <div className={`${styles.titlePointsTdPtsWomens} ${rowAlt}`}>
+                {formatMoWkBeltPoints(womensRow.points)}
+              </div>
             </Fragment>
           );
         })}
@@ -105,7 +130,8 @@ export function HowItWorksTitlePoints() {
 
       <h3 className={styles.beltPointsSubheading}>Belt defense / New champion points</h3>
       <p className={styles.sectionSubtitle}>
-        Awarded during the match when a championship is defended or changes hands (same values for every title).
+        These are <strong>match bonuses</strong> (not monthly title-holder points). They are awarded during the match
+        when a championship is defended or changes hands — same values for every title, in full at event time.
       </p>
       <div className={styles.beltDefenseGrid} role="table" aria-label="Belt defense and new champion points">
         <div className={styles.beltDefenseTh} role="columnheader">

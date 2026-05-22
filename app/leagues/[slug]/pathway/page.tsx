@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
+import { LeagueSeasonBeltBanner } from "@/app/components/LeagueSeasonBeltBanner";
 import { getLeagueBySlug } from "@/lib/leagues";
-import { ROAD_TO_SUMMERSLAM_BANNER_SRC, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import { getLeagueSeasonBelt, leagueIsSalaryCapFormat, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,11 @@ export default async function LeaguePathwayPage({
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
-  if (league.season_slug !== ROAD_TO_SUMMERSLAM_SEASON_SLUG) notFound();
+  const isRts = league.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  const isSalaryCap = leagueIsSalaryCapFormat(league);
+  if (!isRts && !isSalaryCap) notFound();
+
+  const seasonBelt = getLeagueSeasonBelt(league);
 
   return (
     <main className="app-page" style={{ paddingTop: 10 }}>
@@ -25,27 +29,21 @@ export default async function LeaguePathwayPage({
         </Link>
       </p>
 
-      <div
-        style={{
-          border: "1px solid var(--color-border)",
-          borderRadius: 18,
-          overflow: "hidden",
-          marginBottom: 12,
-          background: "var(--color-bg-card)",
-        }}
-      >
-        <Image
-          src={ROAD_TO_SUMMERSLAM_BANNER_SRC}
-          alt="Road to SummerSlam"
-          width={560}
-          height={120}
-          sizes="100vw"
-          style={{ display: "block", width: "100%", height: "auto" }}
-        />
-      </div>
+      {seasonBelt ? (
+        <div
+          style={{
+            border: "1px solid var(--color-border)",
+            borderRadius: 18,
+            overflow: "hidden",
+            marginBottom: 12,
+            background: "var(--color-bg-card)",
+          }}
+        >
+          <LeagueSeasonBeltBanner belt={seasonBelt} variant="full" />
+        </div>
+      ) : null}
 
       <SeasonTimelineRail leagueSlug={slug} />
     </main>
   );
 }
-

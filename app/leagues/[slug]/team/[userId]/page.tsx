@@ -26,7 +26,7 @@ import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser, isValidSalaryCapCost 
 import { getSalaryCapWeeklyFaBudgetStatus } from "@/lib/salaryCapWeeklyLimits";
 import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
-import { ProposeFreeAgentForm } from "../ProposeFreeAgentForm";
+import { LeagueFreeAgentPicker } from "../LeagueFreeAgentPicker";
 import { SalaryCapFreeAgentPicker } from "../SalaryCapFreeAgentPicker";
 import { SalaryCapWeeklyFaBudget } from "../SalaryCapWeeklyFaBudget";
 import { TradeProposalRespond } from "../TradeProposalRespond";
@@ -1125,17 +1125,13 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 tradeLockedWrestlerIds={tradeLockedWrestlerIds}
                 initialWrestlerId={addFa}
               />
-            ) : freeAgents.length === 0 ? (
-              <p style={{ color: "#666" }}>No free agents available.</p>
             ) : (
-              <ProposeFreeAgentForm
+              <LeagueFreeAgentPicker
                 leagueSlug={slug}
-                freeAgents={freeAgents}
                 myRosterWrestlers={rosterWrestlers}
                 rosterSize={rosterRules?.rosterSize ?? 0}
-                pendingFaIds={[]}
-                initialWrestlerId={addFa}
                 tradeLockedWrestlerIds={tradeLockedWrestlerIds}
+                initialWrestlerId={addFa}
               />
             )}
           </section>

@@ -3,6 +3,8 @@
  * GMs can choose one of these when creating a league (or set custom dates).
  */
 
+import { LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG, ROAD_TO_WAR_GAMES_SEASON_SLUG } from "@/lib/leagueStructure";
+
 export type SeasonOption = {
   id: string;
   name: string;
@@ -20,6 +22,8 @@ export type SeasonOption = {
 /** Public beta: standard (non-admin) creators may only start a league in this season window until we open others. */
 export const STANDARD_USER_CREATE_SEASON_SLUG = "road-to-summerslam" as const;
 
+export { PUBLIC_SALARY_CAP_SEASON_SLUG, PUBLIC_SALARY_CAP_SEASON_WEEKS } from "@/lib/publicLeagueSchedule";
+
 export const SEASON_OPTIONS: SeasonOption[] = [
   {
     id: "road-to-summerslam",
@@ -31,10 +35,10 @@ export const SEASON_OPTIONS: SeasonOption[] = [
     crossesCalendarYear: false,
   },
   {
-    id: "road-to-survivor-series",
-    name: "Road to Survivor Series",
-    slug: "road-to-survivor-series",
-    windowDescription: "First Raw in August through Survivor Series (late November)",
+    id: "road-to-war-games",
+    name: "Road to War Games",
+    slug: "road-to-war-games",
+    windowDescription: "First Raw in August through Survivor Series: War Games (late November)",
     startMonth: 8,
     endMonth: 11,
     crossesCalendarYear: false,
@@ -57,10 +61,21 @@ export const SEASON_OPTIONS: SeasonOption[] = [
     endMonth: 4,
     crossesCalendarYear: false,
   },
+  {
+    id: "public-salary-cap",
+    name: "Public League — 12 weeks",
+    slug: "public-salary-cap",
+    windowDescription: "Rolling 12-week season starting the Monday after your league fills to 3 factions",
+    startMonth: 1,
+    endMonth: 12,
+    crossesCalendarYear: false,
+  },
 ];
 
 export function getSeasonBySlug(slug: string): SeasonOption | undefined {
-  return SEASON_OPTIONS.find((s) => s.slug === slug);
+  const normalized =
+    slug === LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG ? ROAD_TO_WAR_GAMES_SEASON_SLUG : slug;
+  return SEASON_OPTIONS.find((s) => s.slug === normalized);
 }
 
 export function getSeasonById(id: string): SeasonOption | undefined {
