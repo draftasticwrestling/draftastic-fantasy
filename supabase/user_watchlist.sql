@@ -1,14 +1,15 @@
--- User watchlist: wrestlers the user has flagged to watch (global, not league-scoped).
+-- User watchlist: wrestlers flagged to watch, scoped per league.
 create table if not exists public.user_watchlist (
   user_id uuid not null references auth.users on delete cascade,
+  league_id uuid not null references public.leagues on delete cascade,
   wrestler_id text not null,
   created_at timestamptz not null default now(),
-  primary key (user_id, wrestler_id)
+  primary key (user_id, league_id, wrestler_id)
 );
 
-comment on table public.user_watchlist is 'Wrestlers the user has added to their watch list.';
+comment on table public.user_watchlist is 'Wrestlers on a user''s watch list for a specific league.';
 
-create index if not exists idx_user_watchlist_user on public.user_watchlist (user_id);
+create index if not exists idx_user_watchlist_user_league on public.user_watchlist (user_id, league_id);
 
 alter table public.user_watchlist enable row level security;
 

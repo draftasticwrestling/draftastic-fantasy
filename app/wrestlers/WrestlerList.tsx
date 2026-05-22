@@ -278,11 +278,14 @@ function NxtInclusionSuffix({
   w,
   period,
   mode,
+  enabled = true,
 }: {
   w: WrestlerRow;
   period: PointsPeriod;
   mode: "points" | "stats" | "ppm";
+  enabled?: boolean;
 }) {
+  if (!enabled) return null;
   const points = hasNxtPointsInPeriod(w, period);
   const stats = hasNxtStatsInPeriod(w, period);
   const show = points;
@@ -653,6 +656,8 @@ type WrestlerListProps = {
   enableViewToggle?: boolean;
   /** Show * footnote legend for Road to SummerSlam NXT-brand scoring scope. */
   rtsNxtPointsFootnote?: boolean;
+  /** When false, hide * markers for NXT-included points/stats (leagues where NXT counts fully). */
+  showNxtPointMarkers?: boolean;
   /** When true, Include filter defaults to Raw + SmackDown + NXT (also implied by showSalaryCapCost). */
   includeNxtInDefaultRosterFilter?: boolean;
   /** Show salary cap Value column (salary cap leagues). */
@@ -739,6 +744,7 @@ export default function WrestlerList({
   variant = "default",
   enableViewToggle = false,
   rtsNxtPointsFootnote = false,
+  showNxtPointMarkers = true,
   includeNxtInDefaultRosterFilter = false,
   showSalaryCapCost = false,
   salaryCapRosterActions = null,
@@ -1360,7 +1366,7 @@ export default function WrestlerList({
                 )}
                 <span className="wrestler-card-total-points">
                   {formatFantasyPoints(pts.totalPoints)}
-                  <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                  <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                   <RtsNxtPointSuffix w={w} /> pts
                 </span>
               </div>
@@ -1390,11 +1396,11 @@ export default function WrestlerList({
                 </span>
                 <span className="wrestler-card-pts">
                   R/S {formatFantasyPoints(pts.rsPoints)}
-                  <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                  <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                   <RtsNxtPointSuffix w={w} /> · PLE {formatFantasyPoints(pts.plePoints)}
-                  <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                  <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                   <RtsNxtPointSuffix w={w} /> · Belt {formatFantasyPoints(pts.beltPoints)}
-                  <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                  <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                   <RtsNxtPointSuffix w={w} />
                 </span>
               </div>
@@ -1560,38 +1566,38 @@ export default function WrestlerList({
                     )}
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                       {formatFantasyPoints(pts.rsPoints)}
-                      <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                      <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                       <RtsNxtPointSuffix w={w} />
                     </td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                       {formatFantasyPoints(pts.plePoints)}
-                      <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                      <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                       <RtsNxtPointSuffix w={w} />
                     </td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                       {formatFantasyPoints(pts.beltPoints)}
-                      <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                      <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                       <RtsNxtPointSuffix w={w} />
                     </td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap", fontWeight: 700 }}>
                       {formatFantasyPoints(pts.totalPoints)}
-                      <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                      <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                       <RtsNxtPointSuffix w={w} />
                     </td>
                     <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>
                       {ppm}
-                      {ppm !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="ppm" /> : null}
+                      {ppm !== "—" ? <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="ppm" /> : null}
                       {ppm !== "—" ? <RtsNxtPointSuffix w={w} /> : null}
                     </td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.mw}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.win}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{winPct}{winPct !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.loss}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{lossPct}{lossPct !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.nc}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dqw}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dql}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></td>
-                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{dqPct}{dqPct !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.mw}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.win}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{winPct}{winPct !== "—" ? <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /> : null}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.loss}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{lossPct}{lossPct !== "—" ? <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /> : null}</td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.nc}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dqw}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{ms.dql}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></td>
+                    <td style={{ padding: "7px 6px", whiteSpace: "nowrap" }}>{dqPct}{dqPct !== "—" ? <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /> : null}</td>
                   </tr>
                 );
               })}
@@ -1946,30 +1952,28 @@ export default function WrestlerList({
                                 >
                                   +
                                 </Link>
-                                <Link
-                                  href={
-                                    leagueSlug
-                                      ? `/leagues/${encodeURIComponent(leagueSlug)}/watchlist?add=${encodeURIComponent(w.id)}`
-                                      : `/wrestlers/watch?add=${encodeURIComponent(w.id)}`
-                                  }
-                                  style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: "50%",
-                                    background: "transparent",
-                                    border: "1px solid " + BORDER_TABLE,
-                                    color: "var(--color-text)",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    textDecoration: "none",
-                                    fontSize: 14,
-                                  }}
-                                  title="Watchlist"
-                                  aria-label="Add to watch list"
-                                >
-                                  ⚑
-                                </Link>
+                                {leagueSlug ? (
+                                  <Link
+                                    href={`/leagues/${encodeURIComponent(leagueSlug)}/watchlist?add=${encodeURIComponent(w.id)}`}
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: "50%",
+                                      background: "transparent",
+                                      border: "1px solid " + BORDER_TABLE,
+                                      color: "var(--color-text)",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      textDecoration: "none",
+                                      fontSize: 14,
+                                    }}
+                                    title="Watchlist"
+                                    aria-label="Add to watch list"
+                                  >
+                                    ⚑
+                                  </Link>
+                                ) : null}
                               </div>
                             </>
                           )}
@@ -2036,38 +2040,38 @@ export default function WrestlerList({
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "#c00" }}>{w.rating_2k26 != null ? w.rating_2k26 : w.rating_2k25 != null ? w.rating_2k25 : "—"}</div>
                       <div style={{ ...cellStyle, fontWeight: 600, borderLeft: SECTION_BORDER }}>
                         {formatFantasyPoints(pts.rsPoints)}
-                        <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                        <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                         <RtsNxtPointSuffix w={w} />
                       </div>
                       <div style={{ ...cellStyle, fontWeight: 600 }}>
                         {formatFantasyPoints(pts.plePoints)}
-                        <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                        <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                         <RtsNxtPointSuffix w={w} />
                       </div>
                       <div style={{ ...cellStyle, fontWeight: 600 }}>
                         {formatFantasyPoints(pts.beltPoints)}
-                        <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                        <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                         <RtsNxtPointSuffix w={w} />
                       </div>
                       <div style={{ ...cellStyle, ...(wrestlerProfileFrom === "team" ? TOT_HIGHLIGHT_STYLE : { fontWeight: 700 }) }}>
                         {formatFantasyPoints(pts.totalPoints)}
-                        <NxtInclusionSuffix w={w} period={pointsPeriod} mode="points" />
+                        <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="points" />
                         <RtsNxtPointSuffix w={w} />
                       </div>
                       <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>
                         {ppmVal}
-                        {ppmVal !== "—" ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="ppm" /> : null}
+                        {ppmVal !== "—" ? <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="ppm" /> : null}
                         {ppmVal !== "—" ? <RtsNxtPointSuffix w={w} /> : null}
                       </div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderLeft: SECTION_BORDER }}>{ms.mw}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.win}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.win / ms.mw) * 100).toFixed(1) : "—"}{ms.mw > 0 ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.loss}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.loss / ms.mw) * 100).toFixed(1) : "—"}{ms.mw > 0 ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.nc}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dqw}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dql}<NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /></div>
-                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>{ms.mw > 0 ? (((ms.dqw + ms.dql) / ms.mw) * 100).toFixed(1) : "—"}{ms.mw > 0 ? <NxtInclusionSuffix w={w} period={pointsPeriod} mode="stats" /> : null}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderLeft: SECTION_BORDER }}>{ms.mw}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.win}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.win / ms.mw) * 100).toFixed(1) : "—"}{ms.mw > 0 ? <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /> : null}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.loss}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.mw > 0 ? ((ms.loss / ms.mw) * 100).toFixed(1) : "—"}{ms.mw > 0 ? <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /> : null}</div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.nc}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dqw}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums" }}>{ms.dql}<NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /></div>
+                      <div style={{ ...cellStyle, fontVariantNumeric: "tabular-nums", borderRight: SECTION_BORDER }}>{ms.mw > 0 ? (((ms.dqw + ms.dql) / ms.mw) * 100).toFixed(1) : "—"}{ms.mw > 0 ? <NxtInclusionSuffix enabled={showNxtPointMarkers} w={w} period={pointsPeriod} mode="stats" /> : null}</div>
                     </div>
                   );
                 })}
@@ -2168,7 +2172,7 @@ export default function WrestlerList({
             ; tap a wrestler for their Draftastic profile.
           </>
         ) : (
-          <>Use this pool when building your draft. Images from Pro Wrestling Boxscore (Supabase).</>
+          <>Use this pool when building your draft.</>
         )}
       </p>
     </>

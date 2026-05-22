@@ -32,6 +32,8 @@ type Props = {
   showSeasonTop10?: boolean;
   /** Head-to-head leagues get a Matchups link in the mobile League menu. */
   isHeadToHead?: boolean;
+  /** Salary cap leagues use Add/Drop only (no trades) and skip draft nav elsewhere. */
+  isSalaryCapLeague?: boolean;
   latestWeekStart: string | null;
   levelUpCelebration?: LevelUpCelebration | null;
   xpBannerKind?: LeagueHomeXpBannerKind | null;
@@ -69,6 +71,7 @@ export function LeagueHomeMobileLeagueView({
   seasonTop10,
   showSeasonTop10 = true,
   isHeadToHead = false,
+  isSalaryCapLeague = false,
   latestWeekStart,
   levelUpCelebration = null,
   xpBannerKind = null,
@@ -83,7 +86,7 @@ export function LeagueHomeMobileLeagueView({
     ...(seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG
       ? [{ href: `${base}/pathway`, label: "Your Pathway" }]
       : []),
-    { href: `${base}/faction-actions`, label: "Add / Drop / Trade" },
+    { href: `${base}/faction-actions`, label: isSalaryCapLeague ? "Add / Drop" : "Add / Drop / Trade" },
     { href: `${base}/transactions`, label: "Transactions" },
     { href: pleHref, label: pleLabel },
     { href: `${base}/edit-team-info`, label: "Edit Faction Info" },

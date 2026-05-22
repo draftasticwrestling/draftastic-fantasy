@@ -372,6 +372,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         showRecordOnly={isHeadToHeadHomeStandings}
         showSeasonTop10={showSeasonTop10InSidebar}
         isHeadToHead={isHeadToHeadHomeStandings}
+        isSalaryCapLeague={leagueUsesSalaryCap(league.league_type)}
         currentUserId={currentUser?.id ?? null}
         xpByUserId={xpByUserId}
         showTop10Leaderboards={showTop10}
@@ -514,9 +515,11 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                     {prepareForDraftLabel}
                   </Link>
                 )}
-                <Link href={`/leagues/${slug}/proposals`} className="lm-btn-secondary">
-                  Pending proposals
-                </Link>
+                {!leagueUsesSalaryCap(league.league_type) ? (
+                  <Link href={`/leagues/${slug}/proposals`} className="lm-btn-secondary">
+                    Pending proposals
+                  </Link>
+                ) : null}
               </div>
             )}
             {!isCommissioner && showPrepareForDraft && (

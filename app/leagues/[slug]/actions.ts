@@ -8,6 +8,7 @@ import type { DraftOrderMethod } from "@/lib/leagues";
 import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster } from "@/lib/leagues";
 import { assertWrestlerNotTradeLocked } from "@/lib/leagueOwner";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
+import { isLeagueTypeChangeAllowed } from "@/lib/leagueSettingsRules";
 
 export type AddRosterState = { error?: string };
 
@@ -253,6 +254,15 @@ export async function updateLeagueTypeAction(
   const { supabase, user } = await getServerAuth();
   if (!user || league.commissioner_id !== user.id) {
     return { error: "Only the GM can change league type." };
+  }
+
+  if (!isLeagueTypeChangeAllowed(league)) {
+    const isPublic = String(league.visibility_type ?? "").toLowerCase() === "public";
+    return {
+      error: isPublic
+        ? "League type cannot be changed for public leagues."
+        : "League type cannot be changed after the league has started.",
+    };
   }
 
   const league_type = (formData.get("league_type") as string)?.trim() || null;

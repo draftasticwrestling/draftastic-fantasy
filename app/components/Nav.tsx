@@ -11,6 +11,7 @@ import { siteLogoHref } from "@/lib/siteLogo";
 import { computeFantasyHomeHref, getLeagueSlugFromPath } from "@/lib/fantasyHomeHref";
 import { pleDefaultHref, pleHrefForEntry, pleNavEntriesForLeagueWindow, type PleNavEntry } from "@/lib/pleLeagueMenu";
 import { leagueShowsMatchupsInNav } from "@/lib/leagueNavVisibility";
+import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
 import { getXpLevelInfo } from "@/lib/xp/xpLevels";
 
@@ -248,6 +249,7 @@ export default function Nav() {
 
   const currentLeague = leagues.find((l) => l.slug === currentLeagueSlug);
   const isCommissioner = currentLeague?.role === "commissioner";
+  const isSalaryCapLeague = leagueUsesSalaryCap(currentLeague?.league_type);
   const isSiteAdmin = Boolean(profile?.is_site_admin);
   const activePrimary = currentLeagueSlug ? getActivePrimary(pathname, currentLeagueSlug) : null;
 
@@ -355,18 +357,26 @@ export default function Nav() {
         { href: `/leagues/${currentLeagueSlug}/wrestlers/free-agents`, label: "Free Agents" },
       ]
     : [];
-  const draftSub = currentLeagueSlug
-    ? [
-        { href: `/leagues/${currentLeagueSlug}/draft`, label: "Draft" },
-        { href: `/leagues/${currentLeagueSlug}/draft-history`, label: "Draft History" },
-        { href: `/leagues/${currentLeagueSlug}/league-settings#draft-settings-heading`, label: "Draft Settings" },
-      ]
-    : [];
+  const draftSub =
+    currentLeagueSlug && !isSalaryCapLeague
+      ? [
+          { href: `/leagues/${currentLeagueSlug}/draft`, label: "Draft" },
+          { href: `/leagues/${currentLeagueSlug}/draft-history`, label: "Draft History" },
+          {
+            href: `/leagues/${currentLeagueSlug}/league-settings#draft-settings-heading`,
+            label: "Draft Settings",
+          },
+        ]
+      : [];
   const gmSub = currentLeagueSlug
     ? [
         { href: `/leagues/${currentLeagueSlug}/league-settings`, label: "League Settings" },
-        { href: `/leagues/${currentLeagueSlug}/pending-trades`, label: "Pending Transactions" },
-        { href: `/leagues/${currentLeagueSlug}/manage-rosters`, label: "Manage Rosters" },
+        ...(isSalaryCapLeague
+          ? []
+          : [
+              { href: `/leagues/${currentLeagueSlug}/pending-trades`, label: "Pending Transactions" },
+              { href: `/leagues/${currentLeagueSlug}/manage-rosters`, label: "Manage Rosters" },
+            ]),
         { href: `/leagues/${currentLeagueSlug}/notify-league`, label: "Notify League" },
       ]
     : [];
@@ -745,14 +755,16 @@ export default function Nav() {
                   PLEs
                 </Link>
               </li>
-              <li onMouseEnter={(e) => handlePrimaryEnter("draft", e)}>
-                <Link
-                  href={draftSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/draft` : "#")}
-                  className={`nav-primary-link ${activePrimary === "draft" ? "is-active" : ""}`}
-                >
-                  Draft
-                </Link>
-              </li>
+              {!isSalaryCapLeague && (
+                <li onMouseEnter={(e) => handlePrimaryEnter("draft", e)}>
+                  <Link
+                    href={draftSub[0]?.href ?? (currentLeagueSlug ? `/leagues/${currentLeagueSlug}/draft` : "#")}
+                    className={`nav-primary-link ${activePrimary === "draft" ? "is-active" : ""}`}
+                  >
+                    Draft
+                  </Link>
+                </li>
+              )}
               {isCommissioner && (
                 <li onMouseEnter={(e) => handlePrimaryEnter("gm-tools", e)}>
                   <Link
@@ -808,7 +820,7 @@ export default function Nav() {
                     </li>
                   );
                 })}
-              {(hoverPrimary ?? activePrimary) === "draft" &&
+              {(hoverPrimary ?? activePrimary) === "draft" && !isSalaryCapLeague &&
                 draftSub.map(({ href, label }) => {
                   const isActive = href === `/leagues/${currentLeagueSlug}/draft`
                     ? pathname === href || pathname === `${href}/`
@@ -918,12 +930,14 @@ export default function Nav() {
                 >
                   Wrestlers
                 </Link>
-                <Link
-                  href={`/leagues/${currentLeagueSlug}/draft`}
-                  className={`nav-fantasy-mobile-tab ${fantasyMobileTab === "draft" ? "is-active" : ""}`}
-                >
-                  Draft
-                </Link>
+                {!isSalaryCapLeague ? (
+                  <Link
+                    href={`/leagues/${currentLeagueSlug}/draft`}
+                    className={`nav-fantasy-mobile-tab ${fantasyMobileTab === "draft" ? "is-active" : ""}`}
+                  >
+                    Draft
+                  </Link>
+                ) : null}
               </nav>
             ) : null}
 

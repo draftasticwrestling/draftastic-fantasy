@@ -43,15 +43,28 @@ const LEAGUE_TYPES: Array<{
   },
 ];
 
+function leagueTypeLabel(value: string | null | undefined): string {
+  return LEAGUE_TYPES.find((opt) => opt.value === value)?.label ?? value ?? "—";
+}
+
 type Props = {
   leagueSlug: string;
   leagueType: string | null | undefined;
   /** Site admins can switch a league to Head-to-Head for testing. */
   isSiteAdmin?: boolean;
+  isPublicLeague?: boolean;
+  leagueTypeChangeAllowed?: boolean;
 };
 
-export function LeagueTypeSection({ leagueSlug, leagueType, isSiteAdmin = false }: Props) {
+export function LeagueTypeSection({
+  leagueSlug,
+  leagueType,
+  isSiteAdmin = false,
+  isPublicLeague = false,
+  leagueTypeChangeAllowed = true,
+}: Props) {
   const effectiveType = leagueType ?? "season_overall";
+  const frozen = !leagueTypeChangeAllowed;
 
   const [state, formAction] = useActionState(updateLeagueTypeFormAction, null as { error?: string } | null);
 
@@ -60,63 +73,76 @@ export function LeagueTypeSection({ leagueSlug, leagueType, isSiteAdmin = false 
       <h2 id="league-type-heading" style={{ fontSize: "1.25rem", marginBottom: 12 }}>
         League Type
       </h2>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: 20, maxWidth: 560 }}>
-        Choose how your league competes. Changing league type may affect roster size and scoring.
-      </p>
+      {frozen ? (
+        <>
+          <p style={{ color: "var(--color-text-muted)", marginBottom: 12, maxWidth: 560 }}>
+            League type is locked{isPublicLeague ? " for public leagues" : " once the league has started"}.
+          </p>
+          <p style={{ color: "var(--color-text)", fontWeight: 600 }}>{leagueTypeLabel(effectiveType)}</p>
+        </>
+      ) : (
+        <>
+          <p style={{ color: "var(--color-text-muted)", marginBottom: 20, maxWidth: 560 }}>
+            Choose how your league competes. Changing league type may affect roster size and scoring.
+          </p>
 
-      <form action={formAction}>
-        <input type="hidden" name="league_slug" value={leagueSlug} />
+          <form action={formAction}>
+            <input type="hidden" name="league_slug" value={leagueSlug} />
 
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {LEAGUE_TYPES.map((opt) => {
-            const optionDisabled =
-              Boolean(opt.disabled) ||
-              (opt.value === "head_to_head" &&
-                leagueType !== "head_to_head" &&
-                !isSiteAdmin);
-            return (
-            <li key={opt.value} style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  cursor: optionDisabled ? "not-allowed" : "pointer",
-                  opacity: optionDisabled ? 0.7 : 1,
-                }}
-              >
-                <input
-                  type="radio"
-                  name="league_type"
-                  value={opt.value}
-                  defaultChecked={effectiveType === opt.value}
-                  disabled={optionDisabled}
-                  style={{ marginTop: 4, flexShrink: 0 }}
-                />
-                <span>
-                  <span style={{ fontWeight: 600 }}>{opt.label}</span>
-                  {(opt.disabled ||
-                    (opt.value === "head_to_head" && leagueType !== "head_to_head" && !isSiteAdmin)) && (
-                    <span style={{ marginLeft: 8, fontSize: 12, color: "var(--color-text-muted)" }}>
-                      (Coming soon)
-                    </span>
-                  )}
-                  {" — "}
-                  <span style={{ color: "var(--color-text-muted)" }}>{opt.description}</span>
-                </span>
-              </label>
-            </li>
-          );
-          })}
-        </ul>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {LEAGUE_TYPES.map((opt) => {
+                const optionDisabled =
+                  Boolean(opt.disabled) ||
+                  (opt.value === "head_to_head" &&
+                    leagueType !== "head_to_head" &&
+                    !isSiteAdmin);
+                return (
+                  <li key={opt.value} style={{ marginBottom: 16 }}>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 12,
+                        cursor: optionDisabled ? "not-allowed" : "pointer",
+                        opacity: optionDisabled ? 0.7 : 1,
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="league_type"
+                        value={opt.value}
+                        defaultChecked={effectiveType === opt.value}
+                        disabled={optionDisabled}
+                        style={{ marginTop: 4, flexShrink: 0 }}
+                      />
+                      <span>
+                        <span style={{ fontWeight: 600 }}>{opt.label}</span>
+                        {(opt.disabled ||
+                          (opt.value === "head_to_head" &&
+                            leagueType !== "head_to_head" &&
+                            !isSiteAdmin)) && (
+                          <span style={{ marginLeft: 8, fontSize: 12, color: "var(--color-text-muted)" }}>
+                            (Coming soon)
+                          </span>
+                        )}
+                        {" — "}
+                        <span style={{ color: "var(--color-text-muted)" }}>{opt.description}</span>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
 
-        {state?.error && (
-          <p style={{ color: "var(--color-red)", marginTop: 12, marginBottom: 12 }}>{state.error}</p>
-        )}
-        <button type="submit" className="app-btn-primary" style={{ marginTop: 16 }}>
-          Save League Type
-        </button>
-      </form>
+            {state?.error && (
+              <p style={{ color: "var(--color-red)", marginTop: 12, marginBottom: 12 }}>{state.error}</p>
+            )}
+            <button type="submit" className="app-btn-primary" style={{ marginTop: 16 }}>
+              Save League Type
+            </button>
+          </form>
+        </>
+      )}
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug } from "@/lib/leagues";
+import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { processTradeTimerDeadlines } from "@/lib/leagueOwner";
 
 export async function generateMetadata({
@@ -25,6 +26,7 @@ export default async function PendingTransactionsPage({
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
+  if (leagueUsesSalaryCap(league.league_type)) notFound();
 
   await processTradeTimerDeadlines();
 

@@ -10,7 +10,7 @@ import {
   SALARY_CAP_MAX_ROSTER_SIZE,
 } from "@/lib/leagueStructure";
 import { getSalaryCapWeeklyFaBudgetStatus } from "@/lib/salaryCapWeeklyLimits";
-import { getTradeProposalsForLeague, getWrestlerIdsLockedByPendingTrades } from "@/lib/leagueOwner";
+import { getTradeProposalsForLeague } from "@/lib/leagueOwner";
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { ProposeTradeForm } from "../team/ProposeTradeForm";
 import { ProposeReleaseForm } from "../team/ProposeReleaseForm";
@@ -83,30 +83,34 @@ export default async function FactionActionsPage({ params, searchParams }: Props
     ? wrestlers.filter((w) => !myRosterIds.has(w.id))
     : wrestlers.filter((w) => !Object.values(rosters).some((entries) => entries.some((e) => e.wrestler_id === w.id)));
 
-  const otherMembers = members.filter((m) => m.user_id !== user.id);
-  const otherRosters = Object.fromEntries(
-    otherMembers.map((m) => [m.user_id, (rosters[m.user_id] ?? []).map((e) => e.wrestler_id)]),
-  );
-
   let tradeLockedWrestlerIds: string[] = [];
-  try {
-    tradeLockedWrestlerIds = await getWrestlerIdsLockedByPendingTrades(league.id, user.id);
-  } catch {
-    tradeLockedWrestlerIds = [];
+  if (!isSalaryCapLeague) {
+    try {
+      const { getWrestlerIdsLockedByPendingTrades } = await import("@/lib/leagueOwner");
+      tradeLockedWrestlerIds = await getWrestlerIdsLockedByPendingTrades(league.id, user.id);
+    } catch {
+      tradeLockedWrestlerIds = [];
+    }
   }
 
-  const salaryCapWeeklyFaBudget = leagueUsesSalaryCap(league.league_type)
+  const salaryCapWeeklyFaBudget = isSalaryCapLeague
     ? await getSalaryCapWeeklyFaBudgetStatus(supabase, league.id, user.id)
     : null;
 
   let tradeProposals: Awaited<ReturnType<typeof getTradeProposalsForLeague>> = [];
-  try {
-    tradeProposals = await getTradeProposalsForLeague(league.id);
-  } catch {
-    tradeProposals = [];
+  if (!isSalaryCapLeague) {
+    try {
+      tradeProposals = await getTradeProposalsForLeague(league.id);
+    } catch {
+      tradeProposals = [];
+    }
   }
   const tradesForMe = tradeProposals.filter((p) => p.status === "pending" && p.to_user_id === user.id);
   const memberByUserId = Object.fromEntries(members.map((m) => [m.user_id, m]));
+  const otherMembers = members.filter((m) => m.user_id !== user.id);
+  const otherRosters = Object.fromEntries(
+    otherMembers.map((m) => [m.user_id, (rosters[m.user_id] ?? []).map((e) => e.wrestler_id)]),
+  );
 
   return (
     <main className="app-page" style={{ paddingTop: 10, maxWidth: 760 }}>
@@ -115,31 +119,35 @@ export default async function FactionActionsPage({ params, searchParams }: Props
           ← Faction
         </Link>
       </p>
-      <h1 style={{ fontSize: "1.35rem", marginBottom: 12, color: "var(--color-text)" }}>Add / Drop / Trade</h1>
+      <h1 style={{ fontSize: "1.35rem", marginBottom: 12, color: "var(--color-text)" }}>
+        {isSalaryCapLeague ? "Add / Drop" : "Add / Drop / Trade"}
+      </h1>
 
       {salaryCapWeeklyFaBudget ? <SalaryCapWeeklyFaBudget status={salaryCapWeeklyFaBudget} /> : null}
 
-      <section id="propose-trade" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 10 }}>Propose trade</h2>
-        <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-          Offer wrestlers to another manager and request wrestlers in return.
-        </p>
-        {otherMembers.length === 0 ? (
-          <p style={{ color: "#666" }}>No other members in the league.</p>
-        ) : (
-          <ProposeTradeForm
-            leagueSlug={slug}
-            myRosterWrestlers={rosterWrestlers}
-            otherMembers={otherMembers.map((m) => ({
-              id: m.user_id,
-              name: factionDisplayName(m, "Unknown"),
-            }))}
-            otherRosters={otherRosters}
-            wrestlerNames={wrestlerNamesMap}
-            initialToUserId={proposeTradeTo || undefined}
-          />
-        )}
-      </section>
+      {!isSalaryCapLeague ? (
+        <section id="propose-trade" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
+          <h2 style={{ fontSize: "1.1rem", marginBottom: 10 }}>Propose trade</h2>
+          <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
+            Offer wrestlers to another manager and request wrestlers in return.
+          </p>
+          {otherMembers.length === 0 ? (
+            <p style={{ color: "#666" }}>No other members in the league.</p>
+          ) : (
+            <ProposeTradeForm
+              leagueSlug={slug}
+              myRosterWrestlers={rosterWrestlers}
+              otherMembers={otherMembers.map((m) => ({
+                id: m.user_id,
+                name: factionDisplayName(m, "Unknown"),
+              }))}
+              otherRosters={otherRosters}
+              wrestlerNames={wrestlerNamesMap}
+              initialToUserId={proposeTradeTo || undefined}
+            />
+          )}
+        </section>
+      ) : null}
 
       <section id="request-release" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: 10 }}>Drop wrestler</h2>
@@ -191,7 +199,7 @@ export default async function FactionActionsPage({ params, searchParams }: Props
         )}
       </section>
 
-      {tradesForMe.length > 0 && (
+      {!isSalaryCapLeague && tradesForMe.length > 0 && (
         <section
           style={{
             marginBottom: 28,
@@ -237,7 +245,7 @@ export default async function FactionActionsPage({ params, searchParams }: Props
         </section>
       )}
 
-      {tradeProposals.filter((p) => p.from_user_id === user.id).length > 0 && (
+      {!isSalaryCapLeague && tradeProposals.filter((p) => p.from_user_id === user.id).length > 0 && (
         <section>
           <h2 style={{ fontSize: "1.1rem", marginBottom: 10 }}>Your trade proposals</h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14 }}>

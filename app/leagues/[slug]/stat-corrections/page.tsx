@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getLeagueBySlug } from "@/lib/leagues";
+import { getLeagueBySlug, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import {
   autolinkWrestlersInMarkdown,
   getCachedWrestlerAutolinkEntries,
@@ -21,7 +21,10 @@ export default async function StatCorrectionsPage({ params }: { params: Promise<
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const rows = await listEventScoreCorrectionsForLeaguePage(league.id);
+  const rows = await listEventScoreCorrectionsForLeaguePage(
+    league.id,
+    getEffectiveLeagueStartDate(league)
+  );
   const autolinkEntries = await getCachedWrestlerAutolinkEntries();
 
   return (

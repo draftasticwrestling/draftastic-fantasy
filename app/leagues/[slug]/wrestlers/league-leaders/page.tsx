@@ -171,6 +171,7 @@ export default async function LeagueLeadersPage({
 
   const enforceNxtPendingOnlyForRts = league.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
   const isSalaryCapLeague = leagueUsesSalaryCap(league.league_type);
+  const showNxtPointMarkers = !leagueIncludesNxt(league);
   let rows: WrestlerRow[] = [];
   let rosterByWrestler: Record<string, { ownerName: string; ownerUserId: string }> = {};
   let myRosterIdsForSalaryCap: string[] = [];
@@ -671,7 +672,8 @@ export default async function LeagueLeadersPage({
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16, fontSize: 13 }}>
         Wrestlers ranked by fantasy points to date. Sorted by highest total first; you can re-sort by any column.
       </p>
-      {rows.some((r) => r.hasNxtPointsSinceStart || r.hasNxtPoints2025 || r.hasNxtPoints2026 || r.hasNxtPointsAllTime) && (
+      {showNxtPointMarkers &&
+        rows.some((r) => r.hasNxtPointsSinceStart || r.hasNxtPoints2025 || r.hasNxtPoints2026 || r.hasNxtPointsAllTime) && (
         <p style={{ color: "#8a6d00", marginBottom: 16, fontSize: 13 }}>
           (<strong>*</strong>) indicates the selected period includes NXT-earned points for that wrestler.
         </p>
@@ -708,9 +710,10 @@ export default async function LeagueLeadersPage({
           wrestlerProfileFrom="league-leaders"
           rosterByWrestler={isSalaryCapLeague ? null : rosterByWrestler}
           enableViewToggle
-          rtsNxtPointsFootnote={enforceNxtPendingOnlyForRts}
+          rtsNxtPointsFootnote={enforceNxtPendingOnlyForRts && showNxtPointMarkers}
           includeNxtInDefaultRosterFilter={isSalaryCapLeague || leagueIncludesNxt(league)}
           showSalaryCapCost={isSalaryCapLeague}
+          showNxtPointMarkers={showNxtPointMarkers}
           salaryCapRosterActions={salaryCapRosterActions}
         />
       )}

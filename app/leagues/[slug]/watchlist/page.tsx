@@ -37,11 +37,11 @@ export default async function LeagueWatchlistPage({
   const addId = typeof sp.add === "string" ? sp.add.trim() : undefined;
 
   if (addId) {
-    const result = await addToWatchlist(addId);
+    const result = await addToWatchlist(league.id, addId);
     if (!result.error) redirect(`/leagues/${encodeURIComponent(slug)}/watchlist`);
   }
 
-  const ids = await getWatchlistWrestlerIds();
+  const ids = await getWatchlistWrestlerIds(league.id);
   const { supabase } = await getServerAuth();
   const { data: wrestlers } =
     ids.length > 0
@@ -65,7 +65,7 @@ export default async function LeagueWatchlistPage({
         Watchlist
       </h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24 }}>
-        Wrestlers you have added to your watch list. Use the flag (⚑) on League Leaders or Free Agents to add more.
+        Wrestlers you have added to your watch list for this league. Use the flag (⚑) on League Leaders or Free Agents to add more.
       </p>
 
       {sorted.length === 0 ? (
@@ -118,6 +118,7 @@ export default async function LeagueWatchlistPage({
               </Link>
               <form action={removeFromWatchlistAction} style={{ margin: 0 }}>
                 <input type="hidden" name="wrestlerId" value={w.id} />
+                <input type="hidden" name="leagueId" value={league.id} />
                 <input type="hidden" name="leagueSlug" value={slug} />
                 <button
                   type="submit"

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { EditTeamNameForm } from "../team/EditTeamNameForm";
 import { EditManagerCatchphraseForm } from "../team/EditManagerCatchphraseForm";
@@ -38,6 +39,7 @@ export default async function EditTeamInfoPage({
   const member = members.find((m) => m.user_id === user.id);
   if (!member) notFound();
 
+  const isSalaryCapLeague = leagueUsesSalaryCap(league.league_type);
   const currentTeamName = member.team_name?.trim() ?? "";
   const currentCatchphrase = member.manager_catchphrase?.trim() ?? "";
 
@@ -69,30 +71,32 @@ export default async function EditTeamInfoPage({
       <EditTeamNameForm leagueSlug={slug} initialTeamName={currentTeamName} />
       <EditManagerCatchphraseForm leagueSlug={slug} initialCatchphrase={currentCatchphrase} />
 
-      <section
-        aria-labelledby="edit-team-auto-draft-heading"
-        style={{
-          marginTop: 24,
-          padding: "16px 18px",
-          background: "var(--color-bg-elevated)",
-          borderRadius: "var(--radius)",
-          border: "1px solid var(--color-border)",
-        }}
-      >
-        <h2 id="edit-team-auto-draft-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 8, color: "var(--color-text)" }}>
-          Auto-draft settings
-        </h2>
-        <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
-          If the pick clock runs out, your pick is made automatically using your priority list and strategy.
-        </p>
-        <Link
-          href={`/leagues/${slug}/draft/preferences`}
-          className="app-link"
-          style={{ fontWeight: 600 }}
+      {!isSalaryCapLeague ? (
+        <section
+          aria-labelledby="edit-team-auto-draft-heading"
+          style={{
+            marginTop: 24,
+            padding: "16px 18px",
+            background: "var(--color-bg-elevated)",
+            borderRadius: "var(--radius)",
+            border: "1px solid var(--color-border)",
+          }}
         >
-          Set or edit your auto-draft preferences →
-        </Link>
-      </section>
+          <h2 id="edit-team-auto-draft-heading" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 8, color: "var(--color-text)" }}>
+            Auto-draft settings
+          </h2>
+          <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
+            If the pick clock runs out, your pick is made automatically using your priority list and strategy.
+          </p>
+          <Link
+            href={`/leagues/${slug}/draft/preferences`}
+            className="app-link"
+            style={{ fontWeight: 600 }}
+          >
+            Set or edit your auto-draft preferences →
+          </Link>
+        </section>
+      ) : null}
     </main>
   );
 }

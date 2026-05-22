@@ -232,6 +232,7 @@ export default async function WrestlersFreeAgentsPage({
     .filter((w) => !isHiddenCanonicalListSlug(w.id) && !onRosterIds.has(String(w.id).toLowerCase()))
     .filter((w) => isMainBrandWrestlerRosterForLeague(w.brand, poolOpts));
   const enforceNxtPendingOnlyForRts = league.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
+  const showNxtPointMarkers = !leagueIncludesNxt(league);
   const rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
@@ -424,7 +425,7 @@ export default async function WrestlersFreeAgentsPage({
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16, fontSize: 13 }}>
         Wrestlers not on any faction in this league. Same table and filters as League Leaders; add them from your faction page (Roster) or during the draft.
       </p>
-      {enforceNxtPendingOnlyForRts && (
+      {showNxtPointMarkers && enforceNxtPendingOnlyForRts && (
         <p style={{ color: "#8a6d00", marginBottom: 16, fontSize: 13 }}>
           (<strong>*</strong>) next to points means NXT event and belt points are included and some or all will not factor into
           league points.
@@ -453,9 +454,10 @@ export default async function WrestlersFreeAgentsPage({
           leagueSlug={slug}
           wrestlerProfileFrom="free-agents"
           enableViewToggle
-          rtsNxtPointsFootnote={enforceNxtPendingOnlyForRts}
+          rtsNxtPointsFootnote={enforceNxtPendingOnlyForRts && showNxtPointMarkers}
           includeNxtInDefaultRosterFilter={isSalaryCapLeague || leagueIncludesNxt(league)}
           showSalaryCapCost={isSalaryCapLeague}
+          showNxtPointMarkers={showNxtPointMarkers}
           salaryCapRosterActions={salaryCapRosterActions}
         />
       )}

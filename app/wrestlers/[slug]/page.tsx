@@ -809,28 +809,26 @@ export default async function WrestlerProfilePage({
                     + Add
                   </Link>
                 )}
-                <Link
-                  href={
-                    leagueSlugParam
-                      ? `/leagues/${encodeURIComponent(leagueSlugParam)}/watchlist?add=${encodeURIComponent(wrestler.id)}`
-                      : `/wrestlers/watch?add=${encodeURIComponent(wrestler.id)}`
-                  }
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "5px 10px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "var(--color-text)",
-                    background: "transparent",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 4,
-                    textDecoration: "none",
-                  }}
-                >
-                  ⚑ Watchlist
-                </Link>
+                {leagueSlugParam ? (
+                  <Link
+                    href={`/leagues/${encodeURIComponent(leagueSlugParam)}/watchlist?add=${encodeURIComponent(wrestler.id)}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "5px 10px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "var(--color-text)",
+                      background: "transparent",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: 4,
+                      textDecoration: "none",
+                    }}
+                  >
+                    ⚑ Watchlist
+                  </Link>
+                ) : null}
               </>
             )}
             <WrestlerPointsPeriodSelector currentPeriod={currentPeriod} leagueSlug={leagueSlugParam} compact />

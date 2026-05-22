@@ -2,9 +2,10 @@
 
 type Props = {
   leagueSlug: string;
+  isSalaryCapLeague?: boolean;
 };
 
-export function GmToolsNav({ leagueSlug }: Props) {
+export function GmToolsNav({ leagueSlug, isSalaryCapLeague = false }: Props) {
   const base = `/leagues/${leagueSlug}`;
   return (
     <div style={{ marginBottom: 20, maxWidth: 320 }}>
@@ -31,8 +32,12 @@ export function GmToolsNav({ leagueSlug }: Props) {
         }}
       >
         <option value={`${base}/league-settings`}>League Settings</option>
-        <option value={`${base}/manage-rosters`}>Manage Rosters</option>
-        <option value={`${base}/pending-trades`}>Pending Transactions</option>
+        {!isSalaryCapLeague ? (
+          <>
+            <option value={`${base}/manage-rosters`}>Manage Rosters</option>
+            <option value={`${base}/pending-trades`}>Pending Transactions</option>
+          </>
+        ) : null}
         <option value={`${base}/notify-league`}>Notify League</option>
       </select>
     </div>

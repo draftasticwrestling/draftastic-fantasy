@@ -1027,49 +1027,53 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       {isOwnTeam && (
         <>
           {salaryCapWeeklyFaBudget ? <SalaryCapWeeklyFaBudget status={salaryCapWeeklyFaBudget} /> : null}
-          <section id="propose-trade" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
-            <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Propose trade</h2>
-            {proposeTradeTo && (() => {
-              const target = otherMembers.find((m) => m.user_id === proposeTradeTo);
-              if (!target) return null;
-              const name = factionDisplayName(target, "this manager");
-              return (
-                <p style={{ fontSize: 14, color: "var(--color-blue)", fontWeight: 600, marginBottom: 12 }}>
-                  Propose a trade with {name} (selected below).
-                </p>
-              );
-            })()}
-            <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Offer wrestlers to another manager and request wrestlers in return. They can accept, decline, or counter. If both agree, the GM must approve the trade.
-            </p>
-            {otherMembers.length === 0 ? (
-              <p style={{ color: "#666" }}>No other members in the league.</p>
-            ) : (
-              <ProposeTradeForm
-                leagueSlug={slug}
-                myRosterWrestlers={rosterWrestlers}
-                otherMembers={otherMembers.map((m) => ({
-                  id: m.user_id,
-                  name: factionDisplayName(m, "Unknown"),
-                }))}
-                otherRosters={Object.fromEntries(
-                  otherMembers.map((m) => [
-                    m.user_id,
-                    (rosters[m.user_id] ?? []).map((e) => e.wrestler_id),
-                  ])
-                )}
-                wrestlerNames={wrestlerNamesMap}
-                initialToUserId={proposeTradeTo}
-              />
-            )}
-          </section>
+          {!isSalaryCapLeague ? (
+            <section id="propose-trade" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
+              <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Propose trade</h2>
+              {proposeTradeTo && (() => {
+                const target = otherMembers.find((m) => m.user_id === proposeTradeTo);
+                if (!target) return null;
+                const name = factionDisplayName(target, "this manager");
+                return (
+                  <p style={{ fontSize: 14, color: "var(--color-blue)", fontWeight: 600, marginBottom: 12 }}>
+                    Propose a trade with {name} (selected below).
+                  </p>
+                );
+              })()}
+              <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
+                Offer wrestlers to another manager and request wrestlers in return. They can accept, decline, or counter. If both agree, the GM must approve the trade.
+              </p>
+              {otherMembers.length === 0 ? (
+                <p style={{ color: "#666" }}>No other members in the league.</p>
+              ) : (
+                <ProposeTradeForm
+                  leagueSlug={slug}
+                  myRosterWrestlers={rosterWrestlers}
+                  otherMembers={otherMembers.map((m) => ({
+                    id: m.user_id,
+                    name: factionDisplayName(m, "Unknown"),
+                  }))}
+                  otherRosters={Object.fromEntries(
+                    otherMembers.map((m) => [
+                      m.user_id,
+                      (rosters[m.user_id] ?? []).map((e) => e.wrestler_id),
+                    ])
+                  )}
+                  wrestlerNames={wrestlerNamesMap}
+                  initialToUserId={proposeTradeTo}
+                />
+              )}
+            </section>
+          ) : null}
 
           <section id="request-release" style={{ marginBottom: 32, scrollMarginTop: 16 }}>
             <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Drop wrestler</h2>
             <p style={{ fontSize: 14, color: "#666", marginBottom: 12 }}>
-              Drop a wrestler from your roster. Takes effect immediately (first come, first serve).
+              {isSalaryCapLeague
+                ? "Drop a wrestler from your roster. Takes effect immediately."
+                : "Drop a wrestler from your roster. Takes effect immediately (first come, first serve)."}
             </p>
-            {tradeLockedWrestlerIds.length > 0 && (
+            {!isSalaryCapLeague && tradeLockedWrestlerIds.length > 0 && (
               <p
                 style={{
                   fontSize: 14,
@@ -1107,7 +1111,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 ? "Browse the free agent pool (same as roster build). Adds take effect immediately. Drop someone first if you need cap room or roster space."
                 : "Add a wrestler who isn’t on any roster. If your roster is full, drop one to make room. Takes effect immediately (first come, first serve)."}
             </p>
-            {tradeLockedWrestlerIds.length > 0 && rosterRules && rosterWrestlers.length >= rosterRules.rosterSize && (
+            {!isSalaryCapLeague && tradeLockedWrestlerIds.length > 0 && rosterRules && rosterWrestlers.length >= rosterRules.rosterSize && (
               <p style={{ fontSize: 13, color: "#92400e", marginBottom: 10 }}>
                 If you need to drop someone to sign a free agent, you can’t choose wrestlers that are tied to a pending
                 trade (see note under Drop wrestler).
@@ -1138,7 +1142,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         </>
       )}
 
-      {tradesForMe.length > 0 && (
+      {!isSalaryCapLeague && tradesForMe.length > 0 && (
         <section
           style={{
             marginBottom: 32,
@@ -1215,7 +1219,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      {isOwnTeam && tradeProposals.filter((p) => p.from_user_id === currentUser.id).length > 0 && (
+      {isOwnTeam && !isSalaryCapLeague && tradeProposals.filter((p) => p.from_user_id === currentUser.id).length > 0 && (
         <section>
           <h2 style={{ fontSize: "1.1rem", marginBottom: 12 }}>Your trade proposals</h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14 }}>

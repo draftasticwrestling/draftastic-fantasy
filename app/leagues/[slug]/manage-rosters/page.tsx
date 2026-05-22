@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { supabase as publicSupabase } from "@/lib/supabase";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
-import { getRosterRulesForLeague, leagueIncludesNxt } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, leagueIncludesNxt, leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { RostersSection } from "../RostersSection";
@@ -30,6 +30,7 @@ export default async function ManageRostersPage({
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
+  if (leagueUsesSalaryCap(league.league_type)) notFound();
   const members = await getLeagueMembers(league.id);
   const rosters = await getRostersForLeague(league.id);
   const rosterRules = getRosterRulesForLeague(

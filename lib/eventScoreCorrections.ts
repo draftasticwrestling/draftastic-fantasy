@@ -64,12 +64,28 @@ function mergeAndSortCorrections(fromDb: EventScoreCorrectionPublicRow[]): Event
   });
 }
 
+function eventDateYmdForCorrection(row: EventScoreCorrectionPublicRow): string {
+  const id = (row.event_id ?? "").trim();
+  const fromId = id.match(/(\d{4}-\d{2}-\d{2})/);
+  if (fromId) return fromId[1];
+  return (row.visible_at ?? "").slice(0, 10);
+}
+
+/** Keep only corrections for events on or after the league scoring window begins. */
+export function filterCorrectionsForLeagueWindow(
+  rows: EventScoreCorrectionPublicRow[],
+  leagueStartYmd: string
+): EventScoreCorrectionPublicRow[] {
+  return rows.filter((row) => eventDateYmdForCorrection(row) >= leagueStartYmd);
+}
+
 /**
  * Corrections visible to the current user for a league context: site-wide (league_id null)
  * plus rows for this league. RLS enforces membership and visible_at.
  */
 export async function listEventScoreCorrectionsForLeaguePage(
-  leagueId: string
+  leagueId: string,
+  leagueStartYmd?: string
 ): Promise<EventScoreCorrectionPublicRow[]> {
   const supabase = await createClient();
   const now = new Date().toISOString();
@@ -80,6 +96,7 @@ export async function listEventScoreCorrectionsForLeaguePage(
     .or(`league_id.is.null,league_id.eq.${leagueId}`)
     .order("visible_at", { ascending: false });
 
-  if (error) return mergeAndSortCorrections([]);
-  return mergeAndSortCorrections((data ?? []) as EventScoreCorrectionPublicRow[]);
+  const merged = mergeAndSortCorrections(error ? [] : ((data ?? []) as EventScoreCorrectionPublicRow[]));
+  if (!leagueStartYmd) return merged;
+  return filterCorrectionsForLeagueWindow(merged, leagueStartYmd);
 }

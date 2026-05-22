@@ -12,6 +12,8 @@ import { DeleteLeagueSection } from "./DeleteLeagueSection";
 import { GmToolsNav } from "./GmToolsNav";
 import { LeagueTransactionStatsSection } from "./LeagueTransactionStatsSection";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
+import { isLeagueTypeChangeAllowed } from "@/lib/leagueSettingsRules";
+import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
 
 const OFFLINE_DRAFT_SHEET_EXPORT_URL =
   "https://docs.google.com/spreadsheets/d/19v4VhgG0kYhHr1HGbAPb29flqIPxeNgY/export?format=xlsx";
@@ -54,6 +56,7 @@ export default async function LeagueSettingsPage({
           ? "Autopick (legacy)"
           : String(draftType);
   const leagueType = league.league_type ?? null;
+  const isSalaryCapLeague = leagueUsesSalaryCap(leagueType);
   const maxTeams = league.max_teams ?? null;
   const autoReactivate = league.auto_reactivate ?? false;
 
@@ -71,7 +74,7 @@ export default async function LeagueSettingsPage({
 
       {isCommissioner ? (
         <>
-          <GmToolsNav leagueSlug={slug} />
+          <GmToolsNav leagueSlug={slug} isSalaryCapLeague={isSalaryCapLeague} />
           <LeagueTransactionStatsSection stats={transactionStats} />
           <BasicSettingsSection
             key={`basic-${slug}-${maxTeams ?? ""}-${league.name}-${autoReactivate}`}
@@ -82,7 +85,13 @@ export default async function LeagueSettingsPage({
             visibilityType={league.visibility_type}
             teamCountOptions={teamCountOptions}
           />
-          <LeagueTypeSection leagueSlug={slug} leagueType={leagueType} isSiteAdmin={isSiteAdmin} />
+          <LeagueTypeSection
+            leagueSlug={slug}
+            leagueType={leagueType}
+            isSiteAdmin={isSiteAdmin}
+            isPublicLeague={isPublicLeague}
+            leagueTypeChangeAllowed={isLeagueTypeChangeAllowed(league)}
+          />
           {isSiteAdmin && leagueType === "head_to_head" ? (
             <IncludeNxtSection
               key={`nxt-${slug}-${includeNxt ? "1" : "0"}`}
@@ -90,7 +99,9 @@ export default async function LeagueSettingsPage({
               includeNxt={includeNxt}
             />
           ) : null}
-          <DraftSettingsSection leagueSlug={slug} draftType={draftType} isPublicLeague={isPublicLeague} />
+          {!isSalaryCapLeague ? (
+            <DraftSettingsSection leagueSlug={slug} draftType={draftType} isPublicLeague={isPublicLeague} />
+          ) : null}
           {(league.draft_status !== "in_progress" &&
             league.draft_status !== "completed" &&
             league.draft_status !== "ready_for_review") && (
@@ -122,25 +133,27 @@ export default async function LeagueSettingsPage({
                     : leagueType ?? "—"}
             </p>
           </section>
-          <section aria-labelledby="draft-settings-heading" style={{ marginBottom: 32 }}>
-            <h2 id="draft-settings-heading" style={{ fontSize: "1.25rem", marginBottom: 12 }}>
-              Draft
-            </h2>
-            <p style={{ color: "var(--color-text-muted)" }}>
-              Only the GM can change draft settings. Current draft type: <strong>{draftTypeLabel}</strong>. On-site autopick uses snake
-              pick order; the GM randomizes round-1 order once on the Draft tab before the beta draft window.
-            </p>
-            <p style={{ color: "var(--color-text-muted)", marginTop: 10 }}>
-              Offline resources:{" "}
-              <a href={OFFLINE_DRAFT_SHEET_EXPORT_URL} className="app-link">
-                Download Offline Draft Tracker (Excel)
-              </a>
-              {" · "}
-              <Link href="/how-it-works/offline-draft" className="app-link">
-                Offline Draft How-To
-              </Link>
-            </p>
-          </section>
+          {!isSalaryCapLeague ? (
+            <section aria-labelledby="draft-settings-heading" style={{ marginBottom: 32 }}>
+              <h2 id="draft-settings-heading" style={{ fontSize: "1.25rem", marginBottom: 12 }}>
+                Draft
+              </h2>
+              <p style={{ color: "var(--color-text-muted)" }}>
+                Only the GM can change draft settings. Current draft type: <strong>{draftTypeLabel}</strong>. On-site autopick uses snake
+                pick order; the GM randomizes round-1 order once on the Draft tab before the beta draft window.
+              </p>
+              <p style={{ color: "var(--color-text-muted)", marginTop: 10 }}>
+                Offline resources:{" "}
+                <a href={OFFLINE_DRAFT_SHEET_EXPORT_URL} className="app-link">
+                  Download Offline Draft Tracker (Excel)
+                </a>
+                {" · "}
+                <Link href="/how-it-works/offline-draft" className="app-link">
+                  Offline Draft How-To
+                </Link>
+              </p>
+            </section>
+          ) : null}
         </>
       )}
     </main>
