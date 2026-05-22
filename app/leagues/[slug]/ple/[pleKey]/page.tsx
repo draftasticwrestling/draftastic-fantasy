@@ -20,6 +20,7 @@ import {
 } from "@/lib/pleLeagueMenu";
 import { rtsPleAnticipatedAppearanceFloorPts, rtsPleAnticipatedMainEventAppearancePts } from "@/lib/howItWorksPoints";
 import { fetchPleEventsOnDates, matchesFromEventRow, type PleEventRow } from "@/lib/pleRtsEvents";
+import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { formatPleDate } from "@/lib/pleUpcoming";
 import type { UpcomingMatch } from "@/lib/pleUpcoming";
 import styles from "../wrestlemania/PleWrestlemania.module.css";
@@ -148,13 +149,17 @@ export default async function PleRtsSlotPage({ params }: Props) {
   const rosterByUser = rosters ?? {};
   const slugSetByUser: Record<string, Set<string>> = {};
   for (const [userId, entries] of Object.entries(rosterByUser)) {
-    slugSetByUser[userId] = new Set(entries.map((e) => String(e.wrestler_id).toLowerCase()));
+    slugSetByUser[userId] = new Set(
+      entries.map((e) => normalizeWrestlerName(String(e.wrestler_id))).filter(Boolean)
+    );
   }
 
   const pointsGrid: Record<number, Record<string, number>> = {};
   flatMatches.forEach((match, idx) => {
     pointsGrid[idx] = {};
-    const matchSlugs = new Set(match.participantSlugs.map((s) => s.toLowerCase()));
+    const matchSlugs = new Set(
+      match.participantSlugs.map((s) => normalizeWrestlerName(s)).filter(Boolean)
+    );
     const matchAppearancePts = isProjectedMainEvent(match, flatMatches)
       ? rtsPleAnticipatedMainEventAppearancePts(pleKey, { eventName: eventNameById.get(match.eventId) ?? null })
       : appearancePts;

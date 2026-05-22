@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { participantSlugsFromMatch } from "@/lib/pleMatchParticipants";
 import { classifyEventType, isPLE } from "@/lib/scoring/parsers/eventClassifier.js";
 import type { UpcomingMatch } from "@/lib/pleUpcoming";
 
@@ -24,7 +25,7 @@ function matchToUpcomingMatch(
   const formattedParticipants = formatParticipants(participants || result);
   const titlePart = title?.trim() ? `${title.trim()}: ` : "";
   const label = formattedParticipants ? `${titlePart}${formattedParticipants}` : titlePart || `Match ${order}`;
-  const participantSlugs = parseParticipantSlugs(participants || result);
+  const participantSlugs = participantSlugsFromMatch(match);
   return { label: label.trim() || `Match ${order}`, eventId, order, participantSlugs, raw: match };
 }
 
@@ -43,14 +44,6 @@ function formatParticipants(participants: string | null | undefined): string {
     .split(/\s+vs\.?\s+/i)
     .map((s) => slugToName(s.trim()))
     .join(" vs. ");
-}
-
-function parseParticipantSlugs(participants: string | null | undefined): string[] {
-  if (!participants || typeof participants !== "string") return [];
-  return participants
-    .split(/\s+vs\.?\s+/i)
-    .map((s) => s.trim().toLowerCase().replace(/\s+/g, "-"))
-    .filter(Boolean);
 }
 
 /**

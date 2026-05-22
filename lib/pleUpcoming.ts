@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { participantSlugsFromMatch } from "@/lib/pleMatchParticipants";
 import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 
 export type UpcomingMatch = {
@@ -47,15 +48,6 @@ function formatParticipants(participants: string | null | undefined): string {
     .join(" vs. ");
 }
 
-/** Parse participants string into lowercase slugs for roster matching. */
-function parseParticipantSlugs(participants: string | null | undefined): string[] {
-  if (!participants || typeof participants !== "string") return [];
-  return participants
-    .split(/\s+vs\.?\s+/i)
-    .map((s) => s.trim().toLowerCase().replace(/\s+/g, "-"))
-    .filter(Boolean);
-}
-
 /** Build a single match label from raw match object (Boxscore shape). */
 function matchToLabel(match: Record<string, unknown>, eventId: string, order: number): UpcomingMatch {
   const title = (match.title ?? match.matchType ?? "") as string;
@@ -64,7 +56,7 @@ function matchToLabel(match: Record<string, unknown>, eventId: string, order: nu
   const formattedParticipants = formatParticipants(participants || result);
   const titlePart = title?.trim() ? `${title.trim()}: ` : "";
   const label = formattedParticipants ? `${titlePart}${formattedParticipants}` : titlePart || `Match ${order}`;
-  const participantSlugs = parseParticipantSlugs(participants || result);
+  const participantSlugs = participantSlugsFromMatch(match);
   return { label: label.trim() || `Match ${order}`, eventId, order, participantSlugs, raw: match };
 }
 

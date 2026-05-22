@@ -16,6 +16,7 @@ import {
 } from "@/lib/pleUpcoming";
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 import { pleHrefForEntry, pleNavEntriesForSeasonSlug } from "@/lib/pleLeagueMenu";
+import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import styles from "./PleWrestlemania.module.css";
 import { PlePicker } from "../PlePicker";
 
@@ -197,11 +198,15 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
   const rosterByUser = rosters ?? {};
   const slugSetByUser: Record<string, Set<string>> = {};
   for (const [userId, entries] of Object.entries(rosterByUser)) {
-    slugSetByUser[userId] = new Set(entries.map((e) => String(e.wrestler_id).toLowerCase()));
+    slugSetByUser[userId] = new Set(
+      entries.map((e) => normalizeWrestlerName(String(e.wrestler_id))).filter(Boolean)
+    );
   }
   allMatches.forEach((match, idx) => {
     pointsGrid[idx] = {};
-    const matchSlugs = new Set(match.participantSlugs.map((s) => s.toLowerCase()));
+    const matchSlugs = new Set(
+      match.participantSlugs.map((s) => normalizeWrestlerName(s)).filter(Boolean)
+    );
     membersByPoints.forEach((m) => {
       const userSlugs = slugSetByUser[m.user_id];
       if (!userSlugs) return;
