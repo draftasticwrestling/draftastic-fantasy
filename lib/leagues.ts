@@ -1707,7 +1707,7 @@ export async function getLeagueScoring(
   for (const event of sortedEvents) {
     const eventDate = (event.date ?? "").toString().slice(0, 10);
     const eventType = classifyEventType(event.name ?? "", event.id ?? "");
-    const { pointsBySlug: eventPoints, updatedCarryOver } = getPointsForSingleEvent(
+    const { pointsBySlug: eventPoints, callUpBySlug, updatedCarryOver } = getPointsForSingleEvent(
       event,
       kotrCarryOver,
       brandBySlug
@@ -1768,6 +1768,7 @@ export async function getLeagueScoring(
       if (bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
       if (
         enforceMainRosterOnlyForNxt &&
+        eventPointsForRosterStint(callUpBySlug, stint.wrestler_id, wrestlerDisplayNames[stint.wrestler_id], eventDate) <= 0 &&
         nxtRosterByWrestlerId[stint.wrestler_id] &&
         (eventType === EVENT_TYPES.NXT || String(eventType).startsWith("nxt-"))
       ) {

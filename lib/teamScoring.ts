@@ -109,6 +109,7 @@ function emptyPoints(): TeamWrestlerPoints {
 type EventContribution = {
   points: TeamWrestlerPoints;
   details: string[];
+  includesCallUp?: boolean;
 };
 
 /** Return shape of scoreEvent() — JS module has no TS types, so we assert locally. */
@@ -123,6 +124,7 @@ type ScoredEventMatch = {
     specialPoints?: number;
     breakdown?: unknown[];
     kotrTowardNOC?: number;
+    callUpPoints?: number;
   }>;
 };
 
@@ -235,7 +237,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     const contribBySlug: Record<string, EventContribution> = {};
 
     for (const m of scored.matches ?? []) {
-      if (m.isPromo || !m.wrestlerPoints) continue;
+      if (!m.wrestlerPoints?.length) continue;
       for (const wp of m.wrestlerPoints) {
         const participant = wp.wrestler;
         if (!participant) continue;
@@ -243,12 +245,29 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
         if (!rawSlug) continue;
         const slug = resolvePersonaToCanonical(rawSlug, eventDate) ?? rawSlug;
 
-        let rsPoints = 0;
+        let rsPoints = Number(wp.callUpPoints || 0);
         let plePoints = 0;
         let beltPoints = Number(wp.titlePoints || 0);
         const details = Array.isArray(wp.breakdown)
           ? wp.breakdown.filter((x): x is string => typeof x === "string")
           : [];
+
+        if (rsPoints > 0) {
+          const total = rsPoints + plePoints + beltPoints;
+          if (!contribBySlug[slug]) {
+            contribBySlug[slug] = {
+              points: { total: 0, rsPoints: 0, plePoints: 0, beltPoints: 0 },
+              details: [],
+              includesCallUp: false,
+            };
+          }
+          contribBySlug[slug]!.includesCallUp = true;
+          addPoints(contribBySlug[slug]!.points, { total, rsPoints, plePoints, beltPoints });
+          if (details.length > 0) {
+            contribBySlug[slug]!.details.push(...details);
+          }
+          continue;
+        }
 
         if (isRS) {
           rsPoints =
@@ -333,6 +352,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       if (selectedStint.user_id !== userId) continue;
       if (
         enforceMainRosterOnlyForNxt &&
+        !contribution.includesCallUp &&
         nxtRosterByWrestlerId[selectedStint.wrestler_id] &&
         (eventType === EVENT_TYPES.NXT || String(eventType).startsWith("nxt-"))
       ) {

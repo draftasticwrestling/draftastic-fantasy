@@ -3,6 +3,7 @@ import type { BeltKey, EventLogoKey } from "@/lib/howItWorksImages";
 import { BELT_IMAGE_URLS } from "@/lib/howItWorksImages";
 import { HowItWorksEventLogo } from "./HowItWorksEventLogo";
 import { BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER, formatMoWkBeltPoints } from "./HowItWorksTitlePoints";
+import { MAIN_ROSTER_CALL_UP_POINTS } from "@/lib/scoring/mainRosterCallUp.js";
 import styles from "./HowItWorks.module.css";
 
 const NXT_TITLE_POINTS_MENS: Array<{ name: string; points: number; beltKey?: BeltKey }> = [
@@ -16,7 +17,6 @@ const NXT_TITLE_POINTS_WOMENS: Array<{ name: string; points: number; beltKey?: B
   { name: "NXT Women's Championship", points: 3, beltKey: "nxt-womens" },
   { name: "NXT Women's North American Championship", points: 2, beltKey: "nxt-na-womens" },
   { name: "NXT Women's Speed Championship", points: 1, beltKey: "nxt-speed-womens" },
-  { name: "Main roster call-up", points: 15 },
 ];
 
 const NXT_STAND_AND_DELIVER_POINTS: Array<[string, number]> = [
@@ -99,7 +99,7 @@ export function HowItWorksNxtScoring({ sectionContext, beltContext }: Props) {
       </section>
 
       <section style={{ marginBottom: 40 }}>
-        <h2 className={styles.sectionTitle}>NXT title holder points / Main roster promotion</h2>
+        <h2 className={styles.sectionTitle}>NXT title holder points</h2>
         <p className={styles.sectionSubtitle} style={{ maxWidth: 820, marginLeft: "auto", marginRight: "auto" }}>
           {beltContext ? (
             <>
@@ -131,20 +131,37 @@ export function HowItWorksNxtScoring({ sectionContext, beltContext }: Props) {
                   )}
                 </div>
                 <div className={`${styles.titlePointsTdPtsMens} ${rowAlt}`}>{formatMoWkBeltPoints(mensRow.points)}</div>
-                <div className={`${styles.titlePointsTdNameWomens} ${rowAlt}`}>{womensRow.name}</div>
+                <div className={`${styles.titlePointsTdNameWomens} ${rowAlt}`}>{womensRow?.name ?? ""}</div>
                 <div className={`${styles.titlePointsTdBeltWomens} ${rowAlt}`}>
-                  {womensRow.beltKey && BELT_IMAGE_URLS[womensRow.beltKey] ? (
+                  {womensRow?.beltKey && BELT_IMAGE_URLS[womensRow.beltKey] ? (
                     <div className={styles.beltImageWrap}>
                       <img src={BELT_IMAGE_URLS[womensRow.beltKey]} alt="" className={styles.beltImage} />
                     </div>
-                  ) : (
-                    <div className={styles.beltPlaceholder}>Call Up</div>
-                  )}
+                  ) : womensRow ? (
+                    <div className={styles.beltPlaceholder}>NXT</div>
+                  ) : null}
                 </div>
-                <div className={`${styles.titlePointsTdPtsWomens} ${rowAlt}`}>{formatMoWkBeltPoints(womensRow.points)}</div>
+                <div className={`${styles.titlePointsTdPtsWomens} ${rowAlt}`}>
+                  {womensRow ? formatMoWkBeltPoints(womensRow.points) : ""}
+                </div>
               </Fragment>
             );
           })}
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Main roster call-up</h2>
+        <p className={styles.sectionSubtitle} style={{ maxWidth: 820, marginLeft: "auto", marginRight: "auto" }}>
+          When an NXT wrestler is officially announced as joining the main roster (Raw or SmackDown), they receive a{" "}
+          <strong>one-time bonus of {MAIN_ROSTER_CALL_UP_POINTS} points</strong> on the date of that announcement. This is
+          logged as a promo outcome in event results and does not repeat weekly like title-holder credit.
+        </p>
+        <div className={styles.darkBox} style={{ maxWidth: 520, margin: "0 auto" }}>
+          <div className={styles.pointRow}>
+            <span>Main roster call-up (one-time)</span>
+            <span className={styles.pointRowPoints}>{MAIN_ROSTER_CALL_UP_POINTS}</span>
+          </div>
         </div>
       </section>
 

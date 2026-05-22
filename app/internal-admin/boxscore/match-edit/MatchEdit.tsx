@@ -10,6 +10,10 @@ import {
   TITLE_OUTCOME_OPTIONS,
   PROMO_OUTCOME_OPTIONS,
 } from '@/lib/boxscoreAdmin/boxscoreMatchOptions';
+import {
+  MAIN_ROSTER_CALL_UP_POINTS,
+  MAIN_ROSTER_CALL_UP_PROMO_OUTCOME,
+} from '@/lib/scoring/mainRosterCallUp.js';
 import { persistEventMatchCommentaryAction } from '@/app/internal-admin/boxscore/events/commentaryActions';
 
 import WrestlerAutocomplete from './WrestlerAutocomplete';
@@ -230,6 +234,11 @@ export function PromoMatchEdit({
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
+          {promoOutcome === MAIN_ROSTER_CALL_UP_PROMO_OUTCOME && (
+            <p style={{ margin: '8px 0 0', fontSize: 13, color: '#aaa', lineHeight: 1.45 }}>
+              Each participant listed above receives a one-time <strong style={{ color: '#ddd' }}>{MAIN_ROSTER_CALL_UP_POINTS} fantasy points</strong> on this event date.
+            </p>
+          )}
         </div>
 
         {promoOutcome === 'Other' && (

@@ -223,7 +223,7 @@ export default async function EventResultsPage({
   const slugToDisplayName = new Map<string, string>();
   const rawMatches = (event.matches || []) as RawMatchKOTR[];
   for (const match of scored.matches) {
-    if ((match as { isPromo?: boolean }).isPromo || !match.wrestlerPoints) continue;
+    if (!match.wrestlerPoints?.length) continue;
     for (const wp of match.wrestlerPoints) {
       const slug = normalizeWrestlerName(wp.wrestler) || wp.wrestler;
       const canon = toCanonicalSlug(slug);

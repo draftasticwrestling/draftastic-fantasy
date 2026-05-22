@@ -609,7 +609,7 @@ export default async function WrestlerProfilePage({
     let firstTitleOutcome: string | null = null;
     let firstPersonaName: string | null = null;
     for (const m of scored.matches ?? []) {
-      if (m.isPromo || !m.wrestlerPoints) continue;
+      if (!m.wrestlerPoints?.length) continue;
         for (const wp of m.wrestlerPoints) {
         const participantSlug = wp.wrestler ? normalizeWrestlerName(wp.wrestler) : "";
         if (!participantMatchesWrestler(participantSlug, date)) continue;

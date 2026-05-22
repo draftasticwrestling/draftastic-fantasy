@@ -114,6 +114,7 @@ export const PROMO_OUTCOME_OPTIONS = [
   "Wrestler Going Inactive",
   "Championship Challenge",
   "Return Announced",
+  "Main Roster Call Up",
   "Feud Started",
   "Feud Ended",
   "Alliance Formed",
