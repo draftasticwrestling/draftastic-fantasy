@@ -7,6 +7,7 @@ import {
   getLeagueMembersWithAdminFallback,
   getRostersForLeague,
   getRostersForLeagueAdmin,
+  getWrestlerDisplayNamesByIds,
 } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { factionDisplayName } from "@/lib/factionName";
@@ -21,10 +22,13 @@ import {
 import { rtsPleAnticipatedAppearanceFloorPts, rtsPleAnticipatedMainEventAppearancePts } from "@/lib/howItWorksPoints";
 import { fetchPleEventsOnDates, matchesFromEventRow, type PleEventRow } from "@/lib/pleRtsEvents";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { wrestlerMatchesBeltMapKey } from "@/lib/scoring/beltSlugMatch.js";
 import { formatPleDate } from "@/lib/pleUpcoming";
 import type { UpcomingMatch } from "@/lib/pleUpcoming";
+import { pleInvolvedWrestlerNamesByUserId } from "@/lib/pleAnticipatedRoster";
 import styles from "../wrestlemania/PleWrestlemania.module.css";
 import { PlePicker } from "../PlePicker";
+import { PleFactionColumnHeader } from "../PleFactionColumnHeader";
 
 type Props = { params: Promise<{ slug: string; pleKey: string }> };
 
@@ -147,12 +151,12 @@ export default async function PleRtsSlotPage({ params }: Props) {
   const eventNameById = new Map(eventRows.map((row) => [row.id, row.name]));
 
   const rosterByUser = rosters ?? {};
-  const slugSetByUser: Record<string, Set<string>> = {};
-  for (const [userId, entries] of Object.entries(rosterByUser)) {
-    slugSetByUser[userId] = new Set(
-      entries.map((e) => normalizeWrestlerName(String(e.wrestler_id))).filter(Boolean)
-    );
-  }
+  const allRosterWrestlerIds = [
+    ...new Set(Object.values(rosterByUser).flatMap((entries) => entries.map((e) => e.wrestler_id))),
+  ];
+  const wrestlerDisplayNames =
+    allRosterWrestlerIds.length > 0 ? await getWrestlerDisplayNamesByIds(allRosterWrestlerIds) : {};
+  const eventDateByEventId = new Map(eventRows.map((row) => [row.id, row.date.slice(0, 10)]));
 
   const pointsGrid: Record<number, Record<string, number>> = {};
   flatMatches.forEach((match, idx) => {
@@ -160,13 +164,23 @@ export default async function PleRtsSlotPage({ params }: Props) {
     const matchSlugs = new Set(
       match.participantSlugs.map((s) => normalizeWrestlerName(s)).filter(Boolean)
     );
+    const eventDate = eventDateByEventId.get(match.eventId) ?? dates[0] ?? "";
     const matchAppearancePts = isProjectedMainEvent(match, flatMatches)
       ? rtsPleAnticipatedMainEventAppearancePts(pleKey, { eventName: eventNameById.get(match.eventId) ?? null })
       : appearancePts;
     membersByPoints.forEach((mem) => {
-      const userSlugs = slugSetByUser[mem.user_id];
-      if (!userSlugs) return;
-      const rosterCountInMatch = [...matchSlugs].filter((s) => userSlugs.has(s)).length;
+      const rosterEntries = rosterByUser[mem.user_id];
+      if (!rosterEntries?.length) return;
+      const rosterCountInMatch = rosterEntries.filter((entry) =>
+        [...matchSlugs].some((slug) =>
+          wrestlerMatchesBeltMapKey(
+            entry.wrestler_id,
+            wrestlerDisplayNames[entry.wrestler_id],
+            slug,
+            eventDate
+          )
+        )
+      ).length;
       if (hasDraftedTeams && rosterCountInMatch > 0) {
         pointsGrid[idx][mem.user_id] = rosterCountInMatch * matchAppearancePts;
       }
@@ -181,6 +195,17 @@ export default async function PleRtsSlotPage({ params }: Props) {
       }
       return [m.user_id, sum];
     })
+  );
+
+  const involvedWrestlerNamesByUserId = pleInvolvedWrestlerNamesByUserId(
+    membersByPoints.map((m) => m.user_id),
+    rosterByUser,
+    flatMatches.map((match) => ({
+      participantSlugs: match.participantSlugs,
+      eventDate: eventDateByEventId.get(match.eventId) ?? dates[0] ?? "",
+    })),
+    wrestlerDisplayNames,
+    dates[0] ?? ""
   );
 
   const displayTitle = rtsPleDisplayTitle(pleKey);
@@ -247,7 +272,7 @@ export default async function PleRtsSlotPage({ params }: Props) {
       ) : (
         <p className={styles.pleTableSectionSubtitle}>
           {hasDraftedTeams
-            ? `Card from the event record. Non-main matches use ${appearancePts} appearance points per roster wrestler; matches marked main event use main-event appearance points.`
+            ? `Card from the event record. Column headers list each faction's roster wrestlers on this card. Non-main matches use ${appearancePts} appearance points per roster wrestler; matches marked main event use main-event appearance points.`
             : "Card from the event record. Draft must be completed before team projections are shown."}
         </p>
       )}
@@ -258,7 +283,13 @@ export default async function PleRtsSlotPage({ params }: Props) {
             <tr>
               <th className={styles.pleColMatch}>Match</th>
               {membersByPoints.map((m) => (
-                <th key={m.user_id}>{factionDisplayName(m, "Team")}</th>
+                <th key={m.user_id}>
+                  <PleFactionColumnHeader
+                    factionName={factionDisplayName(m, "Team")}
+                    wrestlerNames={involvedWrestlerNamesByUserId[m.user_id] ?? []}
+                    showRoster={hasDraftedTeams}
+                  />
+                </th>
               ))}
             </tr>
           </thead>

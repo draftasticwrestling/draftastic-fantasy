@@ -491,7 +491,7 @@ const HEADER_CONFIG: { key: SortColumn | null; label: string; minW: number; alig
   { key: "roster", label: "Roster", minW: 56, align: "center", section: "PLAYER" },
   { key: "rank", label: "Rank", minW: 48, align: "center", section: "PLAYER" },
   { key: null, label: "", minW: 76, align: "center", section: "PLAYER" },
-  { key: "name", label: "Name", minW: 160, align: "left", section: "PLAYER" },
+  { key: "name", label: "Name", minW: 220, align: "left", section: "PLAYER" },
   { key: null, label: "Titles", minW: 64, align: "center", section: "PLAYER" },
   { key: null, label: "Faction", minW: 96, align: "center", section: "STATUS" },
   { key: "gender", label: "Gender", minW: 68, align: "center", section: "INFO" },
@@ -527,7 +527,7 @@ const DEFAULT_STICKY_COLUMNS: StickyColDef[] = [
   { id: "roster", label: "Roster", minW: 56, sortKey: "roster", align: "center" },
   { id: "rank", label: "Rank", minW: 48, sortKey: "rank", align: "center" },
   { id: "image", label: "", minW: 76, sortKey: null, align: "center" },
-  { id: "name", label: "Name", minW: 160, sortKey: "name", align: "left" },
+  { id: "name", label: "Name", minW: 220, sortKey: "name", align: "left" },
   { id: "titles", label: "Titles", minW: 64, sortKey: null, align: "center" },
   { id: "faction", label: "Faction", minW: 96, sortKey: null, align: "center" },
 ];
@@ -537,7 +537,7 @@ const SALARY_CAP_STICKY_COLUMNS: StickyColDef[] = [
   { id: "rank", label: "Rank", minW: 48, sortKey: "rank", align: "center" },
   { id: "addDrop", label: "Add/Drop", minW: 72, sortKey: null, align: "center" },
   { id: "image", label: "", minW: 76, sortKey: null, align: "center" },
-  { id: "name", label: "Name", minW: 160, sortKey: "name", align: "left" },
+  { id: "name", label: "Name", minW: 220, sortKey: "name", align: "left" },
   { id: "titles", label: "Titles", minW: 64, sortKey: null, align: "center" },
   { id: "value", label: "Value", minW: 56, sortKey: "salaryCapCost", align: "center" },
 ];
@@ -554,7 +554,7 @@ function scrollHeadersForTable(showSalaryCapCost: boolean) {
   const all = HEADER_CONFIG.slice(STICKY_COLUMN_COUNT);
   return all.filter((h) => h.key !== "salaryCapCost");
 }
-/** Fixed body row height so left and right table rows match. */
+/** Minimum body row height; rows grow when long names / persona footnotes need more space. */
 const BODY_ROW_HEIGHT = 80;
 /** Fixed header row heights so left and right table headers match and body rows align. */
 const HEADER_ROW_HEIGHT = 40;
@@ -1608,7 +1608,8 @@ export default function WrestlerList({
 
       {/* Desktop: single grid — one row definition for left + right so heights always match */}
       {(() => {
-        const gridTemplateRows = "40px 40px " + flatList.map(() => "80px").join(" ");
+        const gridTemplateRows =
+          "40px 40px " + flatList.map(() => `minmax(${BODY_ROW_HEIGHT}px, auto)`).join(" ");
         const cellBorder = "1px solid " + BORDER_TABLE;
         const scrollCols = scrollHeaders.map((h) => h.minW + "px").join(" ");
         return (
@@ -1788,18 +1789,24 @@ export default function WrestlerList({
                           key={col.id}
                           style={{
                             ...cellBase,
-                            padding: "10px 12px",
+                            padding: "8px 10px",
                             fontWeight: 600,
-                            overflow: "hidden",
                             flexDirection: "column",
                             justifyContent: "center",
                             alignItems: "flex-start",
+                            alignSelf: "stretch",
+                            minWidth: 0,
                           }}
                         >
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                             <Link
                               href={wrestlerProfileHref(w.id, leagueSlug, wrestlerProfileFrom ?? undefined)}
-                              style={{ color: "var(--color-blue)", textDecoration: "none" }}
+                              style={{
+                                color: "var(--color-blue)",
+                                textDecoration: "none",
+                                lineHeight: 1.3,
+                                overflowWrap: "anywhere",
+                              }}
                             >
                               {w.name || w.id}
                             </Link>
@@ -1823,6 +1830,8 @@ export default function WrestlerList({
                                 color: "var(--color-text-muted)",
                                 fontStyle: "italic",
                                 marginTop: 2,
+                                lineHeight: 1.25,
+                                overflowWrap: "anywhere",
                               }}
                             >
                               {w.personaDisplay}

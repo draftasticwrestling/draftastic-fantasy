@@ -1,9 +1,9 @@
 /* PLE page: dark theme hero + points table (WrestleMania style) */
 
 .plePage {
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 10px 24px 48px;
+  padding: 10px 12px 48px;
   background: #0d0d0d;
   min-height: 100vh;
   color: #fff;
@@ -125,24 +125,26 @@
   margin: 0 0 20px;
 }
 
-/* Table: black/dark background, white grid */
+/* Table: black/dark background, white grid — compact so full card fits without sideways scroll */
 .pleTableWrap {
   overflow-x: auto;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: #0a0a0a;
+  max-width: 100%;
 }
 
 .pleTable {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: clamp(0.68rem, 0.55vw + 0.58rem, 0.78rem);
 }
 
 .pleTable th,
 .pleTable td {
   border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 12px 14px;
+  padding: 5px 4px;
   text-align: left;
   vertical-align: top;
 }
@@ -152,25 +154,74 @@
   color: #fff;
   font-weight: 700;
   text-align: center;
-  white-space: nowrap;
+}
+
+.pleFactionHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: none;
+  margin: 0 auto;
+}
+
+.pleFactionName {
+  font-weight: 700;
+  font-size: 0.92em;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pleFactionRosterList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.62);
+  line-height: 1.25;
+  text-align: center;
+}
+
+.pleFactionRosterList li {
+  overflow-wrap: anywhere;
+}
+
+.pleFactionRosterEmpty {
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.38);
+  font-style: italic;
+}
+
+.pleTable th.pleColMatch,
+.pleTable td.pleColMatch {
+  width: 36%;
+  min-width: 0;
+  max-width: none;
 }
 
 .pleTable th.pleColMatch {
   text-align: left;
-  min-width: 280px;
-  max-width: 380px;
 }
 
 .pleTable td.pleColMatch {
   color: rgba(255, 255, 255, 0.95);
-  line-height: 1.4;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .pleTable td.pleColPoints {
   text-align: center;
   color: #fbbf24;
   font-weight: 600;
-  min-width: 52px;
+  min-width: 0;
+  width: auto;
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
 .pleTable tbody tr:nth-child(even) td {
@@ -194,11 +245,11 @@
 .pleNightHeaderRow td {
   background: rgba(255, 255, 255, 0.08) !important;
   font-weight: 700;
-  font-size: 0.95rem;
-  letter-spacing: 0.06em;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.95);
-  padding: 14px 14px !important;
+  padding: 8px 6px !important;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 

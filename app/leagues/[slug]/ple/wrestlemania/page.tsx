@@ -7,6 +7,7 @@ import {
   getLeagueMembersWithAdminFallback,
   getRostersForLeague,
   getRostersForLeagueAdmin,
+  getWrestlerDisplayNamesByIds,
 } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { factionDisplayName } from "@/lib/factionName";
@@ -17,8 +18,10 @@ import {
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 import { pleHrefForEntry, pleNavEntriesForSeasonSlug } from "@/lib/pleLeagueMenu";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { pleInvolvedWrestlerNamesByUserId } from "@/lib/pleAnticipatedRoster";
 import styles from "./PleWrestlemania.module.css";
 import { PlePicker } from "../PlePicker";
+import { PleFactionColumnHeader } from "../PleFactionColumnHeader";
 
 /**
  * WrestleMania floor projections (on the card / main-eventing, no win bonus).
@@ -196,6 +199,11 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
 
   const pointsGrid: Record<number, Record<string, number>> = {};
   const rosterByUser = rosters ?? {};
+  const allRosterWrestlerIds = [
+    ...new Set(Object.values(rosterByUser).flatMap((entries) => entries.map((e) => e.wrestler_id))),
+  ];
+  const wrestlerDisplayNames =
+    allRosterWrestlerIds.length > 0 ? await getWrestlerDisplayNamesByIds(allRosterWrestlerIds) : {};
   const slugSetByUser: Record<string, Set<string>> = {};
   for (const [userId, entries] of Object.entries(rosterByUser)) {
     slugSetByUser[userId] = new Set(
@@ -225,6 +233,13 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
       }
       return [m.user_id, sum];
     })
+  );
+
+  const involvedWrestlerNamesByUserId = pleInvolvedWrestlerNamesByUserId(
+    membersByPoints.map((m) => m.user_id),
+    rosterByUser,
+    allMatches.map((match) => ({ participantSlugs: match.participantSlugs })),
+    wrestlerDisplayNames
   );
 
   const wrestlemaniaLogoUrl = EVENT_LOGO_URLS.wrestlemania;
@@ -274,10 +289,11 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
 
       <h2 className={styles.pleTableSectionTitle}>Anticipated points</h2>
       <p className={styles.pleTableSectionSubtitle}>
-        Card by night. Each cell is appearance points for every roster wrestler in that match (e.g. both Night&nbsp;2
-        main-event wrestlers on your roster = {WM_NIGHT2_MAIN_EVENT_APPEARANCE_PTS}&nbsp;×&nbsp;2). Undercard{" "}
-        {WM_UNDERCARD_APPEARANCE_PTS}; Night&nbsp;1 main {WM_NIGHT1_MAIN_EVENT_APPEARANCE_PTS}; Night&nbsp;2 main{" "}
-        {WM_NIGHT2_MAIN_EVENT_APPEARANCE_PTS}. Win, title, and DQ adjustments apply after the event.
+        Card by night. Column headers list each faction&apos;s roster wrestlers on this card. Each cell is appearance
+        points for every roster wrestler in that match (e.g. both Night&nbsp;2 main-event wrestlers on your roster ={" "}
+        {WM_NIGHT2_MAIN_EVENT_APPEARANCE_PTS}&nbsp;×&nbsp;2). Undercard {WM_UNDERCARD_APPEARANCE_PTS}; Night&nbsp;1 main{" "}
+        {WM_NIGHT1_MAIN_EVENT_APPEARANCE_PTS}; Night&nbsp;2 main {WM_NIGHT2_MAIN_EVENT_APPEARANCE_PTS}. Win, title, and
+        DQ adjustments apply after the event.
       </p>
 
       <div className={styles.pleTableWrap}>
@@ -286,7 +302,12 @@ export default async function PleWrestlemaniaPage({ params }: Props) {
             <tr>
               <th className={styles.pleColMatch}>Match</th>
               {membersByPoints.map((m) => (
-                <th key={m.user_id}>{factionDisplayName(m, "Team")}</th>
+                <th key={m.user_id}>
+                  <PleFactionColumnHeader
+                    factionName={factionDisplayName(m, "Team")}
+                    wrestlerNames={involvedWrestlerNamesByUserId[m.user_id] ?? []}
+                  />
+                </th>
               ))}
             </tr>
           </thead>
