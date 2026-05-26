@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import {
+  closeOpenReignForPartnerSubstitution,
   closeOpenReignForTitleChange,
   computeDaysHeld,
   syncChampionshipFromHistory,
 } from "@/lib/boxscoreAdmin/championshipSync";
+import { PARTNER_SUBSTITUTION_EVENT_LABEL } from "@/lib/championshipPartnerSubstitution";
 import { getAdminClient } from "@/lib/supabase/admin";
 
 export type ChampionshipActionState = { error?: string; success?: string } | null;
@@ -118,15 +120,25 @@ export async function createChampionshipHistoryAction(
     if (closeResult.error) return { error: closeResult.error };
   }
 
+  if (reignMode === "partner_substitution") {
+    const closeResult = await closeOpenReignForPartnerSubstitution(admin, championshipId, dateWon);
+    if (closeResult.error) return { error: closeResult.error };
+  }
+
   const payload: Record<string, unknown> = {
     championship_id: championshipId,
     champion,
     champion_slug: norm(formData.get("champion_slug")),
-    previous_champion: norm(formData.get("previous_champion")),
-    previous_champion_slug: norm(formData.get("previous_champion_slug")),
+    previous_champion:
+      reignMode === "partner_substitution" ? null : norm(formData.get("previous_champion")),
+    previous_champion_slug:
+      reignMode === "partner_substitution" ? null : norm(formData.get("previous_champion_slug")),
     date_won: dateWon,
     date_lost: dateLost,
-    event_name: eventName,
+    event_name:
+      reignMode === "partner_substitution"
+        ? eventName ?? PARTNER_SUBSTITUTION_EVENT_LABEL
+        : eventName,
     event_lost: norm(formData.get("event_lost")),
     days_held: computeDaysHeld(dateWon, dateLost),
   };
@@ -144,7 +156,9 @@ export async function createChampionshipHistoryAction(
     success:
       reignMode === "historical"
         ? "Historical reign added (current champion unchanged)."
-        : "Title change recorded and current champion updated.",
+        : reignMode === "partner_substitution"
+          ? "Partner substitution recorded — prior reign closed, new lineup is current champion."
+          : "Title change recorded and current champion updated.",
   };
 }
 

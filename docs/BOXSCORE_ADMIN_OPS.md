@@ -42,6 +42,25 @@ Match saves **do not** update championships (same as PWBS).
 
 Use **Historical reign** when adding rows that should **not** change who holds the belt today.
 
+### Tag partner substitution (injury / lineup change)
+
+When one tag partner is replaced but the **team keeps the belt** (not a match loss):
+
+1. **Champions & title history** → select the tag title (e.g. Raw Tag Team Championship).
+2. If the open reign still uses the generic team slug (`the-vision`), click **Edit** on that row and set **Champion slug** to the explicit member pair (e.g. `logan-paul-and-austin-theory`) so historical belt scoring stays tied to that lineup.
+3. Click **+ Add reign** → **Partner Substitution** (not Title Change).
+4. Fill in the **new** lineup:
+   - **Champion:** `The Vision (Austin Theory & Bron Breakker)` (or `Austin Theory & Bron Breakker`)
+   - **Champion slug:** `austin-theory-and-bron-breakker` (or `the-vision` for the current lineup only)
+   - **Date won:** today’s date (substitution date)
+   - **Event won:** `Partner substitution` (prefilled)
+   - Leave **Defeated** blank
+5. Save. The prior reign is closed with **Date lost** = that same date and **Event lost** = `Partner substitution` — not a show name.
+
+**Why two rows:** Fantasy weekly belt hold uses reign date ranges. Logan Paul & Austin Theory keep credit through last week; Austin Theory & Bron Breakker start earning from this week’s Sunday once that week’s shows are complete. The public title page shows **Partner substitution** instead of implying the prior team lost the belt in a match.
+
+**Also update:** Tag teams & stables (swap the injured member) and optionally add a title fact noting the injury.
+
 ---
 
 ## URL cheat sheet

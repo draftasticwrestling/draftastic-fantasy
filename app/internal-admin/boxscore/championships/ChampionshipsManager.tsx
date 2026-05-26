@@ -17,6 +17,7 @@ import {
   type ChampionshipActionState,
 } from "./actions";
 import { TitleFactsEditor } from "./TitleFactsEditor";
+import { PARTNER_SUBSTITUTION_EVENT_LABEL } from "@/lib/championshipPartnerSubstitution";
 
 type ChampionshipRow = {
   id: string;
@@ -101,7 +102,7 @@ export function ChampionshipsManager({
   const [syncState, syncAction, syncPending] = useActionState(syncChampionshipFromHistoryAction, defaultState);
 
   const [showAddReign, setShowAddReign] = useState(false);
-  const [addReignType, setAddReignType] = useState<"title_change" | "historical" | null>(null);
+  const [addReignType, setAddReignType] = useState<"title_change" | "historical" | "partner_substitution" | null>(null);
   const [editingHistoryId, setEditingHistoryId] = useState("");
   const [reignForm, setReignForm] = useState<ReignForm>(emptyReignForm);
   const [showCreateChamp, setShowCreateChamp] = useState(false);
@@ -129,7 +130,7 @@ export function ChampionshipsManager({
     setShowAddReign(true);
   };
 
-  const startAddReignAs = (type: "title_change" | "historical") => {
+  const startAddReignAs = (type: "title_change" | "historical" | "partner_substitution") => {
     setAddReignType(type);
     const prev = selectedHistory[0];
     if (type === "title_change" && prev) {
@@ -139,6 +140,13 @@ export function ChampionshipsManager({
         previous_champion_slug: prev.champion_slug ?? "",
         date_won: toDateInputValue(prev.date_lost) || f.date_won,
         event_name: prev.event_lost ?? "",
+      }));
+    }
+    if (type === "partner_substitution") {
+      setReignForm((f) => ({
+        ...emptyReignForm(),
+        date_won: new Date().toISOString().slice(0, 10),
+        event_name: PARTNER_SUBSTITUTION_EVENT_LABEL,
       }));
     }
   };
@@ -250,9 +258,12 @@ export function ChampionshipsManager({
                       <button type="button" className="btn-secondary" onClick={() => startAddReignAs("title_change")}>
                         Title Change
                       </button>
+                      <button type="button" className="btn-secondary" onClick={() => startAddReignAs("partner_substitution")}>
+                        Partner Substitution
+                      </button>
                       <span style={{ fontSize: 13, color: "var(--color-text-muted)", maxWidth: 420 }}>
                         Historical = past reign for records. Title Change = new champion; the prior open reign’s Date/Event
-                        lost are set from this entry.
+                        lost are set from this entry. Partner Substitution = injured tag partner swap (same belt, new lineup).
                       </span>
                     </div>
                   ) : null}

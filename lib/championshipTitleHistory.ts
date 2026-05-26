@@ -1,3 +1,4 @@
+import { isPartnerSubstitutionEventLabel } from "@/lib/championshipPartnerSubstitution";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { getPwbsChampionshipPage, getPwbsDisplayTitleForSlug } from "@/lib/pwbsChampionshipSlug.js";
 import { titleToChampionshipSlug } from "@/lib/championshipPathSlug";
@@ -96,11 +97,21 @@ export function enrichTitleHistoryItems(items: TitleHistoryItem[]): TitleHistory
   return asc.map((item, i) => {
     const prev = i > 0 ? asc[i - 1] : null;
     const next = i < asc.length - 1 ? asc[i + 1] : null;
+    const partnerSwap =
+      isPartnerSubstitutionEventLabel(item.eventWon) ||
+      isPartnerSubstitutionEventLabel(item.eventLost) ||
+      isPartnerSubstitutionEventLabel(prev?.eventLost);
     return {
       ...item,
-      defeated: item.defeated ?? (prev ? prev.champion : null),
-      defeatedSlug: item.defeatedSlug ?? (prev ? prev.championSlug : null),
-      eventLost: item.eventLost ?? (next?.eventWon ?? null),
+      defeated:
+        item.defeated ??
+        (partnerSwap ? null : prev ? prev.champion : null),
+      defeatedSlug:
+        item.defeatedSlug ??
+        (partnerSwap ? null : prev ? prev.championSlug : null),
+      eventLost:
+        item.eventLost ??
+        (next && isPartnerSubstitutionEventLabel(next.eventWon) ? next.eventWon : (next?.eventWon ?? null)),
     };
   });
 }

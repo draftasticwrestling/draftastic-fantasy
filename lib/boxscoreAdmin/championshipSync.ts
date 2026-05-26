@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { PARTNER_SUBSTITUTION_EVENT_LABEL } from "@/lib/championshipPartnerSubstitution";
 
 export function computeDaysHeld(dateWon: string, dateLost: string | null): number | null {
   if (!dateWon || !dateLost) return null;
@@ -81,6 +82,38 @@ export async function closeOpenReignForTitleChange(
     .update({
       date_lost: newDateWon,
       event_lost: newEventWon,
+      days_held: daysHeld,
+    })
+    .eq("id", prev.id);
+  if (updateErr) return { error: updateErr.message };
+  return {};
+}
+
+/**
+ * Close the open reign when a tag partner is replaced. Same date boundaries as a title change,
+ * but Event lost is labeled so history does not read as losing the belt in a match.
+ */
+export async function closeOpenReignForPartnerSubstitution(
+  admin: SupabaseClient,
+  championshipId: string,
+  substitutionDate: string
+): Promise<{ error?: string }> {
+  const { data: rows, error } = await admin
+    .from("championship_history")
+    .select("id,date_won,date_lost")
+    .eq("championship_id", championshipId)
+    .order("date_won", { ascending: false })
+    .limit(1);
+  if (error) return { error: error.message };
+  const prev = (rows?.[0] as HistoryRow | undefined) ?? null;
+  if (!prev || (prev.date_lost != null && String(prev.date_lost).trim() !== "")) return {};
+
+  const daysHeld = computeDaysHeld(String(prev.date_won ?? ""), substitutionDate);
+  const { error: updateErr } = await admin
+    .from("championship_history")
+    .update({
+      date_lost: substitutionDate,
+      event_lost: PARTNER_SUBSTITUTION_EVENT_LABEL,
       days_held: daysHeld,
     })
     .eq("id", prev.id);
