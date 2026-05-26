@@ -176,6 +176,48 @@ type CompletedEntry = {
   isWinner: boolean;
 };
 
+function participantNamesFromRaw(raw: Record<string, unknown>): string[] {
+  try {
+    const md = extractMatchParticipants(raw as never);
+    return (md.participantsForScoring ?? []).map((n) => String(n).trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function renderParticipantSidesRows(
+  sides: string[][],
+  rowBase: string,
+  primary: string,
+  method: string,
+  wrestlerMap: WrestlerMap,
+  entriesTyped: CompletedEntry[],
+  useCompletedPoints: boolean
+): ReactNode[] {
+  const rowsInner: ReactNode[] = [];
+  let rk = 0;
+  sides.forEach((side, si) => {
+    if (si > 0) {
+      rowsInner.push(hubVsDividerRow(`${rowBase}-vs-${si}`, primary, method));
+    }
+    const ordered = side.map((nm) => ({ nm, entry: findCompletedEntryForName(nm, entriesTyped) }));
+    ordered.sort((a, b) => {
+      const aw = a.entry ? Number(a.entry.isWinner) : 0;
+      const bw = b.entry ? Number(b.entry.isWinner) : 0;
+      if (bw !== aw) return bw - aw;
+      return 0;
+    });
+    for (const { nm, entry } of ordered) {
+      if (useCompletedPoints && entry) {
+        rowsInner.push(completedParticipantRow(entry, `${rowBase}-p-${rk++}`, wrestlerMap));
+      } else {
+        rowsInner.push(completedParticipantFallbackRow(nm, `${rowBase}-p-${rk++}`, wrestlerMap));
+      }
+    }
+  });
+  return rowsInner;
+}
+
 function findCompletedEntryForName(participantName: string, list: CompletedEntry[]): CompletedEntry | undefined {
   const n = normalizeWrestlerName(participantName);
   return (
@@ -429,15 +471,20 @@ export default function HubLatestEventPreview({
       const entriesTyped = entries as CompletedEntry[];
 
       const rowBase = `m-${sm.order ?? i}`;
-      let rk = 0;
       const sides = splitUpcomingMatchSides(raw);
       const flatSides = sides?.flat() ?? [];
+      const parsedNames = participantNamesFromRaw(raw);
       const useVs =
-        Boolean(sides && sides.length >= 2 && flatSides.length <= maxParticipantsPerMatch && overflow === 0);
+        Boolean(
+          sides &&
+            sides.length >= 2 &&
+            (flatSides.length <= maxParticipantsPerMatch || entriesTyped.length === 0) &&
+            overflow === 0
+        );
 
       const rowsInner: ReactNode[] = [];
 
-      if (entries.length === 0) {
+      if (entries.length === 0 && parsedNames.length === 0) {
         rowsInner.push(
           <div key={`empty-r-${i}`} className="hub-condensed-row hub-condensed-row-participant">
             <div className="hub-condensed-side">
@@ -463,30 +510,34 @@ export default function HubLatestEventPreview({
         continue;
       }
 
+      if (entries.length === 0 && parsedNames.length > 0) {
+        if (useVs && sides) {
+          rowsInner.push(...renderParticipantSidesRows(sides, rowBase, primary, method, wrestlerMap, entriesTyped, false));
+        } else {
+          rowsInner.push(hubMetaStrip(primary, method, `${rowBase}-meta`));
+          const displayNames =
+            parsedNames.length > maxParticipantsPerMatch
+              ? parsedNames.slice(0, maxParticipantsPerMatch)
+              : parsedNames;
+          for (const nm of displayNames) {
+            rowsInner.push(completedParticipantFallbackRow(nm, `${rowBase}-p-${displayNames.indexOf(nm)}`, wrestlerMap));
+          }
+        }
+        matchBlocks.push(
+          <div key={rowBase} className="hub-match-block">
+            {hubMatchBlockHeader(ptsHeader)}
+            {rowsInner}
+          </div>
+        );
+        continue;
+      }
+
       if (useVs && sides) {
-        sides.forEach((side, si) => {
-          if (si > 0) {
-            rowsInner.push(hubVsDividerRow(`${rowBase}-vs-${si}`, primary, method));
-          }
-          const ordered = side.map((nm) => ({ nm, entry: findCompletedEntryForName(nm, entriesTyped) }));
-          ordered.sort((a, b) => {
-            const aw = a.entry ? Number(a.entry.isWinner) : 0;
-            const bw = b.entry ? Number(b.entry.isWinner) : 0;
-            if (bw !== aw) return bw - aw;
-            return 0;
-          });
-          for (const { nm, entry } of ordered) {
-            if (entry) {
-              rowsInner.push(completedParticipantRow(entry, `${rowBase}-p-${rk++}`, wrestlerMap));
-            } else {
-              rowsInner.push(completedParticipantFallbackRow(nm, `${rowBase}-p-${rk++}`, wrestlerMap));
-            }
-          }
-        });
+        rowsInner.push(...renderParticipantSidesRows(sides, rowBase, primary, method, wrestlerMap, entriesTyped, true));
       } else {
         rowsInner.push(hubMetaStrip(primary, method, `${rowBase}-meta`));
         for (const entry of entriesTyped) {
-          rowsInner.push(completedParticipantRow(entry, `${rowBase}-p-${rk++}`, wrestlerMap));
+          rowsInner.push(completedParticipantRow(entry, `${rowBase}-p-${entriesTyped.indexOf(entry)}`, wrestlerMap));
         }
         if (overflow > 0) {
           rowsInner.push(

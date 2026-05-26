@@ -66,6 +66,22 @@ export function splitUpcomingMatchSides(raw: Record<string, unknown>): string[][
     }
   }
 
+  if (Array.isArray(rawParticipants) && rawParticipants.length >= 2) {
+    const out = rawParticipants
+      .map((part) => {
+        const s = (typeof part === "string" ? part : String(part)).trim();
+        if (!s) return [];
+        const parsed = parseParticipants(s);
+        const side = parsed
+          .filter((p) => p.type === "individual")
+          .map((p) => String(p.name || "").trim())
+          .filter(Boolean);
+        return dedupeSideNames(side);
+      })
+      .filter((side) => side.length > 0);
+    return out.length >= 2 ? out : null;
+  }
+
   let names: string[] = [];
   try {
     const md = extractMatchParticipants(raw as never);
