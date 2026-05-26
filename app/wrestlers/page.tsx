@@ -78,6 +78,7 @@ export default async function WrestlersPage() {
     wrestlerBySlug,
     wrestlerByNameKey,
     tagTeamMembersBySlug,
+    tagTeamMonikerByMemberKey,
     wrestlers: wrestlersFromDb,
   } = dataset;
   const eventsForAgg = events ?? [];
@@ -191,6 +192,7 @@ export default async function WrestlersPage() {
         {
           wrestlerBySlug,
           wrestlerByNameKey,
+          tagTeamMonikerByMemberKey,
         }
       );
       return {

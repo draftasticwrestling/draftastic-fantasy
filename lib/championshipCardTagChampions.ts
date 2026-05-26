@@ -26,6 +26,8 @@ type WrestlerMini = { id: string; name: string | null; image_url: string | null 
 type Lookup = {
   wrestlerBySlug: Map<string, WrestlerMini>;
   wrestlerByNameKey: Map<string, WrestlerMini>;
+  /** Active tag team display names keyed by sorted member slugs (from tag_teams + tag_team_members). */
+  tagTeamMonikerByMemberKey?: Map<string, string>;
 };
 
 /** Replace team-name slugs in a parsed list with their member slugs (deduped). */
@@ -90,6 +92,22 @@ function memberKeyFromSlugs(slugs: string[]): string {
   return [...new Set(slugs.map((s) => s.toLowerCase().trim()).filter(Boolean))].sort().join("|");
 }
 
+/**
+ * Extract team moniker from Boxscore labels like "Scream Mode (Brie Bella & Paige)".
+ * Plain "Wrestler A & Wrestler B" returns null (not a team name).
+ */
+export function tagTeamMonikerFromChampionLabel(label: string): string | null {
+  const trimmed = label.trim();
+  if (!trimmed) return null;
+  const paren = trimmed.match(/^(.+?)\s*\(\s*[^)]+\s*\)\s*$/);
+  if (paren) {
+    const prefix = paren[1].trim();
+    if (prefix && !/\s+[&＆]\s+/.test(prefix)) return prefix;
+  }
+  if (!/\s+[&＆]\s+/.test(trimmed)) return trimmed;
+  return null;
+}
+
 /** Known WWE team monikers when history only has member rows (e.g. SmackDown Tag). Keys = memberKeyFromSlugs([...]). */
 const TAG_TEAM_MONIKER_BY_MEMBER_KEY: Record<string, string> = {
   "austin-theory|logan-paul": "The Vision",
@@ -151,7 +169,11 @@ function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
 /**
  * Prefer a display name that is not "Wrestler A & Wrestler B" when reign rows include a team moniker.
  */
-function inferTagTeamDisplayName(champs: ChampionCardRow[], memberSlugsOrdered: string[]): string | null {
+function inferTagTeamDisplayName(
+  champs: ChampionCardRow[],
+  memberSlugsOrdered: string[],
+  tagTeamMonikerByMemberKey?: Map<string, string>
+): string | null {
   const setOrdered = new Set(memberSlugsOrdered);
   if (champs.length === 0 || setOrdered.size < 2) return null;
 
@@ -163,6 +185,8 @@ function inferTagTeamDisplayName(champs: ChampionCardRow[], memberSlugsOrdered: 
     const normSlug = hyphenSlug ? normalizeWrestlerName(hyphenSlug) : "";
     const teamFromSlug = normSlug ? getTagTeamMemberSlugs(normSlug) : null;
     if (teamFromSlug && setsEqual(new Set(teamFromSlug), setOrdered)) {
+      const monikerFromLabel = tagTeamMonikerFromChampionLabel((c.champion || "").trim());
+      if (monikerFromLabel) return finalizeMoniker(monikerFromLabel);
       const label = (c.champion || "").trim();
       if (label && !/\s+[&＆]\s+/.test(label)) return finalizeMoniker(label);
       if (normSlug) titleCaseFallbacks.push(titleCaseSlug(normSlug));
@@ -170,10 +194,15 @@ function inferTagTeamDisplayName(champs: ChampionCardRow[], memberSlugsOrdered: 
     }
     const members = memberSlugsFromChampionRow(c);
     if (members && setsEqual(new Set(members), setOrdered)) {
+      const monikerFromLabel = tagTeamMonikerFromChampionLabel((c.champion || "").trim());
+      if (monikerFromLabel) return finalizeMoniker(monikerFromLabel);
       const label = (c.champion || "").trim();
       if (label && !/\s+[&＆]\s+/.test(label)) return finalizeMoniker(label);
     }
   }
+
+  const fromDb = tagTeamMonikerByMemberKey?.get(memberKeyFromSlugs(memberSlugsOrdered));
+  if (fromDb) return finalizeMoniker(fromDb);
 
   return titleCaseFallbacks.length > 0 ? finalizeMoniker(titleCaseFallbacks[0]) : null;
 }
@@ -211,7 +240,7 @@ export function collapseTagTeamChampionsForCard(
     const lostDate = champs[0].lostDate;
     const mKey = memberKeyFromSlugs(ordered);
     const monikerFromMembers = TAG_TEAM_MONIKER_BY_MEMBER_KEY[mKey];
-    const inferred = inferTagTeamDisplayName(champs, ordered);
+    const inferred = inferTagTeamDisplayName(champs, ordered, lookup.tagTeamMonikerByMemberKey);
     const tagTeamName = inferred ?? finalizeMoniker(monikerFromMembers ?? "");
     const champions = ordered.map((memberSlug) => {
       const w = lookup.wrestlerBySlug.get(memberSlug) ?? lookup.wrestlerByNameKey.get(memberSlug);
@@ -253,7 +282,7 @@ export function collapseTagTeamChampionsForCard(
     const slugs = singles.map((s) => s.championSlug);
     const mKey = memberKeyFromSlugs(slugs);
     const monikerFromMembers = TAG_TEAM_MONIKER_BY_MEMBER_KEY[mKey];
-    const inferred = inferTagTeamDisplayName(singles, slugs);
+    const inferred = inferTagTeamDisplayName(singles, slugs, lookup.tagTeamMonikerByMemberKey);
     const tagTeamName = inferred ?? finalizeMoniker(monikerFromMembers ?? "");
     return { champions: singles, tagTeamName, hasTeamNameRow: true };
   }

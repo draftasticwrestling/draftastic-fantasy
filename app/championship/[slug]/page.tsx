@@ -51,6 +51,7 @@ export default async function ChampionshipDetailPage({ params }: Props) {
     {
       wrestlerBySlug: data.wrestlerBySlug,
       wrestlerByNameKey: data.wrestlerByNameKey,
+      tagTeamMonikerByMemberKey: data.tagTeamMonikerByMemberKey,
     }
   );
 
