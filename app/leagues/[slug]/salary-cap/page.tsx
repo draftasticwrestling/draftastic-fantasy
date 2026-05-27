@@ -43,11 +43,14 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
 
   const { data: member } = await supabase
     .from("league_members")
-    .select("user_id")
+    .select("user_id, onboarding_completed_at")
     .eq("league_id", league.id)
     .eq("user_id", user.id)
     .maybeSingle();
   if (!member) notFound();
+
+  const memberRow = member as { onboarding_completed_at?: string | null };
+  const hasCompletedMemberOnboarding = Boolean(memberRow.onboarding_completed_at?.trim());
 
   const { needsOnboarding } = await resolveMemberOnboardingState(supabase, league.id, league, user.id);
   if (needsOnboarding) {
@@ -150,7 +153,10 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
 
   const draftStatus = leagueRow.draft_status ?? null;
   const isCommissioner = league.commissioner_id === user.id;
-  const isOnboarding = myEntries.length === 0;
+  const isOnboarding = !hasCompletedMemberOnboarding;
+  const showFinishInitialRoster = !hasCompletedMemberOnboarding;
+  const finishRosterLabel = "Complete setup";
+  const rosterSetupComplete = hasCompletedMemberOnboarding;
 
   return (
     <main className="app-page salary-cap-page" style={{ maxWidth: 1100 }}>
@@ -172,8 +178,7 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
           }}
         >
           Welcome to <strong>{league.name}</strong>. Pick wrestlers within your ${budget} budget — the same star can be
-          on multiple factions. When you&apos;re done, return to the league home anytime to invite managers or check
-          standings.
+          on multiple factions. When you&apos;re done, use <strong>Complete setup</strong> below to open your faction page.
         </p>
       ) : (
         <p style={{ color: "var(--color-text-muted)", marginBottom: 24, maxWidth: 640 }}>
@@ -191,6 +196,9 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
         pool={poolWithStats}
         isCommissioner={isCommissioner}
         draftStatus={draftStatus}
+        showFinishInitialRoster={showFinishInitialRoster}
+        finishRosterLabel={finishRosterLabel}
+        rosterSetupComplete={rosterSetupComplete}
       />
     </main>
   );

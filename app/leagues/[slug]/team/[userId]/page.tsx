@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import {
@@ -77,6 +77,7 @@ import {
 import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
 import XpStatusStrip from "@/app/components/XpStatusStrip";
+import { isSalaryCapRosterSetupComplete } from "@/lib/leagueOnboarding";
 
 const ALL_TIME_EVENTS_FROM = "2020-01-01";
 const ALL_TIME_EVENTS_LIMIT = 3000;
@@ -180,6 +181,47 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
 
   const isOwnTeam = currentUser.id === userId;
   const isSalaryCapLeague = leagueUsesSalaryCap(league.league_type);
+
+  if (isOwnTeam && isSalaryCapLeague) {
+    const setupComplete = await isSalaryCapRosterSetupComplete(supabase, league.id, userId);
+    if (!setupComplete) {
+      redirect(`/leagues/${slug}/salary-cap`);
+    }
+  }
+
+  const isSalaryCapRosterHiddenFromViewer =
+    isSalaryCapLeague &&
+    !isOwnTeam &&
+    !isSiteAdminViewer &&
+    !(await isSalaryCapRosterSetupComplete(supabase, league.id, userId));
+
+  if (isSalaryCapRosterHiddenFromViewer) {
+    const teamLabelHidden = factionDisplayName(targetMember, "Unknown");
+    return (
+      <main className="app-page" style={{ maxWidth: 720 }}>
+        <p style={{ marginBottom: 16 }}>
+          <Link href={`/leagues/${slug}`} className="app-link">
+            ← {league.name}
+          </Link>
+        </p>
+        <h1 style={{ marginTop: 0 }}>{teamLabelHidden}</h1>
+        <p
+          style={{
+            marginTop: 16,
+            padding: "14px 16px",
+            borderRadius: 8,
+            background: "var(--color-bg-elevated)",
+            border: "1px solid var(--color-border)",
+            color: "var(--color-text-muted)",
+          }}
+        >
+          This manager is still building their salary cap roster. You&apos;ll be able to view their faction after they
+          complete setup.
+        </p>
+      </main>
+    );
+  }
+
   const simpleFactionView = view === "simple";
   const teamLabel = factionDisplayName(targetMember, "Unknown");
 
@@ -593,9 +635,9 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
 
   return (
     <main
+      className="faction-team-page"
       style={{
         fontFamily: "system-ui, sans-serif",
-        padding: 24,
         maxWidth: 1200,
         margin: "0 auto",
         fontSize: 16,
@@ -664,33 +706,20 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
           </Link>
         )}
       </div>
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(280px, 420px) minmax(0, 1fr)",
-          gap: 20,
-          alignItems: "start",
-          marginBottom: 28,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 14,
-            alignItems: "center",
-            padding: "10px 6px",
-          }}
-        >
-          <ManagerAvatar
-            avatarUrl={resolvedManagerAvatarUrl(targetMember)}
-            fallbackLetter={(teamLabel.trim().charAt(0) || "?").toUpperCase()}
-            size={132}
-            radius="14px"
-            alt={`${teamLabel} avatar`}
-            variant="sidebar"
-          />
-          <div style={{ minWidth: 0 }}>
-            <h1 style={{ margin: "0 0 6px", fontSize: "2rem", fontWeight: 700 }}>{teamLabel}</h1>
+      <section className="faction-team-hero">
+        <div className="faction-team-profile">
+          <div className="faction-team-avatar-wrap">
+            <ManagerAvatar
+              avatarUrl={resolvedManagerAvatarUrl(targetMember)}
+              fallbackLetter={(teamLabel.trim().charAt(0) || "?").toUpperCase()}
+              size={132}
+              radius="14px"
+              alt={`${teamLabel} avatar`}
+              variant="sidebar"
+            />
+          </div>
+          <div className="faction-team-profile-text">
+            <h1 className="faction-team-title">{teamLabel}</h1>
             {targetMember.manager_catchphrase?.trim() ? (
               <p
                 style={{
@@ -730,32 +759,19 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                 View Faction Scoreboard
               </Link>
             </p>
+            {upcomingFactionCards.length > 0 ? (
+              <a href="#faction-upcoming-matches" className="faction-team-upcoming-jump">
+                Upcoming matches ({upcomingFactionCards.length}) ↓
+              </a>
+            ) : null}
           </div>
         </div>
-        <div>
-          <h2 style={{ fontSize: "1.3rem", margin: "0 0 6px", fontWeight: 700 }}>Upcoming Matches</h2>
+        <div className="faction-team-upcoming" id="faction-upcoming-matches">
+          <h2 className="faction-team-upcoming-title">Upcoming Matches</h2>
           {upcomingFactionCards.length > 0 ? (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                gap: 10,
-                maxHeight: 340,
-                overflowY: "auto",
-                paddingRight: 4,
-              }}
-            >
+            <div className="faction-team-upcoming-grid">
               {upcomingFactionCards.map((c) => (
-                <div
-                  key={c.key}
-                  style={{
-                    border: "1px solid #d8dee8",
-                    borderRadius: 10,
-                    background: "#fff",
-                    minHeight: 0,
-                    overflow: "hidden",
-                  }}
-                >
+                <div key={c.key} className="faction-team-upcoming-card">
                   <div
                     style={{
                       fontSize: 11,

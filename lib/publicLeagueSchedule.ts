@@ -1,9 +1,17 @@
-import { getCivilYmdInPst } from "@/lib/pstCivilTime";
 import { leagueUsesSalaryCap, PUBLIC_SALARY_CAP_SEASON_SLUG } from "@/lib/leagueStructure";
+import { computeChampionshipPathwaySeasonWindow } from "@/lib/championshipPathwaySchedule";
 
 export { PUBLIC_SALARY_CAP_SEASON_SLUG } from "@/lib/leagueStructure";
+export {
+  CHAMPIONSHIP_PATHWAY_BETA_KICKOFF_YMD,
+  CHAMPIONSHIP_PATHWAY_SEASON_WEEKS,
+  computeChampionshipPathwaySeasonWindow,
+  getChampionshipPathwayWeeksInRange,
+  isChampionshipPathwayKickoffFriday,
+  nextFridayPacificYmd,
+} from "@/lib/championshipPathwaySchedule";
 
-/** Public leagues run for twelve weeks from the Monday start date. */
+/** Public leagues run for twelve Championship Pathway weeks (Friday kickoff). */
 export const PUBLIC_SALARY_CAP_SEASON_WEEKS = 12;
 
 export function isPublicSalaryCapLeague(
@@ -40,24 +48,10 @@ export function addDaysToYmd(ymd: string, days: number): string {
   return formatYmd(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
 }
 
-/**
- * Next Monday on or after `from` (Pacific calendar).
- * If `from` is already Monday in PT, returns that date.
- */
-export function nextMondayPacificYmd(from: Date = new Date()): string {
-  const todayYmd = getCivilYmdInPst(from.getTime());
-  const { y, m, d } = parseYmd(todayYmd);
-  const weekday = new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
-  const daysUntilMonday = weekday === 1 ? 0 : weekday === 0 ? 1 : 8 - weekday;
-  return addDaysToYmd(todayYmd, daysUntilMonday);
-}
-
-/** Twelve-week window: Monday start through Sunday of week 12. */
+/** Twelve-week Championship Pathway window (Friday kickoff through week 12 Sunday). */
 export function computePublicLeagueSeasonWindow(from: Date = new Date()): {
   start_date: string;
   end_date: string;
 } {
-  const start_date = nextMondayPacificYmd(from);
-  const end_date = addDaysToYmd(start_date, PUBLIC_SALARY_CAP_SEASON_WEEKS * 7 - 1);
-  return { start_date, end_date };
+  return computeChampionshipPathwaySeasonWindow(from);
 }

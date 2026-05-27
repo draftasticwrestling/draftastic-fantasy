@@ -1,11 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import WrestlerHeadshotImage from "@/app/components/WrestlerHeadshotImage";
 import type { SalaryCap2026Stats } from "@/lib/salaryCap2026Stats";
 import {
   addSalaryCapWrestlerAction,
   completeSalaryCapBuildAction,
+  finishSalaryCapInitialRosterAction,
   removeSalaryCapWrestlerAction,
 } from "./actions";
 
@@ -223,6 +225,11 @@ type Props = {
   pool: SalaryCapWrestlerOption[];
   isCommissioner: boolean;
   draftStatus: string | null;
+  /** Show finish bar until member onboarding is marked complete. */
+  showFinishInitialRoster: boolean;
+  finishRosterLabel?: string;
+  /** When true, roster setup is finalized — add/remove disabled on this page. */
+  rosterSetupComplete?: boolean;
 };
 
 function formatPts(n: number | null | undefined): string {
@@ -306,7 +313,11 @@ export function SalaryCapRosterBuilder({
   pool,
   isCommissioner,
   draftStatus,
+  showFinishInitialRoster,
+  finishRosterLabel = "Complete setup",
+  rosterSetupComplete = false,
 }: Props) {
+  const router = useRouter();
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("total2026");
@@ -354,6 +365,19 @@ export function SalaryCapRosterBuilder({
     });
   }
 
+  function finishInitialRoster() {
+    setMessage(null);
+    startTransition(async () => {
+      const res = await finishSalaryCapInitialRosterAction(leagueSlug);
+      if (res.error) {
+        setMessage({ type: "err", text: res.error });
+        return;
+      }
+      router.push(res.redirectTo ?? `/leagues/${leagueSlug}/faction`);
+      router.refresh();
+    });
+  }
+
   return (
     <div>
       <div
@@ -398,11 +422,45 @@ export function SalaryCapRosterBuilder({
         </p>
       ) : null}
 
+      {showFinishInitialRoster ? (
+        <div
+          className="salary-cap-finish-bar"
+          role="region"
+          aria-label="Finish roster setup"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 20,
+            padding: "14px 16px",
+            borderRadius: 10,
+            border: "2px solid var(--color-blue, #2563eb)",
+            background: "var(--color-bg-elevated)",
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 14, color: "var(--color-text)", flex: "1 1 220px" }}>
+            {roster.length === 0
+              ? "Add at least one wrestler from the pool, then continue to your faction page."
+              : "When your roster looks good, complete setup to open your faction page. Other league members won't see your roster until then."}
+          </p>
+          <button
+            type="button"
+            className="app-button"
+            disabled={pending || roster.length === 0}
+            onClick={finishInitialRoster}
+          >
+            {pending ? "Continuing…" : finishRosterLabel}
+          </button>
+        </div>
+      ) : null}
+
       {isCommissioner && draftStatus !== "completed" ? (
         <p style={{ marginBottom: 20 }}>
           <button
             type="button"
-            className="app-button"
+            className="app-button app-button--secondary"
             disabled={pending}
             onClick={() => run(() => completeSalaryCapBuildAction(leagueSlug))}
           >
@@ -439,15 +497,17 @@ export function SalaryCapRosterBuilder({
                         <td className="salary-cap-pool__num salary-cap-pool__cost">${r.salaryCapCost}</td>
                         <SalaryCapPoolStatsCells stats={r.stats2026} rating2k={rating} />
                         <td>
-                          <button
-                            type="button"
-                            className="app-button app-button--secondary"
-                            style={{ fontSize: 12, padding: "4px 10px" }}
-                            disabled={pending}
-                            onClick={() => run(() => removeSalaryCapWrestlerAction(leagueSlug, r.wrestlerId))}
-                          >
-                            Remove
-                          </button>
+                          {!rosterSetupComplete ? (
+                            <button
+                              type="button"
+                              className="app-button app-button--secondary"
+                              style={{ fontSize: 12, padding: "4px 10px" }}
+                              disabled={pending}
+                              onClick={() => run(() => removeSalaryCapWrestlerAction(leagueSlug, r.wrestlerId))}
+                            >
+                              Remove
+                            </button>
+                          ) : null}
                         </td>
                       </tr>
                     );
@@ -491,15 +551,17 @@ export function SalaryCapRosterBuilder({
                       <td className="salary-cap-pool__num salary-cap-pool__cost">${w.salaryCapCost}</td>
                       <SalaryCapPoolStatsCells stats={w.stats2026} rating2k={rating} />
                       <td>
-                        <button
-                          type="button"
-                          className="app-button"
-                          style={{ fontSize: 12, padding: "4px 10px" }}
-                          disabled={pending || w.salaryCapCost > remaining}
-                          onClick={() => run(() => addSalaryCapWrestlerAction(leagueSlug, w.id))}
-                        >
-                          Add
-                        </button>
+                        {!rosterSetupComplete ? (
+                          <button
+                            type="button"
+                            className="app-button"
+                            style={{ fontSize: 12, padding: "4px 10px" }}
+                            disabled={pending || w.salaryCapCost > remaining}
+                            onClick={() => run(() => addSalaryCapWrestlerAction(leagueSlug, w.id))}
+                          >
+                            Add
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   );

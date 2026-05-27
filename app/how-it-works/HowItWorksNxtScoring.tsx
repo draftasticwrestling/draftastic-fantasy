@@ -1,8 +1,7 @@
-import { Fragment } from "react";
 import type { BeltKey, EventLogoKey } from "@/lib/howItWorksImages";
-import { BELT_IMAGE_URLS } from "@/lib/howItWorksImages";
+import { HowItWorksBeltPointsTable } from "./HowItWorksBeltPointsTable";
 import { HowItWorksEventLogo } from "./HowItWorksEventLogo";
-import { BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER, formatMoWkBeltPoints } from "./HowItWorksTitlePoints";
+import { BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER } from "./HowItWorksTitlePoints";
 import { MAIN_ROSTER_CALL_UP_POINTS } from "@/lib/scoring/mainRosterCallUp.js";
 import styles from "./HowItWorks.module.css";
 
@@ -108,46 +107,7 @@ export function HowItWorksNxtScoring({ sectionContext, beltContext }: Props) {
           ) : null}
           {BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER}
         </p>
-        <div className={styles.titlePointsGrid}>
-          <div className={styles.titlePointsThMens}>Men&apos;s Division</div>
-          <div className={styles.titlePointsThBeltMens} aria-hidden />
-          <div className={styles.titlePointsThPtsMens}>Mo./Wk.</div>
-          <div className={styles.titlePointsThWomens}>Women&apos;s Division</div>
-          <div className={styles.titlePointsThBeltWomens} aria-hidden />
-          <div className={styles.titlePointsThPtsWomens}>Mo./Wk.</div>
-          {NXT_TITLE_POINTS_MENS.map((mensRow, i) => {
-            const womensRow = NXT_TITLE_POINTS_WOMENS[i];
-            const rowAlt = i % 2 === 1 ? styles.titlePointsRowAlt : "";
-            return (
-              <Fragment key={mensRow.name}>
-                <div className={`${styles.titlePointsTdNameMens} ${rowAlt}`}>{mensRow.name}</div>
-                <div className={`${styles.titlePointsTdBeltMens} ${rowAlt}`}>
-                  {mensRow.beltKey && BELT_IMAGE_URLS[mensRow.beltKey] ? (
-                    <div className={styles.beltImageWrap}>
-                      <img src={BELT_IMAGE_URLS[mensRow.beltKey]} alt="" className={styles.beltImage} />
-                    </div>
-                  ) : (
-                    <div className={styles.beltPlaceholder}>NXT</div>
-                  )}
-                </div>
-                <div className={`${styles.titlePointsTdPtsMens} ${rowAlt}`}>{formatMoWkBeltPoints(mensRow.points)}</div>
-                <div className={`${styles.titlePointsTdNameWomens} ${rowAlt}`}>{womensRow?.name ?? ""}</div>
-                <div className={`${styles.titlePointsTdBeltWomens} ${rowAlt}`}>
-                  {womensRow?.beltKey && BELT_IMAGE_URLS[womensRow.beltKey] ? (
-                    <div className={styles.beltImageWrap}>
-                      <img src={BELT_IMAGE_URLS[womensRow.beltKey]} alt="" className={styles.beltImage} />
-                    </div>
-                  ) : womensRow ? (
-                    <div className={styles.beltPlaceholder}>NXT</div>
-                  ) : null}
-                </div>
-                <div className={`${styles.titlePointsTdPtsWomens} ${rowAlt}`}>
-                  {womensRow ? formatMoWkBeltPoints(womensRow.points) : ""}
-                </div>
-              </Fragment>
-            );
-          })}
-        </div>
+        <HowItWorksBeltPointsTable mensRows={NXT_TITLE_POINTS_MENS} womensRows={NXT_TITLE_POINTS_WOMENS} />
       </section>
 
       <section style={{ marginBottom: 40 }}>

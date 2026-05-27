@@ -46,22 +46,14 @@ import {
   inferReignsFromChampionshipChanges,
 } from "@/lib/championshipCurrentFromChanges";
 import { EVENT_STATUSES_FOR_SCORING, EVENT_STATUSES_FOR_WEEK_SCHEDULE, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
+import {
+  getMondayOfWeek,
+  getSundayOfWeek,
+  getWeekEndForWeekStart,
+  getWeeksInRange,
+} from "@/lib/fantasyWeekBounds";
 
-/** Monday of the week containing the given date (YYYY-MM-DD). Weeks are Monday–Sunday. */
-export function getMondayOfWeek(dateStr: string): string {
-  const d = new Date(dateStr + "T12:00:00Z");
-  const day = d.getUTCDay(); // 0 Sun .. 6 Sat
-  const offset = (day + 6) % 7; // Mon=0, Sun=6
-  d.setUTCDate(d.getUTCDate() - offset);
-  return d.toISOString().slice(0, 10);
-}
-
-/** Sunday of the week (weekStart is Monday YYYY-MM-DD). */
-export function getSundayOfWeek(weekStart: string): string {
-  const d = new Date(weekStart + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() + 6);
-  return d.toISOString().slice(0, 10);
-}
+export { getMondayOfWeek, getSundayOfWeek, getWeekEndForWeekStart, getWeeksInRange };
 
 /** Last day of month that falls within [weekStart, weekEnd], or null. */
 export function getMonthEndInWeek(weekStart: string, weekEnd: string): string | null {
@@ -79,20 +71,6 @@ function getLastDayOfMonthContaining(dateStr: string): string {
   const month = d.getUTCMonth();
   const lastDay = new Date(Date.UTC(year, month + 1, 0));
   return lastDay.toISOString().slice(0, 10);
-}
-
-/** List of week-start (Monday) dates from league start through end. */
-export function getWeeksInRange(leagueStart: string, leagueEnd: string): string[] {
-  const weeks: string[] = [];
-  const startMonday = getMondayOfWeek(leagueStart);
-  let cur = startMonday;
-  while (cur <= leagueEnd) {
-    weeks.push(cur);
-    const d = new Date(cur + "T12:00:00Z");
-    d.setUTCDate(d.getUTCDate() + 7);
-    cur = d.toISOString().slice(0, 10);
-  }
-  return weeks;
 }
 
 type RosterStintRow = {
@@ -234,7 +212,6 @@ export async function getPointsByOwnerForLeagueForWeek(
   weekStartMonday: string,
   supabaseOverride?: SupabaseClient
 ): Promise<Record<string, number>> {
-  const weekEndSunday = getSundayOfWeek(weekStartMonday);
   const supabase = supabaseOverride ?? (await createClient());
   const { data: league } = await supabase
     .from("leagues")
@@ -244,6 +221,7 @@ export async function getPointsByOwnerForLeagueForWeek(
   if (!league) return {};
 
   const leagueStart = (league.draft_date || league.start_date) ?? "";
+  const weekEndSunday = getWeekEndForWeekStart(weekStartMonday, leagueStart);
   const leagueEnd = league.end_date ?? "";
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
   const includeNxt = leagueIncludesNxt(
@@ -353,7 +331,6 @@ export async function getPointsByOwnerByWrestlerForWeek(
   leagueId: string,
   weekStartMonday: string
 ): Promise<Record<string, Record<string, number>>> {
-  const weekEndSunday = getSundayOfWeek(weekStartMonday);
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
@@ -363,6 +340,7 @@ export async function getPointsByOwnerByWrestlerForWeek(
   if (!league) return {};
 
   const leagueStart = (league.draft_date || league.start_date) ?? "";
+  const weekEndSunday = getWeekEndForWeekStart(weekStartMonday, leagueStart);
   const leagueEnd = league.end_date ?? "";
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
   const includeNxt = leagueIncludesNxt(
@@ -634,7 +612,7 @@ export async function getLeagueWeeklyMatchups(
       : {};
 
   for (const weekStart of weeks) {
-    const weekEnd = getSundayOfWeek(weekStart);
+    const weekEnd = getWeekEndForWeekStart(weekStart, start);
     let pointsByUserId = await getPointsByOwnerForLeagueForWeek(leagueId, weekStart, supabase);
 
     if (includeMonthlyBeltInMatchup && reigns.length > 0) {

@@ -29,16 +29,16 @@ export function HowItWorksPublicLeague() {
             At least <strong>3 factions</strong> are required before the season is scheduled.
           </li>
           <li>
-            When the third faction joins, your league&apos;s season is set to start on the <strong>next Monday</strong>{" "}
-            (Pacific Time).
+            When the third faction joins, your season kicks off on the <strong>next Friday SmackDown</strong> (Pacific
+            Time).
           </li>
           <li>
-            The season runs for <strong>{PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> from that Monday — not tied to a
-            Road to SummerSlam or other PLE finale.
+            <strong>Week 1</strong> runs Friday SmackDown through that Sunday&apos;s PLE. <strong>Week 2</strong> starts
+            the following Monday Raw. The season runs for <strong>{PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> total.
           </li>
           <li>
-            The season timeline on your league page lists every Raw, SmackDown, NXT, and PLE that falls in that{" "}
-            {PUBLIC_SALARY_CAP_SEASON_WEEKS}-week window.
+            The Championship Pathway timeline on your league page lists every Raw, SmackDown, NXT, and PLE in that{" "}
+            {PUBLIC_SALARY_CAP_SEASON_WEEKS}-week window, grouped by fantasy week.
           </li>
         </ul>
       </section>

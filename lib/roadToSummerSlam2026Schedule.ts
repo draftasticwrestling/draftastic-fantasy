@@ -19,7 +19,7 @@ export const ROAD_TO_SUMMERSLAM_2026_SCHEDULE: ScheduleRow[] = [
   { date: "2026-05-23", label: "Saturday Night's Main Event XLIV", tier: "minor-ple" },
   { date: "2026-05-25", label: "Raw", tier: "raw" },
   { date: "2026-05-29", label: "SmackDown", tier: "smackdown" },
-  { date: "2026-05-31", label: "Clash in Italy", tier: "minor-ple" },
+  { date: "2026-05-31", label: "Clash in Paris", tier: "minor-ple" },
   { date: "2026-06-01", label: "Raw", tier: "raw" },
   { date: "2026-06-05", label: "SmackDown", tier: "smackdown" },
   { date: "2026-06-08", label: "Raw", tier: "raw" },

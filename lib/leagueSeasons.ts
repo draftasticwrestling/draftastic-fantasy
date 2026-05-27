@@ -4,6 +4,7 @@
  */
 
 import { LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG, ROAD_TO_WAR_GAMES_SEASON_SLUG } from "@/lib/leagueStructure";
+import { computeChampionshipPathwaySeasonWindow } from "@/lib/championshipPathwaySchedule";
 
 export type SeasonOption = {
   id: string;
@@ -65,7 +66,8 @@ export const SEASON_OPTIONS: SeasonOption[] = [
     id: "public-salary-cap",
     name: "Public League — 12 weeks",
     slug: "public-salary-cap",
-    windowDescription: "Rolling 12-week season starting the Monday after your league fills to 3 factions",
+    windowDescription:
+      "12-week Championship Pathway: Friday SmackDown kickoff (week 1 through Sunday PLE), then 11 Mon–Sun weeks",
     startMonth: 1,
     endMonth: 12,
     crossesCalendarYear: false,
@@ -105,6 +107,10 @@ export function getDefaultStartEndForSeason(
 
   if (seasonSlug === "road-to-summerslam" && year === 2026) {
     return { start_date: "2026-05-09", end_date: "2026-08-02" };
+  }
+
+  if (seasonSlug === "public-salary-cap") {
+    return computeChampionshipPathwaySeasonWindow(new Date(`${year}-05-27T12:00:00Z`));
   }
 
   const start_date = `${startYear}-${String(season.startMonth).padStart(2, "0")}-01`;

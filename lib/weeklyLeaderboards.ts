@@ -1,11 +1,11 @@
 import "server-only";
 
 import { getAdminClient } from "@/lib/supabase/admin";
+import { getWeekEndForWeekStart, getWeeksInRange } from "@/lib/fantasyWeekBounds";
 import {
   getMondayOfWeek,
   getPointsByOwnerForLeagueWeekFromMatchups,
   getSundayOfWeek,
-  getWeeksInRange,
 } from "@/lib/leagueMatchups";
 import { awardWeeklyHighScoreXp } from "@/lib/xp/seasonAwards";
 import { refreshFantasyPointsTiersForUser } from "@/lib/xp/refreshFantasyPointsTiers";
@@ -319,7 +319,7 @@ export async function getLeagueHomeLeaderboards(args: {
       targetMonday = prev.length > 0 ? prev[prev.length - 1]! : scheduleWeeks[scheduleWeeks.length - 1]!;
     }
   } else if (leagueStart && leagueEnd) {
-    const we = getSundayOfWeek(targetMonday);
+    const we = getWeekEndForWeekStart(targetMonday, leagueStart);
     if (we < leagueStart || targetMonday > leagueEnd) {
       return { weekStart: null, weeklyTop10: [], seasonTop10 };
     }

@@ -1,3 +1,5 @@
+import { getWeekEndForWeekStart } from "@/lib/fantasyWeekBounds";
+
 /** Sunday YYYY-MM-DD for fantasy week (weekStart is Monday YYYY-MM-DD; same UTC-noon calendar math as matchups). */
 function getSundayOfWeekFromMonday(weekStart: string): string {
   const d = new Date(weekStart + "T12:00:00Z");
@@ -7,11 +9,21 @@ function getSundayOfWeekFromMonday(weekStart: string): string {
 
 const FANTASY_WEEK_LABEL_TZ = "America/Los_Angeles";
 
-/** Human-readable Mon–Sun range for the fantasy week (week keys align with Mon–Sun Pacific fantasy weeks). */
-export function formatFantasyWeekRangeLabel(weekStartMonday: string): string {
-  const end = getSundayOfWeekFromMonday(weekStartMonday);
+function fantasyWeekEnd(weekStart: string, leagueStart?: string | null): string {
+  if (leagueStart) {
+    return getWeekEndForWeekStart(weekStart, leagueStart);
+  }
+  return getSundayOfWeekFromMonday(weekStart);
+}
+
+/** Human-readable range for a fantasy week (Mon–Sun, or Fri–Sun for Championship Pathway week 1). */
+export function formatFantasyWeekRangeLabel(
+  weekStart: string,
+  leagueStart?: string | null
+): string {
+  const end = fantasyWeekEnd(weekStart, leagueStart);
   try {
-    const s = new Date(`${weekStartMonday}T12:00:00Z`);
+    const s = new Date(`${weekStart}T12:00:00Z`);
     const e = new Date(`${end}T12:00:00Z`);
     const md: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", timeZone: FANTASY_WEEK_LABEL_TZ };
     const yFmt = new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: FANTASY_WEEK_LABEL_TZ });
@@ -24,6 +36,6 @@ export function formatFantasyWeekRangeLabel(weekStartMonday: string): string {
     }
     return `${a} – ${b}, ${ys}`;
   } catch {
-    return `${weekStartMonday} – ${end}`;
+    return `${weekStart} – ${end}`;
   }
 }

@@ -18,8 +18,10 @@ import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/l
 import { getDefaultStartEndForSeason, PUBLIC_SALARY_CAP_SEASON_SLUG, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
 import {
   computePublicLeagueSeasonWindow,
+  isChampionshipPathwayKickoffFriday,
   isPublicSalaryCapLeague,
 } from "@/lib/publicLeagueSchedule";
+import { getCivilYmdInPst } from "@/lib/pstCivilTime";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
@@ -63,6 +65,10 @@ const cacheFn: <T extends (...args: never[]) => unknown>(fn: T) => T =
   typeof reactCache === "function"
     ? (reactCache as <T extends (...args: never[]) => unknown>(fn: T) => T)
     : ((fn) => fn);
+import {
+  filterRostersForSalaryCapSetupVisibility,
+  getSalaryCapRosterSetupCompleteByUserId,
+} from "@/lib/leagueOnboarding";
 import { generateJoinCode, INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode";
 import { awardLeagueJoinXp } from "@/lib/xp/leagueJoinAward";
 import { maybeAwardLeagueStartedXpBySlug } from "@/lib/xp/leagueStartedAward";
@@ -1064,10 +1070,21 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
   const cap = publicSalaryCap ? null : row.max_teams ?? 6;
 
   const updatePayload: Record<string, unknown> = {};
-  if (publicSalaryCap && memberCount >= MIN_LEAGUE_TEAMS && !row.start_date) {
+  if (publicSalaryCap && memberCount >= MIN_LEAGUE_TEAMS) {
     const window = computePublicLeagueSeasonWindow(new Date());
-    updatePayload.start_date = window.start_date;
-    updatePayload.end_date = window.end_date;
+    const existingStart = row.start_date ? String(row.start_date).slice(0, 10) : "";
+    const todayYmd = getCivilYmdInPst(Date.now());
+    if (!existingStart) {
+      updatePayload.start_date = window.start_date;
+      updatePayload.end_date = window.end_date;
+    } else if (
+      !isChampionshipPathwayKickoffFriday(existingStart) &&
+      existingStart > todayYmd
+    ) {
+      // Migrate public leagues still on legacy Monday-start dates that have not begun.
+      updatePayload.start_date = window.start_date;
+      updatePayload.end_date = window.end_date;
+    }
   }
 
   const status =
@@ -1120,21 +1137,24 @@ export const getRostersForLeague = cacheFn(
     const { supabase, user } = await getServerAuth();
     const { data: leagueRow } = await supabase
       .from("leagues")
-      .select("draft_status")
+      .select("draft_status, league_type")
       .eq("id", leagueId)
       .maybeSingle();
     const draftStatus = (leagueRow as { draft_status?: string } | null)?.draft_status ?? "not_started";
-    if (draftStatus === "ready_for_review") {
-      let isSiteAdmin = false;
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_site_admin")
-          .eq("id", user.id)
-          .maybeSingle();
-        isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
-      }
-      if (!isSiteAdmin) return {};
+    const leagueType = (leagueRow as { league_type?: string | null } | null)?.league_type ?? null;
+
+    let isSiteAdmin = false;
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_site_admin")
+        .eq("id", user.id)
+        .maybeSingle();
+      isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
+    }
+
+    if (draftStatus === "ready_for_review" && !isSiteAdmin) {
+      return {};
     }
     const { data, error } = await supabase
       .from("league_rosters")
@@ -1150,6 +1170,18 @@ export const getRostersForLeague = cacheFn(
       if (!byUser[r.user_id]) byUser[r.user_id] = [];
       byUser[r.user_id].push({ wrestler_id: r.wrestler_id, contract: r.contract });
     }
+
+    if (leagueUsesSalaryCap(leagueType) && !isSiteAdmin) {
+      const setupCompleteByUserId = await getSalaryCapRosterSetupCompleteByUserId(supabase, leagueId);
+      return filterRostersForSalaryCapSetupVisibility(
+        byUser,
+        leagueType,
+        setupCompleteByUserId,
+        user?.id ?? null,
+        isSiteAdmin
+      );
+    }
+
     return byUser;
   }
 );
@@ -1307,6 +1339,36 @@ export const getRostersForLeagueForWeek = cacheFn(
           a.wrestler_id.localeCompare(b.wrestler_id)
       );
     }
+
+    const { supabase, user } = await getServerAuth();
+    const { data: leagueRow } = await supabase
+      .from("leagues")
+      .select("league_type")
+      .eq("id", leagueId)
+      .maybeSingle();
+    const leagueType = (leagueRow as { league_type?: string | null } | null)?.league_type ?? null;
+    if (leagueUsesSalaryCap(leagueType)) {
+      let isSiteAdmin = false;
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_site_admin")
+          .eq("id", user.id)
+          .maybeSingle();
+        isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
+      }
+      if (!isSiteAdmin) {
+        const setupCompleteByUserId = await getSalaryCapRosterSetupCompleteByUserId(supabase, leagueId);
+        return filterRostersForSalaryCapSetupVisibility(
+          byUser,
+          leagueType,
+          setupCompleteByUserId,
+          user?.id ?? null,
+          isSiteAdmin
+        );
+      }
+    }
+
     return byUser;
   }
 );
@@ -1578,7 +1640,7 @@ export async function getLeagueScoring(
   const supabase = supabaseOverride ?? (await getServerAuth()).supabase;
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date, season_slug, include_nxt")
+    .select("id, start_date, end_date, draft_date, season_slug, include_nxt, league_type")
     .eq("id", leagueId)
     .single();
 
@@ -1657,9 +1719,17 @@ export async function getLeagueScoring(
         };
       })
     : await getRosterStintsForLeague(leagueId);
+
+  const leagueType = (league as { league_type?: string | null }).league_type ?? null;
+  let scoringStints = stints;
+  if (leagueUsesSalaryCap(leagueType)) {
+    const setupCompleteByUserId = await getSalaryCapRosterSetupCompleteByUserId(supabase, leagueId);
+    scoringStints = stints.filter((s) => setupCompleteByUserId[s.user_id]);
+  }
+
   let wrestlerDisplayNames: Record<string, string> = {};
   if (supabaseOverride) {
-    const ids = [...new Set(stints.map((s) => s.wrestler_id).filter(Boolean))];
+    const ids = [...new Set(scoringStints.map((s) => s.wrestler_id).filter(Boolean))];
     if (ids.length) {
       const { data: wrestlerNames } = await supabase
         .from("wrestlers")
@@ -1673,9 +1743,9 @@ export async function getLeagueScoring(
       );
     }
   } else {
-    wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(stints.map((s) => s.wrestler_id));
+    wrestlerDisplayNames = await getWrestlerDisplayNamesByIds(scoringStints.map((s) => s.wrestler_id));
   }
-  const rosterWrestlerIds = [...new Set(stints.map((s) => s.wrestler_id))];
+  const rosterWrestlerIds = [...new Set(scoringStints.map((s) => s.wrestler_id))];
   const { data: rosterWrestlerRows } = rosterWrestlerIds.length
     ? await supabase.from("wrestlers").select("id, brand").in("id", rosterWrestlerIds)
     : { data: [] as Array<{ id: string; brand: string | null }> };
@@ -1713,7 +1783,7 @@ export async function getLeagueScoring(
       brandBySlug
     );
     kotrCarryOver = updatedCarryOver;
-    const bestStintByWrestlerId: Record<string, typeof stints[number]> = {};
+    const bestStintByWrestlerId: Record<string, typeof scoringStints[number]> = {};
     // When `broadcast_start_ts` exists: calendar overlap + timestamp vs broadcast (see rosterStintEventWindow).
     // When absent: legacy end-of-event-day UTC vs shifted stint boundaries (+ optional ts alignment).
     const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
@@ -1725,7 +1795,7 @@ export async function getLeagueScoring(
     const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
 
     // If roster stint windows overlap, only award points to a single "best" stint per wrestler_id.
-    for (const stint of stints) {
+    for (const stint of scoringStints) {
       if (
         !rosterStintActiveForEvent({
           eventDate,
@@ -1751,7 +1821,7 @@ export async function getLeagueScoring(
       }
     }
 
-    for (const stint of stints) {
+    for (const stint of scoringStints) {
       if (
         !rosterStintActiveForEvent({
           eventDate,
@@ -1846,7 +1916,7 @@ export async function getLeagueScoring(
           beltFirstWeekEnd,
           weekEndSun
         );
-        for (const stint of stints) {
+        for (const stint of scoringStints) {
           if (
             !rosterStintActiveForWeeklyBeltHold({
               stint,
@@ -1892,7 +1962,7 @@ export async function getLeagueScoring(
             beltBySlug[slug] = Math.max(beltBySlug[slug] ?? 0, pts);
           }
         }
-        for (const stint of stints) {
+        for (const stint of scoringStints) {
           if (
             !rosterStintActiveForMonthEndBelt({
               stint,

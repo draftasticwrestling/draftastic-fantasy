@@ -12,6 +12,10 @@ import {
 import { isRoadToSummerSlam2026WithSummerslamFinale } from "@/lib/beltRts2026JulyDeferral";
 import { isRoadToWarGamesSeasonSlug, leagueUsesWeeklyPstBeltHold, SALARY_CAP_CHAMPIONSHIP_PATHWAY_TITLE } from "@/lib/leagueStructure";
 import { PUBLIC_SALARY_CAP_SEASON_SLUG } from "@/lib/publicLeagueSchedule";
+import {
+  championshipPathwayWeekNumberForDate,
+  isChampionshipPathwayKickoffFriday,
+} from "@/lib/championshipPathwaySchedule";
 
 export type SeasonPhaseId =
   | "road-to-summerslam"
@@ -96,6 +100,10 @@ export type TimelineStep = {
   pleFinaleBelt?: PleFinaleBeltSub;
   /** Weekly title-hold lock for leagues that use weekly belt scoring (e.g. Road to SummerSlam). */
   weeklyBeltLock?: WeeklyBeltLockSub;
+  /** Championship Pathway fantasy week (1–12) when league uses salary cap format. */
+  fantasyWeek?: number;
+  /** First event in this fantasy week — show a week header in the UI. */
+  fantasyWeekHeader?: boolean;
 };
 
 export type LeagueSeasonTimelinePayload = {
@@ -313,6 +321,9 @@ export function buildLeagueSeasonTimeline(params: {
 
   const steps: Omit<TimelineStep, "isNext">[] = [];
   let eventOrdinal = 0;
+  let lastFantasyWeek: number | null = null;
+  const useChampionshipPathwayWeeks =
+    isSalaryCapFormat && isChampionshipPathwayKickoffFriday(windowStart);
 
   for (let i = 0; i < mainTrackRows.length; i++) {
     const { row, kind, isFinale, pleEventType } = mainTrackRows[i]!;
@@ -366,6 +377,13 @@ export function buildLeagueSeasonTimeline(params: {
     }
 
     eventOrdinal++;
+    const fantasyWeek = useChampionshipPathwayWeeks
+      ? championshipPathwayWeekNumberForDate(currDate, windowStart, windowEnd)
+      : null;
+    const fantasyWeekHeader =
+      fantasyWeek != null && fantasyWeek !== lastFantasyWeek ? true : undefined;
+    if (fantasyWeek != null) lastFantasyWeek = fantasyWeek;
+
     steps.push({
       index: eventOrdinal,
       id: row.id,
@@ -377,6 +395,8 @@ export function buildLeagueSeasonTimeline(params: {
       monthEndBelt,
       pleFinaleBelt,
       weeklyBeltLock: weeklyBeltByIndex.get(i),
+      fantasyWeek: fantasyWeek ?? undefined,
+      fantasyWeekHeader,
     });
   }
 

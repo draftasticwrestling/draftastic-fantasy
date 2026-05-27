@@ -137,6 +137,7 @@ export function HowItWorksRoadToSummerSlam() {
               className={styles.eventLogoPlaceholder}
             />
           </div>
+          <p className={styles.rawSmackdownMobileNote}>Same points apply to RAW and SmackDown.</p>
           <div className={styles.rawSmackdownFlex}>
             <div className={styles.rawSmackdownCol}>
               {RAWSMACKDOWN_POINTS.map(([action, pts], i) => (
@@ -146,7 +147,7 @@ export function HowItWorksRoadToSummerSlam() {
                 </div>
               ))}
             </div>
-            <div className={styles.rawSmackdownCol}>
+            <div className={`${styles.rawSmackdownCol} ${styles.rawSmackdownColSecond}`}>
               {RAWSMACKDOWN_POINTS.map(([action, pts], i) => (
                 <div key={`sd-${i}`} className={styles.pointRow}>
                   <span>{action}</span>

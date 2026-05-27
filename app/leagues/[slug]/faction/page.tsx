@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import { isSalaryCapRosterSetupComplete } from "@/lib/leagueOnboarding";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
 
 export const dynamic = "force-dynamic";
@@ -26,12 +28,19 @@ export default async function LeagueFactionSimpleEntryPage({ params }: Props) {
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
-  const { user } = await getServerAuth();
+  const { user, supabase } = await getServerAuth();
   if (!user) notFound();
 
   const members = await getLeagueMembers(league.id);
   const isMember = members.some((m) => m.user_id === user.id);
   if (!isMember) notFound();
+
+  if (leagueUsesSalaryCap(league.league_type)) {
+    const setupComplete = await isSalaryCapRosterSetupComplete(supabase, league.id, user.id);
+    if (!setupComplete) {
+      redirect(`/leagues/${slug}/salary-cap`);
+    }
+  }
 
   await recordEngagementEvent({
     eventName: "page.my_faction_view",

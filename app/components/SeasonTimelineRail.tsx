@@ -71,6 +71,17 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
       <p className={styles.sub}>
         {awaitingMinimum ? (
           <>Waiting for at least 3 factions — your 12-week season schedule will appear here once the league is set.</>
+        ) : seasonPhase.id === "public-salary-cap" ? (
+          <>
+            12-week season · Week 1 kicks off Friday SmackDown through Sunday&apos;s PLE · Weeks 2–12 are Monday Raw
+            through Sunday
+            {data.windowEnd !== "2099-12-31" ? (
+              <>
+                {" "}
+                · {formatShortDate(data.windowStart)} – {formatShortDate(data.windowEnd)}
+              </>
+            ) : null}
+          </>
         ) : (
           <>
             From {formatShortDate(data.windowStart)}
@@ -89,9 +100,18 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
         <ol className={styles.trackList}>
           {steps.map((step, i) => {
             const last = i === steps.length - 1;
-            const { monthEndBelt, pleFinaleBelt, weeklyBeltLock } = step;
+            const { monthEndBelt, pleFinaleBelt, weeklyBeltLock, fantasyWeekHeader, fantasyWeek } = step;
             return (
               <li key={step.id} className={styles.trackItem}>
+                {fantasyWeekHeader && fantasyWeek != null ? (
+                  <div className={styles.weekHeader} aria-label={`Week ${fantasyWeek}`}>
+                    Week {fantasyWeek}
+                    {fantasyWeek === 1 ? (
+                      <span className={styles.weekHeaderNote}> · Fri SmackDown – Sun PLE</span>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className={styles.trackRow}>
                 <div className={styles.trackCol}>
                   {!last && <div className={styles.trackLine} aria-hidden />}
                   <div
@@ -165,6 +185,7 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
                       )}
                     </div>
                   )}
+                </div>
                 </div>
               </li>
             );

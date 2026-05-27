@@ -3260,6 +3260,132 @@ body > .site-footer {
   text-decoration: underline;
 }
 
+/* My Faction team page — hero + upcoming matches (mobile-first) */
+.faction-team-page {
+  padding: 16px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.faction-team-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 28px;
+  width: 100%;
+  min-width: 0;
+}
+
+.faction-team-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.faction-team-profile-text {
+  min-width: 0;
+  width: 100%;
+}
+
+.faction-team-title {
+  margin: 0 0 6px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.faction-team-avatar-wrap {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.faction-team-upcoming {
+  min-width: 0;
+  width: 100%;
+}
+
+.faction-team-upcoming-title {
+  font-size: 1.3rem;
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+
+.faction-team-upcoming-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.faction-team-upcoming-card {
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #fff;
+  min-height: 0;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.faction-team-upcoming-jump {
+  display: inline-block;
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.faction-team-upcoming-jump:hover {
+  text-decoration: underline;
+}
+
+@media (min-width: 640px) {
+  .faction-team-profile {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 6px;
+  }
+
+  .faction-team-avatar-wrap {
+    align-self: auto;
+  }
+
+  .faction-team-title {
+    font-size: 2rem;
+  }
+}
+
+@media (min-width: 901px) {
+  .faction-team-page {
+    padding: 24px;
+  }
+
+  .faction-team-hero {
+    grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .faction-team-upcoming-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    max-height: 340px;
+    overflow-y: auto;
+    padding-right: 4;
+  }
+
+  .faction-team-upcoming-jump {
+    display: none;
+  }
+}
+
 /* Roster table (league/team pages — ESPN-style SLOT / PLAYER / ACQ) */
 .roster-table-wrap {
   overflow-x: auto;

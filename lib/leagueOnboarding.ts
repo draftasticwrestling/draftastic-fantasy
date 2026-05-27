@@ -102,3 +102,59 @@ export async function resolveMemberOnboardingState(
 
   return { needsOnboarding: true, member };
 }
+
+/** Per-member salary cap roster setup complete (clicked "Complete setup"). */
+export async function getSalaryCapRosterSetupCompleteByUserId(
+  supabase: SupabaseClient,
+  leagueId: string
+): Promise<Record<string, boolean>> {
+  const { data, error } = await supabase
+    .from("league_members")
+    .select("user_id, onboarding_completed_at")
+    .eq("league_id", leagueId);
+
+  if (error) return {};
+  const out: Record<string, boolean> = {};
+  for (const row of data ?? []) {
+    const r = row as { user_id: string; onboarding_completed_at?: string | null };
+    out[r.user_id] = Boolean(r.onboarding_completed_at?.trim());
+  }
+  return out;
+}
+
+export async function isSalaryCapRosterSetupComplete(
+  supabase: SupabaseClient,
+  leagueId: string,
+  userId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("league_members")
+    .select("onboarding_completed_at")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) return false;
+  return Boolean((data as { onboarding_completed_at?: string | null }).onboarding_completed_at?.trim());
+}
+
+export function filterRostersForSalaryCapSetupVisibility<
+  T extends Record<string, unknown[]>,
+>(
+  rosters: T,
+  leagueType: string | null | undefined,
+  setupCompleteByUserId: Record<string, boolean>,
+  viewerUserId: string | null | undefined,
+  isSiteAdmin: boolean
+): T {
+  if (!leagueUsesSalaryCap(leagueType)) return rosters;
+  const filtered = {} as T;
+  for (const [userId, entries] of Object.entries(rosters)) {
+    const setupComplete = setupCompleteByUserId[userId] ?? false;
+    const isOwn = viewerUserId != null && userId === viewerUserId;
+    if (setupComplete || isOwn || isSiteAdmin) {
+      filtered[userId as keyof T] = entries as T[keyof T];
+    }
+  }
+  return filtered;
+}

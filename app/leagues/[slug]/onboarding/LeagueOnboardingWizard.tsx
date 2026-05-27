@@ -134,15 +134,8 @@ export function LeagueOnboardingWizard({
   }
 
   function finishSalaryCap() {
-    startTransition(async () => {
-      const result = await completeLeagueOnboardingAction(leagueSlug);
-      if (result.error) {
-        setMessage({ type: "err", text: result.error });
-        return;
-      }
-      router.push(result.redirectTo ?? `/leagues/${leagueSlug}/salary-cap`);
-      router.refresh();
-    });
+    setMessage(null);
+    router.push(`/leagues/${leagueSlug}/salary-cap`);
   }
 
   function verifyPrefsAndFinish() {

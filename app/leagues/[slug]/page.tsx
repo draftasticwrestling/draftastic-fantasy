@@ -167,13 +167,23 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
     if (
       currentUser &&
-      leagueUsesSalaryCap(league.league_type) &&
-      (rosters[currentUser.id] ?? []).length === 0
+      leagueUsesSalaryCap(league.league_type)
     ) {
-      const search = searchParams ? await searchParams : {};
-      const skipBuild = search?.skip_salary_cap === "1";
-      if (!skipBuild) {
-        redirect(`/leagues/${slug}/salary-cap`);
+      const { data: memberRow } = await supabase
+        .from("league_members")
+        .select("onboarding_completed_at")
+        .eq("league_id", league.id)
+        .eq("user_id", currentUser.id)
+        .maybeSingle();
+      const salaryCapSetupComplete = Boolean(
+        (memberRow as { onboarding_completed_at?: string | null } | null)?.onboarding_completed_at?.trim()
+      );
+      if (!salaryCapSetupComplete) {
+        const search = searchParams ? await searchParams : {};
+        const skipBuild = search?.skip_salary_cap === "1";
+        if (!skipBuild) {
+          redirect(`/leagues/${slug}/salary-cap`);
+        }
       }
     }
 

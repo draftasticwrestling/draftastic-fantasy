@@ -34,11 +34,11 @@
   margin-top: 12px;
 }
 
-/* ---------- Belt Points: monthly grid + defense / new champion ---------- */
-/* Monthly: 6 columns (Men's name | belt | pts | Women's name | belt | pts) ---------- */
-.titlePointsGrid {
-  display: grid;
-  grid-template-columns: 1fr minmax(72px, 72px) 112px 1fr minmax(72px, 72px) 112px;
+/* ---------- Belt Points: two division tables (stack on mobile) ---------- */
+.titlePointsWrap {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
   gap: 0;
   border: 1px solid #ccc;
   border-radius: 8px;
@@ -46,16 +46,83 @@
   margin-bottom: 32px;
 }
 
-/* Header row: 6 cells */
-.titlePointsThMens {
+.titlePointsDivision {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.titlePointsHeaderRow,
+.titlePointsRow {
+  display: grid;
+  grid-template-columns: minmax(52px, 72px) minmax(0, 1fr) minmax(72px, 96px);
+  margin: 0;
+}
+
+.titlePointsHeaderRow {
+  align-items: stretch;
+}
+
+.titlePointsDivision[data-division="mens"] .titlePointsHeaderRow {
   background: #1e3a5f;
+}
+
+.titlePointsDivision[data-division="womens"] .titlePointsHeaderRow {
+  background: #8b1538;
+}
+
+.titlePointsHeaderRow .titlePointsThMens,
+.titlePointsHeaderRow .titlePointsThBeltMens,
+.titlePointsHeaderRow .titlePointsThPtsMens,
+.titlePointsHeaderRow .titlePointsThWomens,
+.titlePointsHeaderRow .titlePointsThBeltWomens,
+.titlePointsHeaderRow .titlePointsThPtsWomens {
+  background: transparent;
+}
+
+.titlePointsThTitleSpan {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+}
+
+.titlePointsHeaderRow .titlePointsThPtsMens,
+.titlePointsHeaderRow .titlePointsThPtsWomens {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.titlePointsRow {
+  align-items: center;
+  background: #2c5282;
+}
+
+.titlePointsDivision[data-division="womens"] .titlePointsRow {
+  background: #9f2241;
+}
+
+.titlePointsDivision[data-division="mens"] .titlePointsRow.titlePointsRowAlt {
+  background: #2a4365;
+}
+
+.titlePointsDivision[data-division="womens"] .titlePointsRow.titlePointsRowAlt {
+  background: #7a1a32;
+}
+
+.titlePointsDivision + .titlePointsDivision {
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.titlePointsThMens {
   color: white;
   padding: 12px 16px;
   font-weight: 700;
 }
 
 .titlePointsThBeltMens {
-  background: #1e3a5f;
   width: 72px;
   min-width: 72px;
   max-width: 72px;
@@ -66,7 +133,6 @@
 }
 
 .titlePointsThPtsMens {
-  background: #1e3a5f;
   color: white;
   padding: 12px 10px;
   font-weight: 700;
@@ -77,14 +143,12 @@
 }
 
 .titlePointsThWomens {
-  background: #8b1538;
   color: white;
   padding: 12px 16px;
   font-weight: 700;
 }
 
 .titlePointsThBeltWomens {
-  background: #8b1538;
   width: 72px;
   min-width: 72px;
   max-width: 72px;
@@ -95,7 +159,6 @@
 }
 
 .titlePointsThPtsWomens {
-  background: #8b1538;
   color: white;
   padding: 12px 10px;
   font-weight: 700;
@@ -107,78 +170,51 @@
 
 /* Data cells */
 .titlePointsTdNameMens {
-  padding: 12px 16px;
-  background: #2c5282;
+  padding: 12px 16px 12px 8px;
   color: white;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .titlePointsTdBeltMens {
   padding: 8px;
-  background: #2c5282;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
   width: 72px;
   min-width: 72px;
   max-width: 72px;
-  min-height: 48px;
   overflow: hidden;
   box-sizing: border-box;
 }
 
 .titlePointsTdPtsMens {
   padding: 12px 8px;
-  background: #2c5282;
   color: white;
   font-weight: 700;
   text-align: right;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .titlePointsTdNameWomens {
-  padding: 12px 16px;
-  background: #9f2241;
+  padding: 12px 16px 12px 8px;
   color: white;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .titlePointsTdBeltWomens {
   padding: 8px;
-  background: #9f2241;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
   width: 72px;
   min-width: 72px;
   max-width: 72px;
-  min-height: 48px;
   overflow: hidden;
   box-sizing: border-box;
 }
 
 .titlePointsTdPtsWomens {
   padding: 12px 8px;
-  background: #9f2241;
   color: white;
   font-weight: 700;
   text-align: right;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-/* Alternating row colors (odd rows) */
-.titlePointsTdNameMens.titlePointsRowAlt,
-.titlePointsTdBeltMens.titlePointsRowAlt,
-.titlePointsTdPtsMens.titlePointsRowAlt {
-  background: #2a4365;
-}
-
-.titlePointsTdNameWomens.titlePointsRowAlt,
-.titlePointsTdBeltWomens.titlePointsRowAlt,
-.titlePointsTdPtsWomens.titlePointsRowAlt {
-  background: #7a1a32;
 }
 
 .beltPlaceholder {
@@ -276,7 +312,17 @@
   background: #e2e8f0;
 }
 
-.beltDefenseGrid > div:nth-last-child(-n + 2) {
+.beltDefenseRow {
+  display: contents;
+}
+
+.beltDefenseRowAlt .beltDefenseTd,
+.beltDefenseRowAlt .beltDefenseTdPts {
+  background: #e2e8f0;
+}
+
+.beltDefenseGrid .beltDefenseRow:last-child .beltDefenseTd,
+.beltDefenseGrid .beltDefenseRow:last-child .beltDefenseTdPts {
   border-bottom: none;
 }
 
@@ -333,6 +379,14 @@
   max-width: 320px;
 }
 
+.rawSmackdownMobileNote {
+  display: none;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  text-align: center;
+}
+
 .rawSmackdownAmp {
   display: flex;
   align-items: center;
@@ -378,6 +432,7 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  gap: 12px;
   padding: 6px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 15px;
@@ -553,41 +608,327 @@
   font-size: 11px;
 }
 
+/* Belt tables: stack divisions and keep title names visible (incl. phone landscape >768px) */
+@media (max-width: 960px) {
+  .titlePointsWrap {
+    flex-direction: column;
+  }
+
+  .titlePointsDivision + .titlePointsDivision {
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .titlePointsHeaderRow,
+  .titlePointsRow {
+    grid-template-columns: 34px minmax(120px, 1fr) 52px;
+  }
+
+  .titlePointsDivision {
+    font-size: 11px;
+  }
+
+  .titlePointsThMens,
+  .titlePointsThWomens {
+    padding: 6px 8px;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .titlePointsTdNameMens,
+  .titlePointsTdNameWomens {
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+
+  .titlePointsThPtsMens,
+  .titlePointsThPtsWomens {
+    padding: 6px 4px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .titlePointsTdPtsMens,
+  .titlePointsTdPtsWomens {
+    padding: 6px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .titlePointsThBeltMens,
+  .titlePointsThBeltWomens,
+  .titlePointsTdBeltMens,
+  .titlePointsTdBeltWomens {
+    width: 34px;
+    min-width: 34px;
+    max-width: 34px;
+    padding: 4px 2px;
+  }
+
+  .beltImageWrap,
+  .beltPlaceholder {
+    width: 30px;
+    height: 18px;
+    min-width: 30px;
+    max-width: 30px;
+    min-height: 18px;
+    max-height: 18px;
+    font-size: 8px;
+  }
+}
+
 @media (max-width: 768px) {
-  .titlePointsGrid {
-    grid-template-columns: 1fr;
+  .page {
+    padding: 14px 12px;
+    font-size: 15px;
+    line-height: 1.55;
   }
 
-  .majorPleTwoCol,
-  .majorPleThreeCol {
-    grid-template-columns: 1fr;
+  .sectionTitle {
+    font-size: 1.2rem;
   }
 
-  .mediumPleGrid {
-    grid-template-columns: 1fr;
+  .sectionSubtitle {
+    font-size: 14px;
+    margin-bottom: 14px;
+    padding: 0 4px;
   }
 
-  .nocKqorTwoCol {
-    grid-template-columns: 1fr;
+  .beltPointsSubheading {
+    font-size: 1.05rem;
+    margin: 20px 0 8px;
   }
 
-  .minorPleGrid {
-    grid-template-columns: 1fr 1fr;
+  .beltDefenseGrid {
+    max-width: 100%;
+  }
+
+  .beltDefenseTh {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  .beltDefenseTd,
+  .beltDefenseTdPts {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  .darkBox,
+  .pleDarkBox {
+    padding: 16px 12px;
+    margin-bottom: 24px;
   }
 
   .rawSmackdownLogoRow {
     flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .eventLogoPlaceholder {
+    height: 40px;
+    margin-bottom: 0;
+    font-size: 12px;
+  }
+
+  .rawSmackdownAmp {
+    font-size: 1.5rem;
+  }
+
+  .rawSmackdownMobileNote {
+    display: block;
+  }
+
+  .rawSmackdownColSecond {
+    display: none;
   }
 
   .rawSmackdownFlex {
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+  }
+
+  .rawSmackdownCol {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+
+  .pointRow {
+    font-size: 13px;
+    padding: 5px 0;
+    gap: 8px;
+  }
+
+  .pointRow span:first-child {
+    flex: 1;
+    min-width: 0;
+    padding-right: 8px;
+  }
+
+  .wrestlemaniaLogoPlaceholder {
+    height: 48px;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+
+  .eventCardLogo,
+  .mediumPleCard .eventCardLogo,
+  .minorPleCard .eventCardLogo {
+    height: 36px;
+    margin-bottom: 10px;
+    font-size: 10px;
+  }
+
+  .eventCardLogoTall {
+    height: 44px;
+    margin-bottom: 10px;
+  }
+
+  .eventCardLogo.hasImg img,
+  .eventCardLogoTall.hasImg img {
+    max-width: 120px;
+  }
+
+  .eventCard,
+  .mediumPleCard,
+  .minorPleCard {
+    padding: 14px 12px;
+  }
+
+  .eventCard .pointRow {
+    font-size: 13px;
+  }
+
+  .majorPleTwoCol,
+  .majorPleThreeCol,
+  .pleDarkBox .mediumPleGrid,
+  .mediumPleGrid,
+  .nocKqorTwoCol,
+  .pleDarkBox .minorPleGrid,
+  .minorPleGrid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    max-width: none;
+  }
+
+  .majorPleSingle .eventCard,
+  .mediumPleGridSingle .mediumPleCard {
+    max-width: none;
+  }
+
+  .nocKqorCombinedTitle {
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+  }
+
+  .tabList {
+    gap: 4px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+
+  .tabButton {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 13px;
   }
 }
 
 @media (max-width: 480px) {
-  .minorPleGrid {
-    grid-template-columns: 1fr;
+  .titlePointsDivision {
+    font-size: 10px;
+  }
+
+  .titlePointsHeaderRow,
+  .titlePointsRow {
+    grid-template-columns: 30px minmax(100px, 1fr) 48px;
+  }
+
+  .titlePointsThMens,
+  .titlePointsThWomens {
+    font-size: 11px;
+    padding: 5px 6px;
+  }
+
+  .titlePointsTdNameMens,
+  .titlePointsTdNameWomens {
+    font-size: 10px;
+    padding: 5px 6px;
+  }
+
+  .titlePointsThPtsMens,
+  .titlePointsThPtsWomens {
+    font-size: 9px;
+  }
+
+  .titlePointsTdPtsMens,
+  .titlePointsTdPtsWomens {
+    font-size: 10px;
+  }
+
+  .titlePointsThBeltMens,
+  .titlePointsThBeltWomens,
+  .titlePointsTdBeltMens,
+  .titlePointsTdBeltWomens {
+    width: 30px;
+    min-width: 30px;
+    max-width: 30px;
+    min-height: 28px;
+  }
+
+  .beltImageWrap,
+  .beltPlaceholder {
+    width: 26px;
+    height: 16px;
+    min-width: 26px;
+    max-width: 26px;
+    min-height: 16px;
+    max-height: 16px;
+  }
+
+  .beltDefenseGrid {
+    display: block;
+  }
+
+  .beltDefenseGrid > .beltDefenseTh {
+    display: none;
+  }
+
+  .beltDefenseRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #cbd5e0;
+    background: #edf2f7;
+  }
+
+  .beltDefenseRow.beltDefenseRowAlt {
+    background: #e2e8f0;
+  }
+
+  .beltDefenseRow .beltDefenseTd,
+  .beltDefenseRow .beltDefenseTdPts {
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+
+  .beltDefenseRow:last-child {
+    border-bottom: none;
   }
 }
 

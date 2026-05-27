@@ -19,7 +19,7 @@ export type RtsPlePathKey = (typeof RTS_2026_PLE_PATH_KEYS)[number];
 const RTS_2026_PLE_NAV: readonly PleNavEntry[] = [
   { kind: "rts", pathKey: "backlash", label: "Backlash" },
   { kind: "rts", pathKey: "snme-1", label: "SNME 1" },
-  { kind: "rts", pathKey: "clash-in-italy", label: "Clash in Italy" },
+  { kind: "rts", pathKey: "clash-in-italy", label: "Clash in Paris" },
   { kind: "rts", pathKey: "night-of-champions", label: "Night of Champions" },
   { kind: "rts", pathKey: "snme-2", label: "SNME 2" },
   { kind: "rts", pathKey: "summerslam", label: "SummerSlam" },

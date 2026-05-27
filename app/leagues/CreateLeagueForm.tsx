@@ -162,8 +162,9 @@ export function CreateLeagueForm({
             <label style={{ display: "block", marginBottom: 8 }}>Season</label>
             <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.5 }}>
               <strong>Public League — {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> — Your league&apos;s start and end
-              dates are set automatically when at least 3 factions have joined. The season begins on the next Monday and
-              runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks of WWE events.
+              dates are set automatically when at least 3 factions have joined. Week 1 kicks off on the next Friday
+              SmackDown (through that Sunday&apos;s PLE); week 2 starts the following Monday Raw. The season runs for{" "}
+              {PUBLIC_SALARY_CAP_SEASON_WEEKS} fantasy weeks of WWE events.
             </p>
           </>
         ) : useStandardRules ? (
@@ -221,8 +222,8 @@ export function CreateLeagueForm({
           >
             <strong>Public League</strong>
             <span className="create-league-type-desc">
-              Salary Cap — Total Season Points. Open enrollment with no team cap; your season starts the Monday after 3
-              factions join and runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
+              Salary Cap — Total Season Points. Open enrollment with no team cap; week 1 kicks off on the next Friday
+              SmackDown after 3 factions join and runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} fantasy weeks.
             </span>
           </button>
         </div>
