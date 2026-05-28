@@ -46,7 +46,7 @@ import XpStatusStrip from "@/app/components/XpStatusStrip";
 import { LeagueLevelUpBanner } from "./LeagueLevelUpBanner";
 import { getLeagueHomeLeaderboards } from "@/lib/weeklyLeaderboards";
 import { isLeagueHomeTop10Visible } from "@/lib/leagueHomeLeaderboardsGate";
-import { LeagueHomeSidebarTop10 } from "./LeagueHomeSidebarTop10";
+import { LeagueHomeLeaderboardsClient } from "./LeagueHomeLeaderboardsClient";
 import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
 
 function formatLeagueType(type: string | null | undefined): string {
@@ -232,6 +232,11 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       });
     }
     const showTop10 = isLeagueHomeTop10Visible();
+    const searchForLeaderboard = searchParams ? await searchParams : {};
+    const leaderboardWeekParam =
+      typeof searchForLeaderboard.leaderboard_week === "string"
+        ? searchForLeaderboard.leaderboard_week.trim()
+        : undefined;
     const leaderboardData = showTop10
       ? await getLeagueHomeLeaderboards({
           leagueId: league.id,
@@ -239,8 +244,18 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           pointsByUserId,
           leagueStartYmd: (league.draft_date || league.start_date) ?? null,
           leagueEndYmd: league.end_date ?? null,
+          leaderboardWeek: leaderboardWeekParam,
         })
-      : { weekStart: null as string | null, weeklyTop10: [], seasonTop10: [] };
+      : {
+          weekStart: null,
+          currentWeekStart: null,
+          weeklyPrevWeekStart: null,
+          weeklyNextWeekStart: null,
+          weeklyTop10: [],
+          seasonTop10: [],
+          leagueLeaderboardsAvailable: false,
+          leagueStartYmd: null,
+        };
 
     let levelUpCelebration: Awaited<ReturnType<typeof resolveLeagueHomeXpBanner>>["celebration"] = null;
     let xpBannerKind: LeagueHomeXpBannerKind | null = null;
@@ -391,9 +406,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         currentUserId={currentUser?.id ?? null}
         xpByUserId={xpByUserId}
         showTop10Leaderboards={showTop10}
-        weeklyTop10={leaderboardData.weeklyTop10}
-        seasonTop10={leaderboardData.seasonTop10}
-        latestWeekStart={leaderboardData.weekStart}
+        leaderboardInitial={leaderboardData}
         levelUpCelebration={levelUpCelebration}
         xpBannerKind={xpBannerKind}
       />
@@ -455,12 +468,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               </Link>
             )}
           </div>
-          {showTop10 ? (
-            <LeagueHomeSidebarTop10
+          {showTop10 && leaderboardData.leagueLeaderboardsAvailable ? (
+            <LeagueHomeLeaderboardsClient
               leagueSlug={slug}
-              weekStart={leaderboardData.weekStart}
-              weeklyTop10={leaderboardData.weeklyTop10}
-              seasonTop10={leaderboardData.seasonTop10}
+              initial={leaderboardData}
               showSeasonTop10={showSeasonTop10InSidebar}
             />
           ) : null}

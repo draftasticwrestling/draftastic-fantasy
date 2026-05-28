@@ -3,12 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PROFILE_TIMEZONE_OPTIONS } from "@/lib/profileTimezone";
+import { EmailNotificationPreferences } from "@/app/account/EmailNotificationPreferences";
 
 type Props = {
   userId: string;
   initialDisplayName: string;
   initialTimezone: string;
   initialNotifyTradeProposals: boolean;
+  initialNotifyTradeAccepted: boolean;
+  initialNotifyTradeFinalized: boolean;
+  initialNotifyGmTradeApproval: boolean;
+  initialNotifyEventScores: boolean;
   initialNotifyDraftReminder: boolean;
   initialNotifyWeeklyResults: boolean;
   initialMarketingOptIn: boolean;
@@ -21,6 +26,10 @@ export function AccountForm({
   initialDisplayName,
   initialTimezone,
   initialNotifyTradeProposals,
+  initialNotifyTradeAccepted,
+  initialNotifyTradeFinalized,
+  initialNotifyGmTradeApproval,
+  initialNotifyEventScores,
   initialNotifyDraftReminder,
   initialNotifyWeeklyResults,
   initialMarketingOptIn,
@@ -32,6 +41,10 @@ export function AccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [timezone, setTimezone] = useState(initialTimezone);
   const [notifyTradeProposals, setNotifyTradeProposals] = useState(initialNotifyTradeProposals);
+  const [notifyTradeAccepted, setNotifyTradeAccepted] = useState(initialNotifyTradeAccepted);
+  const [notifyTradeFinalized, setNotifyTradeFinalized] = useState(initialNotifyTradeFinalized);
+  const [notifyGmTradeApproval, setNotifyGmTradeApproval] = useState(initialNotifyGmTradeApproval);
+  const [notifyEventScores, setNotifyEventScores] = useState(initialNotifyEventScores);
   const [notifyDraftReminder, setNotifyDraftReminder] = useState(initialNotifyDraftReminder);
   const [notifyWeeklyResults, setNotifyWeeklyResults] = useState(initialNotifyWeeklyResults);
   const [marketingOptIn, setMarketingOptIn] = useState(initialMarketingOptIn);
@@ -75,6 +88,10 @@ export function AccountForm({
           display_name: displayName.trim() || null,
           timezone: timezone.trim(),
           notify_trade_proposals: notifyTradeProposals,
+          notify_trade_accepted: notifyTradeAccepted,
+          notify_trade_finalized: notifyTradeFinalized,
+          notify_gm_trade_approval: notifyGmTradeApproval,
+          notify_event_scores: notifyEventScores,
           notify_draft_reminder: notifyDraftReminder,
           notify_weekly_results: notifyWeeklyResults,
           marketing_opt_in: marketingOptIn,
@@ -177,35 +194,25 @@ export function AccountForm({
         </div>
         <div>
           <span style={labelStyle}>Email notifications</span>
-          <p style={{ margin: "0 0 12px", fontSize: 13, color: "#666" }}>
-            Choose when you want to receive emails (once we enable them).
+          <p style={{ margin: "0 0 16px", fontSize: 13, color: "#666" }}>
+            Turn categories on or off, then save. Unchecked items will not be emailed.
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={notifyTradeProposals}
-                onChange={(e) => setNotifyTradeProposals(e.target.checked)}
-              />
-              <span>When someone proposes a trade with me</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={notifyDraftReminder}
-                onChange={(e) => setNotifyDraftReminder(e.target.checked)}
-              />
-              <span>Before a scheduled draft (reminder)</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={notifyWeeklyResults}
-                onChange={(e) => setNotifyWeeklyResults(e.target.checked)}
-              />
-              <span>Weekly matchup results</span>
-            </label>
-          </div>
+          <EmailNotificationPreferences
+            notifyTradeProposals={notifyTradeProposals}
+            notifyTradeAccepted={notifyTradeAccepted}
+            notifyTradeFinalized={notifyTradeFinalized}
+            notifyGmTradeApproval={notifyGmTradeApproval}
+            notifyEventScores={notifyEventScores}
+            notifyDraftReminder={notifyDraftReminder}
+            notifyWeeklyResults={notifyWeeklyResults}
+            setNotifyTradeProposals={setNotifyTradeProposals}
+            setNotifyTradeAccepted={setNotifyTradeAccepted}
+            setNotifyTradeFinalized={setNotifyTradeFinalized}
+            setNotifyGmTradeApproval={setNotifyGmTradeApproval}
+            setNotifyEventScores={setNotifyEventScores}
+            setNotifyDraftReminder={setNotifyDraftReminder}
+            setNotifyWeeklyResults={setNotifyWeeklyResults}
+          />
         </div>
         {needsRequiredAcceptance ? (
           <div>

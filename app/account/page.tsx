@@ -98,6 +98,10 @@ export default async function AccountPage({
         initialDisplayName={profile?.display_name ?? ""}
         initialTimezone={profile?.timezone ?? ""}
         initialNotifyTradeProposals={profile?.notify_trade_proposals ?? true}
+        initialNotifyTradeAccepted={profile?.notify_trade_accepted ?? true}
+        initialNotifyTradeFinalized={profile?.notify_trade_finalized ?? true}
+        initialNotifyGmTradeApproval={profile?.notify_gm_trade_approval ?? true}
+        initialNotifyEventScores={profile?.notify_event_scores ?? true}
         initialNotifyDraftReminder={profile?.notify_draft_reminder ?? true}
         initialNotifyWeeklyResults={profile?.notify_weekly_results ?? true}
         initialMarketingOptIn={profile?.marketing_opt_in ?? false}

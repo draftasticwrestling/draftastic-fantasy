@@ -9,8 +9,8 @@ import type { LevelUpCelebration } from "@/lib/xp/xpLevelUpFlavor";
 import type { LeagueHomeXpBannerKind } from "@/lib/xp/leagueHomeXpBannerKind";
 import { LeagueLevelUpBanner } from "./LeagueLevelUpBanner";
 import { LeagueMobileStandingsTable } from "./LeagueMobileStandingsTable";
-import type { LeaderboardDisplayRow } from "@/lib/weeklyLeaderboards";
-import { LeagueHomeSidebarTop10 } from "./LeagueHomeSidebarTop10";
+import type { LeagueHomeLeaderboardsPayload } from "@/lib/weeklyLeaderboards";
+import { LeagueHomeLeaderboardsClient } from "./LeagueHomeLeaderboardsClient";
 
 type Props = {
   leagueSlug: string;
@@ -27,8 +27,7 @@ type Props = {
   currentUserId: string | null;
   xpByUserId?: Record<string, XpDisplay>;
   showTop10Leaderboards: boolean;
-  weeklyTop10: LeaderboardDisplayRow[];
-  seasonTop10: LeaderboardDisplayRow[];
+  leaderboardInitial: LeagueHomeLeaderboardsPayload;
   /** When false, sidebar hides “Most points this season” (e.g. Total Season Points leagues). */
   showSeasonTop10?: boolean;
   /** Head-to-head leagues get a Matchups link in the mobile League menu. */
@@ -36,7 +35,6 @@ type Props = {
   /** Salary cap leagues use Add/Drop only (no trades) and skip draft nav elsewhere. */
   isSalaryCapLeague?: boolean;
   seasonBelt?: LeagueSeasonBelt | null;
-  latestWeekStart: string | null;
   levelUpCelebration?: LevelUpCelebration | null;
   xpBannerKind?: LeagueHomeXpBannerKind | null;
 };
@@ -69,13 +67,11 @@ export function LeagueHomeMobileLeagueView({
   currentUserId,
   xpByUserId,
   showTop10Leaderboards,
-  weeklyTop10,
-  seasonTop10,
+  leaderboardInitial,
   showSeasonTop10 = true,
   isHeadToHead = false,
   isSalaryCapLeague = false,
   seasonBelt = null,
-  latestWeekStart,
   levelUpCelebration = null,
   xpBannerKind = null,
 }: Props) {
@@ -187,13 +183,11 @@ export function LeagueHomeMobileLeagueView({
         />
       </div>
 
-      {showTop10Leaderboards ? (
+      {showTop10Leaderboards && leaderboardInitial.leagueLeaderboardsAvailable ? (
         <div className="league-home-mobile__section" style={{ marginTop: 12 }}>
-          <LeagueHomeSidebarTop10
+          <LeagueHomeLeaderboardsClient
             leagueSlug={leagueSlug}
-            weekStart={latestWeekStart}
-            weeklyTop10={weeklyTop10}
-            seasonTop10={seasonTop10}
+            initial={leaderboardInitial}
             showSeasonTop10={showSeasonTop10}
           />
         </div>

@@ -20,6 +20,12 @@ import { assertFaSigningAllowedForLeague } from "@/lib/freeAgentSigningLimits";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
 import { awardUserXp } from "@/lib/xp/awardUserXp";
 import { XP_AMOUNTS } from "@/lib/xp/xpReasons";
+import {
+  notifyTradeAcceptedByRecipient,
+  notifyTradeDeclinedByRecipient,
+  notifyTradeGmDecision,
+  notifyTradeProposed,
+} from "@/lib/email/leagueNotifications";
 
 function normalizeGender(g: string | null | undefined): "F" | "M" | null {
   if (g == null || typeof g !== "string") return null;
@@ -599,6 +605,7 @@ export async function createTradeProposal(
     leagueId,
     metadata: { proposalId: proposal.id, toUserId },
   });
+  void notifyTradeProposed(proposal.id);
   return { id: proposal.id };
 }
 
@@ -943,6 +950,7 @@ export async function respondToTradeProposal(
       .update({ status: "rejected", responded_at: now, to_responded_at: now })
       .eq("id", proposalId);
     if (updateErr) return { error: updateErr.message };
+    void notifyTradeDeclinedByRecipient(proposalId);
     return {};
   }
 
@@ -1036,6 +1044,7 @@ export async function respondToTradeProposal(
     })
     .eq("id", proposalId);
   if (updateErr) return { error: updateErr.message };
+  void notifyTradeAcceptedByRecipient(proposalId);
   return {};
 }
 
@@ -1461,6 +1470,9 @@ export async function respondToTradeByGm(
         .eq("id", proposalId);
       return exec;
     }
+    void notifyTradeGmDecision(proposalId, true);
+  } else {
+    void notifyTradeGmDecision(proposalId, false);
   }
   return {};
 }

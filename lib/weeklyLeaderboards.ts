@@ -1,7 +1,13 @@
 import "server-only";
 
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getWeekEndForWeekStart, getWeeksInRange } from "@/lib/fantasyWeekBounds";
+import {
+  getCurrentFantasyWeekStartForLeague,
+  getWeekEndForWeekStart,
+  leagueLeaderboardWeekNav,
+  normalizeLeagueLeaderboardWeekStart,
+} from "@/lib/fantasyWeekBounds";
+import { getCivilYmdInPst } from "@/lib/pstCivilTime";
 import {
   getMondayOfWeek,
   getPointsByOwnerForLeagueWeekFromMatchups,
@@ -23,6 +29,18 @@ export type LeaderboardDisplayRow = {
   points: number;
   rank: number;
   label: string;
+};
+
+/** Serializable league-home leaderboard payload (API + client). */
+export type LeagueHomeLeaderboardsPayload = {
+  weekStart: string | null;
+  currentWeekStart: string | null;
+  weeklyPrevWeekStart: string | null;
+  weeklyNextWeekStart: string | null;
+  weeklyTop10: LeaderboardDisplayRow[];
+  seasonTop10: LeaderboardDisplayRow[];
+  leagueLeaderboardsAvailable: boolean;
+  leagueStartYmd: string | null;
 };
 
 /** Monday YYYY-MM-DD for the current Mon–Sun fantasy week in America/Los_Angeles. */
@@ -263,14 +281,25 @@ export async function getLeagueHomeLeaderboards(args: {
   leagueId: string;
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
-  /** Draft-or-start and end dates for clamping which Mon–Sun week to show. */
+  /** Draft-or-start and end dates for clamping which fantasy week to show. */
   leagueStartYmd?: string | null;
   leagueEndYmd?: string | null;
-}): Promise<{
-  weekStart: string | null;
-  weeklyTop10: LeaderboardDisplayRow[];
-  seasonTop10: LeaderboardDisplayRow[];
-}> {
+  /** Optional week key (`leaderboard_week` query); defaults to the in-progress fantasy week. */
+  leaderboardWeek?: string | null;
+}): Promise<LeagueHomeLeaderboardsPayload> {
+  const leagueStart = String(args.leagueStartYmd ?? "").slice(0, 10);
+  const leagueEnd = String(args.leagueEndYmd ?? "").slice(0, 10) || "2099-12-31";
+  const emptyPayload = (): LeagueHomeLeaderboardsPayload => ({
+    weekStart: null,
+    currentWeekStart: null,
+    weeklyPrevWeekStart: null,
+    weeklyNextWeekStart: null,
+    weeklyTop10: [],
+    seasonTop10: [],
+    leagueLeaderboardsAvailable: false,
+    leagueStartYmd: leagueStart || null,
+  });
+
   const admin = getAdminClient();
   const memberByUserId = Object.fromEntries(
     args.members.map((m) => [m.user_id, m])
@@ -287,53 +316,48 @@ export async function getLeagueHomeLeaderboards(args: {
     .map((r, idx) => ({ ...r, rank: idx + 1 }));
 
   if (!admin) {
-    return { weekStart: null, weeklyTop10: [], seasonTop10 };
+    return { ...emptyPayload(), seasonTop10 };
   }
 
-  const leagueStart = String(args.leagueStartYmd ?? "").slice(0, 10);
-  const leagueEnd = String(args.leagueEndYmd ?? "").slice(0, 10) || "2099-12-31";
-  const scheduleWeeks =
+  const now = new Date();
+  const currentWeekStart =
     leagueStart && /^\d{4}-\d{2}-\d{2}$/.test(leagueStart)
-      ? getWeeksInRange(leagueStart, leagueEnd)
-      : [];
+      ? getCurrentFantasyWeekStartForLeague(leagueStart, leagueEnd, now)
+      : getCurrentWeekStartMondayPst(now);
 
-  /** Prefer latest week key from snapshot (cron rhythm); points always recomputed live so belt / matchup bonuses match the chart. */
-  const { data: snapWeekRow } = await admin
-    .from("league_weekly_points_snapshot")
-    .select("week_start")
-    .eq("league_id", args.leagueId)
-    .order("week_start", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const targetWeek =
+    leagueStart && /^\d{4}-\d{2}-\d{2}$/.test(leagueStart)
+      ? normalizeLeagueLeaderboardWeekStart(args.leaderboardWeek, leagueStart, leagueEnd, now)
+      : normalizeLeagueLeaderboardWeekStart(
+          args.leaderboardWeek,
+          leagueStart || getCivilYmdInPst(now.getTime()),
+          leagueEnd,
+          now
+        );
 
-  let targetMonday =
-    (snapWeekRow as { week_start?: string } | null)?.week_start?.slice(0, 10) ??
-    getPreviousWeekStartMondayPst();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetMonday)) {
-    targetMonday = getPreviousWeekStartMondayPst();
-  }
+  const { weeklyPrevWeekStart, weeklyNextWeekStart } =
+    leagueStart && /^\d{4}-\d{2}-\d{2}$/.test(leagueStart)
+      ? leagueLeaderboardWeekNav(targetWeek, leagueStart, leagueEnd, now)
+      : {
+          weeklyPrevWeekStart: shiftWeekStartMonday(targetWeek, -1),
+          weeklyNextWeekStart:
+            shiftWeekStartMonday(targetWeek, 1) <= currentWeekStart
+              ? shiftWeekStartMonday(targetWeek, 1)
+              : null,
+        };
 
-  if (scheduleWeeks.length > 0) {
-    if (!scheduleWeeks.includes(targetMonday)) {
-      const prev = [...scheduleWeeks].filter((w) => w <= targetMonday);
-      targetMonday = prev.length > 0 ? prev[prev.length - 1]! : scheduleWeeks[scheduleWeeks.length - 1]!;
-    }
-  } else if (leagueStart && leagueEnd) {
-    const we = getWeekEndForWeekStart(targetMonday, leagueStart);
-    if (we < leagueStart || targetMonday > leagueEnd) {
-      return { weekStart: null, weeklyTop10: [], seasonTop10 };
+  if (leagueStart && leagueEnd) {
+    const we = getWeekEndForWeekStart(targetWeek, leagueStart);
+    if (we < leagueStart || targetWeek > leagueEnd) {
+      return { ...emptyPayload(), seasonTop10, leagueLeaderboardsAvailable: true };
     }
   }
 
   let byOwner: Record<string, number> = {};
   try {
-    byOwner = await getPointsByOwnerForLeagueWeekFromMatchups(args.leagueId, targetMonday, admin);
+    byOwner = await getPointsByOwnerForLeagueWeekFromMatchups(args.leagueId, targetWeek, admin);
   } catch {
-    return { weekStart: null, weeklyTop10: [], seasonTop10 };
-  }
-
-  for (const m of args.members) {
-    if (byOwner[m.user_id] == null) byOwner[m.user_id] = 0;
+    return { ...emptyPayload(), seasonTop10, leagueLeaderboardsAvailable: true };
   }
 
   const weeklyTop10 = Object.entries(byOwner)
@@ -345,9 +369,19 @@ export async function getLeagueHomeLeaderboards(args: {
         memberByUserId[userId]?.display_name?.trim() ||
         "Faction",
     }))
+    .filter((r) => r.points > 0)
     .sort((a, b) => b.points - a.points || a.label.localeCompare(b.label) || a.userId.localeCompare(b.userId))
     .slice(0, 10)
     .map((r, idx) => ({ ...r, rank: idx + 1 }));
 
-  return { weekStart: targetMonday, weeklyTop10, seasonTop10 };
+  return {
+    weekStart: targetWeek,
+    currentWeekStart,
+    weeklyPrevWeekStart,
+    weeklyNextWeekStart,
+    weeklyTop10,
+    seasonTop10,
+    leagueLeaderboardsAvailable: true,
+    leagueStartYmd: leagueStart || null,
+  };
 }

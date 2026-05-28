@@ -14,6 +14,10 @@ export type Profile = {
   accepted_privacy_at?: string | null;
   timezone: string | null;
   notify_trade_proposals: boolean;
+  notify_trade_accepted: boolean;
+  notify_trade_finalized: boolean;
+  notify_gm_trade_approval: boolean;
+  notify_event_scores: boolean;
   notify_draft_reminder: boolean;
   notify_weekly_results: boolean;
   marketing_opt_in?: boolean;
@@ -32,13 +36,13 @@ export async function getProfile(userId: string): Promise<Profile | null> {
   const primary = await supabase
     .from("profiles")
     .select(
-      "id, display_name, avatar_url, accepted_terms_at, accepted_privacy_at, timezone, notify_trade_proposals, notify_draft_reminder, notify_weekly_results, marketing_opt_in, marketing_opt_in_at, marketing_opt_in_source, created_at, updated_at, last_activity_at"
+      "id, display_name, avatar_url, accepted_terms_at, accepted_privacy_at, timezone, notify_trade_proposals, notify_trade_accepted, notify_trade_finalized, notify_gm_trade_approval, notify_event_scores, notify_draft_reminder, notify_weekly_results, marketing_opt_in, marketing_opt_in_at, marketing_opt_in_source, created_at, updated_at, last_activity_at"
     )
     .eq("id", userId)
     .maybeSingle();
   let row: Record<string, unknown> | null = (primary.data as Record<string, unknown> | null) ?? null;
   let error = primary.error;
-  if (error && /(marketing_opt_in|last_activity_at)/i.test(error.message ?? "")) {
+  if (error && /(marketing_opt_in|last_activity_at|notify_trade_accepted|notify_trade_finalized|notify_gm_trade_approval|notify_event_scores)/i.test(error.message ?? "")) {
     const fallback = await supabase
       .from("profiles")
       .select(
@@ -50,8 +54,16 @@ export async function getProfile(userId: string): Promise<Profile | null> {
     error = fallback.error;
   }
   if (error || !row) return null;
+  const r = row as Profile & Record<string, unknown>;
   return {
-    ...(row as Profile),
+    ...r,
+    notify_trade_accepted: r.notify_trade_accepted !== false,
+    notify_trade_finalized:
+      r.notify_trade_finalized !== undefined && r.notify_trade_finalized !== null
+        ? r.notify_trade_finalized !== false
+        : r.notify_trade_accepted !== false,
+    notify_gm_trade_approval: r.notify_gm_trade_approval !== false,
+    notify_event_scores: r.notify_event_scores !== false,
     marketing_opt_in: Boolean((row as { marketing_opt_in?: boolean }).marketing_opt_in),
     marketing_opt_in_at: (row as { marketing_opt_in_at?: string | null }).marketing_opt_in_at ?? null,
     marketing_opt_in_source: (row as { marketing_opt_in_source?: string | null }).marketing_opt_in_source ?? null,
@@ -68,6 +80,10 @@ export async function updateProfile(
     avatar_url?: string | null;
     timezone?: string | null;
     notify_trade_proposals?: boolean;
+    notify_trade_accepted?: boolean;
+    notify_trade_finalized?: boolean;
+    notify_gm_trade_approval?: boolean;
+    notify_event_scores?: boolean;
     notify_draft_reminder?: boolean;
     notify_weekly_results?: boolean;
     marketing_opt_in?: boolean;

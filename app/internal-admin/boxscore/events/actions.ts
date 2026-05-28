@@ -10,6 +10,7 @@ import {
 } from "@/lib/boxscoreAdmin/eventPayload";
 import { applyResultRegenerationToMatches } from "@/lib/boxscoreAdmin/regenerateSpecialMatchResults";
 import { buildEventResultsSlug } from "@/lib/event-results/eventResultsRoute";
+import { notifyEventScoresPublished } from "@/lib/email/leagueNotifications";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -237,6 +238,10 @@ export async function insertBoxscoreEventAction(
     // Table may be missing in some environments; insert already succeeded.
   }
 
+  if (status === "completed") {
+    void notifyEventScoresPublished({ eventId: id, name, date });
+  }
+
   const resultsSlug = buildEventResultsSlug({ id, name, date });
   const editPathSegment = encodeURIComponent(resultsSlug);
 
@@ -265,7 +270,11 @@ export async function updateBoxscoreEventAction(
   const eventId = (formData.get("event_id") ?? "").toString().trim();
   if (!eventId) return { error: "Missing event id." };
 
-  const { data: existingRow, error: exErr } = await admin.from("events").select("id").eq("id", eventId).maybeSingle();
+  const { data: existingRow, error: exErr } = await admin
+    .from("events")
+    .select("id, status")
+    .eq("id", eventId)
+    .maybeSingle();
   if (exErr) return { error: exErr.message };
   if (!existingRow) return { error: "Event not found." };
 
@@ -330,6 +339,9 @@ export async function updateBoxscoreEventAction(
 
   if (upErr) return { error: upErr.message };
 
+  const previousStatus = String((existingRow as { status?: string | null }).status ?? "").trim();
+  const becameCompleted = status === "completed" && previousStatus !== "completed";
+
   try {
     await admin.from("admin_audit_log").insert({
       actor_user_id: user.id,
@@ -340,6 +352,10 @@ export async function updateBoxscoreEventAction(
     });
   } catch {
     // optional table
+  }
+
+  if (becameCompleted) {
+    void notifyEventScoresPublished({ eventId, name, date });
   }
 
   revalidateAfterEventMatchesChange(eventId, name, date);

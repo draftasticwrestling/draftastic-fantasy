@@ -53,6 +53,18 @@ export async function PATCH(request: Request) {
     if (typeof body.notify_trade_proposals === "boolean") {
       updates.notify_trade_proposals = body.notify_trade_proposals;
     }
+    if (typeof body.notify_trade_accepted === "boolean") {
+      updates.notify_trade_accepted = body.notify_trade_accepted;
+    }
+    if (typeof body.notify_trade_finalized === "boolean") {
+      updates.notify_trade_finalized = body.notify_trade_finalized;
+    }
+    if (typeof body.notify_gm_trade_approval === "boolean") {
+      updates.notify_gm_trade_approval = body.notify_gm_trade_approval;
+    }
+    if (typeof body.notify_event_scores === "boolean") {
+      updates.notify_event_scores = body.notify_event_scores;
+    }
     if (typeof body.notify_draft_reminder === "boolean") {
       updates.notify_draft_reminder = body.notify_draft_reminder;
     }
@@ -106,10 +118,19 @@ export async function PATCH(request: Request) {
       .from("profiles")
       .update(updates)
       .eq("id", user.id);
-    if (error && /marketing_opt_in/i.test(error.message ?? "")) {
+    if (
+      error &&
+      /(marketing_opt_in|notify_trade_accepted|notify_trade_finalized|notify_gm_trade_approval|notify_event_scores)/i.test(
+        error.message ?? ""
+      )
+    ) {
       delete updates.marketing_opt_in;
       delete updates.marketing_opt_in_at;
       delete updates.marketing_opt_in_source;
+      delete updates.notify_trade_accepted;
+      delete updates.notify_trade_finalized;
+      delete updates.notify_gm_trade_approval;
+      delete updates.notify_event_scores;
       const fallback = await supabase
         .from("profiles")
         .update(updates)
