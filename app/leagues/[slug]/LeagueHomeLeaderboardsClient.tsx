@@ -161,7 +161,7 @@ export function LeagueHomeLeaderboardsClient({
             <ol className="lm-top10-list">
               {data.seasonTop10.map((row, i) => (
                 <li key={`s-${row.userId}`} className="lm-top10-row">
-                  <span className="lm-top10-rank">{i + 1}</span>
+                  <span className="lm-top10-rank">{row.rank}</span>
                   <Link
                     href={`/leagues/${encodeURIComponent(leagueSlug)}/team/${encodeURIComponent(row.userId)}`}
                     className="lm-top10-name"
@@ -220,7 +220,7 @@ export function LeagueHomeLeaderboardsClient({
           <ol className="lm-top10-list">
             {data.weeklyTop10.map((row, i) => (
               <li key={`w-${row.userId}-${data.weekStart ?? "w"}`} className="lm-top10-row">
-                <span className="lm-top10-rank">{i + 1}</span>
+                <span className="lm-top10-rank">{row.rank}</span>
                 <Link
                   href={`/leagues/${encodeURIComponent(leagueSlug)}/team/${encodeURIComponent(row.userId)}`}
                   className="lm-top10-name"

@@ -15,6 +15,7 @@ import {
 } from "@/lib/leagueMatchups";
 import { awardWeeklyHighScoreXp } from "@/lib/xp/seasonAwards";
 import { refreshFantasyPointsTiersForUser } from "@/lib/xp/refreshFantasyPointsTiers";
+import { assignCompetitionRanks } from "@/lib/leaderboardRanks";
 import type { LeagueMember } from "@/lib/leagues";
 
 export type WeeklyLeaderboardRow = {
@@ -82,20 +83,13 @@ function toRankedRows(pointsByUserId: Record<string, number>): WeeklyLeaderboard
   if (entries.length === 0) return [];
 
   const maxPoints = entries[0]!.points;
-  let currentRank = 0;
-  let previousPoints: number | null = null;
-  return entries.map((entry, idx) => {
-    if (previousPoints === null || entry.points !== previousPoints) {
-      currentRank = idx + 1;
-      previousPoints = entry.points;
-    }
-    return {
-      userId: entry.userId,
-      points: entry.points,
-      rank: currentRank,
-      isWeeklyHigh: maxPoints > 0 && entry.points === maxPoints,
-    };
-  });
+  const ranked = assignCompetitionRanks(entries);
+  return ranked.map((entry) => ({
+    userId: entry.userId,
+    points: entry.points,
+    rank: entry.rank,
+    isWeeklyHigh: maxPoints > 0 && entry.points === maxPoints,
+  }));
 }
 
 export async function processWeeklyXpAndLeaderboards(
@@ -305,15 +299,16 @@ export async function getLeagueHomeLeaderboards(args: {
     args.members.map((m) => [m.user_id, m])
   );
   /** Same totals as standings / faction scoreboard (`getPointsByOwnerForLeagueWithBonuses`). */
-  const seasonTop10 = [...args.members]
-    .map((m) => ({
-      userId: m.user_id,
-      points: Number(args.pointsByUserId[m.user_id] ?? 0),
-      label: m.team_name?.trim() || m.display_name?.trim() || "Faction",
-    }))
-    .sort((a, b) => b.points - a.points || a.label.localeCompare(b.label))
-    .slice(0, 10)
-    .map((r, idx) => ({ ...r, rank: idx + 1 }));
+  const seasonTop10 = assignCompetitionRanks(
+    [...args.members]
+      .map((m) => ({
+        userId: m.user_id,
+        points: Number(args.pointsByUserId[m.user_id] ?? 0),
+        label: m.team_name?.trim() || m.display_name?.trim() || "Faction",
+      }))
+      .sort((a, b) => b.points - a.points || a.label.localeCompare(b.label))
+      .slice(0, 10)
+  );
 
   if (!admin) {
     return { ...emptyPayload(), seasonTop10 };
@@ -360,19 +355,20 @@ export async function getLeagueHomeLeaderboards(args: {
     return { ...emptyPayload(), seasonTop10, leagueLeaderboardsAvailable: true };
   }
 
-  const weeklyTop10 = Object.entries(byOwner)
-    .map(([userId, points]) => ({
-      userId,
-      points: Number(points || 0),
-      label:
-        memberByUserId[userId]?.team_name?.trim() ||
-        memberByUserId[userId]?.display_name?.trim() ||
-        "Faction",
-    }))
-    .filter((r) => r.points > 0)
-    .sort((a, b) => b.points - a.points || a.label.localeCompare(b.label) || a.userId.localeCompare(b.userId))
-    .slice(0, 10)
-    .map((r, idx) => ({ ...r, rank: idx + 1 }));
+  const weeklyTop10 = assignCompetitionRanks(
+    Object.entries(byOwner)
+      .map(([userId, points]) => ({
+        userId,
+        points: Number(points || 0),
+        label:
+          memberByUserId[userId]?.team_name?.trim() ||
+          memberByUserId[userId]?.display_name?.trim() ||
+          "Faction",
+      }))
+      .filter((r) => r.points > 0)
+      .sort((a, b) => b.points - a.points || a.label.localeCompare(b.label) || a.userId.localeCompare(b.userId))
+      .slice(0, 10)
+  );
 
   return {
     weekStart: targetWeek,

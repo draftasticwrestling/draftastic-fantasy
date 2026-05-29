@@ -135,7 +135,7 @@ export default function HubSiteLeaderboardsClient({ initial }: { initial: HubSit
           <ol className="lm-top10-list">
             {data.seasonTop10.map((row, i) => (
               <li key={`hub-s-${row.userId}`} className="lm-top10-row">
-                <span className="lm-top10-rank">{i + 1}</span>
+                <span className="lm-top10-rank">{row.rank}</span>
                 <span className="lm-top10-name hub-leaderboard-name">{row.label}</span>
                 <span className="lm-top10-pts">{formatPts(row.points)}</span>
               </li>
@@ -179,7 +179,7 @@ export default function HubSiteLeaderboardsClient({ initial }: { initial: HubSit
           <ol className="lm-top10-list">
             {data.weeklyTop10.map((row, i) => (
               <li key={`hub-w-${row.userId}-${data.weekStart ?? "w"}`} className="lm-top10-row">
-                <span className="lm-top10-rank">{i + 1}</span>
+                <span className="lm-top10-rank">{row.rank}</span>
                 <span className="lm-top10-name hub-leaderboard-name">{row.label}</span>
                 <span className="lm-top10-pts">{formatPts(row.points)}</span>
               </li>

@@ -9,6 +9,7 @@ import {
   getPointsByOwnerForLeagueWithBonuses,
 } from "@/lib/leagueMatchups";
 import { getCurrentWeekStartMondayPst, shiftWeekStartMonday } from "@/lib/weeklyLeaderboards";
+import { assignCompetitionRanks } from "@/lib/leaderboardRanks";
 import type { HubLeaderboardDisplayRow, HubSiteLeaderboardsPayload } from "@/lib/hubSiteLeaderboardsTypes";
 import { getAdminClient } from "@/lib/supabase/admin";
 
@@ -90,10 +91,10 @@ function toDisplayRows(
   top: { userId: string; points: number }[],
   labels: Map<string, string>
 ): HubLeaderboardDisplayRow[] {
-  return top.map((r, idx) => ({
+  return assignCompetitionRanks(top).map((r) => ({
     userId: r.userId,
     points: r.points,
-    rank: idx + 1,
+    rank: r.rank,
     label: labels.get(r.userId) ?? "Player",
   }));
 }

@@ -49,7 +49,7 @@ export function LeagueHomeSidebarTop10({
             <ol className="lm-top10-list">
               {seasonTop10.map((row, i) => (
                 <li key={`s-${row.userId}`} className="lm-top10-row">
-                  <span className="lm-top10-rank">{i + 1}</span>
+                  <span className="lm-top10-rank">{row.rank}</span>
                   <Link href={`/leagues/${encodeURIComponent(leagueSlug)}/team/${encodeURIComponent(row.userId)}`} className="lm-top10-name">
                     {row.label}
                   </Link>
@@ -74,7 +74,7 @@ export function LeagueHomeSidebarTop10({
           <ol className="lm-top10-list">
             {weeklyTop10.map((row, i) => (
               <li key={`w-${row.userId}`} className="lm-top10-row">
-                <span className="lm-top10-rank">{i + 1}</span>
+                <span className="lm-top10-rank">{row.rank}</span>
                 <Link href={`/leagues/${encodeURIComponent(leagueSlug)}/team/${encodeURIComponent(row.userId)}`} className="lm-top10-name">
                   {row.label}
                 </Link>
