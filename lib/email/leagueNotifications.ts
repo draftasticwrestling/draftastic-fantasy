@@ -16,6 +16,13 @@ function proposalsUrl(slug: string): string {
   return absoluteUrl(`/leagues/${slug}/proposals`);
 }
 
+function logEmailSkip(reason: string, detail?: string): void {
+  const msg = detail ? `${reason}: ${detail}` : reason;
+  if (process.env.NODE_ENV === "development") {
+    console.warn("[email] skipped —", msg);
+  }
+}
+
 async function sendToUser(
   userId: string,
   shouldSend: (prefs: import("@/lib/email/recipients").NotificationPrefs) => boolean,
@@ -23,9 +30,19 @@ async function sendToUser(
   bodyHtml: string,
   preheader?: string
 ): Promise<void> {
-  if (!isEmailConfigured()) return;
+  if (!isEmailConfigured()) {
+    logEmailSkip("RESEND_API_KEY is not set");
+    return;
+  }
   const target = await resolveUserEmailTarget(userId);
-  if (!target || !shouldSend(target.prefs)) return;
+  if (!target) {
+    logEmailSkip("no auth email for user", userId);
+    return;
+  }
+  if (!shouldSend(target.prefs)) {
+    logEmailSkip("notification disabled in profile", userId);
+    return;
+  }
 
   const html = emailLayout({ preheader, bodyHtml });
   const result = await sendTransactionalEmail({
@@ -35,6 +52,8 @@ async function sendToUser(
   });
   if (!result.ok) {
     console.warn("[email] send failed:", userId, result.error);
+  } else if (process.env.NODE_ENV === "development") {
+    console.info("[email] sent:", subject, "→", target.email);
   }
 }
 
@@ -52,7 +71,10 @@ function tradeParagraph(ctx: TradeEmailContext, extra?: string): string {
 export async function notifyTradeProposed(proposalId: string): Promise<void> {
   try {
     const ctx = await loadTradeEmailContext(proposalId);
-    if (!ctx) return;
+    if (!ctx) {
+      logEmailSkip("could not load trade context", proposalId);
+      return;
+    }
     const url = proposalsUrl(ctx.leagueSlug);
     const body = `
       <p style="font-size:16px;line-height:1.5;">Hi,</p>
@@ -76,7 +98,10 @@ export async function notifyTradeProposed(proposalId: string): Promise<void> {
 export async function notifyTradeAcceptedByRecipient(proposalId: string): Promise<void> {
   try {
     const ctx = await loadTradeEmailContext(proposalId);
-    if (!ctx) return;
+    if (!ctx) {
+      logEmailSkip("could not load trade context", proposalId);
+      return;
+    }
     const url = proposalsUrl(ctx.leagueSlug);
     const body = `
       <p style="font-size:16px;line-height:1.5;">Hi,</p>
@@ -125,7 +150,10 @@ async function notifyGmTradePendingApproval(
 export async function notifyTradeDeclinedByRecipient(proposalId: string): Promise<void> {
   try {
     const ctx = await loadTradeEmailContext(proposalId);
-    if (!ctx) return;
+    if (!ctx) {
+      logEmailSkip("could not load trade context", proposalId);
+      return;
+    }
     const url = proposalsUrl(ctx.leagueSlug);
     const body = `
       <p style="font-size:16px;line-height:1.5;">Hi,</p>
@@ -152,7 +180,10 @@ export async function notifyTradeGmDecision(
 ): Promise<void> {
   try {
     const ctx = await loadTradeEmailContext(proposalId);
-    if (!ctx) return;
+    if (!ctx) {
+      logEmailSkip("could not load trade context", proposalId);
+      return;
+    }
     const url = proposalsUrl(ctx.leagueSlug);
     const headline = approved
       ? "Your trade was approved and completed."

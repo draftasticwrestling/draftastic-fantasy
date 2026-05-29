@@ -13,7 +13,11 @@ import {
   getLeagueRosterActivity,
   type LeagueRosterActivityItem,
 } from "@/lib/leagueOwner";
-import { appendRecipientCutsToDescription } from "@/lib/tradeDisplay";
+import {
+  formatUserTradeProposalDescription,
+  getTradeProposalStatusDisplay,
+} from "@/lib/tradeDisplay";
+import { SimpleStatusSpan, TradeProposalStatusSpan } from "@/app/components/ProposalStatusSpan";
 
 export const revalidate = 600;
 
@@ -23,6 +27,7 @@ type TransactionRow = {
   description: string;
   status: string;
   sortKey: string;
+  tradeStatus?: string;
 };
 
 function teamLabel(m: { team_name?: string | null; display_name?: string | null }): string {
@@ -84,24 +89,23 @@ export default async function TransactionsPage({
       .map((x) => String(x).trim())
       .filter(Boolean)
       .map((id) => wrestlerName[id] ?? id);
-    const baseDescription =
-      p.from_user_id === currentUser.id
-        ? `Traded ${giveStr} to ${toLabel} for ${receiveStr}`
-        : `Received ${receiveStr} from ${fromLabel} for ${giveStr}`;
-    const description = appendRecipientCutsToDescription(baseDescription, toLabel, dropNames);
-    const statusDisplay =
-      p.status === "gm_approved" || p.status === "accepted"
-        ? "Approved"
-        : p.status === "rejected"
-          ? "Cancelled"
-          : p.status === "gm_rejected"
-            ? "Declined"
-            : "Pending";
+    const { label: statusLabel } = getTradeProposalStatusDisplay(p.status);
     rows.push({
       date: p.created_at,
       type: "Trade",
-      description,
-      status: statusDisplay,
+      description: formatUserTradeProposalDescription({
+        status: p.status,
+        fromLabel,
+        toLabel,
+        giveStr,
+        receiveStr,
+        dropNames,
+        viewerUserId: currentUser.id,
+        fromUserId: p.from_user_id,
+        toUserId: p.to_user_id,
+      }),
+      status: statusLabel,
+      tradeStatus: p.status,
       sortKey: p.created_at,
     });
   }
@@ -223,13 +227,22 @@ export default async function TransactionsPage({
                   </td>
                   <td style={{ padding: "10px 12px" }}>{r.type}</td>
                   <td style={{ padding: "10px 12px" }}>{r.description}</td>
-                  <td style={{ padding: "10px 12px", fontWeight: 500 }}>
-                    {r.status === "Pending" && <span style={{ color: "var(--color-text-muted)" }}>Pending</span>}
-                    {(r.status === "Approved") && (
-                      <span style={{ color: "var(--color-success-muted)" }}>{r.status}</span>
-                    )}
-                    {(r.status === "Rejected") && (
-                      <span style={{ color: "var(--color-text-dim)" }}>Rejected</span>
+                  <td style={{ padding: "10px 12px" }}>
+                    {r.type === "Trade" && r.tradeStatus ? (
+                      <TradeProposalStatusSpan status={r.tradeStatus} />
+                    ) : (
+                      <SimpleStatusSpan
+                        label={r.status}
+                        tone={
+                          r.status === "Approved"
+                            ? "approved"
+                            : r.status === "Rejected"
+                              ? "rejected"
+                              : r.status === "Pending"
+                                ? "pending"
+                                : "neutral"
+                        }
+                      />
                     )}
                   </td>
                 </tr>

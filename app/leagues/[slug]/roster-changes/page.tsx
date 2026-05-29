@@ -13,7 +13,11 @@ import {
   getLeagueRosterActivity,
   type LeagueRosterActivityItem,
 } from "@/lib/leagueOwner";
-import { appendRecipientCutsToDescription } from "@/lib/tradeDisplay";
+import {
+  formatLeagueTradeProposalDescription,
+  getTradeProposalStatusDisplay,
+} from "@/lib/tradeDisplay";
+import { SimpleStatusSpan, TradeProposalStatusSpan } from "@/app/components/ProposalStatusSpan";
 
 export const revalidate = 120;
 
@@ -24,26 +28,11 @@ type RosterChangeRow = {
   description: string;
   status: string;
   sortKey: string;
+  tradeStatus?: string;
 };
 
 function teamLabel(m: { team_name?: string | null; display_name?: string | null }): string {
   return factionDisplayName(m, "Unknown");
-}
-
-function tradeStatusLabel(status: string): string {
-  switch (status) {
-    case "gm_approved":
-    case "accepted":
-      return "Approved";
-    case "gm_rejected":
-      return "Declined";
-    case "rejected":
-      return "Cancelled";
-    case "awaiting_gm_approval":
-      return "Accepted — awaiting GM approval";
-    default:
-      return "Pending";
-  }
 }
 
 export async function generateMetadata({
@@ -102,14 +91,22 @@ export default async function RosterChangesPage({
       .map((x) => String(x).trim())
       .filter(Boolean)
       .map((id) => wrestlerName[id] ?? id);
-    const baseDesc = `${fromLabel} traded ${giveStr} to ${toLabel} for ${receiveStr}`;
+    const { label: statusLabel } = getTradeProposalStatusDisplay(p.status);
     rows.push({
       date: p.created_at,
       type: "Trade",
       teams: `${fromLabel} ↔ ${toLabel}`,
-      description: appendRecipientCutsToDescription(baseDesc, toLabel, dropNames),
-      status: tradeStatusLabel(p.status),
+      description: formatLeagueTradeProposalDescription({
+        status: p.status,
+        fromLabel,
+        toLabel,
+        giveStr,
+        receiveStr,
+        dropNames,
+      }),
+      status: statusLabel,
       sortKey: p.created_at,
+      tradeStatus: p.status,
     });
   }
 
@@ -284,15 +281,22 @@ export default async function RosterChangesPage({
                   <td style={{ padding: "10px 12px" }}>{r.type}</td>
                   <td style={{ padding: "10px 12px" }}>{r.teams}</td>
                   <td style={{ padding: "10px 12px" }}>{r.description}</td>
-                  <td style={{ padding: "10px 12px", fontWeight: 500 }}>
-                    {r.status === "Pending" && (
-                      <span style={{ color: "var(--color-text-muted)" }}>Pending</span>
-                    )}
-                    {(r.status === "Accepted" || r.status === "Approved") && (
-                      <span style={{ color: "var(--color-success-muted)" }}>{r.status}</span>
-                    )}
-                    {r.status === "Rejected" && (
-                      <span style={{ color: "var(--color-text-dim)" }}>Rejected</span>
+                  <td style={{ padding: "10px 12px" }}>
+                    {r.type === "Trade" && r.tradeStatus ? (
+                      <TradeProposalStatusSpan status={r.tradeStatus} />
+                    ) : (
+                      <SimpleStatusSpan
+                        label={r.status}
+                        tone={
+                          r.status === "Approved"
+                            ? "approved"
+                            : r.status === "Rejected"
+                              ? "rejected"
+                              : r.status === "Pending"
+                                ? "pending"
+                                : "neutral"
+                        }
+                      />
                     )}
                   </td>
                 </tr>

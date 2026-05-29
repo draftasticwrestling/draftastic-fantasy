@@ -310,6 +310,9 @@ export default function MatchEdit({
   }, []);
   
   const safeWrestlers = Array.isArray(wrestlers) ? wrestlers : [];
+  // A live event should not default a statusless match to "live"; matches go live only when
+  // an admin explicitly selects it. Live shows default new matches to "upcoming".
+  const defaultStatusFromEvent = eventStatus === 'live' ? 'upcoming' : eventStatus;
   const [match, setMatch] = useState({
     participants: '',
     result: '',
@@ -323,11 +326,11 @@ export default function MatchEdit({
     titleOutcome: '',
     defendingChampion: '',
     notes: '',
-    status: initialMatch.status || eventStatus || 'completed',
+    status: initialMatch.status || defaultStatusFromEvent || 'completed',
     cardType: initialMatch.cardType || 'Undercard',
     ...initialMatch,
   });
-  const [status, setStatus] = useState(initialMatch.status || eventStatus || 'completed');
+  const [status, setStatus] = useState(initialMatch.status || defaultStatusFromEvent || 'completed');
   const [resultType, setResultType] = useState('');
   const [winner, setWinner] = useState('');
   const [winnerOptions, setWinnerOptions] = useState([]);
@@ -845,7 +848,10 @@ export default function MatchEdit({
       ...match,
       result,
       status: saveStatus,
-      isLive: saveStatus === 'live' ? true : shouldBeLive,
+      // Live state must come from the explicit isLive flag (status dropdown / Begin Match),
+      // never inherited from the event being live. Otherwise every saved match on a live show
+      // would render "MATCH IN PROGRESS" and earn on-card points without being marked live.
+      isLive: shouldBeLive,
       liveStart,
       liveEnd,
       commentary,

@@ -727,7 +727,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                             <span style={{ marginLeft: 8, fontSize: 13, color: "#6b7280", fontWeight: 600 }}>Pending</span>
                           )}
                           {item.status === "gm_rejected" && (
-                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Rejected by GM</span>
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Denied by GM</span>
                           )}
                           {item.status === "cancelled" && (
                             <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Cancelled</span>
@@ -736,7 +736,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                             <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Expired</span>
                           )}
                           {item.status === "rejected" && (
-                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Cancelled</span>
+                            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-red)", fontWeight: 600 }}>Declined by owner</span>
                           )}
                           {item.status === "awaiting_gm_approval" && (
                             <>

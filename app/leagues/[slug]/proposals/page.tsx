@@ -9,7 +9,7 @@ import {
   getMyTradeVotes,
   processTradeTimerDeadlines,
 } from "@/lib/leagueOwner";
-import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
+import { formatRecipientRosterCutsLine, getTradeProposalStatusDisplay } from "@/lib/tradeDisplay";
 import { TradeGmActions } from "./TradeGmActions";
 import { TradeVoteControls } from "./TradeVoteControls";
 import { factionDisplayName } from "@/lib/factionName";
@@ -18,34 +18,17 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string }> };
 
-function tradeStatusLabel(status: string): string {
-  switch (status) {
-    case "gm_approved":
-      return "Approved";
-    case "accepted":
-      return "Approved";
-    case "gm_rejected":
-      return "Declined";
-    case "rejected":
-      return "Cancelled";
-    case "cancelled":
-      return "Cancelled";
-    case "expired":
-      return "Expired";
-    default: return status;
-  }
-}
-
 function tradeStatusColor(status: string): string {
-  switch (status) {
-    case "gm_approved":
-    case "accepted":
+  const { tone } = getTradeProposalStatusDisplay(status);
+  switch (tone) {
+    case "completed":
       return "var(--color-success)";
-    case "gm_rejected":
-    case "rejected":
-    case "cancelled":
-    case "expired":
+    case "declined":
       return "var(--color-red)";
+    case "awaiting_gm":
+      return "var(--color-warning)";
+    case "pending":
+      return "var(--color-text-muted)";
     default:
       return "inherit";
   }
@@ -262,7 +245,9 @@ export default async function ProposalsPage({ params }: Props) {
                   {" for "}
                   {p.items.filter((i) => i.direction === "receive").map((i) => wrestlerNames[i.wrestler_id] ?? i.wrestler_id).join(", ")}
                   {" — "}
-                  <span style={{ fontWeight: 700, color: tradeStatusColor(p.status) }}>{tradeStatusLabel(p.status)}</span>
+                  <span style={{ fontWeight: 700, color: tradeStatusColor(p.status) }}>
+                    {getTradeProposalStatusDisplay(p.status).label}
+                  </span>
                   {(() => {
                     const dropIds = (p.to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
                     const toName = factionDisplayName(memberByUserId[p.to_user_id], "Unknown");

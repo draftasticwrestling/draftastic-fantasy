@@ -11,6 +11,7 @@ import {
 import { applyResultRegenerationToMatches } from "@/lib/boxscoreAdmin/regenerateSpecialMatchResults";
 import { buildEventResultsSlug } from "@/lib/event-results/eventResultsRoute";
 import { notifyEventScoresPublished } from "@/lib/email/leagueNotifications";
+import { scheduleTransactionalEmail } from "@/lib/email/scheduleTransactionalEmail";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -239,7 +240,7 @@ export async function insertBoxscoreEventAction(
   }
 
   if (status === "completed") {
-    void notifyEventScoresPublished({ eventId: id, name, date });
+    scheduleTransactionalEmail(() => notifyEventScoresPublished({ eventId: id, name, date }));
   }
 
   const resultsSlug = buildEventResultsSlug({ id, name, date });
@@ -355,7 +356,7 @@ export async function updateBoxscoreEventAction(
   }
 
   if (becameCompleted) {
-    void notifyEventScoresPublished({ eventId, name, date });
+    scheduleTransactionalEmail(() => notifyEventScoresPublished({ eventId, name, date }));
   }
 
   revalidateAfterEventMatchesChange(eventId, name, date);

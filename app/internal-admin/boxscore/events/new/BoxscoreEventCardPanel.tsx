@@ -154,13 +154,21 @@ export function BoxscoreEventCardPanel({
   );
 
   const wrestlingInitial = useMemo(() => {
+    // A live event must NOT force its matches to "live" — admins mark each match live
+    // explicitly (status dropdown / Begin Match). New matches default to "upcoming" while
+    // the show is live; non-live events keep defaulting to the event status.
+    const defaultStatusForNew = eventStatus === "live" ? "upcoming" : eventStatus || "completed";
     if (!modal || modal.kind === "new-wrestling") {
-      return { ...EMPTY_WRESTLING_MATCH, status: eventStatus || "completed" };
+      return { ...EMPTY_WRESTLING_MATCH, status: defaultStatusForNew };
     }
     if (modal.kind === "edit-wrestling") {
-      return { ...EMPTY_WRESTLING_MATCH, ...matches[modal.index], status: eventStatus || "completed" };
+      // Preserve the match's own saved status; only fall back when it has none.
+      const existing = (matches[modal.index] ?? {}) as Record<string, unknown>;
+      const existingStatus =
+        typeof existing.status === "string" && existing.status.trim() ? existing.status : defaultStatusForNew;
+      return { ...EMPTY_WRESTLING_MATCH, ...existing, status: existingStatus };
     }
-    return { ...EMPTY_WRESTLING_MATCH, status: eventStatus || "completed" };
+    return { ...EMPTY_WRESTLING_MATCH, status: defaultStatusForNew };
   }, [modal, matches, eventStatus]);
 
   const promoInitial = useMemo(() => {

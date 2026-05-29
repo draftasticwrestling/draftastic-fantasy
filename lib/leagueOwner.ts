@@ -26,6 +26,7 @@ import {
   notifyTradeGmDecision,
   notifyTradeProposed,
 } from "@/lib/email/leagueNotifications";
+import { scheduleTransactionalEmail } from "@/lib/email/scheduleTransactionalEmail";
 
 function normalizeGender(g: string | null | undefined): "F" | "M" | null {
   if (g == null || typeof g !== "string") return null;
@@ -605,7 +606,7 @@ export async function createTradeProposal(
     leagueId,
     metadata: { proposalId: proposal.id, toUserId },
   });
-  void notifyTradeProposed(proposal.id);
+  scheduleTransactionalEmail(() => notifyTradeProposed(proposal.id));
   return { id: proposal.id };
 }
 
@@ -950,7 +951,7 @@ export async function respondToTradeProposal(
       .update({ status: "rejected", responded_at: now, to_responded_at: now })
       .eq("id", proposalId);
     if (updateErr) return { error: updateErr.message };
-    void notifyTradeDeclinedByRecipient(proposalId);
+    scheduleTransactionalEmail(() => notifyTradeDeclinedByRecipient(proposalId));
     return {};
   }
 
@@ -1044,7 +1045,7 @@ export async function respondToTradeProposal(
     })
     .eq("id", proposalId);
   if (updateErr) return { error: updateErr.message };
-  void notifyTradeAcceptedByRecipient(proposalId);
+  scheduleTransactionalEmail(() => notifyTradeAcceptedByRecipient(proposalId));
   return {};
 }
 
@@ -1470,9 +1471,9 @@ export async function respondToTradeByGm(
         .eq("id", proposalId);
       return exec;
     }
-    void notifyTradeGmDecision(proposalId, true);
+    scheduleTransactionalEmail(() => notifyTradeGmDecision(proposalId, true));
   } else {
-    void notifyTradeGmDecision(proposalId, false);
+    scheduleTransactionalEmail(() => notifyTradeGmDecision(proposalId, false));
   }
   return {};
 }
