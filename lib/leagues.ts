@@ -1720,12 +1720,7 @@ export async function getLeagueScoring(
       })
     : await getRosterStintsForLeague(leagueId);
 
-  const leagueType = (league as { league_type?: string | null }).league_type ?? null;
-  let scoringStints = stints;
-  if (leagueUsesSalaryCap(leagueType)) {
-    const setupCompleteByUserId = await getSalaryCapRosterSetupCompleteByUserId(supabase, leagueId);
-    scoringStints = stints.filter((s) => setupCompleteByUserId[s.user_id]);
-  }
+  const scoringStints = stints;
 
   let wrestlerDisplayNames: Record<string, string> = {};
   if (supabaseOverride) {
