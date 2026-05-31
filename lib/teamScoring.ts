@@ -32,7 +32,7 @@ import {
   weekEndSundayContaining,
 } from "@/lib/beltWeeklyHold";
 import { EVENT_STATUSES_FOR_SCORING, EVENT_STATUSES_FOR_WEEK_SCHEDULE, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
-import { leagueIncludesNxt, leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
+import { leagueIncludesNxt, leagueUsesSalaryCap, leagueUsesWeeklyPstBeltHold, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import {
@@ -143,7 +143,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const supabase = await createClient();
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, start_date, end_date, draft_date, created_at, season_slug, include_nxt")
+    .select("id, start_date, end_date, draft_date, created_at, season_slug, include_nxt, league_type")
     .eq("id", leagueId)
     .single();
   if (!league) {
@@ -194,6 +194,9 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const enforceMainRosterOnlyForNxt =
     (league as { season_slug?: string | null }).season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG &&
     !leagueIncludesNxt(league as { include_nxt?: boolean | null });
+  const sharedWrestlerPool = leagueUsesSalaryCap(
+    (league as { league_type?: string | null }).league_type
+  );
 
   const filteredEvents = (events ?? []).filter((e) => {
     const d = String(e.date ?? "").slice(0, 10);
@@ -308,11 +311,11 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     }
 
     for (const [slug, contribution] of Object.entries(contribBySlug)) {
-      // Choose a single "best" active stint globally for this slug at this eventDate,
-      // so overlapping roster windows don't double-count points across teams.
+      // Draft: one owner per wrestler per event (earliest stint wins). Salary cap: score this team's stint only.
       let selectedStint: (typeof stints)[number] | null = null;
 
       for (const s of stints) {
+        if (sharedWrestlerPool && s.user_id !== userId) continue;
         if (
           !rosterStintActiveForEvent({
             eventDate,
@@ -349,7 +352,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       }
 
       if (!selectedStint) continue;
-      if (selectedStint.user_id !== userId) continue;
+      if (!sharedWrestlerPool && selectedStint.user_id !== userId) continue;
       if (
         enforceMainRosterOnlyForNxt &&
         !contribution.includesCallUp &&

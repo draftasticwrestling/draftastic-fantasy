@@ -28,6 +28,7 @@ import {
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import {
   leagueIncludesNxt,
+  leagueUsesSalaryCap,
   leagueUsesWeeklyPstBeltHold,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
 } from "@/lib/leagueStructure";
@@ -85,8 +86,8 @@ type RosterStintRow = {
 
 /**
  * Single-calendar-week slice of the same event→owner rules as `getLeagueScoring` in `lib/leagues.ts`
- * (KOTR carryover across all in-range events; per-event “best stint” when overlaps exist; RTS NXT-brand omission
- * unless the league has `include_nxt`).
+ * (KOTR carryover across all in-range events; per-event “best stint” when overlaps exist in draft leagues;
+ * salary cap awards every active stint; RTS NXT-brand omission unless the league has `include_nxt`).
  * Keeping these aligned is required so hub “season” (from `getLeagueScoring`) matches “this week” from matchups.
  */
 function accumulateOwnerEventPointsForCalendarWeek(
@@ -104,7 +105,8 @@ function accumulateOwnerEventPointsForCalendarWeek(
   brandBySlug: ReturnType<typeof brandByWrestlerSlugFromRows>,
   seasonSlug: string | null,
   nxtRosterByWrestlerId: Record<string, boolean>,
-  includeNxt: boolean
+  includeNxt: boolean,
+  sharedWrestlerPool: boolean
 ): {
   pointsByOwner: Record<string, number>;
   pointsByOwnerByWrestler: Record<string, Record<string, number>>;
@@ -137,27 +139,29 @@ function accumulateOwnerEventPointsForCalendarWeek(
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
 
     const bestStintByWrestlerId: Record<string, RosterStintRow> = {};
-    for (const stint of stints) {
-      if (
-        !rosterStintActiveForEvent({
-          eventDate,
-          eventMs,
-          broadcastStartMs,
-          useBroadcastStart,
-          stint,
-          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
-        })
-      ) {
-        continue;
-      }
-      const wid = stint.wrestler_id;
-      const currentBest = bestStintByWrestlerId[wid];
-      if (!currentBest) {
-        bestStintByWrestlerId[wid] = stint;
-        continue;
-      }
-      if (compareStintsForEventTieBreak(stint, currentBest, useBroadcastStart, ROSTER_STINT_DATE_OFFSET_DAYS) < 0) {
-        bestStintByWrestlerId[wid] = stint;
+    if (!sharedWrestlerPool) {
+      for (const stint of stints) {
+        if (
+          !rosterStintActiveForEvent({
+            eventDate,
+            eventMs,
+            broadcastStartMs,
+            useBroadcastStart,
+            stint,
+            rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+          })
+        ) {
+          continue;
+        }
+        const wid = stint.wrestler_id;
+        const currentBest = bestStintByWrestlerId[wid];
+        if (!currentBest) {
+          bestStintByWrestlerId[wid] = stint;
+          continue;
+        }
+        if (compareStintsForEventTieBreak(stint, currentBest, useBroadcastStart, ROSTER_STINT_DATE_OFFSET_DAYS) < 0) {
+          bestStintByWrestlerId[wid] = stint;
+        }
       }
     }
 
@@ -176,7 +180,7 @@ function accumulateOwnerEventPointsForCalendarWeek(
       ) {
         continue;
       }
-      if (bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
+      if (!sharedWrestlerPool && bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
       if (
         enforceMainRosterOnlyForNxt &&
         eventPointsForRosterStint(callUpBySlug, stint.wrestler_id, wrestlerDisplayNames[stint.wrestler_id], eventDate) <= 0 &&
@@ -226,6 +230,9 @@ export async function getPointsByOwnerForLeagueForWeek(
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
   const includeNxt = leagueIncludesNxt(
     league as { include_nxt?: boolean | null; league_type?: string | null }
+  );
+  const sharedWrestlerPool = leagueUsesSalaryCap(
+    (league as { league_type?: string | null }).league_type
   );
 
   const eventsSelectWithStart = supabase
@@ -321,7 +328,8 @@ export async function getPointsByOwnerForLeagueForWeek(
     brandBySlugWeek,
     seasonSlug,
     nxtRosterByWrestlerId,
-    includeNxt
+    includeNxt,
+    sharedWrestlerPool
   );
   return pointsByOwner;
 }
@@ -345,6 +353,9 @@ export async function getPointsByOwnerByWrestlerForWeek(
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
   const includeNxt = leagueIncludesNxt(
     league as { include_nxt?: boolean | null; league_type?: string | null }
+  );
+  const sharedWrestlerPool = leagueUsesSalaryCap(
+    (league as { league_type?: string | null }).league_type
   );
 
   const eventsSelectWithStart = supabase
@@ -396,7 +407,8 @@ export async function getPointsByOwnerByWrestlerForWeek(
     brandBySlugBreakdown,
     seasonSlug,
     nxtRosterByWrestlerId,
-    includeNxt
+    includeNxt,
+    sharedWrestlerPool
   );
   return pointsByOwnerByWrestler;
 }

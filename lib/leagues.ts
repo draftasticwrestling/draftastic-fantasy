@@ -1750,6 +1750,9 @@ export async function getLeagueScoring(
   }
   const enforceMainRosterOnlyForNxt =
     (league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG && !leagueIncludesNxt(league);
+  const sharedWrestlerPool = leagueUsesSalaryCap(
+    (league as { league_type?: string | null }).league_type
+  );
   const pointsByOwner: Record<string, number> = {};
   /** Per owner, points from each wrestler (only while on roster). For team page per-wrestler breakdown. */
   const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
@@ -1789,30 +1792,33 @@ export async function getLeagueScoring(
     const eventMs = eventEndOfDayMs;
     const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
 
-    // If roster stint windows overlap, only award points to a single "best" stint per wrestler_id.
-    for (const stint of scoringStints) {
-      if (
-        !rosterStintActiveForEvent({
-          eventDate,
-          eventMs,
-          broadcastStartMs,
-          useBroadcastStart,
-          stint,
-          rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
-        })
-      ) {
-        continue;
-      }
+    // Draft leagues: overlapping stints for the same wrestler award one owner (earliest acquisition wins).
+    // Salary cap: multiple factions may roster the same wrestler — each active stint earns points.
+    if (!sharedWrestlerPool) {
+      for (const stint of scoringStints) {
+        if (
+          !rosterStintActiveForEvent({
+            eventDate,
+            eventMs,
+            broadcastStartMs,
+            useBroadcastStart,
+            stint,
+            rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
+          })
+        ) {
+          continue;
+        }
 
-      const wid = stint.wrestler_id;
-      const currentBest = bestStintByWrestlerId[wid];
-      if (!currentBest) {
-        bestStintByWrestlerId[wid] = stint;
-        continue;
-      }
+        const wid = stint.wrestler_id;
+        const currentBest = bestStintByWrestlerId[wid];
+        if (!currentBest) {
+          bestStintByWrestlerId[wid] = stint;
+          continue;
+        }
 
-      if (compareStintsForEventTieBreak(stint, currentBest, useBroadcastStart, ROSTER_STINT_DATE_OFFSET_DAYS) < 0) {
-        bestStintByWrestlerId[wid] = stint;
+        if (compareStintsForEventTieBreak(stint, currentBest, useBroadcastStart, ROSTER_STINT_DATE_OFFSET_DAYS) < 0) {
+          bestStintByWrestlerId[wid] = stint;
+        }
       }
     }
 
@@ -1830,7 +1836,7 @@ export async function getLeagueScoring(
         continue;
       }
 
-      if (bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
+      if (!sharedWrestlerPool && bestStintByWrestlerId[stint.wrestler_id] !== stint) continue;
       if (
         enforceMainRosterOnlyForNxt &&
         eventPointsForRosterStint(callUpBySlug, stint.wrestler_id, wrestlerDisplayNames[stint.wrestler_id], eventDate) <= 0 &&

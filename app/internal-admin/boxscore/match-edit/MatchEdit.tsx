@@ -1308,36 +1308,17 @@ export default function MatchEdit({
           <option value="completed">Completed</option>
         </select>
       </div>
-      {isAdd ? (
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Card Type:</label>
-          <select
-            value={match.cardType || 'Undercard'}
-            onChange={(e) => setMatch({ ...match, cardType: e.target.value })}
-            style={inputStyle}
-          >
-            <option value="Undercard">Undercard</option>
-            <option value="Main Event">Main Event</option>
-          </select>
-        </div>
-      ) : eventStatus !== 'upcoming' ? (
-        <div style={{ marginBottom: 12 }}>
-          <label style={labelStyle}>
-            <input
-              type="checkbox"
-              checked={match.cardType === 'Main Event'}
-              onChange={(e) =>
-                setMatch({
-                  ...match,
-                  cardType: e.target.checked ? 'Main Event' : 'Undercard',
-                })
-              }
-              style={{ marginRight: 8 }}
-            />
-            Mark as Main Event
-          </label>
-        </div>
-      ) : null}
+      <div style={{ marginBottom: isAdd ? 16 : 12 }}>
+        <label style={labelStyle}>Card Type:</label>
+        <select
+          value={match.cardType || 'Undercard'}
+          onChange={(e) => setMatch({ ...match, cardType: e.target.value })}
+          style={inputStyle}
+        >
+          <option value="Undercard">Undercard</option>
+          <option value="Main Event">Main Event</option>
+        </select>
+      </div>
       <h2 style={{ color: '#C6A04F', marginBottom: 12 }}>{isAdd ? 'Add Match' : 'Edit Match'}</h2>
       <div style={{ marginBottom: 16 }}>
         <label style={labelStyle}>Match Type:</label>

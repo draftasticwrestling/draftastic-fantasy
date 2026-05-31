@@ -20,12 +20,14 @@ import {
 } from "@/lib/leagueStructure";
 import { pleDefaultHref } from "@/lib/pleLeagueMenu";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
-import { getTradeProposalsForLeague, getLeagueRosterActivity, processTradeTimerDeadlines } from "@/lib/leagueOwner";
+import { getTradeProposalsForLeague, getLeagueRosterActivity, getTradeVoteTotals, getMyTradeVotes, processTradeTimerDeadlines } from "@/lib/leagueOwner";
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { LeagueHomeMobileLeagueView } from "./LeagueHomeMobileLeagueView";
 import { TradeProposalRespond } from "./team/TradeProposalRespond";
+import { GmAwaitingTradeApprovals, getTradeVoteState } from "./GmAwaitingTradeApprovals";
+import { TradeVoteControls } from "./proposals/TradeVoteControls";
 import SeasonTimelineRail from "@/app/components/SeasonTimelineRail";
 import { LeagueSeasonBeltBanner } from "@/app/components/LeagueSeasonBeltBanner";
 import { ManagerAvatar } from "@/app/components/ManagerAvatar";
@@ -295,6 +297,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           status: string;
           items: { wrestler_id: string; direction: string }[];
           to_user_drop_ids: string[] | null | undefined;
+          accepted_at?: string | null;
         }
       | { type: "drop"; id: string; created_at: string; user_id: string; wrestler_id: string }
       | { type: "fa_add"; id: string; created_at: string; user_id: string; wrestler_id: string; secondary_wrestler_id: string | null };
@@ -308,11 +311,13 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         status: p.status,
         items: p.items,
         to_user_drop_ids: p.to_user_drop_ids,
+        accepted_at: p.accepted_at,
       })),
       ...rosterActivity.map((a) => ({ type: a.activity_type as "drop" | "fa_add", id: a.id, created_at: a.created_at, user_id: a.user_id, wrestler_id: a.wrestler_id, secondary_wrestler_id: a.secondary_wrestler_id })),
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 12);
 
-    const isCommissioner = league.role === "commissioner";
+    const isCommissioner =
+      league.role === "commissioner" || (!!currentUser && league.commissioner_id === currentUser.id);
     const currentUserMember = currentUser ? members.find((m) => m.user_id === currentUser.id) : null;
 
     if (
@@ -353,6 +358,17 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const pendingTradesForMe = currentUser
       ? tradeProposals.filter((p) => p.status === "pending" && p.to_user_id === currentUser.id)
       : [];
+    const awaitingGmTrades = tradeProposals.filter((p) => p.status === "awaiting_gm_approval");
+    const awaitingGmIds = awaitingGmTrades.map((p) => p.id);
+    const emptyVoteTotals: Record<string, { up: number; down: number }> = {};
+    const emptyMyVotes: Record<string, -1 | 0 | 1> = {};
+    const [gmTradeVoteTotals, gmTradeMyVotes] =
+      awaitingGmIds.length > 0 && currentUser
+        ? await Promise.all([
+            getTradeVoteTotals(awaitingGmIds),
+            getMyTradeVotes(awaitingGmIds),
+          ])
+        : [emptyVoteTotals, emptyMyVotes];
 
     const seasonEndYmd = (league.end_date ?? "").slice(0, 10);
     const seasonComplete = Boolean(seasonEndYmd && isPastEndOfDayPst(seasonEndYmd));
@@ -585,11 +601,13 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             )}
           </div>
 
-          {eventDaySection ? (
-            <LeagueEventDayRosterCard
-              todayLabelEt={eventDaySection.todayLabelEt}
-              items={eventDaySection.items}
-              wrestlerRows={eventDaySection.wrestlerRows}
+          {isCommissioner ? (
+            <GmAwaitingTradeApprovals
+              leagueSlug={slug}
+              trades={awaitingGmTrades}
+              memberByUserId={memberByUserId}
+              wrestlerNames={wrestlerNames}
+              voteTotals={gmTradeVoteTotals}
             />
           ) : null}
 
@@ -660,6 +678,14 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               </ul>
             </div>
           )}
+
+          {eventDaySection ? (
+            <LeagueEventDayRosterCard
+              todayLabelEt={eventDaySection.todayLabelEt}
+              items={eventDaySection.items}
+              wrestlerRows={eventDaySection.wrestlerRows}
+            />
+          ) : null}
 
           {/* Standings */}
           <div className="lm-card">
@@ -741,22 +767,37 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                           {item.status === "awaiting_gm_approval" && (
                             <>
                               <span style={{ marginLeft: 8, fontSize: 13, color: "var(--color-warning)", fontWeight: 600 }}>Awaiting GM approval</span>
-                              <Link
-                                href={`/leagues/${slug}/proposals#proposal-${item.id}`}
-                                style={{
-                                  marginLeft: 10,
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: "var(--color-warning)",
-                                  textDecoration: "none",
-                                  border: "1px solid var(--color-warning)",
-                                  borderRadius: 999,
-                                  padding: "3px 10px",
-                                  display: "inline-block",
-                                }}
-                              >
-                                Vote
-                              </Link>
+                              <span style={{ display: "block", marginTop: 8 }}>
+                                <TradeVoteControls
+                                  leagueSlug={slug}
+                                  proposalId={item.id}
+                                  up={gmTradeVoteTotals[item.id]?.up ?? 0}
+                                  down={gmTradeVoteTotals[item.id]?.down ?? 0}
+                                  myVote={(gmTradeMyVotes[item.id] ?? 0) as -1 | 0 | 1}
+                                  disabled={
+                                    !!getTradeVoteState(
+                                      {
+                                        id: item.id,
+                                        from_user_id: item.from_user_id,
+                                        to_user_id: item.to_user_id,
+                                        accepted_at: item.accepted_at,
+                                      },
+                                      currentUser?.id ?? null
+                                    ).disabledReason
+                                  }
+                                  disabledReason={
+                                    getTradeVoteState(
+                                      {
+                                        id: item.id,
+                                        from_user_id: item.from_user_id,
+                                        to_user_id: item.to_user_id,
+                                        accepted_at: item.accepted_at,
+                                      },
+                                      currentUser?.id ?? null
+                                    ).disabledReason
+                                  }
+                                />
+                              </span>
                             </>
                           )}
                         </>
