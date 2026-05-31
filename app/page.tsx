@@ -5,7 +5,9 @@ import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
 import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
 import HubSiteLeaderboards from "@/app/components/HubSiteLeaderboards";
 import FantasyHubHero from "@/app/components/FantasyHubHero";
+import BreakingNewsBanner from "@/app/components/BreakingNewsBanner";
 import { getAdsenseSlotHubHome } from "@/lib/adsenseConfig";
+import { getActiveBreakingNews } from "@/lib/breakingNews";
 import {
   SEO_DEFAULT_DESCRIPTION,
   SEO_DEFAULT_KEYWORDS,
@@ -53,10 +55,12 @@ export default async function HubHomePage({
 }) {
   const sp = (await searchParams) ?? {};
   const adsSlotHub = getAdsenseSlotHubHome();
+  const breakingNews = await getActiveBreakingNews();
 
   return (
     <>
       <FantasyHubHero />
+      <BreakingNewsBanner items={breakingNews} />
 
       <div className="hub-shell-wrap">
         <div className="hub-shell">

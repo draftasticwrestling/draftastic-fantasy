@@ -45,6 +45,11 @@ const NAV = [
     match: (p: string) => p.startsWith("/internal-admin/stat-corrections"),
   },
   {
+    href: "/internal-admin/breaking-news",
+    label: "Breaking news",
+    match: (p: string) => p.startsWith("/internal-admin/breaking-news"),
+  },
+  {
     href: "/internal-admin/articles",
     label: "Articles",
     match: (p: string) => p.startsWith("/internal-admin/articles"),

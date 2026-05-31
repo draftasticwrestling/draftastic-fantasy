@@ -82,6 +82,14 @@ export default function InternalAdminHomePage() {
           </Link>
         </li>
         <li>
+          <Link href="/internal-admin/breaking-news" className={styles.cardLink}>
+            <span className={styles.cardTitle}>Breaking news</span>
+            <span className={styles.cardDesc}>
+              Homepage chyron below the hero banner — schedule announcements with optional links.
+            </span>
+          </Link>
+        </li>
+        <li>
           <Link href="/internal-admin/articles" className={styles.cardLink}>
             <span className={styles.cardTitle}>Articles / blog</span>
             <span className={styles.cardDesc}>Draft, publish, and edit Markdown posts for /news.</span>
