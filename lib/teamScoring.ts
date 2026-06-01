@@ -216,7 +216,6 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const totalsByWrestler: Record<string, TeamWrestlerPoints> = {};
   const ledgerRows: TeamScoreLedgerRow[] = [];
   const stintPoints = new Map<string, TeamWrestlerPoints>();
-  let kotrCarryOver: Record<string, number> = {};
 
   for (const event of sortedEvents) {
     const eventDate = String(event.date ?? "").slice(0, 10);
@@ -233,9 +232,6 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
       eventType === EVENT_TYPES.RAW ||
       eventType === EVENT_TYPES.SMACKDOWN ||
       eventType === EVENT_TYPES.NXT;
-    const isKOTRPLE =
-      eventType === EVENT_TYPES.NIGHT_OF_CHAMPIONS ||
-      eventType === EVENT_TYPES.KING_QUEEN_OF_THE_RING;
 
     const contribBySlug: Record<string, EventContribution> = {};
 
@@ -278,18 +274,9 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
             Number(wp.mainEventPoints || 0) +
             Number(wp.battleRoyalPoints || 0) +
             Number(wp.specialPoints || 0);
-          const toward = Number(wp.kotrTowardNOC || 0);
-          if (toward > 0) {
-            kotrCarryOver[slug] = (kotrCarryOver[slug] || 0) + toward;
-          }
+          plePoints = Number(wp.kotrPleBonus || wp.kotrTowardNOC || 0);
         } else {
-          const carry = isKOTRPLE ? Number(kotrCarryOver[slug] || 0) : 0;
-          if (isKOTRPLE && carry > 0) {
-            kotrCarryOver[slug] = 0;
-            details.push(`KOTR carryover: +${carry}`);
-          }
           plePoints =
-            carry +
             Number(wp.matchPoints || 0) +
             Number(wp.mainEventPoints || 0) +
             Number(wp.specialPoints || 0) +

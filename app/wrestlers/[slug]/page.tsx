@@ -623,11 +623,7 @@ export default async function WrestlerProfilePage({
         const titlePt = (wp as { titlePoints?: number }).titlePoints ?? 0;
         const specialPt = (wp as { specialPoints?: number }).specialPoints ?? 0;
         const brPt = (wp as { battleRoyalPoints?: number }).battleRoyalPoints ?? 0;
-        if (isRS) {
-          eventTotal += matchPt + mainPt + titlePt + brPt;
-        } else {
-          eventTotal += matchPt + mainPt + titlePt + specialPt + brPt;
-        }
+        eventTotal += wp.total ?? matchPt + mainPt + titlePt + specialPt + brPt;
         if (firstResult === null && (wp.total ?? 0) > 0) {
           firstResult = m.result ?? null;
           firstTitle = m.title ?? null;
@@ -635,12 +631,7 @@ export default async function WrestlerProfilePage({
         }
       }
     }
-    let total = eventTotal;
-    if (eventId === nocEventId) {
-      const k = kingFromPriorBreakdown[canonicalSlug] ?? emptyBreakdown();
-      const q = queenFromPriorBreakdown[canonicalSlug] ?? emptyBreakdown();
-      total = eventTotal + k.qualifier + k.semi + q.qualifier + q.semi;
-    }
+    const total = eventTotal;
     if (total > 0) {
       eventToRow.set(eventId, {
         eventName,

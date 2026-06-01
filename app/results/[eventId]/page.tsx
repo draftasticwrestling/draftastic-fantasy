@@ -966,7 +966,6 @@ export default async function EventResultsPage({
                   </thead>
                   <tbody>
                     {(match.wrestlerPoints ?? []).map((wp) => {
-                      const kotrTowardNOC = (wp as { kotrTowardNOC?: number }).kotrTowardNOC ?? 0;
                       return (
                         <tr key={wp.wrestler} style={{ borderBottom: "1px solid #eee" }}>
                           <td style={{ padding: "10px 12px 10px 0", verticalAlign: "top" }}>
@@ -997,18 +996,6 @@ export default async function EventResultsPage({
                             }}
                           >
                             <div>{wp.total} pts</div>
-                            {kotrTowardNOC > 0 && !isRSEvent && (
-                              <div
-                                style={{
-                                  marginTop: 4,
-                                  fontSize: 12,
-                                  fontWeight: "normal",
-                                  color: "#666",
-                                }}
-                              >
-                                +{kotrTowardNOC} toward NOC
-                              </div>
-                            )}
                           </td>
                         </tr>
                       );

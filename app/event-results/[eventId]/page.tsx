@@ -700,7 +700,7 @@ export default async function EventResultsPage({
             color: "#555",
           }}
         >
-          <strong>King/Queen of the Ring:</strong> Qualifier and semi-final matches take place on Raw and SmackDown; those shows award both event points and tournament points (toward this event). Points from R/S are included below. The final at this event adds 10 pts (both finalists) + 20 pts (winner).
+          <strong>King/Queen of the Ring:</strong> Qualifier (+3 PLE) and semi-final (+7 PLE) matches on Raw and SmackDown award those tournament points when the show is scored, plus normal R/S appearance and win points. The Night of Champions final adds 10 pts (both finalists) + 20 pts (winner) instead of standard NOC match points.
         </div>
       )}
 
