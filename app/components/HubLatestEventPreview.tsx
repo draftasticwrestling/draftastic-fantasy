@@ -35,35 +35,66 @@ function formatEventDateBar(dateStr: string | null): string {
   return dateStr;
 }
 
-function centerLines(raw: Record<string, unknown>, sm: ScoredMatch): { primary: string; method: string } {
-  const cardType = typeof raw.cardType === "string" ? raw.cardType : "";
-  const title = typeof raw.title === "string" && raw.title !== "None" ? raw.title : "";
-  const matchType = typeof raw.matchType === "string" ? raw.matchType : "";
+type HubMatchCenterDisplay = {
+  primary: string;
+  method: string;
+  stipulationLine: string;
+};
 
-  let primary = "";
-  if (cardType === "Main Event") primary = "Main Event";
-  else if (title) primary = title;
-  else if (matchType && matchType.toLowerCase() !== "promo") primary = matchType;
-  else primary = "Match";
-
-  const methodRaw = (sm.method as string | undefined) || (typeof raw.method === "string" ? raw.method : "");
-  const method = methodRaw.trim() ? `via ${methodRaw.trim()}` : "";
-
-  return { primary, method };
+function resolveStipulation(raw: Record<string, unknown>): string {
+  const custom = String(raw.customStipulation ?? "").trim();
+  const stipRaw = String(raw.stipulation ?? "").trim();
+  if (stipRaw === "Custom/Other" && custom) return custom;
+  if (!stipRaw || stipRaw.toLowerCase() === "none") return "";
+  return stipRaw;
 }
 
-function centerLinesUpcoming(raw: Record<string, unknown>): { primary: string; method: string } {
+function shouldShowStipulationLine(stipulation: string, matchType: string, title: string): boolean {
+  if (!stipulation) return false;
+  const norm = (s: string) => s.trim().toLowerCase();
+  if (matchType && norm(stipulation) === norm(matchType)) return false;
+  if (title && norm(stipulation) === norm(title)) return false;
+  return true;
+}
+
+function hubMatchCenterLines(
+  raw: Record<string, unknown>,
+  opts?: { sm?: ScoredMatch; upcoming?: boolean }
+): HubMatchCenterDisplay {
   const cardType = typeof raw.cardType === "string" ? raw.cardType : "";
   const title = typeof raw.title === "string" && raw.title !== "None" ? raw.title : "";
   const matchType = typeof raw.matchType === "string" ? raw.matchType : "";
+  const stipulation = resolveStipulation(raw);
 
   let primary = "";
   if (cardType === "Main Event") primary = "Main Event";
   else if (title) primary = title;
   else if (matchType && matchType.toLowerCase() !== "promo") primary = matchType;
+  else if (stipulation) primary = stipulation;
   else primary = "Match";
 
-  return { primary, method: "Scheduled" };
+  const stipulationLine =
+    shouldShowStipulationLine(stipulation, matchType, title) &&
+    primary.toLowerCase() !== stipulation.toLowerCase()
+      ? stipulation
+      : "";
+
+  let method = "Scheduled";
+  if (!opts?.upcoming) {
+    const sm = opts?.sm;
+    const methodRaw = (sm?.method as string | undefined) || (typeof raw.method === "string" ? raw.method : "");
+    method = methodRaw.trim() ? `via ${methodRaw.trim()}` : "";
+  }
+
+  return { primary, method, stipulationLine };
+}
+
+function centerLines(raw: Record<string, unknown>, sm: ScoredMatch): HubMatchCenterDisplay {
+  return hubMatchCenterLines(raw, { sm });
+}
+
+function centerLinesUpcoming(raw: Record<string, unknown>): HubMatchCenterDisplay {
+  return hubMatchCenterLines(raw, { upcoming: true });
 }
 
 function isRawPromo(raw: Record<string, unknown>): boolean {
@@ -82,6 +113,19 @@ function buildWrestlerMap(wrestlerRows: WrestlerRow[]) {
 }
 
 type WrestlerMap = ReturnType<typeof buildWrestlerMap>;
+
+/** PTS column placeholder — only on wrestler rows where scores will appear. */
+function hubPointsPlaceholder() {
+  return (
+    <div className="hub-condensed-points">
+      <div className="hub-condensed-pts-line hub-condensed-pts-muted">—</div>
+    </div>
+  );
+}
+
+function hubPointsSkip() {
+  return <div className="hub-condensed-points hub-condensed-vs-skip" aria-hidden />;
+}
 
 function hubMatchBlockHeader(ptsHeader: string) {
   return (
@@ -123,15 +167,20 @@ function upcomingParticipantRow(nm: string, rowKey: string, wrestlerMap: Wrestle
         </div>
       </div>
       <div className="hub-condensed-center hub-condensed-center-empty" aria-hidden />
-      <div className="hub-condensed-points">
-        <div className="hub-condensed-pts-line hub-condensed-pts-muted">—</div>
-      </div>
+      {hubPointsPlaceholder()}
     </div>
   );
 }
 
-function hubVsDividerRow(key: string, primary: string, method: string) {
+/** One wrestler per side (fatal four-way, triple threat, etc.) — show match type once, not on every vs row. */
+function shouldShowMatchMetaOnce(sides: string[][]): boolean {
+  return sides.length >= 3 && sides.every((side) => side.length === 1);
+}
+
+function hubVsDividerRow(key: string, center: HubMatchCenterDisplay) {
+  const { primary, method, stipulationLine } = center;
   const methodLine = method.trim();
+  const showCenter = Boolean(primary.trim() || stipulationLine.trim() || methodLine);
   return (
     <div key={key} className="hub-condensed-row hub-condensed-row-vs">
       <div className="hub-condensed-side">
@@ -145,27 +194,48 @@ function hubVsDividerRow(key: string, primary: string, method: string) {
           </span>
         </div>
       </div>
-      <div className="hub-condensed-center hub-condensed-vs-center">
-        <div className={primary === "Main Event" ? "hub-condensed-primary hub-condensed-primary-main" : "hub-condensed-primary"}>
-          {primary}
+      {showCenter ? (
+        <div className="hub-condensed-center hub-condensed-vs-center">
+          {hubMatchMetaCenterContent(primary, method, stipulationLine)}
         </div>
-        {methodLine ? <div className="hub-condensed-method">{methodLine}</div> : null}
-      </div>
-      <div className="hub-condensed-points">
-        <div className="hub-condensed-pts-line hub-condensed-pts-muted">—</div>
-      </div>
+      ) : (
+        <div className="hub-condensed-center hub-condensed-center-empty" aria-hidden />
+      )}
+      {hubPointsSkip()}
     </div>
   );
 }
 
-function hubMetaStrip(primary: string, method: string, reactKey?: string) {
+function hubMatchMetaCenterContent(primary: string, method: string, stipulationLine = "") {
   const methodLine = method.trim();
+  const stipLine = stipulationLine.trim();
   return (
-    <div key={reactKey} className="hub-match-meta-strip">
+    <>
       <div className={primary === "Main Event" ? "hub-condensed-primary hub-condensed-primary-main" : "hub-condensed-primary"}>
         {primary}
       </div>
+      {stipLine ? <div className="hub-condensed-stipulation">{stipLine}</div> : null}
       {methodLine ? <div className="hub-condensed-method">{methodLine}</div> : null}
+    </>
+  );
+}
+
+function hubMetaStrip(center: HubMatchCenterDisplay, reactKey?: string) {
+  return (
+    <div key={reactKey} className="hub-match-meta-strip">
+      {hubMatchMetaCenterContent(center.primary, center.method, center.stipulationLine)}
+    </div>
+  );
+}
+
+/** Multi-way (one wrestler per side): match label vertically centered beside the full participant stack. */
+function hubMultiWayMatchLayout(participantRows: ReactNode[], center: HubMatchCenterDisplay, layoutKey: string) {
+  return (
+    <div key={layoutKey} className="hub-match-multiway-body">
+      <div className="hub-match-multiway-stack">{participantRows}</div>
+      <div className="hub-match-multiway-center" aria-label="Match details">
+        {hubMatchMetaCenterContent(center.primary, center.method, center.stipulationLine)}
+      </div>
     </div>
   );
 }
@@ -188,17 +258,18 @@ function participantNamesFromRaw(raw: Record<string, unknown>): string[] {
 function renderParticipantSidesRows(
   sides: string[][],
   rowBase: string,
-  primary: string,
-  method: string,
+  center: HubMatchCenterDisplay,
   wrestlerMap: WrestlerMap,
   entriesTyped: CompletedEntry[],
   useCompletedPoints: boolean
 ): ReactNode[] {
   const rowsInner: ReactNode[] = [];
   let rk = 0;
+  const metaOnce = shouldShowMatchMetaOnce(sides);
+  const emptyCenter: HubMatchCenterDisplay = { primary: "", method: "", stipulationLine: "" };
   sides.forEach((side, si) => {
     if (si > 0) {
-      rowsInner.push(hubVsDividerRow(`${rowBase}-vs-${si}`, primary, method));
+      rowsInner.push(hubVsDividerRow(`${rowBase}-vs-${si}`, metaOnce ? emptyCenter : center));
     }
     const ordered = side.map((nm) => ({ nm, entry: findCompletedEntryForName(nm, entriesTyped) }));
     ordered.sort((a, b) => {
@@ -215,6 +286,9 @@ function renderParticipantSidesRows(
       }
     }
   });
+  if (metaOnce) {
+    return [hubMultiWayMatchLayout(rowsInner, center, `${rowBase}-mw`)];
+  }
   return rowsInner;
 }
 
@@ -296,9 +370,7 @@ function completedParticipantFallbackRow(nm: string, rowKey: string, wrestlerMap
         </div>
       </div>
       <div className="hub-condensed-center hub-condensed-center-empty" aria-hidden />
-      <div className="hub-condensed-points">
-        <div className="hub-condensed-pts-line hub-condensed-pts-muted">—</div>
-      </div>
+      {hubPointsPlaceholder()}
     </div>
   );
 }
@@ -350,7 +422,7 @@ export default function HubLatestEventPreview({
       if (orderFilter && !orderFilter.has(ordUp)) continue;
       shown++;
 
-      const { primary, method } = centerLinesUpcoming(raw);
+      const center = centerLinesUpcoming(raw);
       let names: string[] = [];
       try {
         const md = extractMatchParticipants(raw as never);
@@ -373,7 +445,7 @@ export default function HubLatestEventPreview({
         matchBlocks.push(
           <div key={rowBase} className="hub-match-block">
             {hubMatchBlockHeader(ptsHeader)}
-            {hubMetaStrip(primary, method, `${rowBase}-meta`)}
+            {hubMetaStrip(center, `${rowBase}-meta`)}
             <div className="hub-condensed-row hub-condensed-row-participant">
               <div className="hub-condensed-side">
                 <div className="hub-condensed-participant">
@@ -385,9 +457,7 @@ export default function HubLatestEventPreview({
                 </div>
               </div>
               <div className="hub-condensed-center hub-condensed-center-empty" aria-hidden />
-              <div className="hub-condensed-points">
-                <div className="hub-condensed-pts-line hub-condensed-pts-muted">—</div>
-              </div>
+              {hubPointsSkip()}
             </div>
           </div>
         );
@@ -397,16 +467,26 @@ export default function HubLatestEventPreview({
       const rowsInner: ReactNode[] = [];
 
       if (useVs && sides) {
+        const metaOnce = shouldShowMatchMetaOnce(sides);
+        const emptyCenter: HubMatchCenterDisplay = { primary: "", method: "", stipulationLine: "" };
+        const participantRows: ReactNode[] = [];
         sides.forEach((side, si) => {
           if (si > 0) {
-            rowsInner.push(hubVsDividerRow(`${rowBase}-vs-${si}`, primary, method));
+            participantRows.push(
+              hubVsDividerRow(`${rowBase}-vs-${si}`, metaOnce ? emptyCenter : center)
+            );
           }
           for (const nm of side) {
-            rowsInner.push(upcomingParticipantRow(nm, `${rowBase}-p-${rk++}`, wrestlerMap));
+            participantRows.push(upcomingParticipantRow(nm, `${rowBase}-p-${rk++}`, wrestlerMap));
           }
         });
+        if (metaOnce) {
+          rowsInner.push(hubMultiWayMatchLayout(participantRows, center, `${rowBase}-mw`));
+        } else {
+          rowsInner.push(...participantRows);
+        }
       } else {
-        rowsInner.push(hubMetaStrip(primary, method, `${rowBase}-meta`));
+        rowsInner.push(hubMetaStrip(center, `${rowBase}-meta`));
         for (const nm of displayNames) {
           rowsInner.push(upcomingParticipantRow(nm, `${rowBase}-p-${rk++}`, wrestlerMap));
         }
@@ -423,7 +503,7 @@ export default function HubLatestEventPreview({
                 </div>
               </div>
               <div className="hub-condensed-center hub-condensed-center-empty" aria-hidden />
-              <div className="hub-condensed-points hub-condensed-vs-skip" />
+              {hubPointsSkip()}
             </div>
           );
         }
@@ -457,7 +537,7 @@ export default function HubLatestEventPreview({
 
       shown++;
 
-      const { primary, method } = centerLines(raw, sm);
+      const center = centerLines(raw, sm);
       const wps = sm.wrestlerPoints ?? [];
       const entriesFull = wps.map((wp, j) => ({
         wp,
@@ -503,7 +583,7 @@ export default function HubLatestEventPreview({
         matchBlocks.push(
           <div key={`empty-${i}`} className="hub-match-block">
             {hubMatchBlockHeader(ptsHeader)}
-            {hubMetaStrip(primary, method, `empty-${i}-meta`)}
+            {hubMetaStrip(center, `empty-${i}-meta`)}
             {rowsInner}
           </div>
         );
@@ -512,9 +592,9 @@ export default function HubLatestEventPreview({
 
       if (entries.length === 0 && parsedNames.length > 0) {
         if (useVs && sides) {
-          rowsInner.push(...renderParticipantSidesRows(sides, rowBase, primary, method, wrestlerMap, entriesTyped, false));
+          rowsInner.push(...renderParticipantSidesRows(sides, rowBase, center, wrestlerMap, entriesTyped, false));
         } else {
-          rowsInner.push(hubMetaStrip(primary, method, `${rowBase}-meta`));
+          rowsInner.push(hubMetaStrip(center, `${rowBase}-meta`));
           const displayNames =
             parsedNames.length > maxParticipantsPerMatch
               ? parsedNames.slice(0, maxParticipantsPerMatch)
@@ -533,9 +613,9 @@ export default function HubLatestEventPreview({
       }
 
       if (useVs && sides) {
-        rowsInner.push(...renderParticipantSidesRows(sides, rowBase, primary, method, wrestlerMap, entriesTyped, true));
+        rowsInner.push(...renderParticipantSidesRows(sides, rowBase, center, wrestlerMap, entriesTyped, true));
       } else {
-        rowsInner.push(hubMetaStrip(primary, method, `${rowBase}-meta`));
+        rowsInner.push(hubMetaStrip(center, `${rowBase}-meta`));
         for (const entry of entriesTyped) {
           rowsInner.push(completedParticipantRow(entry, `${rowBase}-p-${entriesTyped.indexOf(entry)}`, wrestlerMap));
         }
@@ -552,9 +632,7 @@ export default function HubLatestEventPreview({
                 </div>
               </div>
               <div className="hub-condensed-center hub-condensed-center-empty" aria-hidden />
-              <div className="hub-condensed-points">
-                <div className="hub-condensed-pts-line hub-condensed-pts-muted">…</div>
-              </div>
+              {hubPointsSkip()}
             </div>
           );
         }

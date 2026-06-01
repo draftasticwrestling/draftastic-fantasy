@@ -32,6 +32,8 @@ type Props = {
   showSeasonTop10?: boolean;
   /** Head-to-head leagues get a Matchups link in the mobile League menu. */
   isHeadToHead?: boolean;
+  /** H2H/combo: Matchups is in the top mobile tab bar; Draft moves into this menu. */
+  showMatchupsInTopNav?: boolean;
   /** Salary cap leagues use Add/Drop only (no trades) and skip draft nav elsewhere. */
   isSalaryCapLeague?: boolean;
   seasonBelt?: LeagueSeasonBelt | null;
@@ -70,6 +72,7 @@ export function LeagueHomeMobileLeagueView({
   leaderboardInitial,
   showSeasonTop10 = true,
   isHeadToHead = false,
+  showMatchupsInTopNav = false,
   isSalaryCapLeague = false,
   seasonBelt = null,
   levelUpCelebration = null,
@@ -81,7 +84,7 @@ export function LeagueHomeMobileLeagueView({
 
   const items: { href: string; label: string }[] = [
     { href: `${base}/standings`, label: "Standings" },
-    ...(isHeadToHead ? [{ href: `${base}/matchups`, label: "Matchups" }] : []),
+    ...(isHeadToHead && !showMatchupsInTopNav ? [{ href: `${base}/matchups`, label: "Matchups" }] : []),
     ...(seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG || isSalaryCapLeague
       ? [
           {
@@ -93,6 +96,7 @@ export function LeagueHomeMobileLeagueView({
     { href: `${base}/faction-actions`, label: isSalaryCapLeague ? "Add / Drop" : "Add / Drop / Trade" },
     { href: `${base}/transactions`, label: "Transactions" },
     { href: pleHref, label: pleLabel },
+    ...(showMatchupsInTopNav && !isSalaryCapLeague ? [{ href: `${base}/draft`, label: "Draft" }] : []),
     { href: `${base}/edit-team-info`, label: "Edit Faction Info" },
     ...(isCommissioner ? [{ href: `${base}/league-settings`, label: "GM Tools" }] : []),
   ];

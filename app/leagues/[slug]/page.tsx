@@ -25,6 +25,7 @@ import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
 import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 import { LeagueStandingsTable } from "./LeagueStandingsTable";
 import { LeagueHomeMobileLeagueView } from "./LeagueHomeMobileLeagueView";
+import { leagueShowsMatchupsInNav } from "@/lib/leagueNavVisibility";
 import { TradeProposalRespond } from "./team/TradeProposalRespond";
 import { GmAwaitingTradeApprovals, getTradeVoteState } from "./GmAwaitingTradeApprovals";
 import { TradeVoteControls } from "./proposals/TradeVoteControls";
@@ -197,6 +198,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     );
 
     const isHeadToHeadHomeStandings = (league.league_type ?? null) === "head_to_head";
+    const showMatchupsInTopNav = leagueShowsMatchupsInNav(league.league_type);
     let standingsRecordByUserId: Record<string, { w: number; l: number; t: number }> | undefined;
     let membersByPoints = [...members].sort(
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
@@ -417,6 +419,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         showRecordOnly={isHeadToHeadHomeStandings}
         showSeasonTop10={showSeasonTop10InSidebar}
         isHeadToHead={isHeadToHeadHomeStandings}
+        showMatchupsInTopNav={showMatchupsInTopNav}
         isSalaryCapLeague={isSalaryCapFormat}
         seasonBelt={seasonBelt}
         currentUserId={currentUser?.id ?? null}

@@ -6021,6 +6021,62 @@ button.hub-leaderboard-week-nav-btn:disabled {
   font-size: 0.68rem;
   line-height: 1.2;
 }
+/* Fatal four-way / triple threat: one match label centered beside all participants */
+.hub-match-multiway-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(88px, 1fr) 48px;
+  column-gap: 6px;
+  row-gap: 0;
+  padding: 3px 4px;
+  align-items: center;
+}
+.hub-match-multiway-stack {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column-gap: 6px;
+}
+.hub-match-multiway-center {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  align-self: center;
+  justify-self: center;
+  padding: 4px 2px;
+  z-index: 1;
+  pointer-events: none;
+  max-width: 100%;
+}
+.hub-match-multiway-center .hub-condensed-primary {
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+.hub-match-multiway-center .hub-condensed-method {
+  font-size: 0.66rem;
+  line-height: 1.2;
+}
+.hub-condensed-stipulation {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #c6a04f;
+  margin-top: 1px;
+}
+.hub-match-meta-strip .hub-condensed-stipulation,
+.hub-condensed-vs-center .hub-condensed-stipulation,
+.hub-match-multiway-center .hub-condensed-stipulation {
+  font-size: 0.68rem;
+}
+.hub-match-multiway-stack > .hub-condensed-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+}
 .hub-condensed-center-empty {
   min-height: 0;
 }
@@ -6098,6 +6154,9 @@ button.hub-leaderboard-week-nav-btn:disabled {
   border-bottom: none !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
+  min-height: 0;
+}
+.hub-condensed-points.hub-condensed-vs-skip {
   min-height: 0;
 }
 .hub-condensed-side {

@@ -73,9 +73,13 @@ function getActivePrimary(pathname: string, slug: string): MobileLeagueSectionKe
   return null;
 }
 
-type FantasyMobileTabKey = "league" | "faction" | "wrestlers" | "draft";
+type FantasyMobileTabKey = "league" | "faction" | "matchups" | "wrestlers" | "draft";
 
-function getFantasyMobilePrimaryTab(pathname: string, slug: string): FantasyMobileTabKey | null {
+function getFantasyMobilePrimaryTab(
+  pathname: string,
+  slug: string,
+  opts?: { showMatchupsInTopNav?: boolean }
+): FantasyMobileTabKey | null {
   if (!slug) return null;
   const base = `/leagues/${slug}`;
   if (pathname === base || pathname === `${base}/`) return "league";
@@ -88,9 +92,13 @@ function getFantasyMobilePrimaryTab(pathname: string, slug: string): FantasyMobi
   if (head === "team") return "faction";
   if (head === "transactions" || head === "team-log" || head === "watchlist" || head === "edit-team-info" || head === "faction-actions") return "faction";
 
+  if (head === "matchups") return "matchups";
+
   if (head === "wrestlers" || head === "league-leaders" || head === "stat-corrections") return "wrestlers";
 
-  if (head === "draft" || head === "draft-history" || head === "draft-settings") return "draft";
+  if (head === "draft" || head === "draft-history" || head === "draft-settings") {
+    return opts?.showMatchupsInTopNav ? "league" : "draft";
+  }
 
   return "league";
 }
@@ -250,6 +258,7 @@ export default function Nav() {
   const currentLeague = leagues.find((l) => l.slug === currentLeagueSlug);
   const isCommissioner = currentLeague?.role === "commissioner";
   const isSalaryCapLeague = leagueUsesSalaryCap(currentLeague?.league_type);
+  const showMatchupsInTopNav = leagueShowsMatchupsInNav(currentLeague?.league_type);
   const isSiteAdmin = Boolean(profile?.is_site_admin);
   const activePrimary = currentLeagueSlug ? getActivePrimary(pathname, currentLeagueSlug) : null;
 
@@ -399,7 +408,9 @@ export default function Nav() {
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
-  const fantasyMobileTab = currentLeagueSlug ? getFantasyMobilePrimaryTab(pathname, currentLeagueSlug) : null;
+  const fantasyMobileTab = currentLeagueSlug
+    ? getFantasyMobilePrimaryTab(pathname, currentLeagueSlug, { showMatchupsInTopNav })
+    : null;
 
   if (pathname === "/coming-soon") return null;
 
@@ -923,6 +934,14 @@ export default function Nav() {
                 >
                   Faction
                 </Link>
+                {showMatchupsInTopNav ? (
+                  <Link
+                    href={`/leagues/${currentLeagueSlug}/matchups`}
+                    className={`nav-fantasy-mobile-tab ${fantasyMobileTab === "matchups" ? "is-active" : ""}`}
+                  >
+                    Matchups
+                  </Link>
+                ) : null}
                 <Link
                   href={`/leagues/${currentLeagueSlug}/wrestlers/league-leaders`}
                   prefetch={false}
@@ -930,7 +949,7 @@ export default function Nav() {
                 >
                   Wrestlers
                 </Link>
-                {!isSalaryCapLeague ? (
+                {!isSalaryCapLeague && !showMatchupsInTopNav ? (
                   <Link
                     href={`/leagues/${currentLeagueSlug}/draft`}
                     className={`nav-fantasy-mobile-tab ${fantasyMobileTab === "draft" ? "is-active" : ""}`}
