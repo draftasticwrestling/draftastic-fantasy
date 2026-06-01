@@ -123,6 +123,7 @@ type ScoredEventMatch = {
     battleRoyalPoints?: number;
     specialPoints?: number;
     breakdown?: unknown[];
+    kotrPleBonus?: number;
     kotrTowardNOC?: number;
     callUpPoints?: number;
   }>;
