@@ -2,17 +2,23 @@
  * Boxscore-style event page header helpers (mirrors wrestling-boxscore App.jsx EventBoxScore).
  */
 
-import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
+import {
+  classifyEventType,
+  EVENT_TYPES,
+} from "@/lib/scoring/parsers/eventClassifier.js";
 import { getEventLogoUrl } from "@/lib/howItWorksImages";
 
 export type EventShowFilter = "raw" | "smackdown" | "nxt" | "ple";
 
-/** Classify event for show filter: raw | smackdown | ple (from name only). */
-export function getEventShowType(event: { name?: string | null } | null | undefined): EventShowFilter {
-  const name = (event?.name || "").toLowerCase().trim();
-  if (name.includes("raw") && !name.includes("tag team")) return "raw";
-  if (name.includes("smackdown") || name.includes("smack down")) return "smackdown";
-  if (name === "nxt" || name.includes("wwe nxt") || name.startsWith("nxt ")) return "nxt";
+/** Classify event for show filter: raw | smackdown | nxt weekly | ple (NXT PLEs and main-roster PLEs). */
+export function getEventShowType(
+  event: { name?: string | null; id?: string | null } | null | undefined
+): EventShowFilter {
+  if (!event) return "ple";
+  const typed = classifyEventType(event.name ?? "", event.id ?? "");
+  if (typed === EVENT_TYPES.RAW) return "raw";
+  if (typed === EVENT_TYPES.SMACKDOWN) return "smackdown";
+  if (typed === EVENT_TYPES.NXT) return "nxt";
   return "ple";
 }
 
@@ -32,13 +38,18 @@ const EVENT_LOGO_MAP: Record<string, string> = {
  * Logo URL for an event card or header. Prefer `classifyEventType` + `/images/event-logos/` (same as hub
  * EventListBar); fall back to legacy `/images/*.png` names when type is unknown.
  */
-export function getEventLogoPath(name: string | null | undefined, eventId?: string | null): string {
-  if (!name) return "/images/raw_logo.png";
-  const typed = classifyEventType(name, eventId ?? "");
+export function getEventLogoPath(
+  name: string | null | undefined,
+  eventId?: string | null,
+  eventType?: string | null
+): string {
+  const label = (name || eventType || "").trim();
+  if (!label) return "/images/raw_logo.png";
+  const typed = classifyEventType(label, eventId ?? "");
   const fromLogos = getEventLogoUrl(typed);
   if (fromLogos) return fromLogos;
 
-  const key = name.trim().toLowerCase();
+  const key = label.toLowerCase();
   if (EVENT_LOGO_MAP[key]) return `/images/${EVENT_LOGO_MAP[key]}`;
   const auto = `${key.replace(/[^a-z0-9]+/g, "_").replace(/_+$/, "")}.png`;
   return `/images/${auto}`;
