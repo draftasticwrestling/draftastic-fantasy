@@ -58,6 +58,7 @@ import {
 } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormalize";
+import { resolveWrestlerChampionshipTitles } from "@/lib/wrestlerCurrentChampionships";
 import { getFactionStintPointsFromAudit, getTeamScoringAudit } from "@/lib/teamScoring";
 import { factionDisplayName } from "@/lib/factionName";
 import { getTodayTomorrowYmdET } from "@/lib/home/hubHomeEvents";
@@ -380,13 +381,13 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       const totalPoints = points.rsPoints + points.plePoints + beltPoints;
       const beltPointsAllTime = pointsAllTime.beltPoints + extraBelt;
       const totalPointsAllTime = pointsAllTime.rsPoints + pointsAllTime.plePoints + beltPointsAllTime;
-      const fromTable =
-        currentFromTable[idKey] ?? currentFromTable[slugKey] ?? (nameKey ? currentFromTable[nameKey] : null);
-      const fromChanges =
-        currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
-      const titlesFromHistory = currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
-      const primaryTitle = (fromTable ?? fromChanges) ? (fromTable ?? fromChanges)!.title : (titlesFromHistory[0] ?? null);
-      const titles = primaryTitle ? [primaryTitle] : titlesFromHistory;
+      const titles = resolveWrestlerChampionshipTitles(
+        { id: w.id, name: w.name ?? "" },
+        currentChampionsBySlug,
+        currentFromTable,
+        currentFromChanges
+      );
+      const primaryTitle = titles[0] ?? null;
       const raw = w as Record<string, unknown>;
       return {
         id: w.id,

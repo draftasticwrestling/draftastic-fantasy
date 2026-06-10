@@ -30,8 +30,6 @@ import {
   mergeReigns,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import {
-  mergeCurrentChampionTitleStrings,
-  mergeGetCurrentChampionFromMap,
   mergeGetMatchStatsForWrestler,
   mergeGetMonthlyBeltForWrestler,
   mergeGetPointsForWrestler,
@@ -45,6 +43,8 @@ import type { CurrentChampionFromChanges } from "@/lib/championshipCurrentFromCh
 import { getCurrentChampionsFromChanges } from "@/lib/championshipCurrentFromChanges";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
+import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormalize";
+import { resolveWrestlerChampionshipTitles } from "@/lib/wrestlerCurrentChampionships";
 import {
   adjustRts2026LeagueAggregateBeltPoints,
   beltScoringLastMonthEndInclusive,
@@ -282,7 +282,9 @@ export default async function LeagueLeadersPage({
     myRosterIdsForSalaryCap = (rostersByUser[user.id] ?? []).map((e) => e.wrestler_id);
   }
 
-  const tableReigns = (rawReigns ?? []) as ChampionshipReign[];
+  const tableReigns = (rawReigns ?? []).map((row) =>
+    normalizeChampionshipHistoryRow(row as Record<string, unknown>)
+  ) as ChampionshipReign[];
   let reigns: ChampionshipReign[];
   try {
     const inferredReigns = inferReignsFromEvents(beltInferenceEvents);
@@ -405,8 +407,6 @@ export default async function LeagueLeadersPage({
   rows = wrestlersFiltered.map((w) => {
     const slugKey = w.id;
     const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
-    const idKey = normalizeWrestlerName(String(w.id));
-    const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
     // Use slugKey (stable id/slug) first so points match when display name changed (e.g. Natalya → Nattie, slug still natalya)
     const pointsAll = mergeGetPointsForWrestler(pointsBySlug, slugKey, nameKey);
     const pointsMainOnly = mergeGetPointsForWrestler(pointsBySlugMainRosterOnly, slugKey, nameKey);
@@ -473,33 +473,13 @@ export default async function LeagueLeadersPage({
       points2026MainOnly.rsPoints +
       points2026MainOnly.plePoints +
       (trustLeadersCache ? points2026MainOnly.beltPoints : points2026MainOnly.beltPoints + extraBelt2026);
-    const fromTable =
-      currentFromTable[idKey] ?? mergeGetCurrentChampionFromMap(currentFromTable, slugKey, nameKey) ?? null;
-    const fromChanges =
-      currentFromChanges[idKey] ?? mergeGetCurrentChampionFromMap(currentFromChanges, slugKey, nameKey) ?? null;
-    const directChampTitles =
-      currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[idKey] ?? null;
-    const aliasChampTitles = mergeCurrentChampionTitleStrings(
+    const titles = resolveWrestlerChampionshipTitles(
+      { id: w.id, name: w.name ?? "" },
       currentChampionsBySlug,
-      slugKey,
-      nameKey
+      currentFromTable,
+      currentFromChanges
     );
-    const titlesFromHistory: string[] = (() => {
-      const seen = new Set<string>();
-      const out: string[] = [];
-      for (const list of [directChampTitles, aliasChampTitles]) {
-        if (!list) continue;
-        for (const t of list) {
-          if (t && !seen.has(t)) {
-            seen.add(t);
-            out.push(t);
-          }
-        }
-      }
-      return out;
-    })();
-    const primaryTitle = (fromTable ?? fromChanges) ? (fromTable ?? fromChanges)!.title : (titlesFromHistory[0] ?? null);
-    const titles = primaryTitle ? [primaryTitle] : titlesFromHistory;
+    const primaryTitle = titles[0] ?? null;
     const raw = w as Record<string, unknown>;
     const unparsedCount = mergeUnparsedMatchCount(unparsedBySlug, slugKey, nameKey);
     return {

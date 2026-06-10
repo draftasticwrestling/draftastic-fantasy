@@ -37,7 +37,55 @@ function dedupeChampionshipTitlesForDisplay(titles: string[]): string[] {
   return [...bySlug.values()].sort((a, b) => compareChampionshipTitleNames(a, b));
 }
 
-function resolveTitlesForWrestler(
+function titleKeyForChampionshipName(title: string): string {
+  const page = getPwbsChampionshipPage(title);
+  return page?.slug ?? `literal:${title.toLowerCase()}`;
+}
+
+/** Invert slug→titles so we can tell when reign history already names a current holder per belt. */
+function currentHolderSlugsByTitleKey(
+  currentChampionsBySlug: Record<string, string[]>
+): Map<string, Set<string>> {
+  const byTitle = new Map<string, Set<string>>();
+  for (const [wrestlerSlug, titles] of Object.entries(currentChampionsBySlug)) {
+    for (const rawTitle of titles) {
+      const t = rawTitle?.trim();
+      if (!t) continue;
+      const key = titleKeyForChampionshipName(t);
+      if (!byTitle.has(key)) byTitle.set(key, new Set());
+      byTitle.get(key)!.add(wrestlerSlug);
+    }
+  }
+  return byTitle;
+}
+
+function snapshotSupplementalTitles(
+  w: { id: string; name: string },
+  currentFromTable: Record<string, CurrentChampionFromChanges>,
+  currentFromChanges: Record<string, CurrentChampionFromChanges>,
+  holderSlugsByTitle: Map<string, Set<string>>
+): string[] {
+  const slugKey = w.id;
+  const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
+  const idKey = normalizeWrestlerName(String(w.id));
+
+  const snap =
+    currentFromTable[idKey] ??
+    mergeGetCurrentChampionFromMap(currentFromTable, slugKey, nameKey) ??
+    currentFromChanges[idKey] ??
+    mergeGetCurrentChampionFromMap(currentFromChanges, slugKey, nameKey);
+  if (!snap?.title) return [];
+
+  const titleKey = titleKeyForChampionshipName(snap.title);
+  const holders = holderSlugsByTitle.get(titleKey);
+  // Reign history is authoritative when it names a current holder; ignore stale table/change rows.
+  if (holders && holders.size > 0) return [];
+
+  return [snap.title];
+}
+
+/** Same championship resolution as free agents / league leaders (exported for league pages). */
+export function resolveWrestlerChampionshipTitles(
   w: { id: string; name: string },
   currentChampionsBySlug: Record<string, string[]>,
   currentFromTable: Record<string, CurrentChampionFromChanges>,
@@ -47,11 +95,6 @@ function resolveTitlesForWrestler(
   const nameKey = w.name ? normalizeWrestlerName(w.name) : "";
   const idKey = normalizeWrestlerName(String(w.id));
   const canonicalKey = nameKey || (slugKey ? normalizeWrestlerName(String(slugKey)) : "") || slugKey;
-
-  const fromTable =
-    currentFromTable[idKey] ?? mergeGetCurrentChampionFromMap(currentFromTable, slugKey, nameKey) ?? null;
-  const fromChanges =
-    currentFromChanges[idKey] ?? mergeGetCurrentChampionFromMap(currentFromChanges, slugKey, nameKey) ?? null;
 
   const directChampTitles =
     currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[idKey] ?? null;
@@ -69,9 +112,18 @@ function resolveTitlesForWrestler(
     }
   }
 
-  const primaryTitle = (fromTable ?? fromChanges) ? (fromTable ?? fromChanges)!.title : (titlesFromHistory[0] ?? null);
-  const titles = primaryTitle ? [primaryTitle] : titlesFromHistory;
-  return dedupeChampionshipTitlesForDisplay(titles);
+  const holderSlugsByTitle = currentHolderSlugsByTitleKey(currentChampionsBySlug);
+  const supplemental = snapshotSupplementalTitles(w, currentFromTable, currentFromChanges, holderSlugsByTitle);
+  return dedupeChampionshipTitlesForDisplay([...titlesFromHistory, ...supplemental]);
+}
+
+function resolveTitlesForWrestler(
+  w: { id: string; name: string },
+  currentChampionsBySlug: Record<string, string[]>,
+  currentFromTable: Record<string, CurrentChampionFromChanges>,
+  currentFromChanges: Record<string, CurrentChampionFromChanges>
+): string[] {
+  return resolveWrestlerChampionshipTitles(w, currentChampionsBySlug, currentFromTable, currentFromChanges);
 }
 
 /** Same championship resolution as free agents / league leaders. */
