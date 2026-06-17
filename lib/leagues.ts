@@ -1750,6 +1750,9 @@ export async function getLeagueScoring(
   }
   const enforceMainRosterOnlyForNxt =
     (league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG && !leagueIncludesNxt(league);
+  const includeNxtLeague = leagueIncludesNxt(league);
+  /** Include-NXT leagues score main-roster wrestlers on NXT cards; omit brand filter (see skipMainRosterNxtSeasonPoints). */
+  const brandBySlugForEventScoring = includeNxtLeague ? null : brandBySlug;
   const sharedWrestlerPool = leagueUsesSalaryCap(
     (league as { league_type?: string | null }).league_type
   );
@@ -1778,7 +1781,7 @@ export async function getLeagueScoring(
     const { pointsBySlug: eventPoints, callUpBySlug, updatedCarryOver } = getPointsForSingleEvent(
       event,
       kotrCarryOver,
-      brandBySlug
+      brandBySlugForEventScoring
     );
     kotrCarryOver = updatedCarryOver;
     const bestStintByWrestlerId: Record<string, typeof scoringStints[number]> = {};

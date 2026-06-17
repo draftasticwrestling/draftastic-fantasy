@@ -114,6 +114,8 @@ function accumulateOwnerEventPointsForCalendarWeek(
   const ROSTER_STINT_DATE_OFFSET_DAYS = -1;
   const enforceMainRosterOnlyForNxt =
     (seasonSlug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG && !includeNxt;
+  /** Include-NXT leagues score main-roster wrestlers on NXT cards; omit brand filter (see skipMainRosterNxtSeasonPoints). */
+  const brandBySlugForEventScoring = includeNxt ? null : brandBySlug;
   const pointsByOwner: Record<string, number> = {};
   const pointsByOwnerByWrestler: Record<string, Record<string, number>> = {};
   let kotrCarryOver: Record<string, number> = {};
@@ -124,7 +126,7 @@ function accumulateOwnerEventPointsForCalendarWeek(
     const { pointsBySlug: eventPoints, callUpBySlug, updatedCarryOver } = getPointsForSingleEvent(
       event as never,
       kotrCarryOver,
-      brandBySlug
+      brandBySlugForEventScoring
     );
     kotrCarryOver = updatedCarryOver;
 
