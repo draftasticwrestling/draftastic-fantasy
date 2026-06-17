@@ -49,7 +49,7 @@ export async function createLeagueAction(
   const accessCode = (formData.get("access_code") as string)?.trim() ?? "";
 
   if (enforceStandardRules) {
-    if (!accessCode) {
+    if (visibility_type !== "public" && !accessCode) {
       return { error: "Enter the beta access code from your mailing list invite." };
     }
   }
@@ -63,7 +63,7 @@ export async function createLeagueAction(
 
   if (enforceStandardRules) {
     if (visibility_type === "public") {
-      // Public leagues: salary cap + rolling 12-week season (dates set when 3 factions join).
+      // Public leagues: salary cap + Monday RAW enrollment close; no access code.
     } else {
       if (season_slug !== STANDARD_USER_CREATE_SEASON_SLUG) {
         return {
@@ -111,7 +111,7 @@ export async function createLeagueAction(
     };
   }
 
-  if (enforceStandardRules) {
+  if (enforceStandardRules && visibility_type !== "public") {
     if (!(await leagueCreationAccessIsConfigured())) {
       return {
         error:

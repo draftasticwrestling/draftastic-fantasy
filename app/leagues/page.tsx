@@ -48,9 +48,9 @@ export default async function LeaguesPage() {
           fontSize: 14,
         }}
       >
-        Public leagues use Salary Cap — Total Season Points with open enrollment. Week 1 starts on the next Friday
-        SmackDown after 3 factions join; the season runs for 12 fantasy weeks. Private leagues still use Road to season
-        windows.
+        Public leagues use Salary Cap — Total Season Points. Join anytime before Monday RAW (5:00 PM PT), build your
+        $100 roster, then compete for 12 weeks. Private leagues use Road to SummerSlam season windows and may require a
+        beta access code to create.
       </div>
 
       <p style={{ marginBottom: 16 }}>

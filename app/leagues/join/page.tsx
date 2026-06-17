@@ -7,7 +7,7 @@ type Props = { searchParams: Promise<{ token?: string; code?: string }> };
 
 export const metadata = {
   title: "Join a league — Draftastic Fantasy",
-  description: "Join a private league with the code your GM shared, or accept an invite link",
+  description: "Join a public league instantly or enter a private league code from your GM",
 };
 
 export default async function JoinLeaguePage({ searchParams }: Props) {
@@ -49,7 +49,8 @@ export default async function JoinLeaguePage({ searchParams }: Props) {
       ) : (
         <>
           <p style={{ color: "#555", marginBottom: 24 }}>
-            Enter the code your GM provided. Invite links from email still work when opened while signed in.
+            Join the open public league with one click, or enter a private league code from your GM. Invite links from
+            email still work when opened while signed in.
           </p>
           <JoinLeagueForm initialCode={code ?? ""} />
         </>

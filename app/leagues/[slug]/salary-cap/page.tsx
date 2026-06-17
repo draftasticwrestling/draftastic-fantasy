@@ -2,23 +2,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getRostersForLeague } from "@/lib/leagues";
-import { leagueIncludesNxt, leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEFAULT } from "@/lib/leagueStructure";
-import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
-import { isHiddenCanonicalListSlug } from "@/lib/scoring/personaResolution.js";
-import { isValidSalaryCapCost } from "@/lib/salaryCap";
-import { loadSalaryCap2026StatsByWrestlerId } from "@/lib/salaryCap2026Stats";
-import { loadWrestlerCurrentChampionshipContext } from "@/lib/wrestlerCurrentChampionships";
+import { leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEFAULT } from "@/lib/leagueStructure";
+import { buildSalaryCapWrestlerPool } from "@/lib/salaryCapWrestlerPool";
 import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
 import { SalaryCapRosterBuilder } from "./SalaryCapRosterBuilder";
 
 type Props = { params: Promise<{ slug: string }> };
-
-function read2kRating(row: Record<string, unknown>, key: string): number | null {
-  const v = row[key];
-  if (v == null || v === "") return null;
-  const n = Number(v);
-  return Number.isNaN(n) ? null : n;
-}
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
@@ -63,74 +52,16 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
       ? leagueRow.salary_cap_budget
       : SALARY_CAP_BUDGET_DEFAULT;
 
-  const poolOpts = { includeNxt: leagueIncludesNxt(league) };
-  const [wrestlersResult, championshipContext] = await Promise.all([
-    supabase
-      .from("wrestlers")
-      .select('id, name, brand, image_url, gender, "Status", "2K26 rating", "2K25 rating", salary_cap_cost')
-      .order("name", { ascending: true }),
-    loadWrestlerCurrentChampionshipContext(supabase),
-  ]);
-  const wrestlersRaw = wrestlersResult.data;
-
-  const pool = (wrestlersRaw ?? [])
-    .filter((w) => {
-      const row = w as { id: string; brand?: string | null; salary_cap_cost?: number | null };
-      if (isHiddenCanonicalListSlug(row.id)) return false;
-      if (!isMainBrandWrestlerRosterForLeague(row.brand, poolOpts)) return false;
-      return typeof row.salary_cap_cost === "number" && isValidSalaryCapCost(row.salary_cap_cost);
-    })
-    .map((w) => {
-      const row = w as {
-        id: string;
-        name: string | null;
-        brand?: string | null;
-        salary_cap_cost: number;
-        image_url?: string | null;
-        gender?: string | null;
-        Status?: string | null;
-        "2K26 rating"?: unknown;
-        "2K25 rating"?: unknown;
-      };
-      const raw = row as Record<string, unknown>;
-      const name = row.name ?? row.id;
-      const champ = championshipContext.resolve({
-        id: row.id,
-        name,
-        gender: row.gender ?? null,
-      });
-      return {
-        id: row.id,
-        name,
-        salaryCapCost: row.salary_cap_cost,
-        brand: row.brand,
-        imageUrl: row.image_url ?? null,
-        gender: row.gender ?? null,
-        status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
-        rating2k26: read2kRating(raw, "2K26 rating"),
-        rating2k25: read2kRating(raw, "2K25 rating"),
-        currentChampionship: champ.displayLine,
-        championBeltImageUrl: champ.beltImageUrl,
-      };
-    });
-
-  const stats2026ById = await loadSalaryCap2026StatsByWrestlerId(
-    supabase,
-    pool.map((w) => ({ id: w.id, name: w.name }))
-  );
-
-  const poolWithStats = pool.map((w) => ({
-    ...w,
-    stats2026: stats2026ById[w.id] ?? null,
-  }));
+  const poolWithStats = await buildSalaryCapWrestlerPool(supabase, league);
   const poolById = Object.fromEntries(poolWithStats.map((w) => [w.id, w]));
+  const stats2026ById = Object.fromEntries(poolWithStats.map((w) => [w.id, w.stats2026 ?? null]));
 
   const rosters = await getRostersForLeague(league.id);
   const myEntries = rosters[user.id] ?? [];
-  const nameById = Object.fromEntries(pool.map((w) => [w.id, w.name]));
-  const imageById = Object.fromEntries(pool.map((w) => [w.id, w.imageUrl]));
+  const nameById = Object.fromEntries(poolWithStats.map((w) => [w.id, w.name]));
+  const imageById = Object.fromEntries(poolWithStats.map((w) => [w.id, w.imageUrl]));
 
-  const costById = Object.fromEntries(pool.map((p) => [p.id, p.salaryCapCost]));
+  const costById = Object.fromEntries(poolWithStats.map((p) => [p.id, p.salaryCapCost]));
   const roster = myEntries.map((e) => {
     const p = poolById[e.wrestler_id];
     return {

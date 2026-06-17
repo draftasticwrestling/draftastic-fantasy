@@ -11,7 +11,7 @@ export {
   nextFridayPacificYmd,
 } from "@/lib/championshipPathwaySchedule";
 
-/** Public leagues run for twelve Championship Pathway weeks (Friday kickoff). */
+/** Public leagues run for twelve Monday–Sunday weeks starting at Monday RAW (5 PM PT). */
 export const PUBLIC_SALARY_CAP_SEASON_WEEKS = 12;
 
 export function isPublicSalaryCapLeague(

@@ -26,19 +26,21 @@ export function HowItWorksPublicLeague() {
         </p>
         <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.65, color: "#333" }}>
           <li>
-            At least <strong>3 factions</strong> are required before the season is scheduled.
+            <strong>No team cap</strong> — anyone can join until enrollment closes at the start of Monday RAW (5:00 PM
+            Pacific).
           </li>
           <li>
-            When the third faction joins, your season kicks off on the <strong>next Friday SmackDown</strong> (Pacific
-            Time).
+            After joining, build your <strong>$100 salary cap roster</strong> from the shared pool (no draft).
           </li>
           <li>
-            <strong>Week 1</strong> runs Friday SmackDown through that Sunday&apos;s PLE. <strong>Week 2</strong> starts
-            the following Monday Raw. The season runs for <strong>{PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> total.
+            Scoring begins that Monday RAW and runs for <strong>{PUBLIC_SALARY_CAP_SEASON_WEEKS} Monday–Sunday weeks</strong>.
           </li>
           <li>
-            The Championship Pathway timeline on your league page lists every Raw, SmackDown, NXT, and PLE in that{" "}
-            {PUBLIC_SALARY_CAP_SEASON_WEEKS}-week window, grouped by fantasy week.
+            Wrestler prices are <strong>locked when your league is created</strong>; later global price updates apply only
+            to new leagues.
+          </li>
+          <li>
+            When a public league closes for scoring, the next manager to join starts a <strong>new public league</strong>.
           </li>
         </ul>
       </section>

@@ -78,7 +78,7 @@ export function CreateLeagueForm({
 
   const useStandardRules = !isSiteAdmin || (isSiteAdmin && standardUserPreview);
   const adminFullMode = isSiteAdmin && !standardUserPreview;
-  const showAccessCodeField = requiresAccessCodeEnv && useStandardRules;
+  const showAccessCodeField = requiresAccessCodeEnv && useStandardRules && visibilityType === "private";
 
   const teamCountOptions = adminFullMode ? TEAM_COUNTS_ADMIN : [...TEAM_COUNTS_BETA];
 
@@ -161,10 +161,10 @@ export function CreateLeagueForm({
           <>
             <label style={{ display: "block", marginBottom: 8 }}>Season</label>
             <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.5 }}>
-              <strong>Public League — {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> — Your league&apos;s start and end
-              dates are set automatically when at least 3 factions have joined. Week 1 kicks off on the next Friday
-              SmackDown (through that Sunday&apos;s PLE); week 2 starts the following Monday Raw. The season runs for{" "}
-              {PUBLIC_SALARY_CAP_SEASON_WEEKS} fantasy weeks of WWE events.
+              <strong>Public League — {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> — Build your $100 roster
+              after joining. Open enrollment until the next Monday RAW start (5:00 PM PT). Scoring runs for{" "}
+              {PUBLIC_SALARY_CAP_SEASON_WEEKS} Monday–Sunday weeks from that RAW. Wrestler prices are locked for your
+              league&apos;s season when it is created.
             </p>
           </>
         ) : useStandardRules ? (
@@ -222,8 +222,9 @@ export function CreateLeagueForm({
           >
             <strong>Public League</strong>
             <span className="create-league-type-desc">
-              Salary Cap — Total Season Points. Open enrollment with no team cap; week 1 kicks off on the next Friday
-              SmackDown after 3 factions join and runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} fantasy weeks.
+              Salary Cap — Total Season Points. Open enrollment until Monday RAW (5 PM PT); no team cap. You become GM
+              when you create the league. Build your $100 roster, then scoring starts that Monday for{" "}
+              {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
             </span>
           </button>
         </div>
@@ -252,9 +253,9 @@ export function CreateLeagueForm({
         <div className="form-group">
           <label>League format</label>
           <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.55 }}>
-            Public leagues use <strong>Salary Cap — Total Season Points</strong>. After onboarding, you build your roster
-            from the shared pool ($100 budget, wrestlers $5–$25). NXT is included. There is no team maximum — anyone can
-            join until the season starts.
+            Public leagues use <strong>Salary Cap — Total Season Points</strong>. After joining, build your roster from
+            the shared pool ($100 budget, wrestlers $5–$25). NXT is included. Anyone can join until the next Monday RAW
+            at 5:00 PM PT — then scoring begins for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
           </p>
           <input type="hidden" name="league_type" value="salary_cap" />
           <input type="hidden" name="season_slug" value="public-salary-cap" />

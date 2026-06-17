@@ -17,11 +17,12 @@ import {
 import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getDefaultStartEndForSeason, PUBLIC_SALARY_CAP_SEASON_SLUG, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
 import {
-  computePublicLeagueSeasonWindow,
-  isChampionshipPathwayKickoffFriday,
-  isPublicSalaryCapLeague,
-} from "@/lib/publicLeagueSchedule";
-import { getCivilYmdInPst } from "@/lib/pstCivilTime";
+  computePublicLeagueRegistrationSchedule,
+  isPublicLeagueRegistrationOpen,
+} from "@/lib/publicLeagueRegistration";
+import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
+import { snapshotLeagueSalaryCosts } from "@/lib/leagueSalarySnapshots";
+import { getCivilYmdInPst, isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
@@ -77,7 +78,6 @@ import {
   legacySeasonEndBeltSnapshotYmd,
   shouldSkipJulyMonthEndBeltForRts2026,
 } from "@/lib/beltRts2026JulyDeferral";
-import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 
 export type DraftType = "offline" | "linear" | "snake" | "autopick";
 export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
@@ -109,6 +109,8 @@ export type League = {
   manager_note?: string | null;
   /** Permanent join code (XXXX-XXXX); does not expire. */
   join_code?: string | null;
+  /** Public leagues: enrollment closes at this instant (Monday 5 PM PT). */
+  registration_closes_at?: string | null;
   created_at: string;
 };
 
@@ -219,9 +221,12 @@ export async function createLeague(params: {
 
   let start_date: string | null;
   let end_date: string | null;
+  let registration_closes_at: string | null = null;
   if (isPublicSalaryCapCreate) {
-    start_date = null;
-    end_date = null;
+    const schedule = computePublicLeagueRegistrationSchedule();
+    start_date = schedule.season_start_ymd;
+    end_date = schedule.season_end_ymd;
+    registration_closes_at = schedule.registration_closes_at;
   } else {
     const window = getDefaultStartEndForSeason(seasonSlug, year);
     if (!window) return { error: "Invalid season." };
@@ -244,7 +249,7 @@ export async function createLeague(params: {
   }
   const public_status =
     visibilityType === "public"
-      ? "awaiting_minimum"
+      ? "open"
       : null;
   let publicSequenceUsed: number | null = null;
   let name = requestedName;
@@ -316,6 +321,7 @@ export async function createLeague(params: {
         public_status,
         public_sequence: publicSequenceUsed,
         join_code,
+        registration_closes_at,
       })
       .select(leagueSelect)
       .single();
@@ -341,6 +347,10 @@ export async function createLeague(params: {
     user_id: user.id,
     role: "commissioner",
   });
+
+  if (isPublicSalaryCapCreate) {
+    await snapshotLeagueSalaryCosts(league.id);
+  }
 
   return { league: league as League };
 }
@@ -1001,6 +1011,7 @@ export async function quickJoinOldestPublicLeague(): Promise<{
   error?: string;
   message?: string;
 }> {
+  await closeExpiredPublicLeagues();
   const { supabase } = await getServerAuth();
   const { data, error } = await supabase.rpc("join_oldest_public_league");
   if (error) return { ok: false, error: error.message };
@@ -1037,16 +1048,39 @@ export async function quickJoinOldestPublicLeague(): Promise<{
     ok: true,
     league_slug: created.league.slug,
     message:
-      "No open public leagues had a spot, so we started a new public league for you — you are the GM. Invite friends or wait for Quick Joiners.",
+      "No open public league was available, so we started a new one for you — you are the GM. Build your $100 roster before Monday RAW (5 PM PT).",
   };
 }
 
+export async function closeExpiredPublicLeagues(): Promise<void> {
+  const admin = getAdminClient();
+  if (!admin) return;
+  const nowIso = new Date().toISOString();
+  const { data: rows } = await admin
+    .from("leagues")
+    .select("id, slug, visibility_type, public_status, league_type, season_slug, registration_closes_at")
+    .eq("visibility_type", "public")
+    .in("public_status", ["open", "awaiting_minimum"])
+    .not("registration_closes_at", "is", null)
+    .lte("registration_closes_at", nowIso);
+
+  for (const row of rows ?? []) {
+    const slug = (row as { slug?: string }).slug;
+    if (!slug) continue;
+    await admin.from("leagues").update({ public_status: "active" }).eq("id", (row as { id: string }).id);
+    await maybeAwardLeagueStartedXpBySlug(slug);
+  }
+}
+
 export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> {
+  await closeExpiredPublicLeagues();
   const admin = getAdminClient();
   if (!admin || !slug) return;
   const { data: league } = await admin
     .from("leagues")
-    .select("id, visibility_type, max_teams, draft_status, league_type, season_slug, start_date, end_date")
+    .select(
+      "id, visibility_type, max_teams, draft_status, league_type, season_slug, start_date, end_date, registration_closes_at, public_status"
+    )
     .eq("slug", slug)
     .maybeSingle();
   const row = league as {
@@ -1058,6 +1092,8 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
     season_slug?: string | null;
     start_date?: string | null;
     end_date?: string | null;
+    registration_closes_at?: string | null;
+    public_status?: string | null;
   } | null;
   if (!row?.id || row.visibility_type !== "public") return;
   const { count } = await admin
@@ -1070,32 +1106,24 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
   const cap = publicSalaryCap ? null : row.max_teams ?? 6;
 
   const updatePayload: Record<string, unknown> = {};
-  if (publicSalaryCap && memberCount >= MIN_LEAGUE_TEAMS) {
-    const window = computePublicLeagueSeasonWindow(new Date());
-    const existingStart = row.start_date ? String(row.start_date).slice(0, 10) : "";
-    const todayYmd = getCivilYmdInPst(Date.now());
-    if (!existingStart) {
-      updatePayload.start_date = window.start_date;
-      updatePayload.end_date = window.end_date;
-    } else if (
-      !isChampionshipPathwayKickoffFriday(existingStart) &&
-      existingStart > todayYmd
-    ) {
-      // Migrate public leagues still on legacy Monday-start dates that have not begun.
-      updatePayload.start_date = window.start_date;
-      updatePayload.end_date = window.end_date;
-    }
-  }
 
-  const status =
-    draftStatus === "in_progress" || draftStatus === "ready_for_review" || draftStatus === "completed"
-      ? "active"
-      : cap != null && memberCount >= cap
-        ? "full"
-        : memberCount >= MIN_LEAGUE_TEAMS
-          ? "open"
-          : "awaiting_minimum";
-  updatePayload.public_status = status;
+  if (publicSalaryCap) {
+    if (!isPublicLeagueRegistrationOpen(row)) {
+      updatePayload.public_status = "active";
+    } else {
+      updatePayload.public_status = memberCount > 0 ? "open" : "open";
+    }
+  } else {
+    const status =
+      draftStatus === "in_progress" || draftStatus === "ready_for_review" || draftStatus === "completed"
+        ? "active"
+        : cap != null && memberCount >= cap
+          ? "full"
+          : memberCount >= MIN_LEAGUE_TEAMS
+            ? "open"
+            : "awaiting_minimum";
+    updatePayload.public_status = status;
+  }
 
   await admin.from("leagues").update(updatePayload).eq("id", row.id);
   await maybeAwardLeagueStartedXpBySlug(slug);

@@ -53,26 +53,25 @@ export default function FantasyHubHero() {
           {postPromo ? (
             <div className="hub-hero-urgency hub-hero-urgency--beta">
               <p>
-                Beta Leagues now in progress. Check back later for information about how to sign up for the next season.
+                Public leagues are open — join anytime before Monday RAW (5 PM PT), build your $100 roster, and compete
+                for 12 weeks.
               </p>
+              <div className="hub-hero-actions" style={{ marginTop: 16 }}>
+                <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
+                  Create a League
+                </Link>
+                <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
+                  Join a League
+                </Link>
+              </div>
             </div>
           ) : (
             <>
               <div className="hub-hero-urgency">
-                <p>Public Leagues now available. ACCESS CODE:</p>
-                <p
-                  style={{
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                    letterSpacing: "0.06em",
-                    fontWeight: 800,
-                    color: "#4ade80",
-                    fontSize: "1.05em",
-                  }}
-                >
-                  MANIA-42-VEGAS
-                </p>
+                <p>Public leagues are open — no access code required.</p>
                 <p>
-                  Create or Join a League by April 30th. And don&apos;t forget to set your draft preferences!
+                  Join or create a league, build your $100 salary cap roster, and compete for 12 weeks. Registration
+                  closes at the start of Monday RAW (5:00 PM PT).
                 </p>
               </div>
               <div className="hub-hero-actions">

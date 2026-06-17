@@ -7,6 +7,7 @@ import {
   getActivePerEvent,
   leagueUsesSalaryCap,
 } from "@/lib/leagueStructure";
+import { getLeagueSnapshotSalaryCost, leagueHasSalarySnapshots } from "@/lib/leagueSalarySnapshots";
 
 export { SALARY_CAP_BUDGET_DEFAULT, SALARY_CAP_COST_TIERS, leagueUsesSalaryCap };
 export { FA_SALARY_CAP_WEEKLY_BUDGET } from "@/lib/salaryCapWeeklyLimits";
@@ -46,8 +47,14 @@ export async function getSalaryCapLeagueMeta(
 
 export async function getWrestlerSalaryCapCost(
   supabase: Pick<SupabaseClient, "from">,
-  wrestlerId: string
+  wrestlerId: string,
+  leagueId?: string
 ): Promise<number | null> {
+  if (leagueId) {
+    const snap = await getLeagueSnapshotSalaryCost(supabase, leagueId, wrestlerId);
+    if (snap != null) return snap;
+    if (await leagueHasSalarySnapshots(supabase, leagueId)) return null;
+  }
   const { data } = await supabase
     .from("wrestlers")
     .select("salary_cap_cost")
@@ -72,6 +79,21 @@ export async function getSalaryCapSpentForUser(
   const rosterIds = (rosterRows ?? []).map((r) => (r as { wrestler_id: string }).wrestler_id);
   if (rosterIds.length === 0) return { spent: 0, rosterIds: [] };
 
+  const useSnapshots = await leagueHasSalarySnapshots(supabase, leagueId);
+  if (useSnapshots) {
+    const { data: snapRows } = await supabase
+      .from("league_wrestler_salary_snapshots")
+      .select("wrestler_id, salary_cap_cost")
+      .eq("league_id", leagueId)
+      .in("wrestler_id", rosterIds);
+    let spent = 0;
+    for (const row of snapRows ?? []) {
+      const c = (row as { salary_cap_cost?: number | null }).salary_cap_cost;
+      if (typeof c === "number" && isValidSalaryCapCost(c)) spent += c;
+    }
+    return { spent, rosterIds };
+  }
+
   const { data: wrestlers } = await supabase
     .from("wrestlers")
     .select("id, salary_cap_cost")
@@ -94,7 +116,7 @@ export async function validateSalaryCapAdd(
   const meta = await getSalaryCapLeagueMeta(supabase, leagueId);
   if (!meta) return { error: "Not a salary cap league." };
 
-  const cost = await getWrestlerSalaryCapCost(supabase, wrestlerId);
+  const cost = await getWrestlerSalaryCapCost(supabase, wrestlerId, leagueId);
   if (cost == null) {
     return { error: "This wrestler does not have a salary cap value assigned yet." };
   }

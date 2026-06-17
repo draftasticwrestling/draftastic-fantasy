@@ -5,6 +5,8 @@ import {
   consumeLeagueCreationAccessCode,
   leagueCreationAccessIsConfigured,
 } from "@/lib/leagueCreationAccess";
+import { SALARY_CAP_LEAGUE_TYPE } from "@/lib/leagueStructure";
+import { PUBLIC_SALARY_CAP_SEASON_SLUG } from "@/lib/leagueSeasons";
 
 /**
  * POST /api/leagues — create a new league. Body: { name, season_slug, season_year?, access_code? }
@@ -48,6 +50,12 @@ export async function POST(request: Request) {
         ? (body as { include_nxt?: unknown }).include_nxt
         : false;
     const include_nxt = include_nxt_raw === true || include_nxt_raw === "true" || include_nxt_raw === 1;
+    const visibility_type_raw =
+      typeof body === "object" && body !== null && "visibility_type" in body
+        ? String((body as { visibility_type?: unknown }).visibility_type ?? "").trim().toLowerCase()
+        : "private";
+    const visibility_type = visibility_type_raw === "public" ? "public" : "private";
+    const isPublicCreate = visibility_type === "public";
 
     const { supabase, user } = await getServerAuth();
     if (!user) {
@@ -61,36 +69,39 @@ export async function POST(request: Request) {
     const isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
 
     if (!isSiteAdmin) {
-      if (include_nxt) {
+      if (include_nxt && !isPublicCreate) {
         return NextResponse.json(
           { error: "Only site administrators can set include_nxt." },
           { status: 403 }
         );
       }
-      if (league_type_raw) {
+      if (league_type_raw && !isPublicCreate) {
         return NextResponse.json(
           { error: "Only site administrators can set league_type via this API." },
           { status: 403 }
         );
       }
-      if (!(await leagueCreationAccessIsConfigured())) {
-        return NextResponse.json(
-          { error: "League creation access codes are not configured yet." },
-          { status: 503 }
-        );
-      }
-      const consume = await consumeLeagueCreationAccessCode(accessCode);
-      if (!consume.ok) {
-        return NextResponse.json(
-          { error: consume.error ?? "Invalid league creation access code." },
-          { status: 403 }
-        );
+      if (!isPublicCreate) {
+        if (!(await leagueCreationAccessIsConfigured())) {
+          return NextResponse.json(
+            { error: "League creation access codes are not configured yet." },
+            { status: 503 }
+          );
+        }
+        const consume = await consumeLeagueCreationAccessCode(accessCode);
+        if (!consume.ok) {
+          return NextResponse.json(
+            { error: consume.error ?? "Invalid league creation access code." },
+            { status: 403 }
+          );
+        }
       }
     }
 
     const ADMIN_TYPES = new Set(["season_overall", "head_to_head", "combo", "legacy", "salary_cap"]);
-    const league_type =
-      isSiteAdmin && league_type_raw
+    const league_type = isPublicCreate
+      ? SALARY_CAP_LEAGUE_TYPE
+      : isSiteAdmin && league_type_raw
         ? ADMIN_TYPES.has(league_type_raw)
           ? league_type_raw
           : null
@@ -110,12 +121,13 @@ export async function POST(request: Request) {
         : undefined;
 
     const { league, error } = await createLeague({
-      name,
-      season_slug,
+      name: isPublicCreate ? "Public League" : name,
+      season_slug: isPublicCreate ? PUBLIC_SALARY_CAP_SEASON_SLUG : season_slug,
       season_year,
-      league_type: isSiteAdmin ? league_type ?? "season_overall" : "season_overall",
-      max_teams,
-      include_nxt: isSiteAdmin && include_nxt,
+      league_type: isPublicCreate ? SALARY_CAP_LEAGUE_TYPE : isSiteAdmin ? league_type ?? "season_overall" : "season_overall",
+      max_teams: isPublicCreate ? null : max_teams,
+      include_nxt: isPublicCreate ? true : isSiteAdmin && include_nxt,
+      visibility_type,
     });
     if (error) {
       return NextResponse.json({ error }, { status: 400 });

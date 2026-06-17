@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SalaryCapWrestlerOption } from "@/app/leagues/[slug]/salary-cap/SalaryCapRosterBuilder";
 import { leagueIncludesNxt } from "@/lib/leagueStructure";
 import { isValidSalaryCapCost } from "@/lib/salaryCap";
+import { leagueHasSalarySnapshots } from "@/lib/leagueSalarySnapshots";
 import { loadSalaryCap2026StatsByWrestlerId } from "@/lib/salaryCap2026Stats";
 import { loadWrestlerCurrentChampionshipContext } from "@/lib/wrestlerCurrentChampionships";
 import { isHiddenCanonicalListSlug } from "@/lib/scoring/personaResolution.js";
@@ -28,6 +29,23 @@ export async function buildSalaryCapWrestlerPool(
   league: SalaryCapLeaguePoolInput
 ): Promise<SalaryCapWrestlerOption[]> {
   const poolOpts = { includeNxt: leagueIncludesNxt(league) };
+  const useSnapshots = await leagueHasSalarySnapshots(supabase, league.id);
+  const snapshotCostByWrestlerId: Record<string, number> = {};
+  if (useSnapshots) {
+    const { data: snapRows } = await supabase
+      .from("league_wrestler_salary_snapshots")
+      .select("wrestler_id, salary_cap_cost")
+      .eq("league_id", league.id);
+    for (const row of snapRows ?? []) {
+      const r = row as { wrestler_id?: string; salary_cap_cost?: number | null };
+      const id = String(r.wrestler_id ?? "");
+      const cost = r.salary_cap_cost;
+      if (id && typeof cost === "number" && isValidSalaryCapCost(cost)) {
+        snapshotCostByWrestlerId[id] = cost;
+      }
+    }
+  }
+
   const [wrestlersResult, championshipContext] = await Promise.all([
     supabase
       .from("wrestlers")
@@ -41,7 +59,8 @@ export async function buildSalaryCapWrestlerPool(
       const row = w as { id: string; brand?: string | null; salary_cap_cost?: number | null };
       if (isHiddenCanonicalListSlug(row.id)) return false;
       if (!isMainBrandWrestlerRosterForLeague(row.brand, poolOpts)) return false;
-      return typeof row.salary_cap_cost === "number" && isValidSalaryCapCost(row.salary_cap_cost);
+      const cost = useSnapshots ? snapshotCostByWrestlerId[row.id] : row.salary_cap_cost;
+      return typeof cost === "number" && isValidSalaryCapCost(cost);
     })
     .map((w) => {
       const row = w as {
@@ -55,6 +74,7 @@ export async function buildSalaryCapWrestlerPool(
         "2K26 rating"?: unknown;
         "2K25 rating"?: unknown;
       };
+      const resolvedCost = useSnapshots ? snapshotCostByWrestlerId[row.id]! : row.salary_cap_cost;
       const raw = row as Record<string, unknown>;
       const name = row.name ?? row.id;
       const champ = championshipContext.resolve({
@@ -65,7 +85,7 @@ export async function buildSalaryCapWrestlerPool(
       return {
         id: row.id,
         name,
-        salaryCapCost: row.salary_cap_cost,
+        salaryCapCost: resolvedCost,
         brand: row.brand,
         imageUrl: row.image_url ?? null,
         gender: row.gender ?? null,

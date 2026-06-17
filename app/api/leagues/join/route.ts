@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
-import { getLeagueBySlug, joinLeagueWithCode, joinLeagueWithToken } from "@/lib/leagues";
+import {
+  getLeagueBySlug,
+  joinLeagueWithCode,
+  joinLeagueWithToken,
+  quickJoinOldestPublicLeague,
+} from "@/lib/leagues";
 import { leaguePostJoinPath } from "@/lib/leagueOnboarding";
 
 /**
- * POST /api/leagues/join — join with invite token or permanent league code.
- * Body: { token } or { code }.
+ * POST /api/leagues/join — join with invite token, permanent league code, or public quick join.
+ * Body: { token } | { code } | { public_quick_join: true }.
  */
 export async function POST(request: Request) {
   try {
@@ -14,10 +19,23 @@ export async function POST(request: Request) {
     const publicQuickJoin = body.public_quick_join === true;
 
     if (publicQuickJoin) {
-      return NextResponse.json(
-        { error: "Joining open public leagues from this page is not available right now. Use a league code or invite link." },
-        { status: 403 },
-      );
+      const result = await quickJoinOldestPublicLeague();
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error ?? "Join failed" }, { status: 400 });
+      }
+      const league = result.league_slug ? await getLeagueBySlug(result.league_slug) : null;
+      const redirect_to = result.league_slug
+        ? leaguePostJoinPath(result.league_slug, {
+            league_type: league?.league_type ?? null,
+            season_slug: league?.season_slug ?? null,
+          })
+        : "/leagues";
+      return NextResponse.json({
+        ok: true,
+        league_slug: result.league_slug,
+        redirect_to,
+        message: result.message,
+      });
     }
 
     if (!token && !code) {
