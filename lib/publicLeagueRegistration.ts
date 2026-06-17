@@ -1,7 +1,11 @@
 import { addWeeks, setHours, setMinutes, setSeconds, startOfWeek } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
+import { MIN_LEAGUE_TEAMS } from "@/lib/leagueStructure";
 import { BELT_HOLD_TIMEZONE, getCivilYmdInPst } from "@/lib/pstCivilTime";
 import { PUBLIC_SALARY_CAP_SEASON_WEEKS, addDaysToYmd } from "@/lib/publicLeagueSchedule";
+
+/** Public leagues need at least three factions before scoring begins. */
+export const PUBLIC_LEAGUE_MIN_TEAMS = MIN_LEAGUE_TEAMS;
 
 /** RAW typically starts at 5:00 PM Pacific on Mondays. */
 export const PUBLIC_LEAGUE_RAW_START_HOUR_PT = 17;
@@ -37,6 +41,28 @@ export function computePublicLeagueRegistrationSchedule(
     season_start_ymd,
     season_end_ymd,
   };
+}
+
+/** Push enrollment + season dates forward one week when fewer than 3 teams at RAW close. */
+export function extendPublicLeagueRegistrationOneWeek(
+  currentClosesAtIso: string
+): PublicLeagueRegistrationSchedule {
+  const closeMs = Date.parse(currentClosesAtIso);
+  if (!Number.isFinite(closeMs)) {
+    return computePublicLeagueRegistrationSchedule();
+  }
+  const nextCloseUtc = addWeeks(new Date(closeMs), 1);
+  const season_start_ymd = getCivilYmdInPst(nextCloseUtc.getTime());
+  const season_end_ymd = addDaysToYmd(season_start_ymd, PUBLIC_SALARY_CAP_SEASON_WEEKS * 7 - 1);
+  return {
+    registration_closes_at: nextCloseUtc.toISOString(),
+    season_start_ymd,
+    season_end_ymd,
+  };
+}
+
+export function publicLeagueStatusForMemberCount(memberCount: number): "open" | "awaiting_minimum" {
+  return memberCount >= PUBLIC_LEAGUE_MIN_TEAMS ? "open" : memberCount > 0 ? "awaiting_minimum" : "open";
 }
 
 export function isPublicLeagueRegistrationOpen(

@@ -30,6 +30,10 @@ export function HowItWorksPublicLeague() {
             Pacific).
           </li>
           <li>
+            <strong>Minimum three factions</strong> — if fewer than three teams are in the league when Monday RAW starts,
+            enrollment stays open another week.
+          </li>
+          <li>
             After joining, build your <strong>$100 salary cap roster</strong> from the shared pool (no draft).
           </li>
           <li>

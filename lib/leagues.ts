@@ -18,7 +18,9 @@ import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/l
 import { getDefaultStartEndForSeason, PUBLIC_SALARY_CAP_SEASON_SLUG, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
 import {
   computePublicLeagueRegistrationSchedule,
+  extendPublicLeagueRegistrationOneWeek,
   isPublicLeagueRegistrationOpen,
+  publicLeagueStatusForMemberCount,
 } from "@/lib/publicLeagueRegistration";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 import { snapshotLeagueSalaryCosts } from "@/lib/leagueSalarySnapshots";
@@ -1065,10 +1067,34 @@ export async function closeExpiredPublicLeagues(): Promise<void> {
     .lte("registration_closes_at", nowIso);
 
   for (const row of rows ?? []) {
+    const id = (row as { id: string }).id;
     const slug = (row as { slug?: string }).slug;
     if (!slug) continue;
-    await admin.from("leagues").update({ public_status: "active" }).eq("id", (row as { id: string }).id);
-    await maybeAwardLeagueStartedXpBySlug(slug);
+
+    const { count } = await admin
+      .from("league_members")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", id);
+    const memberCount = count ?? 0;
+
+    if (memberCount >= MIN_LEAGUE_TEAMS) {
+      await admin.from("leagues").update({ public_status: "active" }).eq("id", id);
+      await maybeAwardLeagueStartedXpBySlug(slug);
+      continue;
+    }
+
+    const closesAt = (row as { registration_closes_at?: string | null }).registration_closes_at;
+    if (!closesAt) continue;
+    const extended = extendPublicLeagueRegistrationOneWeek(closesAt);
+    await admin
+      .from("leagues")
+      .update({
+        registration_closes_at: extended.registration_closes_at,
+        start_date: extended.season_start_ymd,
+        end_date: extended.season_end_ymd,
+        public_status: publicLeagueStatusForMemberCount(memberCount),
+      })
+      .eq("id", id);
   }
 }
 
@@ -1109,9 +1135,17 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
 
   if (publicSalaryCap) {
     if (!isPublicLeagueRegistrationOpen(row)) {
-      updatePayload.public_status = "active";
+      if (memberCount >= MIN_LEAGUE_TEAMS) {
+        updatePayload.public_status = "active";
+      } else if (row.registration_closes_at) {
+        const extended = extendPublicLeagueRegistrationOneWeek(row.registration_closes_at);
+        updatePayload.registration_closes_at = extended.registration_closes_at;
+        updatePayload.start_date = extended.season_start_ymd;
+        updatePayload.end_date = extended.season_end_ymd;
+        updatePayload.public_status = publicLeagueStatusForMemberCount(memberCount);
+      }
     } else {
-      updatePayload.public_status = memberCount > 0 ? "open" : "open";
+      updatePayload.public_status = publicLeagueStatusForMemberCount(memberCount);
     }
   } else {
     const status =

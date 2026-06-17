@@ -162,9 +162,9 @@ export function CreateLeagueForm({
             <label style={{ display: "block", marginBottom: 8 }}>Season</label>
             <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.5 }}>
               <strong>Public League — {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> — Build your $100 roster
-              after joining. Open enrollment until the next Monday RAW start (5:00 PM PT). Scoring runs for{" "}
-              {PUBLIC_SALARY_CAP_SEASON_WEEKS} Monday–Sunday weeks from that RAW. Wrestler prices are locked for your
-              league&apos;s season when it is created.
+              after joining. Open enrollment until the next Monday RAW start (5:00 PM PT), or longer if fewer than three
+              factions have joined. Scoring runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} Monday–Sunday weeks from that RAW.
+              Wrestler prices are locked for your league&apos;s season when it is created.
             </p>
           </>
         ) : useStandardRules ? (
@@ -223,8 +223,8 @@ export function CreateLeagueForm({
             <strong>Public League</strong>
             <span className="create-league-type-desc">
               Salary Cap — Total Season Points. Open enrollment until Monday RAW (5 PM PT); no team cap. You become GM
-              when you create the league. Build your $100 roster, then scoring starts that Monday for{" "}
-              {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
+              when you create the league. Build your $100 roster. Scoring starts that Monday once at least three
+              factions have joined (otherwise enrollment rolls another week) for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
             </span>
           </button>
         </div>
@@ -255,7 +255,8 @@ export function CreateLeagueForm({
           <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.55 }}>
             Public leagues use <strong>Salary Cap — Total Season Points</strong>. After joining, build your roster from
             the shared pool ($100 budget, wrestlers $5–$25). NXT is included. Anyone can join until the next Monday RAW
-            at 5:00 PM PT — then scoring begins for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
+            at 5:00 PM PT once at least three factions are in the league — if not, enrollment stays open another week,
+            then scoring runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
           </p>
           <input type="hidden" name="league_type" value="salary_cap" />
           <input type="hidden" name="season_slug" value="public-salary-cap" />

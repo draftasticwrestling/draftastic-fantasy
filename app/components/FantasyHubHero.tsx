@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
+import HubStepsBanner from "@/app/components/HubStepsBanner";
 import { DRAFTASTIC_SCREENSHOTS } from "@/lib/draftasticScreenshots";
 import { isPastHubHeroPublicPromoEnd } from "@/lib/pstCivilTime";
-import { siteLogoHref } from "@/lib/siteLogo";
 
 function HubExpandScreenshot({ src, alt, caption }: { src: string; alt: string; caption: string }) {
   return (
@@ -41,39 +41,21 @@ export default function FantasyHubHero() {
 
   return (
     <section className="hub-hero">
-      <div className="hub-hero-inner">
+      <HubStepsBanner />
+
+      <div className="hub-hero-inner hub-hero-inner--below-banner">
         <div className="hub-hero-copy">
-          <p className="hub-hero-kicker">Draftastic Fantasy Pro Wrestling</p>
-          <img src={siteLogoHref()} alt="" className="hub-hero-logo hub-hero-logo-inline" />
-          <h1 className="hub-hero-headline">Draft. Book. Win.</h1>
-          <p className="hub-hero-tagline hub-hero-tagline-lead">
-            Turn watching WWE into a competition. Build your roster. Score points from real shows. Prove you know wrestling
-            better than your friends.
-          </p>
           {postPromo ? (
-            <div className="hub-hero-urgency hub-hero-urgency--beta">
-              <p>
-                Public leagues are open — join anytime before Monday RAW (5 PM PT), build your $100 roster, and compete
-                for 12 weeks.
-              </p>
-              <div className="hub-hero-actions" style={{ marginTop: 16 }}>
-                <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
-                  Create a League
-                </Link>
-                <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
-                  Join a League
-                </Link>
-              </div>
+            <div className="hub-hero-actions">
+              <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
+                Create a League
+              </Link>
+              <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
+                Join a League
+              </Link>
             </div>
           ) : (
             <>
-              <div className="hub-hero-urgency">
-                <p>Public leagues are open — no access code required.</p>
-                <p>
-                  Join or create a league, build your $100 salary cap roster, and compete for 12 weeks. Registration
-                  closes at the start of Monday RAW (5:00 PM PT).
-                </p>
-              </div>
               <div className="hub-hero-actions">
                 <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
                   Create a League

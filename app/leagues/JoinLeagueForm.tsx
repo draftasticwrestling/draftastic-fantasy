@@ -136,7 +136,8 @@ export function JoinLeagueForm({ token, initialCode = "" }: Props) {
         <div style={{ fontWeight: 600 }}>Join a Public League</div>
         <p style={{ margin: 0, color: "#555", fontSize: 14, lineHeight: 1.5 }}>
           No code needed. You&apos;ll join the current open public league (or start a new one as GM if none is open).
-          Build your $100 roster, then scoring begins at the next Monday RAW (5:00 PM PT) for 12 weeks.
+          Build your $100 roster. Scoring begins at the next Monday RAW (5:00 PM PT) once at least three factions have
+          joined; if not, enrollment stays open another week.
         </p>
         <button
           type="button"

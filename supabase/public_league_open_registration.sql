@@ -4,7 +4,7 @@ alter table public.leagues
   add column if not exists registration_closes_at timestamptz null;
 
 comment on column public.leagues.registration_closes_at is
-  'Public salary-cap leagues: enrollment closes at this instant (Monday 5 PM PT). Scoring begins then.';
+  'Public salary-cap leagues: enrollment closes at this instant (Monday 5 PM PT). Scoring begins then if at least 3 teams; otherwise registration rolls forward one week.';
 
 create table if not exists public.league_wrestler_salary_snapshots (
   league_id uuid not null references public.leagues(id) on delete cascade,
@@ -99,14 +99,18 @@ begin
     case when v_count = 0 then 'commissioner' else 'owner' end
   );
 
-  if v_count = 0 then
+  v_count := v_count + 1;
+  if v_count = 1 then
     update public.leagues
     set commissioner_id = v_uid
     where id = v_league.id;
   end if;
 
-  v_count := v_count + 1;
-  v_status := 'open';
+  if v_count >= 3 then
+    v_status := 'open';
+  else
+    v_status := 'awaiting_minimum';
+  end if;
 
   update public.leagues
   set public_status = v_status
