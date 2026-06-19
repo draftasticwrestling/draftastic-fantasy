@@ -1,0 +1,18 @@
+{
+  "packSlug": "starter-pack",
+  "defaultTier": 3,
+  "tiers": [1, 2, 3, 4, 5],
+  "assetTypes": ["square", "full"],
+  "characters": [
+    { "slug": "mika-moonshot", "label": "Mika Mooshot" },
+    { "slug": "cruise-azul", "label": "Cruise Azul" },
+    { "slug": "heyward", "label": "Heyward" },
+    { "slug": "rick-titan", "label": "Rick Titan" },
+    { "slug": "the-assassin", "label": "The Assassin" },
+    { "slug": "jazzmine-jazzer", "label": "Jazzmine Jazzer" },
+    { "slug": "cool-jack", "label": "Cool Jack" },
+    { "slug": "hank-fortune", "label": "Hank Fortune" },
+    { "slug": "marty-cash", "label": "Marty Cash" },
+    { "slug": "sensational-beth", "label": "Sensational Beth" }
+  ]
+}

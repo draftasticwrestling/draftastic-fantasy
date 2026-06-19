@@ -9,9 +9,16 @@ import { isAllowedManagerPresetUrl, resolveManagerPresetDisplayUrl } from "@/lib
 type Props = {
   initialAvatarUrl: string | null;
   displayNameForInitial: string;
+  requiredSelection?: boolean;
+  continueHref?: string | null;
 };
 
-export function AccountAvatarField({ initialAvatarUrl, displayNameForInitial }: Props) {
+export function AccountAvatarField({
+  initialAvatarUrl,
+  displayNameForInitial,
+  requiredSelection = false,
+  continueHref = null,
+}: Props) {
   const router = useRouter();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(initialAvatarUrl?.trim() || null);
   const [busy, setBusy] = useState(false);
@@ -21,12 +28,12 @@ export function AccountAvatarField({ initialAvatarUrl, displayNameForInitial }: 
     setAvatarUrl(initialAvatarUrl?.trim() || null);
   }, [initialAvatarUrl]);
 
-  const saveAvatarUrl = useCallback(
-    async (url: string | null) => {
+  const saveAvatar = useCallback(
+    async (avatarId: string | null) => {
       const res = await fetch("/api/account/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatar_url: url }),
+        body: JSON.stringify({ avatar_id: avatarId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -43,18 +50,24 @@ export function AccountAvatarField({ initialAvatarUrl, displayNameForInitial }: 
     [router]
   );
 
-  const onPickPreset = async (url: string) => {
+  const onPickPreset = async ({ avatarId, url }: { avatarId: string; url: string }) => {
     setBusy(true);
     setMessage(null);
-    const ok = await saveAvatarUrl(url);
-    if (ok) setAvatarUrl(url);
+    const ok = await saveAvatar(avatarId);
+    if (ok) {
+      setAvatarUrl(url);
+      if (requiredSelection && continueHref) {
+        router.push(continueHref);
+        return;
+      }
+    }
     setBusy(false);
   };
 
   const onRemove = async () => {
     setBusy(true);
     setMessage(null);
-    const ok = await saveAvatarUrl(null);
+    const ok = await saveAvatar(null);
     if (ok) setAvatarUrl(null);
     setBusy(false);
   };
@@ -69,8 +82,17 @@ export function AccountAvatarField({ initialAvatarUrl, displayNameForInitial }: 
     <div style={{ marginBottom: 24 }}>
       <span style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>Manager avatar</span>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: "#666" }}>
-        Choose a default manager photo for leagues where you haven&apos;t set a league-specific avatar (set per league
-        under <strong>Edit Faction</strong> in that league).
+        {requiredSelection ? (
+          <>
+            Pick your manager character from the <strong>Starter Pack</strong> to continue. This is your default look in
+            leagues where you haven&apos;t set a league-specific avatar.
+          </>
+        ) : (
+          <>
+            Choose a default manager photo for leagues where you haven&apos;t set a league-specific avatar (set per
+            league under <strong>Edit Faction</strong> in that league).
+          </>
+        )}
       </p>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 16 }}>
         <div
@@ -105,7 +127,7 @@ export function AccountAvatarField({ initialAvatarUrl, displayNameForInitial }: 
             columns={4}
             maxHeightPx={360}
           />
-          {previewSrc ? (
+          {previewSrc && !requiredSelection ? (
             <button
               type="button"
               disabled={busy}

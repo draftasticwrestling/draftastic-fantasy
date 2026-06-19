@@ -39,11 +39,26 @@ export function managerAvatarPresetPublicUrl(objectPath: string): string {
   return `${base}/storage/v1/object/public/${BUCKET}/${encoded}`;
 }
 
+function isAdminOnlyPresetParts(parts: string[]): boolean {
+  return (
+    parts.length === 3 &&
+    parts[0] === "presets" &&
+    parts[1] === "admin-only" &&
+    isSlugPresetFilename(parts[2])
+  );
+}
+
 /**
- * Valid object keys: `presets/my-slug.png` or root `my-slug.png` (single segment only).
+ * Valid object keys:
+ * - `packs/{pack}/{character}/{file}.png`
+ * - `presets/admin-only/{file}.png` (site-admin special avatars)
+ * - `presets/my-slug.png` or root `my-slug.png` (legacy)
  */
 export function isPresetObjectPath(objectPath: string): boolean {
   const parts = objectPath.split("/").filter(Boolean);
+  if (parts.length === 4 && parts[0] === "packs") return isSlugPresetFilename(parts[3]);
+  if (parts.length === 3 && parts[0] === "packs") return isSlugPresetFilename(parts[2]);
+  if (isAdminOnlyPresetParts(parts)) return true;
   if (parts.length === 2 && parts[0] === "presets") return isSlugPresetFilename(parts[1]);
   if (parts.length === 1) return isSlugPresetFilename(parts[0]);
   return false;
@@ -62,7 +77,15 @@ function presetBasenameEndsWithSq(filename: string): boolean {
 export function isSqPresetObjectPath(objectPath: string): boolean {
   if (!isPresetObjectPath(objectPath)) return false;
   const parts = objectPath.split("/").filter(Boolean);
-  const filename = parts.length === 2 ? parts[1] : parts[0];
+  const filename =
+    parts.length === 4
+      ? parts[3]
+      : parts.length === 3
+        ? parts[2]
+        : parts.length === 2
+          ? parts[1]
+          : parts[0];
+  if (isAdminOnlyPresetParts(parts)) return Boolean(filename);
   return filename ? presetBasenameEndsWithSq(filename) : false;
 }
 
@@ -81,6 +104,9 @@ export function isAllowedManagerPresetUrl(url: string, supabaseOrigin: string): 
     return false;
   }
   const parts = pathPartsAfterBucket(t);
+  if (parts.length === 4 && parts[0] === "packs") return isSlugPresetFilename(parts[3]);
+  if (parts.length === 3 && parts[0] === "packs") return isSlugPresetFilename(parts[2]);
+  if (isAdminOnlyPresetParts(parts)) return true;
   if (parts.length === 2 && parts[0] === "presets") return isSlugPresetFilename(parts[1]);
   if (parts.length === 1) return isSlugPresetFilename(parts[0]);
   return false;
@@ -117,6 +143,17 @@ export function resolveManagerPresetDisplayUrl(url: string): string {
         if (isSlugPresetFilename(next)) objectPath = `presets/${next}`;
       }
     }
+  } else if (parts.length === 3 && parts[0] === "packs" && isSlugPresetFilename(parts[2])) {
+    const fn = parts[2];
+    const dot = fn.lastIndexOf(".");
+    if (dot > 0) {
+      const base = fn.slice(0, dot);
+      const ext = fn.slice(dot);
+      if (!base.toLowerCase().endsWith("-sq")) {
+        const next = `${base}-sq${ext}`;
+        if (isSlugPresetFilename(next)) objectPath = `packs/${parts[1]}/${next}`;
+      }
+    }
   }
   return objectPath ? managerAvatarPresetPublicUrl(objectPath) : trimmed;
 }
@@ -130,4 +167,16 @@ export function presetFilenameToLabel(filename: string): string {
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ");
+}
+
+/** Catalog slug from filename: `stone-cold-sq.png` → `stone-cold`. */
+export function presetFilenameToAvatarSlug(filename: string): string {
+  let base = filename.replace(/\.[^.]+$/, "");
+  if (base.toLowerCase().endsWith("-sq")) base = base.slice(0, -3);
+  return base.toLowerCase();
+}
+
+/** Starter-pack object key for a square preset filename. */
+export function starterPackStoragePath(filename: string): string {
+  return `packs/starter-pack/${filename}`;
 }

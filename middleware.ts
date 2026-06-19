@@ -61,7 +61,7 @@ export async function middleware(request: NextRequest) {
         if (user) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("display_name, accepted_terms_at, accepted_privacy_at, timezone, is_suspended, suspended_until")
+            .select("display_name, accepted_terms_at, accepted_privacy_at, timezone, is_suspended, suspended_until, needs_avatar_selection, is_site_admin")
             .eq("id", user.id)
             .maybeSingle();
           const suspendedUntilRaw =
@@ -86,6 +86,20 @@ export async function middleware(request: NextRequest) {
           if (!hasRequired) {
             const to = new URL("/account", request.url);
             to.searchParams.set("required", "1");
+            to.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+            return NextResponse.redirect(to);
+          }
+          const isSiteAdmin = Boolean(
+            (profile as { is_site_admin?: boolean | null } | null)?.is_site_admin
+          );
+          const needsAvatarSelection =
+            !isSiteAdmin &&
+            Boolean(
+              (profile as { needs_avatar_selection?: boolean | null } | null)?.needs_avatar_selection
+            );
+          if (needsAvatarSelection) {
+            const to = new URL("/account", request.url);
+            to.searchParams.set("avatar_required", "1");
             to.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
             return NextResponse.redirect(to);
           }

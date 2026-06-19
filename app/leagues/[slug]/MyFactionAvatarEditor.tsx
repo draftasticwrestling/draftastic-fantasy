@@ -52,7 +52,7 @@ export function MyFactionAvatarEditor({
     [leagueSlug, router]
   );
 
-  const onPickPreset = async (url: string) => {
+  const onPickPreset = async ({ url }: { avatarId: string; url: string }) => {
     setBusy(true);
     setMessage(null);
     const ok = await persist(url);

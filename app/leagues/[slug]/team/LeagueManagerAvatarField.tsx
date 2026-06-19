@@ -49,7 +49,7 @@ export function LeagueManagerAvatarField({
     [leagueSlug, router]
   );
 
-  const onPickPreset = async (url: string) => {
+  const onPickPreset = async ({ url }: { avatarId: string; url: string }) => {
     setBusy(true);
     setMessage(null);
     const ok = await persist(url);

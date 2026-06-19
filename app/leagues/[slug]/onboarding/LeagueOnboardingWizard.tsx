@@ -211,9 +211,9 @@ export function LeagueOnboardingWizard({
           <ManagerAvatarPresetPicker
             selectedUrl={pickerSelected}
             disabled={pending}
-            onSelect={(url) => {
+            onSelect={(selection) => {
               startTransition(async () => {
-                await saveAvatar(url);
+                await saveAvatar(selection.url);
               });
             }}
           />

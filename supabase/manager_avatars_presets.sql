@@ -1,4 +1,4 @@
--- Curated manager avatars: square slug-named images only (`*-sq.png`) in public bucket `manager-avatars`
--- (bucket root, e.g. `stone-cold-sq.png`, or `presets/stone-cold-sq.png`). Do not keep non-sq duplicates.
--- The app lists these at runtime and validates URLs with lib/managerAvatarPresets.ts (slug filenames + image extensions).
--- Users cannot INSERT into `presets/` (RLS: first path segment must be auth.uid()); use Dashboard or service role.
+-- Curated manager avatars: square slug-named images (`*-sq.png`) in public bucket `manager-avatars`.
+-- Starter pack: `packs/starter-pack/` (see scripts/sync-starter-pack-avatars.ts).
+-- Legacy paths: bucket root or `presets/` (migrated by sync script).
+-- Catalog rows live in public.avatars (see supabase/avatar_packs.sql).

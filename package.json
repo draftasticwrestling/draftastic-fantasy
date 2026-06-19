@@ -12,7 +12,8 @@
     "cc:list-ids": "tsx scripts/constant-contact-list-ids.ts",
     "cc:refresh-token": "tsx scripts/constant-contact-refresh-access-token.ts",
     "backup:supabase": "bash scripts/supabase-pgdump.sh",
-    "xp:backfill-history": "tsx scripts/backfill-user-xp-from-history.ts"
+    "xp:backfill-history": "tsx scripts/backfill-user-xp-from-history.ts",
+    "avatars:sync-starter-pack": "tsx scripts/sync-starter-pack-avatars.ts"
   },
   "dependencies": {
     "@netlify/functions": "^5.1.3",
