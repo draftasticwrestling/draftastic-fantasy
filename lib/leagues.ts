@@ -50,7 +50,12 @@ import {
   rosterStintActiveForMonthEndBelt,
   rosterStintActiveForWeeklyBeltHold,
 } from "@/lib/scoring/rosterStintEventWindow";
-import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
+import {
+  enrichRosterStintsWithActivityTimestamps,
+  fetchLeagueActivityForStintEnrichment,
+} from "@/lib/rosterStintActivityEnrichment";
+import { getEventBroadcastStartMs } from "@/lib/eventBroadcastStart";
+import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate, rosterCivilDateYmd } from "@/lib/rosterTimestamps";
 import { EVENT_STATUSES_FOR_SCORING, EVENT_STATUSES_FOR_WEEK_SCHEDULE, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
@@ -1579,10 +1584,10 @@ export async function addWrestlerToRoster(
     return { error: "Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set. Draft picks need this. Add it in .env and Netlify environment variables." };
   }
   const insertClient = useServiceRole && admin ? admin : supabase;
+  const clock = new Date();
   const acquiredDate =
     (acquiredAt && /^\d{4}-\d{2}-\d{2}$/.test(acquiredAt.trim()) ? acquiredAt.trim() : null) ||
-    new Date().toISOString().slice(0, 10);
-  const clock = new Date();
+    rosterCivilDateYmd(clock);
   const acquiredAtTs = timestamptzForAcquiredAtDate(acquiredDate, clock);
   const { error } = await insertClient.from("league_rosters").insert({
     league_id: leagueId,
@@ -1627,10 +1632,10 @@ export async function removeWrestlerFromRoster(
   const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated" };
 
+  const clock = new Date();
   const releasedDate =
     (releasedAt && /^\d{4}-\d{2}-\d{2}$/.test(releasedAt.trim()) ? releasedAt.trim() : null) ||
-    new Date().toISOString().slice(0, 10);
-  const clock = new Date();
+    rosterCivilDateYmd(clock);
   const releasedAtTs = timestamptzForReleasedAtDate(releasedDate, clock);
 
   const client = useServiceRole && getAdminClient() ? getAdminClient()! : supabase;
@@ -1782,7 +1787,8 @@ export async function getLeagueScoring(
       })
     : await getRosterStintsForLeague(leagueId);
 
-  const scoringStints = stints;
+  const activityRows = await fetchLeagueActivityForStintEnrichment(supabase, leagueId);
+  const scoringStints = enrichRosterStintsWithActivityTimestamps(stints, activityRows);
 
   let wrestlerDisplayNames: Record<string, string> = {};
   if (supabaseOverride) {
@@ -1835,7 +1841,7 @@ export async function getLeagueScoring(
     String(a.date ?? "").localeCompare(String(b.date ?? ""))
   );
   const useBroadcastForMonthlyBelt = sortedEvents.some(
-    (e) => !!(e as { broadcast_start_ts?: string | null }).broadcast_start_ts
+    (e) => getEventBroadcastStartMs(e) != null
   );
   for (const event of sortedEvents) {
     const eventDate = (event.date ?? "").toString().slice(0, 10);
@@ -1850,12 +1856,10 @@ export async function getLeagueScoring(
     // When `broadcast_start_ts` exists: calendar overlap + timestamp vs broadcast (see rosterStintEventWindow).
     // When absent: legacy end-of-event-day UTC vs shifted stint boundaries (+ optional ts alignment).
     const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
-    const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
-      ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
-      : NaN;
-    const useBroadcastStart = Number.isFinite(eventStartMs);
+    const eventStartMs = getEventBroadcastStartMs(event);
+    const useBroadcastStart = eventStartMs != null && Number.isFinite(eventStartMs);
     const eventMs = eventEndOfDayMs;
-    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
+    const broadcastStartMs = useBroadcastStart ? eventStartMs! : undefined;
 
     // Draft leagues: overlapping stints for the same wrestler award one owner (earliest acquisition wins).
     // Salary cap: multiple factions may roster the same wrestler — each active stint earns points.
@@ -1976,6 +1980,8 @@ export async function getLeagueScoring(
       });
       for (const lockYmd of weekEnds) {
         const weekEndSun = weekEndSundayContaining(lockYmd);
+        const lockEvent = sortedEvents.find((e) => String(e.date ?? "").slice(0, 10) === lockYmd);
+        const lockBroadcastMs = lockEvent ? getEventBroadcastStartMs(lockEvent) : null;
         const beltBySlug = computeWeeklyBeltHoldPointsForWeekEndSunday(
           reigns,
           lockYmd,
@@ -1988,6 +1994,7 @@ export async function getLeagueScoring(
               stint,
               weekEndYmd: lockYmd,
               useBroadcastStart: useBroadcastForMonthlyBelt,
+              broadcastStartMs: lockBroadcastMs ?? undefined,
             })
           ) {
             continue;

@@ -8,6 +8,8 @@ import {
   normalizeLeagueLeaderboardWeekStart,
 } from "@/lib/fantasyWeekBounds";
 import { getCivilYmdInPst } from "@/lib/pstCivilTime";
+import { fantasyWeekBeltScoringUnlocked } from "@/lib/beltWeeklyHold";
+import { EVENT_STATUSES_FOR_WEEK_SCHEDULE, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
 import {
   getMondayOfWeek,
   getPointsByOwnerForLeagueWeekFromMatchups,
@@ -162,13 +164,23 @@ export async function processWeeklyXpAndLeaderboards(
       continue;
     }
 
-    const { count: liveCount } = await admin
+    const { data: weekGateRows } = await admin
       .from("events")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "live")
+      .select("date, status")
+      .in("status", [...EVENT_STATUSES_FOR_WEEK_SCHEDULE])
       .gte("date", weekStart)
-      .lte("date", weekEnd);
-    if ((liveCount ?? 0) > 0) {
+      .lte("date", weekEnd)
+      .order("date", { ascending: true })
+      .limit(SCORING_EVENTS_FETCH_LIMIT);
+    if (
+      !fantasyWeekBeltScoringUnlocked(
+        (weekGateRows ?? []) as Array<{ date: string | null; status?: string | null }>,
+        weekStart,
+        weekEnd,
+        leagueStart,
+        leagueEnd || "2099-12-31"
+      )
+    ) {
       skippedLeagues += 1;
       continue;
     }

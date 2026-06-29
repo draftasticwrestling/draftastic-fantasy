@@ -1,6 +1,7 @@
 import { fromZonedTime } from "date-fns-tz";
 
 import { BELT_HOLD_TIMEZONE } from "@/lib/pstCivilTime";
+import { getEventBroadcastStartMs } from "@/lib/eventBroadcastStart";
 import type { HubPreviewEventRow } from "@/lib/home/hubHomeEvents";
 
 const ET_ZONE = "America/New_York";
@@ -42,23 +43,9 @@ export function eightAmPtMorningAfterListedEventDateMs(eventDateYmd: string): nu
   return fromZonedTime(`${next}T08:00:00`, BELT_HOLD_TIMEZONE).getTime();
 }
 
-function inferDefaultStartHourEt(name: string | null | undefined): number {
-  const n = (name || "").toLowerCase();
-  if (n.includes("raw") || n.includes("smackdown")) return 20;
-  return 19;
-}
-
 /** Broadcast start as UTC ms: DB column when set, else same ET default as boxscore backfill. */
 export function getHubEventBroadcastStartMs(e: HubPreviewEventRow): number | null {
-  const raw = e.broadcast_start_ts;
-  if (typeof raw === "string" && raw.trim()) {
-    const ms = Date.parse(raw);
-    if (Number.isFinite(ms)) return ms;
-  }
-  const date = String(e.date ?? "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const hour = inferDefaultStartHourEt(e.name);
-  return fromZonedTime(`${date}T${String(hour).padStart(2, "0")}:00:00`, ET_ZONE).getTime();
+  return getEventBroadcastStartMs(e);
 }
 
 /**

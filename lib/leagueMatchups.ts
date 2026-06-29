@@ -1,3 +1,8 @@
+import {
+  enrichRosterStintsWithActivityTimestamps,
+  fetchLeagueActivityForStintEnrichment,
+} from "@/lib/rosterStintActivityEnrichment";
+import { getEventBroadcastStartMs } from "@/lib/eventBroadcastStart";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getRosterStintsForLeague, getLeagueScoring, getWrestlerDisplayNamesByIds } from "@/lib/leagues";
@@ -131,12 +136,10 @@ function accumulateOwnerEventPointsForCalendarWeek(
     kotrCarryOver = updatedCarryOver;
 
     const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
-    const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
-      ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
-      : NaN;
-    const useBroadcastStart = Number.isFinite(eventStartMs);
+    const eventStartMs = getEventBroadcastStartMs(event);
+    const useBroadcastStart = eventStartMs != null && Number.isFinite(eventStartMs);
     const eventMs = eventEndOfDayMs;
-    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
+    const broadcastStartMs = useBroadcastStart ? eventStartMs! : undefined;
 
     const inWeek = eventDate >= weekStartMonday && eventDate <= weekEndSunday;
 
@@ -321,11 +324,14 @@ export async function getPointsByOwnerForLeagueForWeek(
     nxtRosterByWrestlerId[w.id] = wrestlerRosterFromBrand(w.brand) === "NXT";
   }
 
+  const activityRowsWeek = await fetchLeagueActivityForStintEnrichment(supabase, leagueId);
+  const scoringStints = enrichRosterStintsWithActivityTimestamps(stints, activityRowsWeek);
+
   const { pointsByOwner } = accumulateOwnerEventPointsForCalendarWeek(
     allInRangeSorted,
     weekStartMonday,
     weekEndSunday,
-    stints,
+    scoringStints,
     wrestlerDisplayNames,
     brandBySlugWeek,
     seasonSlug,
@@ -400,11 +406,14 @@ export async function getPointsByOwnerByWrestlerForWeek(
     nxtRosterByWrestlerId[w.id] = wrestlerRosterFromBrand(w.brand) === "NXT";
   }
 
+  const activityRowsBw = await fetchLeagueActivityForStintEnrichment(supabase, leagueId);
+  const scoringStintsBw = enrichRosterStintsWithActivityTimestamps(stints, activityRowsBw);
+
   const { pointsByOwnerByWrestler } = accumulateOwnerEventPointsForCalendarWeek(
     allInRangeSorted,
     weekStartMonday,
     weekEndSunday,
-    stints,
+    scoringStintsBw,
     wrestlerDisplayNames,
     brandBySlugBreakdown,
     seasonSlug,
@@ -424,6 +433,8 @@ export type WeeklyMatchupResult = {
   beltRetained: boolean;
   weeklyWinPoints: number;
   beltPoints: number;
+  /** All PWBS events dated in this Mon–Sun week are `completed` (or end-of-Sunday PT when none are scheduled). */
+  weekScoringFinalized: boolean;
 };
 
 const WEEKLY_WIN_BONUS = 15;
@@ -539,9 +550,7 @@ export async function getLeagueWeeklyMatchups(
         .limit(SCORING_EVENTS_FETCH_LIMIT);
       eventsInRange = (ev2 ?? []) as EventRowForReignInference[];
     }
-    useBroadcastForMonthlyBelt = (eventsInRange as Array<{ broadcast_start_ts?: string | null }>).some(
-      (e) => !!e.broadcast_start_ts
-    );
+    useBroadcastForMonthlyBelt = eventsInRange.some((e) => getEventBroadcastStartMs(e) != null);
     const changesRows = changesRes.error ? [] : (changesRes.data ?? []);
     const changesReigns = inferReignsFromChampionshipChanges(changesRows);
     let eventsForInference: EventRowForReignInference[] = eventsInRange;
@@ -606,8 +615,16 @@ export async function getLeagueWeeklyMatchups(
         })
       : await getRosterStintsForLeague(leagueId)
     : [];
-  const monthlyBeltNameByWrestler =
+  const activityRowsMatchups =
     includeMonthlyBeltInMatchup && stints.length > 0
+      ? await fetchLeagueActivityForStintEnrichment(supabase, leagueId)
+      : [];
+  const scoringStints =
+    activityRowsMatchups.length > 0
+      ? enrichRosterStintsWithActivityTimestamps(stints, activityRowsMatchups)
+      : stints;
+  const monthlyBeltNameByWrestler =
+    includeMonthlyBeltInMatchup && scoringStints.length > 0
       ? supabaseOverride
         ? Object.fromEntries(
             (
@@ -615,14 +632,14 @@ export async function getLeagueWeeklyMatchups(
                 await supabase
                   .from("wrestlers")
                   .select("id, name")
-                  .in("id", [...new Set(stints.map((s) => s.wrestler_id).filter(Boolean))])
+                  .in("id", [...new Set(scoringStints.map((s) => s.wrestler_id).filter(Boolean))])
               ).data ?? []
             ).map((w) => {
               const row = w as { id: string; name: string | null };
               return [row.id, row.name ?? row.id];
             })
           )
-        : await getWrestlerDisplayNamesByIds([...new Set(stints.map((s) => s.wrestler_id))])
+        : await getWrestlerDisplayNamesByIds([...new Set(scoringStints.map((s) => s.wrestler_id))])
       : {};
 
   for (const weekStart of weeks) {
@@ -659,12 +676,17 @@ export async function getLeagueWeeklyMatchups(
             firstEligibleWeekEndSunday,
             weekEnd
           );
-          for (const s of stints) {
+          for (const s of scoringStints) {
+            const lockEvent = beltEventsForWeeklyLock.find(
+              (e) => String(e.date ?? "").slice(0, 10) === beltLockYmd
+            );
+            const lockBroadcastMs = lockEvent ? getEventBroadcastStartMs(lockEvent) : null;
             if (
               !rosterStintActiveForWeeklyBeltHold({
                 stint: s,
                 weekEndYmd: beltLockYmd,
                 useBroadcastStart: useBroadcastForMonthlyBelt,
+                broadcastStartMs: lockBroadcastMs ?? undefined,
               })
             ) {
               continue;
@@ -694,7 +716,7 @@ export async function getLeagueWeeklyMatchups(
             monthEndInWeek,
             firstEligibleMonthEnd
           );
-          for (const s of stints) {
+          for (const s of scoringStints) {
             if (
               !rosterStintActiveForMonthEndBelt({
                 stint: s,
@@ -728,7 +750,7 @@ export async function getLeagueWeeklyMatchups(
             RTS_2026_LEAGUE_END_DATE,
             firstEligibleMonthEnd
           );
-          for (const s of stints) {
+          for (const s of scoringStints) {
             if (
               !rosterStintActiveForMonthEndBelt({
                 stint: s,
@@ -753,7 +775,15 @@ export async function getLeagueWeeklyMatchups(
       }
     }
 
-    const weekNotOver = today <= weekEnd;
+    const leagueStartYmd = start.slice(0, 10);
+    const leagueEndYmd = end.slice(0, 10);
+    const weekScoringFinalized = fantasyWeekBeltScoringUnlocked(
+      beltEventsForWeeklyLock,
+      weekStart,
+      weekEnd,
+      leagueStartYmd,
+      leagueEndYmd
+    );
 
     let winnerUserId: string | null = null;
     let beltHolderUserId: string | null = null;
@@ -761,7 +791,7 @@ export async function getLeagueWeeklyMatchups(
     let beltPoints = 0;
     let weeklyWinPoints = 0;
 
-    if (!weekNotOver && useOwnerMatchupBonuses) {
+    if (weekScoringFinalized && useOwnerMatchupBonuses) {
       const userIds = Object.keys(pointsByUserId);
       const maxPoints = Math.max(0, ...Object.values(pointsByUserId));
       const winners = userIds.filter((id) => pointsByUserId[id] === maxPoints && maxPoints > 0);
@@ -794,6 +824,7 @@ export async function getLeagueWeeklyMatchups(
       beltRetained,
       weeklyWinPoints,
       beltPoints,
+      weekScoringFinalized,
     });
   }
 
@@ -1232,7 +1263,8 @@ export type MatchupWlt = { w: number; l: number; t: number };
 /**
  * Win–loss–tie per manager from weekly H2H / triple-threat pairings, using each week’s event points only
  * (same as matchup scoreboard scores before weekly win/belt bonuses).
- * Counts only completed weeks (`weekEnd` &lt; today, UTC YYYY-MM-DD). `season_overall` returns zeros.
+ * Counts only finalized weeks (`weekScoringFinalized`: every PWBS event in the Mon–Sun window is `completed`).
+ * `season_overall` returns zeros.
  */
 export function computeMatchupWltByUserId(
   leagueType: string | null | undefined,
@@ -1254,7 +1286,9 @@ export function computeMatchupWltByUserId(
   const today = new Date().toISOString().slice(0, 10);
 
   for (const week of weeklyResults) {
-    if (week.weekEnd >= today) continue;
+    const finalized =
+      week.weekScoringFinalized ?? week.weekEnd < today;
+    if (!finalized) continue;
 
     const matchups = opts?.matchupResolver ? opts.matchupResolver(week) : getMatchupsForWeek(memberUserIds, n);
     for (const mu of matchups) {

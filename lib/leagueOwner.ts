@@ -15,7 +15,8 @@ import { getActivePerEventForSalaryCapRosterCount } from "@/lib/salaryCap";
 import { classifyEventType } from "@/lib/scoring/parsers/eventClassifier.js";
 import { removeWrestlerFromRoster } from "@/lib/leagues";
 import { addWrestlerToRoster } from "@/lib/leagues";
-import { timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
+import { getEventBroadcastStartMs } from "@/lib/eventBroadcastStart";
+import { rosterCivilDateYmd, timestamptzForAcquiredAtDate, timestamptzForReleasedAtDate } from "@/lib/rosterTimestamps";
 import { assertFaSigningAllowedForLeague } from "@/lib/freeAgentSigningLimits";
 import { recordEngagementEvent } from "@/lib/engagementEvents";
 import { awardUserXp } from "@/lib/xp/awardUserXp";
@@ -133,9 +134,8 @@ async function getInEventLockMessage(supabase: SupabaseClient): Promise<string |
 
   const startedUpcoming = rows.find((e) => {
     if (String(e.status ?? "").toLowerCase() !== "upcoming") return false;
-    if (!e.broadcast_start_ts) return false;
-    const startMs = Date.parse(String(e.broadcast_start_ts));
-    return Number.isFinite(startMs) && startMs <= nowMs;
+    const startMs = getEventBroadcastStartMs(e);
+    return startMs != null && Number.isFinite(startMs) && startMs <= nowMs;
   });
   if (startedUpcoming) {
     return `Roster and lineup changes are locked while ${startedUpcoming.name ?? "the current event"} is in progress.`;
@@ -1073,8 +1073,9 @@ async function executeTrade(proposalId: string): Promise<{ error?: string }> {
     .from("league_trade_proposal_items")
     .select("wrestler_id, direction")
     .eq("proposal_id", proposalId);
-  const today = new Date().toISOString().slice(0, 10);
-  const nowTs = new Date().toISOString();
+  const clock = new Date();
+  const today = rosterCivilDateYmd(clock);
+  const nowTs = clock.toISOString();
 
   // Apply recipient-selected drops first (if any).
   const dropIds = ((proposal as { to_user_drop_ids?: string[] | null }).to_user_drop_ids ?? []).map((x) => String(x).trim()).filter(Boolean);
@@ -2031,7 +2032,8 @@ export async function addFreeAgentImmediate(
   }
 
   // Apply changes: drop (if any), then add. If add fails, rollback the drop.
-  const today = new Date().toISOString().slice(0, 10);
+  const clock = new Date();
+  const today = rosterCivilDateYmd(clock);
   let droppedRow: { wrestler_id: string; contract: string | null; acquired_at: string } | null = null;
 
   if (widToDrop) {

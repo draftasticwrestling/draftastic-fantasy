@@ -5,11 +5,10 @@ import { resolvePersonaToCanonical } from "./personaResolution.js";
 /**
  * Decide if a roster stint receives fantasy points for an event.
  *
- * When `events.broadcast_start_ts` exists: require calendar overlap, then compare roster
- * `acquired_at_ts` / `released_at_ts` to broadcast start when those timestamps are present.
- * Same-calendar-day adds: `acquired_at` matches the event date but `acquired_at_ts` may be
- * the real trade/FA clock time (see `timestamptzForAcquiredAtDate`) — we clamp acquisition
- * to the broadcast instant for eligibility so late-in-day processing still earns that day's show.
+ * When `events.broadcast_start_ts` exists (or a default start can be inferred for the show date):
+ * require calendar overlap, then compare roster `acquired_at_ts` / `released_at_ts` to broadcast start.
+ * Adds after broadcast start do not earn points for that show; releases after broadcast start still count
+ * for that show. Date-only roster rows without timestamps count as acquired at start-of-day UTC.
  *
  * When broadcast start is absent: legacy `eventMs` vs shifted day boundaries.
  */
@@ -94,10 +93,6 @@ export function rosterStintActiveForEvent(params: {
       }
 
       if (!Number.isFinite(acqMs)) return true;
-      const acqCalendar = String(stint.acquired_at ?? "").slice(0, 10);
-      if (acqCalendar === eventDate) {
-        acqMs = Math.min(acqMs, broadcastStartMs);
-      }
       if (acqMs > broadcastStartMs) return false;
       if (relMs != null && Number.isFinite(relMs) && relMs <= broadcastStartMs) return false;
       return true;
@@ -215,15 +210,23 @@ export function rosterStintActiveForWeeklyBeltHold(params: {
   stint: RosterStintWindowInput;
   weekEndYmd: string;
   useBroadcastStart: boolean;
+  /** Broadcast start for the belt lock show on `weekEndYmd`, when known. */
+  broadcastStartMs?: number;
 }): boolean {
-  const { stint, weekEndYmd, useBroadcastStart } = params;
+  const { stint, weekEndYmd, useBroadcastStart, broadcastStartMs: broadcastOverride } = params;
   const eventMs = endOfCivilDayPstMs(weekEndYmd);
   if (!Number.isFinite(eventMs)) return false;
+  const broadcastStartMs =
+    useBroadcastStart && broadcastOverride != null && Number.isFinite(broadcastOverride)
+      ? broadcastOverride
+      : useBroadcastStart
+        ? eventMs
+        : undefined;
   return rosterStintActiveForEvent({
     eventDate: weekEndYmd,
     eventMs,
     useBroadcastStart,
-    broadcastStartMs: useBroadcastStart ? eventMs : undefined,
+    broadcastStartMs,
     stint,
     rosterStintDateOffsetDays: ROSTER_STINT_DATE_OFFSET_DAYS,
   });

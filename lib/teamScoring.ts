@@ -1,3 +1,4 @@
+import { getEventBroadcastStartMs } from "@/lib/eventBroadcastStart";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveLeagueStartDate, getRosterStintsForLeague, type LeagueRosterStint } from "@/lib/leagues";
 import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
@@ -40,6 +41,10 @@ import {
   legacySeasonEndBeltSnapshotYmd,
   shouldSkipJulyMonthEndBeltForRts2026,
 } from "@/lib/beltRts2026JulyDeferral";
+import {
+  enrichRosterStintsWithActivityTimestamps,
+  fetchLeagueActivityForStintEnrichment,
+} from "@/lib/rosterStintActivityEnrichment";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 
 export type TeamScoreLedgerRow = {
@@ -71,6 +76,8 @@ export type FormerTeamStint = {
 export type TeamScoringAudit = {
   ledgerRows: TeamScoreLedgerRow[];
   totalsByWrestler: Record<string, TeamWrestlerPoints>;
+  /** Points keyed by `${wrestlerId}::${acquired_at}::${released_at ?? ""}` for each stint. */
+  pointsByStintKey: Record<string, TeamWrestlerPoints>;
   formerStints: FormerTeamStint[];
   activeStints: LeagueRosterStint[];
   teamTotal: number;
@@ -148,13 +155,22 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     .eq("id", leagueId)
     .single();
   if (!league) {
-    return { ledgerRows: [], totalsByWrestler: {}, formerStints: [], activeStints: [], teamTotal: 0 };
+    return {
+      ledgerRows: [],
+      totalsByWrestler: {},
+      pointsByStintKey: {},
+      formerStints: [],
+      activeStints: [],
+      teamTotal: 0,
+    };
   }
 
   const leagueStart = getEffectiveLeagueStartDate(league);
   const leagueEnd = league.end_date ? String(league.end_date).slice(0, 10) : "";
 
-  const stints = await getRosterStintsForLeague(leagueId);
+  const stintsRaw = await getRosterStintsForLeague(leagueId);
+  const activityRows = await fetchLeagueActivityForStintEnrichment(supabase, leagueId);
+  const stints = enrichRosterStintsWithActivityTimestamps(stintsRaw, activityRows);
 
   const eventsSelectWithStart = supabase
     .from("events")
@@ -211,7 +227,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     String(a.date ?? "").localeCompare(String(b.date ?? ""))
   );
   const useBroadcastForMonthlyBelt = sortedEvents.some(
-    (e) => !!(e as { broadcast_start_ts?: string | null }).broadcast_start_ts
+    (e) => getEventBroadcastStartMs(e) != null
   );
 
   const totalsByWrestler: Record<string, TeamWrestlerPoints> = {};
@@ -221,12 +237,10 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   for (const event of sortedEvents) {
     const eventDate = String(event.date ?? "").slice(0, 10);
     const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
-    const eventStartMs = (event as { broadcast_start_ts?: string | null }).broadcast_start_ts
-      ? Date.parse(String((event as { broadcast_start_ts?: string | null }).broadcast_start_ts))
-      : NaN;
-    const useBroadcastStart = Number.isFinite(eventStartMs);
+    const eventStartMs = getEventBroadcastStartMs(event);
+    const useBroadcastStart = eventStartMs != null && Number.isFinite(eventStartMs);
     const eventMs = eventEndOfDayMs;
-    const broadcastStartMs = useBroadcastStart ? eventStartMs : undefined;
+    const broadcastStartMs = useBroadcastStart ? eventStartMs! : undefined;
     const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] }) as ScoredEvent;
     const eventType = scored.eventType;
     const isRS =
@@ -429,11 +443,14 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
         );
         const eventName = `Weekly belt hold (title snapshot ${beltHoldLedgerLabel(lockYmd)}; fantasy week ends ${beltHoldLedgerLabel(weekEndSun)})`;
         for (const pick of teamStints) {
+          const lockEvent = sortedEvents.find((e) => String(e.date ?? "").slice(0, 10) === lockYmd);
+          const lockBroadcastMs = lockEvent ? getEventBroadcastStartMs(lockEvent) : null;
           if (
             !rosterStintActiveForWeeklyBeltHold({
               stint: pick,
               weekEndYmd: lockYmd,
               useBroadcastStart: useBroadcastForMonthlyBelt,
+              broadcastStartMs: lockBroadcastMs ?? undefined,
             })
           ) {
             continue;
@@ -548,15 +565,25 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     }
   }
 
+  const pointsByStintKey: Record<string, TeamWrestlerPoints> = {};
+  for (const [key, pts] of stintPoints.entries()) {
+    pointsByStintKey[key] = pts;
+  }
+
   const teamTotal = Object.values(totalsByWrestler).reduce((sum, p) => sum + p.total, 0);
 
   return {
     ledgerRows: ledgerRows.sort((a, b) => b.eventDate.localeCompare(a.eventDate)),
     totalsByWrestler,
+    pointsByStintKey,
     formerStints,
     activeStints,
     teamTotal,
   };
+}
+
+function stintKeyForRow(stint: { wrestler_id: string; acquired_at: string; released_at: string | null }): string {
+  return `${stint.wrestler_id}::${stint.acquired_at}::${stint.released_at ?? ""}`;
 }
 
 /** Points earned while on this faction only (for roster cards / tables). */
@@ -564,5 +591,9 @@ export function getFactionStintPointsFromAudit(
   audit: TeamScoringAudit,
   wrestlerId: string
 ): TeamWrestlerPoints {
+  const active = audit.activeStints.find((s) => s.wrestler_id === wrestlerId);
+  if (active) {
+    return audit.pointsByStintKey[stintKeyForRow(active)] ?? audit.totalsByWrestler[wrestlerId] ?? emptyPoints();
+  }
   return audit.totalsByWrestler[wrestlerId] ?? emptyPoints();
 }
