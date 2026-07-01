@@ -4,23 +4,17 @@ const steps = [
   {
     label: "Sign up",
     icon: HubStepIconSignup,
-    lines: [{ text: "SIGN-UP", accent: false }],
+    text: "SIGN-UP",
   },
   {
     label: "Draft your team",
     icon: HubStepIconDraft,
-    lines: [
-      { text: "DRAFT", accent: false },
-      { text: "YOUR TEAM", accent: true },
-    ],
+    text: "DRAFT TEAM",
   },
   {
     label: "Start playing",
     icon: HubStepIconTrophy,
-    lines: [
-      { text: "START", accent: false },
-      { text: "PLAYING", accent: true },
-    ],
+    text: "START PLAYING",
   },
 ] as const;
 
@@ -35,14 +29,7 @@ export default function HubStepsBanner() {
               {index > 0 ? <span className="hub-step-divider" aria-hidden /> : null}
               <Icon />
               <div className="hub-step-label">
-                {step.lines.map((line) => (
-                  <span
-                    key={line.text}
-                    className={line.accent ? "hub-step-label-sub" : "hub-step-label-main"}
-                  >
-                    {line.text}
-                  </span>
-                ))}
+                <span className="hub-step-label-main">{step.text}</span>
               </div>
             </div>
           );

@@ -189,6 +189,7 @@ export default async function InternalAdminLeagueDetailPage({
       manager_avatar_url: null,
       manager_catchphrase: null,
       avatar_url: null,
+      placement_status: m.placement_status,
     }));
     const wltByUserId = isHeadToHeadRecordStandings
       ? computeMatchupWltByUserId(
@@ -236,7 +237,8 @@ export default async function InternalAdminLeagueDetailPage({
           .{" "}
           {isHeadToHeadRecordStandings
             ? "Head-to-Head leagues show W-L-D (Win-Loss-Draw); points in the data layer are still event-based for matchups."
-            : "Points are season totals (including weekly win / belt bonuses when the league format applies them)."}
+            : "Points are season totals (including weekly win / belt bonuses when the league format applies them)."}{" "}
+          Pending-setup members appear here for admin visibility but are excluded from the member-facing standings page.
         </p>
         <LeagueStandingsTable
           members={membersByStandings}

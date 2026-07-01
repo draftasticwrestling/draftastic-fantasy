@@ -85,12 +85,17 @@ export function LeagueStandingsTable({
           const extra = rowExtras[idx] ?? null;
           const xpLabel = xpByUserId?.[m.user_id]?.label;
           const catchphrase = m.manager_catchphrase?.trim() ?? "";
+          const isPendingSetup = m.placement_status === "pending";
           return (
             <li
               key={m.id}
               style={{
                 borderBottom: "1px solid rgba(255,255,255,0.08)",
-                background: isLeader ? "rgba(248,113,113,0.06)" : "transparent",
+                background: isPendingSetup
+                  ? "rgba(251,191,36,0.06)"
+                  : isLeader
+                    ? "rgba(248,113,113,0.06)"
+                    : "transparent",
               }}
             >
               <div
@@ -182,6 +187,24 @@ export function LeagueStandingsTable({
                       >
                         {teamLabel}
                       </span>
+                      {isPendingSetup ? (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.6,
+                            padding: "2px 7px",
+                            borderRadius: 4,
+                            background: "rgba(251,191,36,0.18)",
+                            color: "rgba(251,191,36,0.98)",
+                            border: "1px solid rgba(251,191,36,0.35)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          Pending setup
+                        </span>
+                      ) : null}
                       {catchphrase ? (
                         <span
                           style={{
@@ -224,13 +247,19 @@ export function LeagueStandingsTable({
                     style={{
                       fontWeight: 700,
                       fontSize: 18,
-                      color: "#f97373",
+                      color: isPendingSetup ? "rgba(251,191,36,0.85)" : "#f97373",
                     }}
                   >
-                    {showRecordOnly ? `${rec.w}-${rec.l}-${rec.t}` : pts}
-                    {!showRecordOnly ? (
-                      <span style={{ fontSize: 11, marginLeft: 4, opacity: 0.8 }}>pts</span>
-                    ) : null}
+                    {isPendingSetup ? (
+                      "—"
+                    ) : showRecordOnly ? (
+                      `${rec.w}-${rec.l}-${rec.t}`
+                    ) : (
+                      <>
+                        {pts}
+                        <span style={{ fontSize: 11, marginLeft: 4, opacity: 0.8 }}>pts</span>
+                      </>
+                    )}
                   </span>
                   {extra}
                 </span>
