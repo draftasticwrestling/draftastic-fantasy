@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { AuthForm } from "../AuthForm";
+import { AuthModeSwitch } from "../AuthModeSwitch";
 
 export const metadata = {
   title: "Sign in — Draftastic Fantasy",
   description: "Sign in to your account",
 };
 
-export default function SignInPage({
+export default async function SignInPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; next?: string }>;
 }) {
+  const { next } = await searchParams;
+
   return (
     <main
       style={{
@@ -32,12 +35,7 @@ export default function SignInPage({
         Use your email and password, or sign in with Google.
       </p>
       <AuthForm mode="sign-in" searchParams={searchParams} />
-      <p style={{ marginTop: 20, fontSize: 15, color: "#555" }}>
-        Don’t have an account?{" "}
-        <Link href="/auth/sign-up" style={{ color: "#1a73e8" }}>
-          Sign up
-        </Link>
-      </p>
+      <AuthModeSwitch mode="sign-in" next={next} />
     </main>
   );
 }

@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getRostersForLeague } from "@/lib/leagues";
 import { leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEFAULT } from "@/lib/leagueStructure";
+import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
+import { purgeUnplacedPublicLeagueMembersIfRegistrationClosed } from "@/lib/leaguePlacement";
 import { buildSalaryCapWrestlerPool } from "@/lib/salaryCapWrestlerPool";
 import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
 import { SalaryCapRosterBuilder } from "./SalaryCapRosterBuilder";
@@ -21,10 +23,15 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function LeagueSalaryCapPage({ params }: Props) {
   const { slug } = await params;
-  const league = await getLeagueBySlug(slug);
+  let league = await getLeagueBySlug(slug);
   if (!league) notFound();
   if (!leagueUsesSalaryCap(league.league_type)) {
     redirect(`/leagues/${slug}/draft`);
+  }
+
+  if (isPublicSalaryCapLeague(league)) {
+    await purgeUnplacedPublicLeagueMembersIfRegistrationClosed(league.id, league);
+    league = (await getLeagueBySlug(slug)) ?? league;
   }
 
   const { supabase, user } = await getServerAuth();
@@ -32,11 +39,13 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
 
   const { data: member } = await supabase
     .from("league_members")
-    .select("user_id, onboarding_completed_at")
+    .select("user_id, onboarding_completed_at, placement_status")
     .eq("league_id", league.id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!member) notFound();
+  if (!member) {
+    redirect("/play?step=join-public");
+  }
 
   const memberRow = member as { onboarding_completed_at?: string | null };
   const hasCompletedMemberOnboarding = Boolean(memberRow.onboarding_completed_at?.trim());

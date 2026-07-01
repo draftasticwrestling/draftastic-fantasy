@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { AuthForm } from "../AuthForm";
+import { AuthModeSwitch } from "../AuthModeSwitch";
+import { PLAY_PATH } from "@/lib/playFunnel";
 
 export const metadata = {
   title: "Sign up — Draftastic Fantasy",
-  description: "Create an account",
+  description: "Create an account to join or create a league",
 };
 
-export default function SignUpPage({
+export default async function SignUpPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; next?: string }>;
 }) {
+  const { next } = await searchParams;
+
   return (
     <main
       style={{
@@ -29,15 +33,11 @@ export default function SignUpPage({
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Sign up</h1>
       <p style={{ color: "#555", marginBottom: 24 }}>
-        Create an account with email and password (or Google), choose a display name, and accept Terms/Privacy.
+        Create an account to join or create a league. Use email and password (or Google), choose a display name, and
+        accept Terms/Privacy.
       </p>
       <AuthForm mode="sign-up" searchParams={searchParams} />
-      <p style={{ marginTop: 20, fontSize: 15, color: "#555" }}>
-        Already have an account?{" "}
-        <Link href="/auth/sign-in" style={{ color: "#1a73e8" }}>
-          Sign in
-        </Link>
-      </p>
+      <AuthModeSwitch mode="sign-up" next={next ?? PLAY_PATH} />
     </main>
   );
 }

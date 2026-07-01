@@ -13,7 +13,7 @@ export const metadata = {
 export default async function NewLeaguePage() {
   const { user } = await getServerAuth();
   if (!user) {
-    redirect("/auth/sign-in?next=/leagues/new");
+    redirect("/auth/sign-in?next=/play?step=create");
   }
 
   const requiresAccessCodeEnv = await leagueCreationAccessIsConfigured();

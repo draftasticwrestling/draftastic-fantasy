@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import HubStepsBanner from "@/app/components/HubStepsBanner";
 import { DRAFTASTIC_SCREENSHOTS } from "@/lib/draftasticScreenshots";
+import { PLAY_PATH } from "@/lib/playFunnel";
 import { isPastHubHeroPublicPromoEnd } from "@/lib/pstCivilTime";
 
 function HubExpandScreenshot({ src, alt, caption }: { src: string; alt: string; caption: string }) {
@@ -47,21 +48,15 @@ export default function FantasyHubHero() {
         <div className="hub-hero-copy">
           {postPromo ? (
             <div className="hub-hero-actions">
-              <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
-                Create a League
-              </Link>
-              <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
-                Join a League
+              <Link href={PLAY_PATH} className="hub-hero-btn hub-hero-btn-primary hub-hero-btn-play">
+                Play Now
               </Link>
             </div>
           ) : (
             <>
               <div className="hub-hero-actions">
-                <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
-                  Create a League
-                </Link>
-                <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
-                  Join a League
+                <Link href={PLAY_PATH} className="hub-hero-btn hub-hero-btn-primary hub-hero-btn-play">
+                  Play Now
                 </Link>
                 <Link href="/how-it-works" className="hub-hero-btn hub-hero-btn-outline">
                   How It Works
@@ -189,8 +184,8 @@ export default function FantasyHubHero() {
               <span className="hub-hero-expand-cta-sep" aria-hidden>
                 +
               </span>
-              <Link href="/leagues/new" className="hub-hero-expand-link">
-                Start a League
+              <Link href={PLAY_PATH} className="hub-hero-expand-link">
+                Play Now
               </Link>
             </p>
           </section>
@@ -200,11 +195,8 @@ export default function FantasyHubHero() {
             <p>Leagues are forming. Drafts are coming. And once the season starts, you&apos;re chasing everyone else.</p>
             <p>Get in now. Build your roster. Be the one everyone&apos;s trying to beat.</p>
             <div className="hub-hero-expand-cta-block hub-hero-actions">
-              <Link href="/leagues/new" className="hub-hero-btn hub-hero-btn-primary">
-                Create a League
-              </Link>
-              <Link href="/leagues/join" className="hub-hero-btn hub-hero-btn-outline">
-                Join a League
+              <Link href={PLAY_PATH} className="hub-hero-btn hub-hero-btn-primary hub-hero-btn-play">
+                Play Now
               </Link>
             </div>
           </section>

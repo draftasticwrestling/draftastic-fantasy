@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueStandingsMembers } from "@/lib/leagues";
 import { getPointsByOwnerForLeagueWithBonuses } from "@/lib/leagueMatchups";
 import { getLeagueHomeLeaderboards } from "@/lib/weeklyLeaderboards";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "League not found or access denied." }, { status: 404 });
   }
 
-  const members = await getLeagueMembers(league.id);
+  const members = await getLeagueStandingsMembers(league.id, league);
   const pointsByUserId = await getPointsByOwnerForLeagueWithBonuses(league.id);
   const raw = request.nextUrl.searchParams.get("leaderboard_week");
 

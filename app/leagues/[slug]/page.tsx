@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
-import { getLeagueBySlug, getLeagueMembers, getRostersForLeague } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueMembers, getLeagueStandingsMembers, getRostersForLeague } from "@/lib/leagues";
 import {
   computeMatchupWltByUserId,
   getLeagueWeeklyMatchups,
@@ -109,6 +109,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
   let league: Awaited<ReturnType<typeof getLeagueBySlug>>;
   let members: Awaited<ReturnType<typeof getLeagueMembers>> = [];
+  let standingsMembers: Awaited<ReturnType<typeof getLeagueStandingsMembers>> = [];
   let rosters: Awaited<ReturnType<typeof getRostersForLeague>> = {};
   let wrestlersResult: { id: string; name: string | null; gender: string | null; image_url: string | null }[] = [];
 
@@ -145,7 +146,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       }
     }
 
-    const [membersData, rostersData, wrestlersData, pointsByOwner] = await Promise.all([
+    const [membersData, rostersData, wrestlersData, pointsByOwner, standingsMembersData] = await Promise.all([
       getLeagueMembers(league.id),
       getRostersForLeague(league.id),
       (async () => {
@@ -162,8 +163,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         }[];
       })(),
       getPointsByOwnerForLeagueWithBonuses(league.id),
+      getLeagueStandingsMembers(league.id, league),
     ]);
     members = membersData;
+    const standingsMembers = standingsMembersData;
     rosters = rostersData;
     wrestlersResult = wrestlersData;
     const pointsByUserId = pointsByOwner ?? {};
@@ -191,7 +194,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     }
 
     const rosterRules = getRosterRulesForLeague(
-      members.length,
+      standingsMembers.length,
       league.season_slug ?? null,
       leagueIncludesNxt(league),
       league.league_type ?? null
@@ -200,25 +203,25 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const isHeadToHeadHomeStandings = (league.league_type ?? null) === "head_to_head";
     const showMatchupsInTopNav = leagueShowsMatchupsInNav(league.league_type);
     let standingsRecordByUserId: Record<string, { w: number; l: number; t: number }> | undefined;
-    let membersByPoints = [...members].sort(
+    let membersByPoints = [...standingsMembers].sort(
       (a, b) => (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0)
     );
     if (isHeadToHeadHomeStandings) {
       const weeklyMatchups = await getLeagueWeeklyMatchups(league.id);
       const weekStarts = getWeeksInRange((league.draft_date || league.start_date) ?? "", league.end_date ?? "");
-      const seededMemberUserIds = await getXpSeededMemberUserIds(members.map((m) => m.user_id));
+      const seededMemberUserIds = await getXpSeededMemberUserIds(standingsMembers.map((m) => m.user_id));
       const maxTeamsCap = league.max_teams ?? null;
       const draftStatusVal = league.draft_status ?? null;
       standingsRecordByUserId = computeMatchupWltByUserId(
         league.league_type ?? null,
-        members.map((m) => m.user_id),
+        standingsMembers.map((m) => m.user_id),
         weeklyMatchups,
         {
           matchupResolver: (week) =>
             getScheduledMatchupsForWeek({
               weekStart: week.weekStart,
               weekStarts,
-              memberUserIds: members.map((m) => m.user_id),
+              memberUserIds: standingsMembers.map((m) => m.user_id),
               seededMemberUserIds,
               maxTeams: maxTeamsCap,
               draftStatus: draftStatusVal,
@@ -226,7 +229,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             }),
         }
       );
-      membersByPoints = [...members].sort((a, b) => {
+      membersByPoints = [...standingsMembers].sort((a, b) => {
         const wa = standingsRecordByUserId![a.user_id] ?? { w: 0, l: 0, t: 0 };
         const wb = standingsRecordByUserId![b.user_id] ?? { w: 0, l: 0, t: 0 };
         if (wb.w !== wa.w) return wb.w - wa.w;
@@ -538,7 +541,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             <p className="lm-league-meta">
               <span>GM: {creatorLabel}</span>
               <span>Format: {formatLeagueType(league.league_type)}</span>
-              <span>Factions: {members.length}{maxTeams ? ` / ${maxTeams}` : ""}</span>
+              <span>Factions: {standingsMembers.length}{maxTeams ? ` / ${maxTeams}` : ""}</span>
             </p>
             {showAlert && (
               <div className="lm-alert" role="alert">

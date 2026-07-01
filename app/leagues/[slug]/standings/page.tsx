@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
+import { getLeagueBySlug, getLeagueStandingsMembers } from "@/lib/leagues";
 import {
   computeMatchupWltByUserId,
   getLeagueWeeklyMatchups,
@@ -40,7 +40,7 @@ export default async function StandingsPage({
   if (!league) notFound();
 
   const [members, pointsByOwner, weeklyMatchups] = await Promise.all([
-    getLeagueMembers(league.id),
+    getLeagueStandingsMembers(league.id, league),
     getPointsByOwnerForLeagueWithBonuses(league.id),
     getLeagueWeeklyMatchups(league.id),
   ]);

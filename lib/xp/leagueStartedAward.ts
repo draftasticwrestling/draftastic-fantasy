@@ -1,6 +1,7 @@
 import "server-only";
 
 import { MIN_LEAGUE_TEAMS } from "@/lib/leagueStructure";
+import { countPlacedLeagueMembers } from "@/lib/leaguePlacement";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { awardUserXp } from "@/lib/xp/awardUserXp";
 import { XP_AMOUNTS } from "@/lib/xp/xpReasons";
@@ -16,19 +17,25 @@ export async function maybeAwardLeagueStartedXp(leagueId: string): Promise<void>
   const admin = getAdminClient();
   if (!admin) return;
 
-  const { count, error: countErr } = await admin
-    .from("league_members")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", id);
-  if (countErr || (count ?? 0) < MIN_LEAGUE_TEAMS) return;
-
   const { data: league } = await admin
     .from("leagues")
-    .select("id, slug, commissioner_id")
+    .select("id, slug, commissioner_id, visibility_type, league_type, season_slug")
     .eq("id", id)
     .maybeSingle();
-  const row = league as { id?: string; slug?: string; commissioner_id?: string | null } | null;
-  const commissionerId = row?.commissioner_id?.trim();
+  const row = league as {
+    id?: string;
+    slug?: string;
+    commissioner_id?: string | null;
+    visibility_type?: string | null;
+    league_type?: string | null;
+    season_slug?: string | null;
+  } | null;
+  if (!row?.id) return;
+
+  const memberCount = await countPlacedLeagueMembers(admin, id, row);
+  if (memberCount < MIN_LEAGUE_TEAMS) return;
+
+  const commissionerId = row.commissioner_id?.trim();
   if (!commissionerId) return;
 
   await awardUserXp({
@@ -36,7 +43,7 @@ export async function maybeAwardLeagueStartedXp(leagueId: string): Promise<void>
     delta: XP_AMOUNTS.league_started,
     reason: "league_started",
     idempotencyKey: `league_started:${id}`,
-    metadata: { leagueId: id, slug: row?.slug ?? null },
+    metadata: { leagueId: id, slug: row.slug ?? null },
   });
 }
 

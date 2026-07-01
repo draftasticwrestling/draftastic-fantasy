@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { mapSupabaseAuthErrorMessage } from "@/lib/authUserFacingErrors";
+import { PLAY_PATH } from "@/lib/playFunnel";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -44,7 +45,7 @@ export function AuthForm({ mode, searchParams }: Props) {
     }
   }, []);
 
-  const next = resolvedParams?.next ?? "/";
+  const next = resolvedParams?.next ?? (mode === "sign-up" ? PLAY_PATH : "/");
   const errorFromUrl = resolvedParams?.error ? ERROR_MESSAGES[resolvedParams.error] ?? resolvedParams.error : null;
 
   const normalizeEmail = (raw: string) => raw.trim().toLowerCase();

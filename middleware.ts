@@ -9,7 +9,7 @@ function shouldEnforceRequiredAccount(pathname: string): boolean {
   if (pathname.startsWith("/auth/")) return false;
   if (pathname === "/account") return false;
   if (pathname === "/terms" || pathname === "/privacy") return false;
-  return pathname.startsWith("/leagues") || pathname.startsWith("/internal-admin") || pathname.startsWith("/fantasy");
+  return pathname.startsWith("/leagues") || pathname.startsWith("/internal-admin") || pathname.startsWith("/fantasy") || pathname.startsWith("/play");
 }
 
 export async function middleware(request: NextRequest) {

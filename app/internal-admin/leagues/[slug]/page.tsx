@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { SimpleStatusSpan } from "@/app/components/ProposalStatusSpan";
 import { LeagueStandingsTable } from "@/app/leagues/[slug]/LeagueStandingsTable";
 import { siteAdminGetLeagueBySlug } from "@/lib/internalAdmin/siteAdminLeagues";
 import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
@@ -312,8 +313,18 @@ export default async function InternalAdminLeagueDetailPage({
         ) : null}
         {" "}
         ·{" "}
-        <strong style={{ color: "var(--color-text)" }}>{league.member_count}</strong>{" "}
-        {league.member_count === 1 ? "owner" : "owners"}
+        {(league.pending_member_count ?? 0) > 0 ? (
+          <>
+            <strong style={{ color: "var(--color-text)" }}>{league.placed_member_count ?? league.member_count}</strong>{" "}
+            placed ·{" "}
+            <strong style={{ color: "#92400e" }}>{league.pending_member_count}</strong> pending setup
+          </>
+        ) : (
+          <>
+            <strong style={{ color: "var(--color-text)" }}>{league.member_count}</strong>{" "}
+            {league.member_count === 1 ? "owner" : "owners"}
+          </>
+        )}
         {league.max_teams != null ? (
           <>
             {" "}
@@ -562,12 +573,16 @@ export default async function InternalAdminLeagueDetailPage({
       ) : null}
 
       <section>
-        <h2 style={{ fontSize: "1.05rem", marginBottom: 12 }}>Members ({members.length})</h2>
+        <h2 style={{ fontSize: "1.05rem", marginBottom: 12 }}>
+          Members ({members.length}
+          {(league.pending_member_count ?? 0) > 0 ? ` · ${league.pending_member_count} pending setup` : ""})
+        </h2>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
                 <th style={{ padding: "10px 8px" }}>Role</th>
+                <th style={{ padding: "10px 8px" }}>Placement</th>
                 <th style={{ padding: "10px 8px" }}>Team / name</th>
                 <th style={{ padding: "10px 8px" }}>User id</th>
                 <th style={{ padding: "10px 8px" }}>Joined</th>
@@ -580,6 +595,16 @@ export default async function InternalAdminLeagueDetailPage({
               {members.map((m) => (
                 <tr key={m.user_id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                   <td style={{ padding: "10px 8px" }}>{m.role}</td>
+                  <td style={{ padding: "10px 8px" }}>
+                    {m.placement_label === "—" ? (
+                      "—"
+                    ) : (
+                      <SimpleStatusSpan
+                        label={m.placement_label}
+                        tone={m.placement_label === "Pending setup" ? "pending" : "approved"}
+                      />
+                    )}
+                  </td>
                   <td style={{ padding: "10px 8px" }}>
                     <strong>{m.team_name || m.display_name || "—"}</strong>
                     {m.team_name && m.display_name ? (

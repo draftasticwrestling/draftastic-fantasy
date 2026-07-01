@@ -14,6 +14,7 @@ import { leagueShowsMatchupsInNav } from "@/lib/leagueNavVisibility";
 import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
 import { getXpLevelInfo } from "@/lib/xp/xpLevels";
+import { PLAY_PATH } from "@/lib/playFunnel";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
@@ -523,7 +524,7 @@ export default function Nav() {
               <Link href={fantasyHref} className="nav-fantasy-pill">Fantasy</Link>
               <Link href="/how-it-works" className="nav-top-link">How It Works</Link>
               <Link href="/auth/sign-in" className="nav-header-link">Sign in</Link>
-              <Link href="/auth/sign-up" className="nav-header-cta">Sign up</Link>
+              <Link href={PLAY_PATH} className="nav-header-cta">Play Now</Link>
             </>
           )}
         </div>
@@ -561,18 +562,11 @@ export default function Nav() {
               How It Works
             </Link>
             <Link
-              href="/leagues/join"
-              className={`nav-mobile-panel-outline-cta${pathname === "/leagues/join" ? " is-active" : ""}`}
+              href={PLAY_PATH}
+              className={`nav-mobile-panel-cta${pathname === PLAY_PATH ? " is-active" : ""}`}
               onClick={closeMobileMenu}
             >
-              Join a League
-            </Link>
-            <Link
-              href="/leagues/new"
-              className={`nav-mobile-panel-cta${pathname === "/leagues/new" ? " is-active" : ""}`}
-              onClick={closeMobileMenu}
-            >
-              Create a League
+              Play Now
             </Link>
             {isSiteAdmin
               ? ADMIN_MENU_SECTIONS.map((section) => (
@@ -607,8 +601,8 @@ export default function Nav() {
                 <Link href="/auth/sign-in" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
                   Sign in
                 </Link>
-                <Link href="/auth/sign-up" className="nav-mobile-panel-cta" onClick={closeMobileMenu}>
-                  Sign up
+                <Link href={PLAY_PATH} className="nav-mobile-panel-outline-cta" onClick={closeMobileMenu}>
+                  Play Now
                 </Link>
               </>
             )}
@@ -633,17 +627,8 @@ export default function Nav() {
               </li>
               <li className="nav-primary-item-create-league">
                 <div className="nav-primary-create-join-group" role="group" aria-label="League actions">
-                  <Link
-                    href="/leagues/join"
-                    className={`nav-primary-link-join ${pathname === "/leagues/join" ? "is-active" : ""}`}
-                  >
-                    Join a League
-                  </Link>
-                  <Link
-                    href="/leagues/new"
-                    className={`nav-primary-link nav-primary-link-create ${pathname === "/leagues/new" ? "is-active" : ""}`}
-                  >
-                    +Create a League
+                  <Link href={PLAY_PATH} className={`nav-primary-link-join ${pathname === PLAY_PATH ? "is-active" : ""}`}>
+                    Play Now
                   </Link>
                 </div>
               </li>
@@ -653,7 +638,7 @@ export default function Nav() {
             <ul className="nav-secondary-list">
               <li>
                 <span className="nav-secondary-context">
-                  Join a private league with a code from your GM, or create your own league to invite friends.
+                  Join a public league or create your own — start with Play Now.
                 </span>
               </li>
             </ul>
@@ -788,17 +773,8 @@ export default function Nav() {
               )}
               <li className="nav-primary-item-create-league">
                 <div className="nav-primary-create-join-group" role="group" aria-label="League actions">
-                  <Link
-                    href="/leagues/join"
-                    className={`nav-primary-link-join ${pathname === "/leagues/join" ? "is-active" : ""}`}
-                  >
-                    Join a League
-                  </Link>
-                  <Link
-                    href="/leagues/new"
-                    className={`nav-primary-link nav-primary-link-create ${pathname === "/leagues/new" ? "is-active" : ""}`}
-                  >
-                    +Create a League
+                  <Link href={PLAY_PATH} className={`nav-primary-link-join ${pathname === PLAY_PATH ? "is-active" : ""}`}>
+                    Play Now
                   </Link>
                 </div>
               </li>

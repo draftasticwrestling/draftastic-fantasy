@@ -2,6 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
+import { isPlacedLeagueMember } from "@/lib/leaguePlacement";
+import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 
 const LEAGUE_LIST_SELECT =
   "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_type, league_type, include_nxt, max_teams, draft_status, draft_order_method, created_at, visibility_type, public_status, is_archived, archived_at";
@@ -42,11 +44,16 @@ export type SiteAdminLeagueMember = {
   display_name: string | null;
   active_roster_count: number;
   has_draft_preferences: boolean;
+  placement_status: "pending" | "active" | null;
+  /** Human label for admin UI */
+  placement_label: string;
 };
 
 export type SiteAdminLeagueDetail = {
   league: Omit<SiteAdminLeagueSummary, "commissioner_display_name"> & {
     commissioner_display_name: string | null;
+    placed_member_count?: number;
+    pending_member_count?: number;
   };
   members: SiteAdminLeagueMember[];
 };
@@ -254,9 +261,26 @@ export async function siteAdminGetLeagueBySlug(
 
   const { data: members, error: memErr } = await admin
     .from("league_members")
-    .select("user_id, role, joined_at, team_name")
+    .select("user_id, role, joined_at, team_name, placement_status, onboarding_completed_at")
     .eq("league_id", L.id)
     .order("joined_at", { ascending: true });
+
+  if (memErr && /placement_status|onboarding_completed_at/i.test(memErr.message ?? "")) {
+    const fallback = await admin
+      .from("league_members")
+      .select("user_id, role, joined_at, team_name, onboarding_completed_at")
+      .eq("league_id", L.id)
+      .order("joined_at", { ascending: true });
+    if (fallback.error) return { detail: null, error: fallback.error.message };
+    const memberRowsLegacy = (fallback.data ?? []) as {
+      user_id: string;
+      role: string;
+      joined_at: string;
+      team_name: string | null;
+      onboarding_completed_at?: string | null;
+    }[];
+    return buildSiteAdminLeagueDetail(admin, L, memberRowsLegacy, commissioner_display_name, true);
+  }
 
   if (memErr) return { detail: null, error: memErr.message };
 
@@ -265,8 +289,34 @@ export async function siteAdminGetLeagueBySlug(
     role: string;
     joined_at: string;
     team_name: string | null;
+    placement_status?: string | null;
+    onboarding_completed_at?: string | null;
   }[];
 
+  return buildSiteAdminLeagueDetail(admin, L, memberRows, commissioner_display_name, false);
+}
+
+async function buildSiteAdminLeagueDetail(
+  admin: SupabaseClient,
+  L: Omit<SiteAdminLeagueSummary, "commissioner_display_name" | "member_count"> & {
+    visibility_type?: string | null;
+    public_status?: string | null;
+    is_archived?: boolean | null;
+    archived_at?: string | null;
+    league_type?: string | null;
+    season_slug?: string | null;
+  },
+  memberRows: {
+    user_id: string;
+    role: string;
+    joined_at: string;
+    team_name: string | null;
+    placement_status?: string | null;
+    onboarding_completed_at?: string | null;
+  }[],
+  commissioner_display_name: string | null,
+  legacyPlacementColumns: boolean
+): Promise<{ detail: SiteAdminLeagueDetail }> {
   const userIds = memberRows.map((m) => m.user_id);
   const profMap = await commissionerNamesByIds(admin, userIds);
 
@@ -288,20 +338,50 @@ export async function siteAdminGetLeagueBySlug(
     }
   }
 
-  const membersOut: SiteAdminLeagueMember[] = memberRows.map((m) => ({
-    user_id: m.user_id,
-    role: m.role,
-    joined_at: m.joined_at,
-    team_name: m.team_name ?? null,
-    display_name: profMap.get(m.user_id) ?? null,
-    active_roster_count: activeByUser.get(m.user_id) ?? 0,
-    has_draft_preferences: prefUsers.has(m.user_id),
-  }));
+  const leaguePlacementCtx = {
+    visibility_type: L.visibility_type ?? null,
+    league_type: L.league_type ?? null,
+    season_slug: L.season_slug ?? null,
+  };
+  const trackPlacement = isPublicSalaryCapLeague(leaguePlacementCtx);
+
+  const membersOut: SiteAdminLeagueMember[] = memberRows.map((m) => {
+    const placed = isPlacedLeagueMember(
+      {
+        placement_status: legacyPlacementColumns ? null : (m.placement_status as "pending" | "active" | null),
+        onboarding_completed_at: m.onboarding_completed_at ?? null,
+      },
+      leaguePlacementCtx
+    );
+    const placement_status =
+      !trackPlacement
+        ? null
+        : placed
+          ? "active"
+          : m.placement_status === "pending" || !m.onboarding_completed_at?.trim()
+            ? "pending"
+            : "active";
+    const placement_label = !trackPlacement ? "—" : placed ? "Placed" : "Pending setup";
+
+    return {
+      user_id: m.user_id,
+      role: m.role,
+      joined_at: m.joined_at,
+      team_name: m.team_name ?? null,
+      display_name: profMap.get(m.user_id) ?? null,
+      active_roster_count: activeByUser.get(m.user_id) ?? 0,
+      has_draft_preferences: prefUsers.has(m.user_id),
+      placement_status,
+      placement_label,
+    };
+  });
 
   const visibility_type = L.visibility_type ?? "private";
   const public_status = L.public_status ?? null;
   const is_archived = Boolean(L.is_archived ?? false);
   const archived_at = L.archived_at ?? null;
+  const placedCount = membersOut.filter((m) => m.placement_label === "Placed").length;
+  const pendingCount = membersOut.filter((m) => m.placement_label === "Pending setup").length;
 
   return {
     detail: {
@@ -312,8 +392,10 @@ export async function siteAdminGetLeagueBySlug(
         is_archived,
         archived_at,
         member_count: memberRows.length,
+        placed_member_count: placedCount,
+        pending_member_count: pendingCount,
         commissioner_display_name,
-      },
+      } as SiteAdminLeagueDetail["league"],
       members: membersOut,
     },
   };

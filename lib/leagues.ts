@@ -81,6 +81,12 @@ import { generateJoinCode, INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode"
 import { awardLeagueJoinXp } from "@/lib/xp/leagueJoinAward";
 import { maybeAwardLeagueStartedXpBySlug } from "@/lib/xp/leagueStartedAward";
 import {
+  countPlacedLeagueMembers,
+  filterPlacedLeagueMembers,
+  markPublicLeagueJoinPending,
+  purgeUnplacedPublicLeagueMembersIfRegistrationClosed,
+} from "@/lib/leaguePlacement";
+import {
   beltScoringLastMonthEndInclusive,
   legacySeasonEndBeltSnapshotYmd,
   shouldSkipJulyMonthEndBeltForRts2026,
@@ -137,6 +143,8 @@ export type LeagueMember = {
   manager_catchphrase?: string | null;
   /** From profiles — default manager avatar when manager_avatar_url is null. */
   avatar_url?: string | null;
+  placement_status?: "pending" | "active" | null;
+  onboarding_completed_at?: string | null;
 };
 
 export type LeagueWithRole = League & { role: "commissioner" | "owner" };
@@ -353,6 +361,7 @@ export async function createLeague(params: {
     league_id: league.id,
     user_id: user.id,
     role: "commissioner",
+    ...(isPublicSalaryCapCreate ? { placement_status: "pending" } : {}),
   });
 
   if (isPublicSalaryCapCreate) {
@@ -534,6 +543,8 @@ export const getLeagueMembers = cacheFn(async (leagueId: string): Promise<League
     "faction_emoji",
     "manager_avatar_url",
     "manager_catchphrase",
+    "placement_status",
+    "onboarding_completed_at",
   ];
   let full = await supabase.from("league_members").select(cols.join(", ")).eq("league_id", leagueId).order("joined_at", {
     ascending: true,
@@ -544,6 +555,10 @@ export const getLeagueMembers = cacheFn(async (leagueId: string): Promise<League
       cols = cols.filter((c) => c !== "manager_catchphrase");
     } else if (msg.includes("manager_avatar")) {
       cols = cols.filter((c) => c !== "manager_avatar_url");
+    } else if (msg.includes("placement_status")) {
+      cols = cols.filter((c) => c !== "placement_status");
+    } else if (msg.includes("onboarding_completed_at")) {
+      cols = cols.filter((c) => c !== "onboarding_completed_at");
     } else {
       break;
     }
@@ -633,6 +648,14 @@ export const getLeagueMembers = cacheFn(async (leagueId: string): Promise<League
     };
   }) as LeagueMember[];
 });
+
+export async function getLeagueStandingsMembers(
+  leagueId: string,
+  league: { visibility_type?: string | null; league_type?: string | null; season_slug?: string | null }
+): Promise<LeagueMember[]> {
+  const members = await getLeagueMembers(leagueId);
+  return filterPlacedLeagueMembers(members, league);
+}
 
 /**
  * Member list with site-admin fallback:
@@ -1024,12 +1047,11 @@ export async function quickJoinOldestPublicLeague(): Promise<{
   if (error) return { ok: false, error: error.message };
   const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
   if (result.ok && result.league_slug) {
-    await syncPublicLeagueStatusBySlug(result.league_slug);
     const {
       data: { user: u },
     } = await supabase.auth.getUser();
-    if (u?.id) await awardLeagueJoinXp(u.id, result.league_slug);
-    await maybeAwardLeagueStartedXpBySlug(result.league_slug);
+    if (u?.id) await markPublicLeagueJoinPending(result.league_slug, u.id);
+    await syncPublicLeagueStatusBySlug(result.league_slug);
     return result;
   }
 
@@ -1051,6 +1073,10 @@ export async function quickJoinOldestPublicLeague(): Promise<{
   if (!created.league?.slug) return { ok: false, error: "Failed to provision a public league." };
 
   await syncPublicLeagueStatusBySlug(created.league.slug);
+  const {
+    data: { user: u },
+  } = await supabase.auth.getUser();
+  if (u?.id) await markPublicLeagueJoinPending(created.league.slug, u.id);
   return {
     ok: true,
     league_slug: created.league.slug,
@@ -1076,11 +1102,22 @@ export async function closeExpiredPublicLeagues(): Promise<void> {
     const slug = (row as { slug?: string }).slug;
     if (!slug) continue;
 
-    const { count } = await admin
-      .from("league_members")
-      .select("*", { count: "exact", head: true })
-      .eq("league_id", id);
-    const memberCount = count ?? 0;
+    await purgeUnplacedPublicLeagueMembersIfRegistrationClosed(
+      id,
+      row as {
+        visibility_type?: string | null;
+        league_type?: string | null;
+        season_slug?: string | null;
+        registration_closes_at?: string | null;
+        public_status?: string | null;
+      }
+    );
+
+    const memberCount = await countPlacedLeagueMembers(
+      admin,
+      id,
+      row as { visibility_type?: string; league_type?: string | null; season_slug?: string | null }
+    );
 
     if (memberCount >= MIN_LEAGUE_TEAMS) {
       await admin.from("leagues").update({ public_status: "active" }).eq("id", id);
@@ -1127,11 +1164,10 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
     public_status?: string | null;
   } | null;
   if (!row?.id || row.visibility_type !== "public") return;
-  const { count } = await admin
-    .from("league_members")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", row.id);
-  const memberCount = count ?? 0;
+
+  await purgeUnplacedPublicLeagueMembersIfRegistrationClosed(row.id, row);
+
+  const memberCount = await countPlacedLeagueMembers(admin, row.id, row);
   const draftStatus = String(row.draft_status ?? "not_started");
   const publicSalaryCap = isPublicSalaryCapLeague(row);
   const cap = publicSalaryCap ? null : row.max_teams ?? 6;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeaguesForUser } from "@/lib/leagues";
+import { PLAY_PATH } from "@/lib/playFunnel";
 
 export const metadata = {
   title: "Leagues — Draftastic Fantasy",
@@ -11,7 +12,7 @@ export const metadata = {
 export default async function LeaguesPage() {
   const { user } = await getServerAuth();
   if (!user) {
-    redirect("/auth/sign-in?next=/leagues");
+    redirect("/auth/sign-in?next=/play");
   }
 
   const leagues = await getLeaguesForUser();
@@ -55,7 +56,7 @@ export default async function LeaguesPage() {
 
       <p style={{ marginBottom: 16 }}>
         <Link
-          href="/leagues/new"
+          href={PLAY_PATH}
           style={{
             display: "inline-block",
             padding: "10px 20px",
@@ -66,22 +67,7 @@ export default async function LeaguesPage() {
             fontWeight: 600,
           }}
         >
-          Create a League
-        </Link>
-        <Link
-          href="/leagues/join"
-          style={{
-            display: "inline-block",
-            marginLeft: 10,
-            padding: "10px 20px",
-            background: "#111827",
-            color: "#fff",
-            textDecoration: "none",
-            borderRadius: 8,
-            fontWeight: 600,
-          }}
-        >
-          Join a league
+          Play Now
         </Link>
       </p>
 
@@ -100,8 +86,8 @@ export default async function LeaguesPage() {
             Create one above or ask a friend for a league code or invite link.
           </p>
           <p style={{ margin: "16px 0 0" }}>
-            <Link href="/leagues/join" style={{ color: "#1a73e8", fontWeight: 600 }}>
-              Join a league
+            <Link href={PLAY_PATH} style={{ color: "#1a73e8", fontWeight: 600 }}>
+              Play now
             </Link>
           </p>
         </div>

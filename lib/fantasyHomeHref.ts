@@ -1,8 +1,10 @@
 /**
- * Same destination as the main nav "Fantasy" pill: sign-in when logged out,
+ * Same destination as the main nav "Fantasy" pill: play funnel when logged out,
  * current/last league when logged in, or `/fantasy` when logged in with no leagues
  * (hub to join or create — not only create).
  */
+
+import { PLAY_PATH } from "@/lib/playFunnel";
 
 export type FantasyLeagueItem = {
   slug: string;
@@ -32,7 +34,7 @@ export function computeFantasyHomeHref(args: {
     leagues[0]?.slug ??
     null;
 
-  if (!user) return "/auth/sign-in";
+  if (!user) return PLAY_PATH;
   if (currentLeagueSlug) return `/leagues/${currentLeagueSlug}`;
   return "/fantasy";
 }

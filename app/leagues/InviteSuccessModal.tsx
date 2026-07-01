@@ -96,8 +96,8 @@ export function InviteSuccessModal({ show, leagueId, leagueName, joinCode, onClo
             <p style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600 }}>League code (doesn’t expire)</p>
             <p style={{ margin: "0 0 10px", fontSize: 13, color: "#555" }}>
               Managers can join at{" "}
-              <a href="/leagues/join" style={{ color: "#1a73e8" }}>
-                Join a league
+              <a href="/play?step=join-private" style={{ color: "#1a73e8" }}>
+                Play now
               </a>{" "}
               and enter this code — no link required.
             </p>

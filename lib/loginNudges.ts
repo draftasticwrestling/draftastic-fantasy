@@ -1,6 +1,7 @@
 import "server-only";
 
 import { leagueOnboardingPath, leagueUsesMemberOnboarding } from "@/lib/leagueOnboarding";
+import { PLAY_PATH } from "@/lib/playFunnel";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 
@@ -44,12 +45,12 @@ const DEFAULT_CONFIGS: Record<LoginNudgeKey, LoginNudgeConfig> = {
   no_league_joined: {
     nudge_key: "no_league_joined",
     enabled: true,
-    title: "Create or join a league",
-    body: "You're not in a league yet. Join a private league with a code from your GM, or create your own to get started.",
-    primary_cta_label: "Join a league",
-    primary_cta_href: "/leagues/join",
-    secondary_cta_label: "Create a league",
-    secondary_cta_href: "/leagues/new",
+    title: "Join or create a league",
+    body: "You're not in a league yet. Play now to join a public league or create one for your group.",
+    primary_cta_label: "Play now",
+    primary_cta_href: PLAY_PATH,
+    secondary_cta_label: null,
+    secondary_cta_href: null,
   },
 };
 

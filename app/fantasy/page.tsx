@@ -4,6 +4,7 @@ import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeaguesForUser } from "@/lib/leagues";
 import { getHubHomeHref } from "@/lib/hubHomeHref";
+import { PLAY_PATH } from "@/lib/playFunnel";
 import { getAdsenseSlotFantasy } from "@/lib/adsenseConfig";
 import { siteLogoHref } from "@/lib/siteLogo";
 
@@ -38,19 +39,11 @@ export default async function FantasyHomePage() {
               </p>
               <div className="home-hero-actions">
                 <div className="home-hero-cta-block">
-                  <Link href="/leagues/new" className="home-hero-btn home-hero-btn-primary">
-                    Create a League
+                  <Link href={PLAY_PATH} className="home-hero-btn home-hero-btn-primary">
+                    Play Now
                   </Link>
                   <p className="home-hero-cta-desc">
-                    You&apos;re the league manager here. Set up a private league to play with your family and friends!
-                  </p>
-                </div>
-                <div className="home-hero-cta-block">
-                  <Link href="/leagues/join" className="home-hero-btn home-hero-btn-secondary">
-                    Join a League
-                  </Link>
-                  <p className="home-hero-cta-desc">
-                    Hop into a league with an invite link and compete with other fans.
+                    Sign in or create an account, then join a public league or create your own.
                   </p>
                 </div>
               </div>
@@ -208,11 +201,8 @@ export default async function FantasyHomePage() {
               Draftastic turns every episode of wrestling into a game where every match matters.
             </p>
             <div className="home-final-cta-buttons">
-              <Link href="/leagues/new" className="home-cta-btn home-cta-btn-primary">
-                Create a League
-              </Link>
-              <Link href="/leagues/join" className="home-cta-btn home-cta-btn-secondary">
-                Join a League
+              <Link href={PLAY_PATH} className="home-cta-btn home-cta-btn-primary">
+                Play Now
               </Link>
             </div>
           </div>
@@ -313,7 +303,7 @@ export default async function FantasyHomePage() {
         )}
         <p style={{ marginTop: 16, marginBottom: 0, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <Link
-            href="/leagues/join"
+            href={PLAY_PATH}
             style={{
               display: "inline-block",
               padding: "10px 20px",
@@ -325,23 +315,7 @@ export default async function FantasyHomePage() {
               fontSize: 14,
             }}
           >
-            Join a league
-          </Link>
-          <Link
-            href="/leagues/new"
-            style={{
-              display: "inline-block",
-              padding: "10px 20px",
-              background: "transparent",
-              color: "var(--color-blue)",
-              textDecoration: "none",
-              borderRadius: "var(--radius)",
-              fontWeight: 600,
-              fontSize: 14,
-              border: "2px solid var(--color-blue)",
-            }}
-          >
-            Create a private league
+            Play Now
           </Link>
         </p>
       </div>

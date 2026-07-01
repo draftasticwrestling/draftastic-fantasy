@@ -441,14 +441,16 @@ export function SalaryCapRosterBuilder({
           }}
         >
           <p style={{ margin: 0, fontSize: 14, color: "var(--color-text)", flex: "1 1 220px" }}>
-            {roster.length === 0
-              ? "Add at least one wrestler from the pool, then continue to your faction page."
-              : "When your roster looks good, complete setup to open your faction page. Other league members won't see your roster until then."}
+            {remaining > 0
+              ? `Spend your full $${budget} budget ($${remaining} remaining) before you are placed in the league.`
+              : roster.length === 0
+                ? "Add wrestlers from the pool until your full budget is spent, then complete setup."
+                : "Your full budget is spent. Complete setup to join the league standings and open your faction page."}
           </p>
           <button
             type="button"
             className="app-button"
-            disabled={pending || roster.length === 0}
+            disabled={pending || roster.length === 0 || remaining !== 0}
             onClick={finishInitialRoster}
           >
             {pending ? "Continuing…" : finishRosterLabel}
