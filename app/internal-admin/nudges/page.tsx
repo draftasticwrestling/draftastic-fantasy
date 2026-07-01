@@ -113,7 +113,8 @@ export default async function InternalAdminNudgesPage({ searchParams }: Props) {
         Configure pop-up reminders shown after user login when conditional rules match.
       </p>
       <p style={{ color: "var(--color-text-muted)", fontSize: 14 }}>
-        Template variables supported in body: <code>{"{{missing_count}}"}</code>, <code>{"{{league_count}}"}</code>.
+        Template variables supported in body: <code>{"{{missing_count}}"}</code>, <code>{"{{league_count}}"}</code>,{" "}
+        <code>{"{{pending_count}}"}</code>, <code>{"{{league_name}}"}</code>.
       </p>
       {ok ? (
         <p style={{ color: "#166534", background: "#ecfdf3", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 12px" }}>
@@ -134,6 +135,12 @@ export default async function InternalAdminNudgesPage({ searchParams }: Props) {
             (dismissed permanently in that browser). Copy is fixed in code, not editable here.
           </p>
         </section>
+        <NudgeForm
+          nudgeKey="pending_league_setup"
+          title="Nudge: Pending public league setup"
+          description="Shown once per day when a user is in a public salary-cap league but has not finished roster setup (pending placement). Hidden while they are on the onboarding or salary-cap pages."
+          defaults={configs.pending_league_setup}
+        />
         <NudgeForm
           nudgeKey="missing_draft_prefs"
           title="Nudge: Missing draft preferences"

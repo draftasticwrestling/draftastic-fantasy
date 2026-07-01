@@ -49,37 +49,28 @@ export async function createLeagueAction(
   const accessCode = (formData.get("access_code") as string)?.trim() ?? "";
 
   if (enforceStandardRules) {
-    if (visibility_type !== "public" && !accessCode) {
+    if (visibility_type === "public") {
+      return {
+        error: "Public leagues can't be created here. Join an open public league from Play Now instead.",
+      };
+    }
+    if (!accessCode) {
       return { error: "Enter the beta access code from your mailing list invite." };
     }
-  }
-
-  if (visibility_type === "private" && !name) {
-    return { error: "Enter a league name." };
-  }
-  if (!season_slug) {
-    return { error: "Select a season." };
-  }
-
-  if (enforceStandardRules) {
-    if (visibility_type === "public") {
-      // Public leagues: salary cap + Monday RAW enrollment close; no access code.
-    } else {
-      if (season_slug !== STANDARD_USER_CREATE_SEASON_SLUG) {
-        return {
-          error:
-            "During the beta, new private leagues use the Road to SummerSlam season window. Other seasons are available when creating a league with full admin options.",
-        };
-      }
-      if (league_type !== "season_overall") {
-        return {
-          error:
-            "For the Road to SummerSlam beta, only Total Season Points leagues are available. Head-to-Head and other formats are coming soon.",
-        };
-      }
-      if (team_count < BETA_MIN_TEAMS || team_count > BETA_MAX_TEAMS) {
-        return { error: `Choose between ${BETA_MIN_TEAMS} and ${BETA_MAX_TEAMS} teams for this season.` };
-      }
+    if (season_slug !== STANDARD_USER_CREATE_SEASON_SLUG) {
+      return {
+        error:
+          "During the beta, new private leagues use the Road to SummerSlam season window. Other seasons are available when creating a league with full admin options.",
+      };
+    }
+    if (league_type !== "season_overall") {
+      return {
+        error:
+          "For the Road to SummerSlam beta, only Total Season Points leagues are available. Head-to-Head and other formats are coming soon.",
+      };
+    }
+    if (team_count < BETA_MIN_TEAMS || team_count > BETA_MAX_TEAMS) {
+      return { error: `Choose between ${BETA_MIN_TEAMS} and ${BETA_MAX_TEAMS} teams for this season.` };
     }
   } else {
     if (!ADMIN_LEAGUE_TYPES.has(league_type)) {
@@ -104,6 +95,13 @@ export async function createLeagueAction(
     }
   }
 
+  if (visibility_type === "private" && !name) {
+    return { error: "Enter a league name." };
+  }
+  if (!season_slug && visibility_type !== "public") {
+    return { error: "Select a season." };
+  }
+
   const { supabase, user } = await getServerAuth();
   if (!user) {
     return {
@@ -111,7 +109,7 @@ export async function createLeagueAction(
     };
   }
 
-  if (enforceStandardRules && visibility_type !== "public") {
+  if (enforceStandardRules) {
     if (!(await leagueCreationAccessIsConfigured())) {
       return {
         error:

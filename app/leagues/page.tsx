@@ -6,7 +6,7 @@ import { PLAY_PATH } from "@/lib/playFunnel";
 
 export const metadata = {
   title: "Leagues — Draftastic Fantasy",
-  description: "Create private or public leagues, then draft for the season",
+  description: "Create private leagues for friends, then draft for the season",
 };
 
 export default async function LeaguesPage() {
@@ -35,7 +35,8 @@ export default async function LeaguesPage() {
       </p>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem" }}>Leagues</h1>
       <p style={{ color: "#555", marginBottom: 24 }}>
-        Create private leagues for friends or public leagues for your group. New managers join with a code or invite link.
+        Create private leagues for friends, or join a public league from Play Now. New managers join private leagues with
+        a code or invite link.
       </p>
 
       <div
@@ -49,9 +50,8 @@ export default async function LeaguesPage() {
           fontSize: 14,
         }}
       >
-        Public leagues use Salary Cap — Total Season Points. Join anytime before Monday RAW (5:00 PM PT), build your
-        $100 roster, then compete for 12 weeks. Private leagues use Road to SummerSlam season windows and may require a
-        beta access code to create.
+        Public leagues use Salary Cap — Total Season Points. Join from Play Now, build your roster, then compete for 12
+        weeks. Private leagues use Road to SummerSlam season windows and may require a beta access code to create.
       </div>
 
       <p style={{ marginBottom: 16 }}>

@@ -118,8 +118,8 @@ export function PlayFunnel({
       <div className="play-funnel">
         <h1>Create a League</h1>
         <p className="play-funnel-lead">
-          Set up a public salary-cap league or a private league for friends. Private league creation during beta may
-          require a mailing-list access code.
+          Set up a private league for friends. Private league creation during beta may require a mailing-list access
+          code.
         </p>
         <div className="play-funnel-actions">
           <Link href="/leagues/new" className="play-funnel-btn play-funnel-btn-primary">
@@ -142,8 +142,8 @@ export function PlayFunnel({
           <Link href={buildPlayPath({ step: "join-public" })} className="play-funnel-card">
             <strong>Join a Public League</strong>
             <span>
-              No code needed. Build your $100 roster and compete in the current open public league. Scoring begins once
-              three factions finish setup.
+              No code needed. Build your roster and compete in the current open public league. Scoring begins on
+              Mondays, after at least three factions finish setup.
             </span>
           </Link>
           <Link href={buildPlayPath({ step: "join-private" })} className="play-funnel-card">
@@ -205,8 +205,8 @@ export function PlayFunnel({
       <div className="play-funnel">
         <h1>Join a Public League</h1>
         <p className="play-funnel-lead">
-          Here&apos;s what happens after you join. You&apos;ll only be placed in a league once you confirm on the last
-          step.
+          Public leagues are free to join and play. Here&apos;s what happens after you join. You&apos;ll only be placed
+          in a league once you confirm on the last step.
         </p>
         <ol className="play-funnel-step-list">
           {PUBLIC_JOIN_STEPS.map((item, i) => (
@@ -220,8 +220,8 @@ export function PlayFunnel({
           ))}
         </ol>
         <p className="play-funnel-note">
-          Finish before Monday RAW (5 PM PT). If you don&apos;t complete your $100 roster by then, your spot is released
-          and you&apos;ll need to join again.
+          Finish before Monday RAW (5 PM PT). If you don&apos;t complete roster setup by then, your spot is released and
+          you&apos;ll need to join again.
         </p>
         <div className="play-funnel-actions">
           <button
@@ -308,8 +308,8 @@ export function PlayFunnel({
           onChange={(e) => setCommitted(e.target.checked)}
         />
         <span>
-          I&apos;m ready to spend my full $100 budget, set up my faction, and be placed in the league. I understand my
-          spot only counts toward league start after I finish roster setup.
+          I&apos;m ready to set up my faction, build my roster within the fantasy salary cap, and be placed in the
+          league. I understand my spot only counts toward league start after I finish setup.
         </span>
       </label>
       <div className="play-funnel-actions">

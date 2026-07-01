@@ -203,32 +203,39 @@ export function CreateLeagueForm({
       </div>
 
       <div className="form-group">
-        <label>League Visibility *</label>
-        <div className="create-league-type-grid" style={{ marginBottom: 12 }}>
-          <button
-            type="button"
-            className={`create-league-type-option ${visibilityType === "private" ? "selected" : ""}`}
-            onClick={() => handleVisibilityClick("private")}
-            aria-pressed={visibilityType === "private"}
-          >
-            <strong>Private League</strong>
-            <span className="create-league-type-desc">Invite-only with code or invite link from your GM.</span>
-          </button>
-          <button
-            type="button"
-            className={`create-league-type-option ${visibilityType === "public" ? "selected" : ""}`}
-            onClick={() => handleVisibilityClick("public")}
-            aria-pressed={visibilityType === "public"}
-          >
-            <strong>Public League</strong>
-            <span className="create-league-type-desc">
-              Salary Cap — Total Season Points. Open enrollment until Monday RAW (5 PM PT); no team cap. You become GM
-              when you create the league. Build your $100 roster. Scoring starts that Monday once at least three
-              factions have joined (otherwise enrollment rolls another week) for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
-            </span>
-          </button>
-        </div>
-        <input type="hidden" name="visibility_type" value={visibilityType} />
+        {adminFullMode ? (
+          <>
+            <label>League Visibility *</label>
+            <div className="create-league-type-grid" style={{ marginBottom: 12 }}>
+              <button
+                type="button"
+                className={`create-league-type-option ${visibilityType === "private" ? "selected" : ""}`}
+                onClick={() => handleVisibilityClick("private")}
+                aria-pressed={visibilityType === "private"}
+              >
+                <strong>Private League</strong>
+                <span className="create-league-type-desc">Invite-only with code or invite link from your GM.</span>
+              </button>
+              <button
+                type="button"
+                className={`create-league-type-option ${visibilityType === "public" ? "selected" : ""}`}
+                onClick={() => handleVisibilityClick("public")}
+                aria-pressed={visibilityType === "public"}
+              >
+                <strong>Public League</strong>
+                <span className="create-league-type-desc">
+                  Site admin only. Salary Cap — Total Season Points with open enrollment.
+                </span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.5 }}>
+            This form creates a <strong>private league</strong> for friends. To join a public league, use{" "}
+            <strong>Play Now</strong> from the home page.
+          </p>
+        )}
+        <input type="hidden" name="visibility_type" value={adminFullMode ? visibilityType : "private"} />
       </div>
 
       <div className="form-group">

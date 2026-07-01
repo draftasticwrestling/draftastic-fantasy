@@ -27,14 +27,18 @@ export default async function NewLeaguePage() {
         </Link>
         <h1>Create a League</h1>
         <p style={{ margin: "0 0 24px", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
-          Choose private or public. Public leagues use salary cap rosters — no access code required. The first manager
-          into a new public league becomes GM. Private leagues during beta may still require a mailing-list access code
-          to create.
+          Create a private league for friends. Managers join with your league code or invite link. During beta, creation
+          may require a mailing-list access code.
           {requiresAccessCodeEnv && !isSiteAdmin ? (
             <>
               {" "}
-              <strong>Private league beta:</strong> you need the access code from our mailing list to create a private
-              league; public leagues are open to everyone.
+              <strong>Private league beta:</strong> you need the access code from our mailing list to create a league.
+              To join a public league instead, use <strong>Play Now</strong> from the home page.
+            </>
+          ) : !isSiteAdmin ? (
+            <>
+              {" "}
+              To join a public league, use <strong>Play Now</strong> from the home page.
             </>
           ) : null}
           {isSiteAdmin ? (

@@ -69,32 +69,36 @@ export async function POST(request: Request) {
     const isSiteAdmin = Boolean((profile as { is_site_admin?: boolean | null } | null)?.is_site_admin);
 
     if (!isSiteAdmin) {
-      if (include_nxt && !isPublicCreate) {
+      if (isPublicCreate) {
+        return NextResponse.json(
+          { error: "Public leagues cannot be created. Join an open public league from Play Now instead." },
+          { status: 403 }
+        );
+      }
+      if (include_nxt) {
         return NextResponse.json(
           { error: "Only site administrators can set include_nxt." },
           { status: 403 }
         );
       }
-      if (league_type_raw && !isPublicCreate) {
+      if (league_type_raw) {
         return NextResponse.json(
           { error: "Only site administrators can set league_type via this API." },
           { status: 403 }
         );
       }
-      if (!isPublicCreate) {
-        if (!(await leagueCreationAccessIsConfigured())) {
-          return NextResponse.json(
-            { error: "League creation access codes are not configured yet." },
-            { status: 503 }
-          );
-        }
-        const consume = await consumeLeagueCreationAccessCode(accessCode);
-        if (!consume.ok) {
-          return NextResponse.json(
-            { error: consume.error ?? "Invalid league creation access code." },
-            { status: 403 }
-          );
-        }
+      if (!(await leagueCreationAccessIsConfigured())) {
+        return NextResponse.json(
+          { error: "League creation access codes are not configured yet." },
+          { status: 503 }
+        );
+      }
+      const consume = await consumeLeagueCreationAccessCode(accessCode);
+      if (!consume.ok) {
+        return NextResponse.json(
+          { error: consume.error ?? "Invalid league creation access code." },
+          { status: 403 }
+        );
       }
     }
 

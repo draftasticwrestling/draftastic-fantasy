@@ -69,11 +69,13 @@ export const PUBLIC_JOIN_STEPS = [
     detail: "Pick a team name, manager avatar, and catchphrase.",
   },
   {
-    title: "Build your $100 roster",
-    detail: "Draft wrestlers within the salary cap before scoring begins.",
+    title: "Build your roster",
+    detail:
+      "Pick wrestlers using your $100 fantasy salary cap. Playing is free—the cap only limits in-game roster value, not what you pay.",
   },
   {
     title: "Compete weekly",
-    detail: "Earn points from RAW, SmackDown, and PLEs. Leagues start once three factions finish setup by Monday RAW (5 PM PT).",
+    detail:
+      "Earn points from RAW, SmackDown, and PLEs. Scoring begins on Mondays after at least three factions finish setup.",
   },
 ] as const;

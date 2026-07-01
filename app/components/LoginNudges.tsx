@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { siteLogoHref } from "@/lib/siteLogo";
 
 type Nudge = {
@@ -70,7 +71,13 @@ function shouldShowNudge(n: Nudge): boolean {
   return !wasNudgeSeenToday(n.key);
 }
 
+function isLeagueSetupPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return /^\/leagues\/[^/]+\/(onboarding|salary-cap)(\/|$)/.test(pathname);
+}
+
 export default function LoginNudges() {
+  const pathname = usePathname();
   const [loaded, setLoaded] = useState(false);
   const [nudges, setNudges] = useState<Nudge[]>([]);
   const [idx, setIdx] = useState(0);
@@ -82,9 +89,13 @@ export default function LoginNudges() {
       .then((data) => {
         if (cancelled) return;
         const list = Array.isArray(data?.nudges) ? (data.nudges as Nudge[]) : [];
-        // Default: at most once per calendar day (local). `persist: once` = one lifetime dismiss per browser.
-        const filtered = list.filter(shouldShowNudge);
+        const filtered = list.filter((n) => {
+          if (!shouldShowNudge(n)) return false;
+          if (n.key === "pending_league_setup" && isLeagueSetupPath(pathname)) return false;
+          return true;
+        });
         setNudges(filtered);
+        setIdx(0);
         setLoaded(true);
       })
       .catch(() => {
@@ -93,7 +104,7 @@ export default function LoginNudges() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pathname]);
 
   const current = useMemo(() => nudges[idx] ?? null, [nudges, idx]);
 
