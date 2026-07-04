@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { getLeagueBySlug, getRostersForLeague, syncPublicLeagueStatusBySlug } from "@/lib/leagues";
 import { addWrestlerToRoster, removeWrestlerFromRoster } from "@/lib/leagues";
-import { activateLeaguePlacement } from "@/lib/leaguePlacement";
+import { activateLeaguePlacement, maybeActivatePlacementForStartedRoster } from "@/lib/leaguePlacement";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { isSalaryCapRosterSetupComplete } from "@/lib/leagueOnboarding";
-import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser } from "@/lib/salaryCap";
+import { getSalaryCapLeagueMeta } from "@/lib/salaryCap";
 import { awardLeagueJoinXp } from "@/lib/xp/leagueJoinAward";
 import { maybeAwardLeagueStartedXpBySlug } from "@/lib/xp/leagueStartedAward";
 
@@ -44,6 +44,13 @@ export async function addSalaryCapWrestlerAction(
 
   const result = await addWrestlerToRoster(league.id, user.id, wrestlerId, null, true);
   if (result.error) return result;
+
+  const placement = await maybeActivatePlacementForStartedRoster(league.id, user.id);
+  if (placement.error) return { error: placement.error };
+  if (placement.activated) {
+    await syncPublicLeagueStatusBySlug(leagueSlug);
+    await maybeAwardLeagueStartedXpBySlug(leagueSlug);
+  }
 
   revalidatePath(`/leagues/${leagueSlug}/salary-cap`);
   revalidatePath(`/leagues/${leagueSlug}/faction`);
@@ -123,13 +130,6 @@ export async function finishSalaryCapInitialRosterAction(
 
   const meta = await getSalaryCapLeagueMeta(supabase, league.id);
   if (!meta) return { error: "Not a salary cap league." };
-  const { spent } = await getSalaryCapSpentForUser(supabase, league.id, user.id);
-  const remaining = meta.budget - spent;
-  if (remaining !== 0) {
-    return {
-      error: `Spend your full $${meta.budget} budget before completing setup ($${remaining} remaining).`,
-    };
-  }
 
   const { data: member } = await supabase
     .from("league_members")
@@ -143,11 +143,13 @@ export async function finishSalaryCapInitialRosterAction(
   );
 
   if (!alreadyComplete) {
-    const placement = await activateLeaguePlacement(league.id, user.id);
+    const placement = await activateLeaguePlacement(league.id, user.id, { completeSetup: true });
     if (placement.error) return { error: placement.error };
     await awardLeagueJoinXp(user.id, leagueSlug);
     await syncPublicLeagueStatusBySlug(leagueSlug);
     await maybeAwardLeagueStartedXpBySlug(leagueSlug);
+  } else {
+    await maybeActivatePlacementForStartedRoster(league.id, user.id);
   }
 
   revalidatePath(`/leagues/${leagueSlug}/salary-cap`);

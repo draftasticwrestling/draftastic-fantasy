@@ -1,16 +1,20 @@
 import "server-only";
 
 import { leagueOnboardingPath, leagueUsesMemberOnboarding, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
-import { isPlacedLeagueMember } from "@/lib/leaguePlacement";
+import {
+  isPlacedLeagueMember,
+  maybeActivatePlacementForStartedRoster,
+} from "@/lib/leaguePlacement";
 import { PLAY_PATH } from "@/lib/playFunnel";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
+import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser } from "@/lib/salaryCap";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 
 export type LoginNudgeKey = "missing_draft_prefs" | "no_league_joined" | "pending_league_setup";
 
 /** Shown once per browser (localStorage) when rules match; not configurable in admin. */
-export type DynamicLoginNudgeKey = "post_draft_roster_check";
+export type DynamicLoginNudgeKey = "salary_cap_budget_remaining";
 
 export type LoginNudgeConfig = {
   nudge_key: LoginNudgeKey;
@@ -176,15 +180,19 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
     .filter((row) => row.leagues?.league_type !== "salary_cap")
     .map((r) => r.league_id);
 
-  const completedDraftRows = leagueRows.filter((row) => {
-    if (Boolean(row.leagues?.is_archived)) return false;
-    return String(row.leagues?.draft_status ?? "") === "completed";
-  });
-  const firstCompletedSlug =
-    completedDraftRows.map((r) => r.leagues?.slug).find((s) => s && String(s).trim().length > 0) ?? null;
-
   const configs = await getLoginNudgeConfigs();
   const nudges: UserLoginNudge[] = [];
+
+  const { data: activeRosterRows } = await supabase
+    .from("league_rosters")
+    .select("league_id")
+    .eq("user_id", user.id)
+    .is("released_at", null);
+  const rosterCountByLeagueId = new Map<string, number>();
+  for (const row of activeRosterRows ?? []) {
+    const leagueId = (row as { league_id: string }).league_id;
+    rosterCountByLeagueId.set(leagueId, (rosterCountByLeagueId.get(leagueId) ?? 0) + 1);
+  }
 
   // Only show "no league joined" when the user truly has no memberships.
   if (leagueRows.length === 0) {
@@ -219,6 +227,7 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
       {
         placement_status: row.placement_status as "pending" | "active" | null | undefined,
         onboarding_completed_at: row.onboarding_completed_at ?? null,
+        active_roster_count: rosterCountByLeagueId.get(row.league_id) ?? 0,
       },
       leagueCtx
     );
@@ -264,6 +273,46 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
     }
   }
 
+  const budgetRemainingRows = leagueRows.filter((row) => {
+    if (Boolean(row.leagues?.is_archived)) return false;
+    if (row.onboarding_completed_at?.trim()) return false;
+    const leagueCtx = {
+      visibility_type: row.leagues?.visibility_type ?? null,
+      league_type: row.leagues?.league_type ?? null,
+      season_slug: row.leagues?.season_slug ?? null,
+    };
+    if (!isPublicSalaryCapLeague(leagueCtx)) return false;
+    const activeRosterCount = rosterCountByLeagueId.get(row.league_id) ?? 0;
+    if (activeRosterCount === 0) return false;
+    return isPlacedLeagueMember(
+      {
+        placement_status: row.placement_status as "pending" | "active" | null | undefined,
+        onboarding_completed_at: row.onboarding_completed_at ?? null,
+        active_roster_count: activeRosterCount,
+      },
+      leagueCtx
+    );
+  });
+
+  if (budgetRemainingRows.length > 0) {
+    const first = budgetRemainingRows[0];
+    const slug = first.leagues?.slug?.trim() ?? "";
+    const leagueName = first.leagues?.name?.trim() || slug || "your public league";
+    const meta = await getSalaryCapLeagueMeta(supabase, first.league_id);
+    const { spent } = await getSalaryCapSpentForUser(supabase, first.league_id, user.id);
+    const remaining = (meta?.budget ?? 100) - spent;
+    if (remaining > 0) {
+      const href = slug ? `/leagues/${encodeURIComponent(slug)}/salary-cap` : "/leagues";
+      nudges.push({
+        key: "salary_cap_budget_remaining",
+        title: "Finish building your roster",
+        body: `You still have $${remaining} left on your fantasy salary cap in ${leagueName}. Add wrestlers before Monday RAW (5 PM PT), or complete setup when you're ready.`,
+        primaryCta: { label: "Build roster", href },
+        secondaryCta: null,
+      });
+    }
+  }
+
   const { data: prefRows } = await supabase
     .from("league_draft_preferences")
     .select("league_id")
@@ -299,20 +348,6 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
             : null,
       });
     }
-  }
-
-  if (completedDraftRows.length > 0) {
-    const rosterHref = firstCompletedSlug
-      ? `/leagues/${encodeURIComponent(firstCompletedSlug)}/faction`
-      : "/leagues";
-    nudges.push({
-      key: "post_draft_roster_check",
-      title: "Check your roster!",
-      body: "Your draft is complete and your roster is ready. Backlash is less than a week away!",
-      primaryCta: { label: "View roster", href: rosterHref },
-      secondaryCta: null,
-      persist: "once",
-    });
   }
 
   return nudges;

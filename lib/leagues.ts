@@ -81,10 +81,12 @@ import { generateJoinCode, INVITE_LINK_EXPIRY_DAYS } from "@/lib/leagueJoinCode"
 import { awardLeagueJoinXp } from "@/lib/xp/leagueJoinAward";
 import { maybeAwardLeagueStartedXpBySlug } from "@/lib/xp/leagueStartedAward";
 import {
+  attachActiveRosterCountsToMembers,
   countPlacedLeagueMembers,
   filterPlacedLeagueMembers,
   markPublicLeagueJoinPending,
   purgeUnplacedPublicLeagueMembersIfRegistrationClosed,
+  syncLeaguePlacementFromRosters,
 } from "@/lib/leaguePlacement";
 import {
   beltScoringLastMonthEndInclusive,
@@ -145,6 +147,7 @@ export type LeagueMember = {
   avatar_url?: string | null;
   placement_status?: "pending" | "active" | null;
   onboarding_completed_at?: string | null;
+  active_roster_count?: number;
 };
 
 export type LeagueWithRole = League & { role: "commissioner" | "owner" };
@@ -654,7 +657,12 @@ export async function getLeagueStandingsMembers(
   league: { visibility_type?: string | null; league_type?: string | null; season_slug?: string | null }
 ): Promise<LeagueMember[]> {
   const members = await getLeagueMembers(leagueId);
-  return filterPlacedLeagueMembers(members, league);
+  if (!isPublicSalaryCapLeague(league)) {
+    return filterPlacedLeagueMembers(members, league);
+  }
+  const { supabase } = await getServerAuth();
+  const enriched = await attachActiveRosterCountsToMembers(supabase, leagueId, members);
+  return filterPlacedLeagueMembers(enriched, league);
 }
 
 /**
@@ -1165,6 +1173,7 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
   } | null;
   if (!row?.id || row.visibility_type !== "public") return;
 
+  await syncLeaguePlacementFromRosters(row.id, row);
   await purgeUnplacedPublicLeagueMembersIfRegistrationClosed(row.id, row);
 
   const memberCount = await countPlacedLeagueMembers(admin, row.id, row);

@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeIlikePattern } from "@/lib/internalAdmin/escapeIlike";
-import { isPlacedLeagueMember } from "@/lib/leaguePlacement";
+import { isPlacedLeagueMember, syncLeaguePlacementFromRosters } from "@/lib/leaguePlacement";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 
 const LEAGUE_LIST_SELECT =
@@ -259,6 +259,12 @@ export async function siteAdminGetLeagueBySlug(
   const commMap = await commissionerNamesByIds(admin, [L.commissioner_id]);
   const commissioner_display_name = commMap.get(L.commissioner_id) ?? null;
 
+  await syncLeaguePlacementFromRosters(L.id, {
+    visibility_type: L.visibility_type ?? null,
+    league_type: L.league_type ?? null,
+    season_slug: L.season_slug ?? null,
+  });
+
   const { data: members, error: memErr } = await admin
     .from("league_members")
     .select("user_id, role, joined_at, team_name, placement_status, onboarding_completed_at")
@@ -350,18 +356,12 @@ async function buildSiteAdminLeagueDetail(
       {
         placement_status: legacyPlacementColumns ? null : (m.placement_status as "pending" | "active" | null),
         onboarding_completed_at: m.onboarding_completed_at ?? null,
+        active_roster_count: activeByUser.get(m.user_id) ?? 0,
       },
       leaguePlacementCtx
     );
-    const placement_status =
-      !trackPlacement
-        ? null
-        : placed
-          ? "active"
-          : m.placement_status === "pending" || !m.onboarding_completed_at?.trim()
-            ? "pending"
-            : "active";
     const placement_label = !trackPlacement ? "—" : placed ? "Placed" : "Pending setup";
+    const placement_status = !trackPlacement ? null : placed ? "active" : "pending";
 
     return {
       user_id: m.user_id,

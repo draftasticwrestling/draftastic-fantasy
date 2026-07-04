@@ -92,6 +92,7 @@ export default function LoginNudges() {
         const filtered = list.filter((n) => {
           if (!shouldShowNudge(n)) return false;
           if (n.key === "pending_league_setup" && isLeagueSetupPath(pathname)) return false;
+          if (n.key === "salary_cap_budget_remaining" && isLeagueSetupPath(pathname)) return false;
           return true;
         });
         setNudges(filtered);

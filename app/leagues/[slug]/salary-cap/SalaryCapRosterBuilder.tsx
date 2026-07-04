@@ -441,16 +441,16 @@ export function SalaryCapRosterBuilder({
           }}
         >
           <p style={{ margin: 0, fontSize: 14, color: "var(--color-text)", flex: "1 1 220px" }}>
-            {remaining > 0
-              ? `Spend your full $${budget} budget ($${remaining} remaining) before you are placed in the league.`
-              : roster.length === 0
-                ? "Add wrestlers from the pool until your full budget is spent, then complete setup."
-                : "Your full budget is spent. Complete setup to join the league standings and open your faction page."}
+            {roster.length === 0
+              ? "Add at least one wrestler to be placed in the league. You can keep building your roster until you spend your full fantasy budget."
+              : remaining > 0
+                ? `You're in the league with ${roster.length} wrestler${roster.length === 1 ? "" : "s"}. You still have $${remaining} left on your fantasy salary cap — add more or complete setup when you're ready.`
+                : "Your full fantasy budget is spent. Complete setup to lock in your roster and open your faction page."}
           </p>
           <button
             type="button"
             className="app-button"
-            disabled={pending || roster.length === 0 || remaining !== 0}
+            disabled={pending || roster.length === 0}
             onClick={finishInitialRoster}
           >
             {pending ? "Continuing…" : finishRosterLabel}

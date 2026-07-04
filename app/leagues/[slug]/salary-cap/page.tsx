@@ -4,7 +4,7 @@ import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getRostersForLeague } from "@/lib/leagues";
 import { leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEFAULT } from "@/lib/leagueStructure";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
-import { purgeUnplacedPublicLeagueMembersIfRegistrationClosed } from "@/lib/leaguePlacement";
+import { purgeUnplacedPublicLeagueMembersIfRegistrationClosed, maybeActivatePlacementForStartedRoster } from "@/lib/leaguePlacement";
 import { buildSalaryCapWrestlerPool } from "@/lib/salaryCapWrestlerPool";
 import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
 import { SalaryCapRosterBuilder } from "./SalaryCapRosterBuilder";
@@ -67,6 +67,11 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
 
   const rosters = await getRostersForLeague(league.id);
   const myEntries = rosters[user.id] ?? [];
+
+  if (isPublicSalaryCapLeague(league) && myEntries.length > 0) {
+    await maybeActivatePlacementForStartedRoster(league.id, user.id);
+  }
+
   const nameById = Object.fromEntries(poolWithStats.map((w) => [w.id, w.name]));
   const imageById = Object.fromEntries(poolWithStats.map((w) => [w.id, w.imageUrl]));
 

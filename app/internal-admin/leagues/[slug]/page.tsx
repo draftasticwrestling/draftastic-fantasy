@@ -190,6 +190,7 @@ export default async function InternalAdminLeagueDetailPage({
       manager_catchphrase: null,
       avatar_url: null,
       placement_status: m.placement_status,
+      active_roster_count: m.active_roster_count,
     }));
     const wltByUserId = isHeadToHeadRecordStandings
       ? computeMatchupWltByUserId(

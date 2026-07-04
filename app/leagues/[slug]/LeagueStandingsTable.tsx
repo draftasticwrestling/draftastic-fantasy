@@ -85,7 +85,8 @@ export function LeagueStandingsTable({
           const extra = rowExtras[idx] ?? null;
           const xpLabel = xpByUserId?.[m.user_id]?.label;
           const catchphrase = m.manager_catchphrase?.trim() ?? "";
-          const isPendingSetup = m.placement_status === "pending";
+          const isPendingSetup =
+            m.placement_status === "pending" && (m.active_roster_count ?? 0) === 0;
           return (
             <li
               key={m.id}

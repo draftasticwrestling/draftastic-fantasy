@@ -10,6 +10,8 @@ export type LeaguePlacementStatus = "pending" | "active";
 export type LeagueMemberPlacementRow = {
   placement_status?: string | null;
   onboarding_completed_at?: string | null;
+  /** Active (unreleased) wrestlers on this member's roster. */
+  active_roster_count?: number;
 };
 
 export type LeaguePlacementContext = {
@@ -18,17 +20,48 @@ export type LeaguePlacementContext = {
   season_slug?: string | null;
 };
 
+function rosterStarted(member: LeagueMemberPlacementRow): boolean {
+  return (member.active_roster_count ?? 0) > 0;
+}
+
 /** True when this member should appear in standings and count toward league start. */
 export function isPlacedLeagueMember(
   member: LeagueMemberPlacementRow,
   league?: LeaguePlacementContext | null
 ): boolean {
-  if (member.placement_status === "pending") return false;
-  if (member.placement_status === "active") return true;
   if (league && isPublicSalaryCapLeague(league)) {
+    if (member.placement_status === "active") return true;
+    if (rosterStarted(member)) return true;
+    if (member.placement_status === "pending") return false;
     return Boolean(member.onboarding_completed_at?.trim());
   }
+  if (member.placement_status === "pending") return false;
+  if (member.placement_status === "active") return true;
   return true;
+}
+
+export async function attachActiveRosterCountsToMembers<T extends { user_id: string }>(
+  client: Pick<SupabaseClient, "from">,
+  leagueId: string,
+  members: T[]
+): Promise<(T & { active_roster_count: number })[]> {
+  if (members.length === 0) return [];
+  const { data: rosterRows } = await client
+    .from("league_rosters")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .is("released_at", null);
+
+  const counts = new Map<string, number>();
+  for (const row of rosterRows ?? []) {
+    const userId = (row as { user_id: string }).user_id;
+    counts.set(userId, (counts.get(userId) ?? 0) + 1);
+  }
+
+  return members.map((member) => ({
+    ...member,
+    active_roster_count: counts.get(member.user_id) ?? 0,
+  }));
 }
 
 export function filterPlacedLeagueMembers<T extends LeagueMemberPlacementRow & { user_id: string }>(
@@ -45,18 +78,13 @@ export async function countPlacedLeagueMembers(
   league?: LeaguePlacementContext | null
 ): Promise<number> {
   if (league && isPublicSalaryCapLeague(league)) {
-    const { count, error } = await admin
+    const { data: members, error } = await admin
       .from("league_members")
-      .select("*", { count: "exact", head: true })
-      .eq("league_id", leagueId)
-      .eq("placement_status", "active");
-    if (!error && count != null) return count;
-    const { count: legacyCount } = await admin
-      .from("league_members")
-      .select("*", { count: "exact", head: true })
-      .eq("league_id", leagueId)
-      .not("onboarding_completed_at", "is", null);
-    return legacyCount ?? 0;
+      .select("user_id, placement_status, onboarding_completed_at")
+      .eq("league_id", leagueId);
+    if (error || !members) return 0;
+    const enriched = await attachActiveRosterCountsToMembers(admin, leagueId, members as { user_id: string }[]);
+    return enriched.filter((m) => isPlacedLeagueMember(m, league)).length;
   }
   const { count } = await admin
     .from("league_members")
@@ -67,23 +95,30 @@ export async function countPlacedLeagueMembers(
 
 export async function activateLeaguePlacement(
   leagueId: string,
-  userId: string
+  userId: string,
+  options?: { completeSetup?: boolean }
 ): Promise<{ error?: string }> {
   const admin = getAdminClient();
   if (!admin) return { error: "Server configuration error." };
 
+  const completeSetup = options?.completeSetup ?? false;
   const now = new Date().toISOString();
+  const update: { placement_status: string; onboarding_completed_at?: string } = {
+    placement_status: "active",
+  };
+  if (completeSetup) {
+    update.onboarding_completed_at = now;
+  }
+
   const { error } = await admin
     .from("league_members")
-    .update({
-      placement_status: "active",
-      onboarding_completed_at: now,
-    })
+    .update(update)
     .eq("league_id", leagueId)
     .eq("user_id", userId);
 
   if (error) {
     if (/placement_status/i.test(error.message ?? "")) {
+      if (!completeSetup) return {};
       const { error: fallbackErr } = await admin
         .from("league_members")
         .update({ onboarding_completed_at: now })
@@ -95,6 +130,69 @@ export async function activateLeaguePlacement(
     return { error: error.message };
   }
   return {};
+}
+
+/** Place a pending member once they have at least one wrestler (setup can continue). */
+export async function maybeActivatePlacementForStartedRoster(
+  leagueId: string,
+  userId: string
+): Promise<{ activated: boolean; error?: string }> {
+  const admin = getAdminClient();
+  if (!admin) return { activated: false, error: "Server configuration error." };
+
+  const { data: member, error: memberErr } = await admin
+    .from("league_members")
+    .select("placement_status")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (memberErr || !member) return { activated: false };
+
+  if ((member as { placement_status?: string | null }).placement_status === "active") {
+    return { activated: false };
+  }
+
+  const { count, error: countErr } = await admin
+    .from("league_rosters")
+    .select("*", { count: "exact", head: true })
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .is("released_at", null);
+  if (countErr || (count ?? 0) === 0) return { activated: false };
+
+  const result = await activateLeaguePlacement(leagueId, userId, { completeSetup: false });
+  if (result.error) return { activated: false, error: result.error };
+  return { activated: true };
+}
+
+/** Persist active placement for pending members who already have wrestlers on roster. */
+export async function syncLeaguePlacementFromRosters(
+  leagueId: string,
+  league?: LeaguePlacementContext | null
+): Promise<number> {
+  if (!league || !isPublicSalaryCapLeague(league)) return 0;
+  const admin = getAdminClient();
+  if (!admin) return 0;
+
+  const { data: pendingMembers, error } = await admin
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .eq("placement_status", "pending");
+  if (error) {
+    if (/placement_status/i.test(error.message ?? "")) return 0;
+    return 0;
+  }
+
+  let updated = 0;
+  for (const row of pendingMembers ?? []) {
+    const result = await maybeActivatePlacementForStartedRoster(
+      leagueId,
+      (row as { user_id: string }).user_id
+    );
+    if (result.activated) updated++;
+  }
+  return updated;
 }
 
 export async function markPublicLeagueJoinPending(
@@ -123,13 +221,10 @@ export async function markPublicLeagueJoinPending(
   }
 }
 
-function isUnplacedMemberRow(row: LeagueMemberPlacementRow): boolean {
-  return !isPlacedLeagueMember(row);
-}
-
 async function listUnplacedMemberUserIds(
   admin: Pick<SupabaseClient, "from">,
-  leagueId: string
+  leagueId: string,
+  league?: LeaguePlacementContext | null
 ): Promise<string[]> {
   const { data, error } = await admin
     .from("league_members")
@@ -143,14 +238,23 @@ async function listUnplacedMemberUserIds(
         .select("user_id, onboarding_completed_at")
         .eq("league_id", leagueId)
         .is("onboarding_completed_at", null);
-      return (legacy ?? []).map((r) => (r as { user_id: string }).user_id);
+      const legacyRows = (legacy ?? []) as { user_id: string }[];
+      if (!league || !isPublicSalaryCapLeague(league)) {
+        return legacyRows.map((r) => r.user_id);
+      }
+      const enriched = await attachActiveRosterCountsToMembers(admin, leagueId, legacyRows);
+      return enriched
+        .filter((row) => !isPlacedLeagueMember(row, league))
+        .map((row) => row.user_id);
     }
     return [];
   }
 
-  return (data ?? [])
-    .filter((row) => isUnplacedMemberRow(row as LeagueMemberPlacementRow))
-    .map((row) => (row as { user_id: string }).user_id);
+  const rows = (data ?? []) as { user_id: string; placement_status?: string | null; onboarding_completed_at?: string | null }[];
+  const enriched = await attachActiveRosterCountsToMembers(admin, leagueId, rows);
+  return enriched
+    .filter((row) => !isPlacedLeagueMember(row, league))
+    .map((row) => row.user_id);
 }
 
 async function ensureCommissionerAfterMemberRemoval(
@@ -187,7 +291,7 @@ async function ensureCommissionerAfterMemberRemoval(
 }
 
 /**
- * Remove public salary-cap members who never finished roster setup once enrollment closes
+ * Remove public salary-cap members with no wrestlers on roster once enrollment closes
  * (Monday RAW 5 PM PT). Returns number of memberships removed.
  */
 export async function purgeUnplacedPublicLeagueMembersIfRegistrationClosed(
@@ -201,7 +305,7 @@ export async function purgeUnplacedPublicLeagueMembersIfRegistrationClosed(
   const admin = getAdminClient();
   if (!admin) return 0;
 
-  const userIds = await listUnplacedMemberUserIds(admin, leagueId);
+  const userIds = await listUnplacedMemberUserIds(admin, leagueId, league);
   if (userIds.length === 0) return 0;
 
   for (const userId of userIds) {
