@@ -174,23 +174,37 @@ export async function syncLeaguePlacementFromRosters(
   const admin = getAdminClient();
   if (!admin) return 0;
 
-  const { data: pendingMembers, error } = await admin
+  let memberRows: {
+    user_id: string;
+    placement_status?: string | null;
+    onboarding_completed_at?: string | null;
+  }[] = [];
+
+  const primary = await admin
     .from("league_members")
-    .select("user_id")
-    .eq("league_id", leagueId)
-    .eq("placement_status", "pending");
-  if (error) {
-    if (/placement_status/i.test(error.message ?? "")) return 0;
+    .select("user_id, placement_status, onboarding_completed_at")
+    .eq("league_id", leagueId);
+
+  if (!primary.error) {
+    memberRows = (primary.data ?? []) as typeof memberRows;
+  } else if (/placement_status/i.test(primary.error.message ?? "")) {
+    const fallback = await admin
+      .from("league_members")
+      .select("user_id, onboarding_completed_at")
+      .eq("league_id", leagueId);
+    if (fallback.error) return 0;
+    memberRows = (fallback.data ?? []) as typeof memberRows;
+  } else {
     return 0;
   }
 
+  const enriched = await attachActiveRosterCountsToMembers(admin, leagueId, memberRows);
   let updated = 0;
-  for (const row of pendingMembers ?? []) {
-    const result = await maybeActivatePlacementForStartedRoster(
-      leagueId,
-      (row as { user_id: string }).user_id
-    );
-    if (result.activated) updated++;
+  for (const row of enriched) {
+    if (!isPlacedLeagueMember(row, league)) continue;
+    if (row.placement_status === "active") continue;
+    const result = await activateLeaguePlacement(leagueId, row.user_id, { completeSetup: false });
+    if (!result.error) updated++;
   }
   return updated;
 }

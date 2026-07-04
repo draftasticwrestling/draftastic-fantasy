@@ -360,7 +360,13 @@ async function buildSiteAdminLeagueDetail(
       },
       leaguePlacementCtx
     );
-    const placement_label = !trackPlacement ? "—" : placed ? "Placed" : "Pending setup";
+    const placement_label = !trackPlacement
+      ? "—"
+      : placed
+        ? (m.placement_status === "pending" && (activeByUser.get(m.user_id) ?? 0) > 0
+            ? "Placed (budget open)"
+            : "Placed")
+        : "Pending setup";
     const placement_status = !trackPlacement ? null : placed ? "active" : "pending";
 
     return {
@@ -380,7 +386,7 @@ async function buildSiteAdminLeagueDetail(
   const public_status = L.public_status ?? null;
   const is_archived = Boolean(L.is_archived ?? false);
   const archived_at = L.archived_at ?? null;
-  const placedCount = membersOut.filter((m) => m.placement_label === "Placed").length;
+  const placedCount = membersOut.filter((m) => m.placement_label.startsWith("Placed")).length;
   const pendingCount = membersOut.filter((m) => m.placement_label === "Pending setup").length;
 
   return {
