@@ -1128,7 +1128,11 @@ export async function closeExpiredPublicLeagues(): Promise<void> {
     );
 
     if (memberCount >= MIN_LEAGUE_TEAMS) {
-      await admin.from("leagues").update({ public_status: "active" }).eq("id", id);
+      const update: { public_status: string; draft_status?: string } = { public_status: "active" };
+      if (isPublicSalaryCapLeague(row as { visibility_type?: string | null; league_type?: string | null; season_slug?: string | null })) {
+        update.draft_status = "completed";
+      }
+      await admin.from("leagues").update(update).eq("id", id);
       await maybeAwardLeagueStartedXpBySlug(slug);
       continue;
     }
@@ -1187,6 +1191,7 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
     if (!isPublicLeagueRegistrationOpen(row)) {
       if (memberCount >= MIN_LEAGUE_TEAMS) {
         updatePayload.public_status = "active";
+        updatePayload.draft_status = "completed";
       } else if (row.registration_closes_at) {
         const extended = extendPublicLeagueRegistrationOneWeek(row.registration_closes_at);
         updatePayload.registration_closes_at = extended.registration_closes_at;
