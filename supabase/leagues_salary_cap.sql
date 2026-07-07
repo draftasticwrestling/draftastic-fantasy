@@ -35,7 +35,7 @@ comment on column public.leagues.league_type is
   'Format: season_overall, head_to_head, combo, legacy, salary_cap (shared pool, budget roster build).';
 
 -- Fallback: seed tiers from 2K26 rating where unset ("2K26 rating" is stored as text).
--- For official Road to SummerSlam tiers, run supabase/seed_salary_cap_wrestler_values.sql after this.
+-- For official salary cap tiers, run the latest seed (e.g. supabase/seed_salary_cap_wrestler_values_2026-07-07.sql) after this.
 update public.wrestlers
 set salary_cap_cost = case
   when coalesce(nullif(trim("2K26 rating"), '')::numeric, 0) >= 90 then 25

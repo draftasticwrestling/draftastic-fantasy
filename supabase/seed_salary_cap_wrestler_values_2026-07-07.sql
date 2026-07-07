@@ -1,43 +1,41 @@
--- Official salary cap tiers (effective 2026-06-17; superseded by seed_salary_cap_wrestler_values_2026-07-07.sql).
+-- Official salary cap tiers (effective 2026-07-07).
 -- Run after supabase/leagues_salary_cap.sql. Safe to re-run (overwrites salary_cap_cost for listed wrestlers).
--- Uses a CTE only (no temp tables) so Supabase SQL editor won't flag RLS on _salary_cap_seed.
--- New leagues snapshot prices at creation; existing public leagues keep their frozen values.
+-- Public salary-cap leagues snapshot prices at creation; leagues that already exist keep frozen snapshot values.
+-- Run this in Supabase before the next public league slot opens so new leagues pick up these tiers.
 
 with salary_cap_seed(name, cost) as (
   values
     -- $25
-    ('Cody Rhodes', 25),
     ('Liv Morgan', 25),
     ('Rhea Ripley', 25),
     ('Roman Reigns', 25),
+    ('Sami Zayn', 25),
     -- $20
+    ('Cody Rhodes', 20),
     ('CM Punk', 20),
     ('Gunther', 20),
     ('Randy Orton', 20),
     ('Jey Uso', 20),
     ('Oba Femi', 20),
+    ('Seth Rollins', 20),
+    ('Iyo Sky', 20),
     -- $15
     ('Jacob Fatu', 15),
     ('Bron Breakker', 15),
     ('Drew McIntyre', 15),
     ('Penta', 15),
-    ('Seth Rollins', 15),
     ('Stephanie Vaquer', 15),
     ('Tiffany Stratton', 15),
     ('Trick Williams', 15),
-    ('Iyo Sky', 15),
-    ('Sami Zayn', 15),
     ('Sol Ruca', 15),
-    ('Charlotte Flair', 15),
     -- $10
+    ('Charlotte Flair', 10),
     ('Jade Cargill', 10),
     ('Becky Lynch', 10),
-    ('Austin Theory', 10),
     ('Brie Bella', 10),
     ('Damian Priest', 10),
     ('Dominik Mysterio', 10),
     ('Ethan Page', 10),
-    ('Jacy Jayne', 10),
     ('Je''Von Evans', 10),
     ('Logan Paul', 10),
     ('Paige', 10),
@@ -49,18 +47,21 @@ with salary_cap_seed(name, cost) as (
     ('LA Knight', 10),
     ('Lash Legend', 10),
     ('Royce Keys', 10),
-    ('Rusev', 10),
     ('Alexa Bliss', 10),
-    ('Chelsea Green', 10),
     ('Finn Balor', 10),
     ('Giulia', 10),
     ('Solo Sikoa', 10),
+    ('Angelo Dawkins', 10),
+    ('Montez Ford', 10),
     -- $5
+    ('Austin Theory', 5),
+    ('Jacy Jayne', 5),
+    ('Rusev', 5),
+    ('Chelsea Green', 5),
     ('AJ Lee', 5),
     ('Akira Tozawa', 5),
     ('Akira Tozowa', 5),
     ('Angel', 5),
-    ('Angelo Dawkins', 5),
     ('Asuka', 5),
     ('Axiom', 5),
     ('B-Fab', 5),
@@ -81,6 +82,7 @@ with salary_cap_seed(name, cost) as (
     ('EK Prosper', 5),
     ('El Grande Americano', 5),
     ('Ludwig Kaiser', 5),
+    ('Original El Grande Americano', 5),
     ('Erik', 5),
     ('Fallon Henley', 5),
     ('Grayson Waller', 5),
@@ -116,7 +118,6 @@ with salary_cap_seed(name, cost) as (
     ('Maxxine Dupri', 5),
     ('Michin', 5),
     ('Minihausen', 5),
-    ('Montez Ford', 5),
     ('Myles Borne', 5),
     ('Naomi', 5),
     ('Naraku', 5),
@@ -124,7 +125,6 @@ with salary_cap_seed(name, cost) as (
     ('Nattie', 5),
     ('Nia Jax', 5),
     ('Nikki Bella', 5),
-    ('Original El Grande Americano', 5),
     ('Osiris Griffin', 5),
     ('Otis', 5),
     ('Pat McAfee', 5),
