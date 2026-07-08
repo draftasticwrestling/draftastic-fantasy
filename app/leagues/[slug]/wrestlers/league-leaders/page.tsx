@@ -11,7 +11,7 @@ import {
   type LeagueRosterEntry,
 } from "@/lib/leagues";
 import WrestlerList, { type WrestlerRow } from "@/app/wrestlers/WrestlerList";
-import { salaryCapCostFromDb } from "@/lib/salaryCap";
+import { getLeagueSalaryCapCostContext, resolveSalaryCapCostForLeague } from "@/lib/salaryCap";
 import { leagueIncludesNxt, leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
@@ -171,6 +171,9 @@ export default async function LeagueLeadersPage({
 
   const enforceNxtPendingOnlyForRts = league.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
   const isSalaryCapLeague = leagueUsesSalaryCap(league.league_type);
+  const salaryCapCostContext = isSalaryCapLeague
+    ? await getLeagueSalaryCapCostContext(supabase, league.id)
+    : { frozenCostsByWrestlerId: {} as Record<string, number> };
   const showNxtPointMarkers = !leagueIncludesNxt(league);
   let rows: WrestlerRow[] = [];
   let rosterByWrestler: Record<string, { ownerName: string; ownerUserId: string }> = {};
@@ -570,7 +573,9 @@ export default async function LeagueLeadersPage({
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
       championBeltImageUrl: primaryTitle ? getBeltImageUrlForTitle(primaryTitle, w.gender) : null,
       unparsedCount,
-      salary_cap_cost: isSalaryCapLeague ? salaryCapCostFromDb(raw.salary_cap_cost) : null,
+      salary_cap_cost: isSalaryCapLeague
+        ? resolveSalaryCapCostForLeague(w.id, w.brand, salaryCapCostContext.frozenCostsByWrestlerId)
+        : null,
     };
   });
   } catch (err) {

@@ -1,4 +1,5 @@
 -- Official salary cap tiers (effective 2026-06-17; superseded by seed_salary_cap_wrestler_values_2026-07-07.sql).
+-- For launch tiers (pre-2026-06-17 leagues), see seed_salary_cap_wrestler_values_2026-05-16.sql.
 -- Run after supabase/leagues_salary_cap.sql. Safe to re-run (overwrites salary_cap_cost for listed wrestlers).
 -- Uses a CTE only (no temp tables) so Supabase SQL editor won't flag RLS on _salary_cap_seed.
 -- New leagues snapshot prices at creation; existing public leagues keep their frozen values.
@@ -110,6 +111,7 @@ with salary_cap_seed(name, cost) as (
     ('Lainey Reid', 5),
     ('Lexis King', 5),
     ('Lizzy Rain', 5),
+    ('Lyra Valkyria', 5),
     ('Lola Vice', 5),
     ('Mason Rook', 5),
     ('Matt Cardona', 5),

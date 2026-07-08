@@ -22,7 +22,14 @@ import {
   leagueUsesWeeklyPstBeltHold,
   SALARY_CAP_MAX_ROSTER_SIZE,
 } from "@/lib/leagueStructure";
-import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser, isValidSalaryCapCost } from "@/lib/salaryCap";
+import {
+  getSalaryCapLeagueMeta,
+  getSalaryCapSpentForUser,
+} from "@/lib/salaryCap";
+import {
+  getLeagueFrozenSalaryCostsForRoster,
+  resolveSalaryCapCostForRosterWrestler,
+} from "@/lib/salaryCapRosterCosts";
 import { getSalaryCapWeeklyFaBudgetStatus } from "@/lib/salaryCapWeeklyLimits";
 import { ProposeTradeForm } from "../ProposeTradeForm";
 import { ProposeReleaseForm } from "../ProposeReleaseForm";
@@ -274,11 +281,20 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     league.league_type ?? null
   );
 
+  const frozenCostsByWrestlerId = isSalaryCapLeague
+    ? await getLeagueFrozenSalaryCostsForRoster(supabase, league.id)
+    : ({} as Record<string, number>);
+
   const salaryCapCostForWrestler = (wrestlerId: string): number | null => {
     if (!isSalaryCapLeague) return null;
-    const row = wrestlers.find((w) => w.id === wrestlerId) as { salary_cap_cost?: number | null } | undefined;
-    const c = row?.salary_cap_cost;
-    return typeof c === "number" && isValidSalaryCapCost(c) ? c : null;
+    const entry = rosterEntries.find((e) => e.wrestler_id === wrestlerId);
+    const row = wrestlers.find((w) => w.id === wrestlerId) as { brand?: string | null } | undefined;
+    return resolveSalaryCapCostForRosterWrestler({
+      wrestlerId,
+      lockedRosterCost: entry?.salary_cap_cost,
+      brand: row?.brand ?? null,
+      frozenCostsByWrestlerId,
+    });
   };
 
   let salaryCapRosterSummary: { spent: number; budget: number } | null = null;

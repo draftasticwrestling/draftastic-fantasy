@@ -8,6 +8,12 @@ import {
   leagueUsesSalaryCap,
 } from "@/lib/leagueStructure";
 import { getLeagueSnapshotSalaryCost, leagueHasSalarySnapshots } from "@/lib/leagueSalarySnapshots";
+import {
+  getLeagueFrozenSalaryCosts,
+  isNxtSalaryCapWrestler,
+  SALARY_CAP_NXT_COST,
+} from "@/lib/salaryCapSeedPricing";
+import { lockedSalaryCapCostFromRosterRow } from "@/lib/salaryCapRosterCosts";
 
 export { SALARY_CAP_BUDGET_DEFAULT, SALARY_CAP_COST_TIERS, leagueUsesSalaryCap };
 export { FA_SALARY_CAP_WEEKLY_BUDGET } from "@/lib/salaryCapWeeklyLimits";
@@ -45,65 +51,120 @@ export async function getSalaryCapLeagueMeta(
   return { budget, leagueType: row.league_type ?? null };
 }
 
+export async function getLeagueSalaryCapCostContext(
+  supabase: Pick<SupabaseClient, "from">,
+  leagueId: string
+): Promise<{ frozenCostsByWrestlerId: Record<string, number> }> {
+  const frozenCostsByWrestlerId = await getLeagueFrozenSalaryCosts(supabase, leagueId);
+  return { frozenCostsByWrestlerId };
+}
+
+/** Resolve pool/roster cost from league-frozen seed snapshot. NXT fallback only. */
+export function resolveSalaryCapCostForLeague(
+  wrestlerId: string,
+  brand: string | null | undefined,
+  frozenCostsByWrestlerId: Record<string, number>
+): number | null {
+  const frozen = frozenCostsByWrestlerId[wrestlerId];
+  if (typeof frozen === "number" && isValidSalaryCapCost(frozen)) return frozen;
+  if (isNxtSalaryCapWrestler(brand)) return SALARY_CAP_NXT_COST;
+  return null;
+}
+
 export async function getWrestlerSalaryCapCost(
   supabase: Pick<SupabaseClient, "from">,
   wrestlerId: string,
   leagueId?: string
 ): Promise<number | null> {
-  if (leagueId) {
-    const snap = await getLeagueSnapshotSalaryCost(supabase, leagueId, wrestlerId);
-    if (snap != null) return snap;
-    if (await leagueHasSalarySnapshots(supabase, leagueId)) return null;
+  if (!leagueId) return null;
+
+  const snap = await getLeagueSnapshotSalaryCost(supabase, leagueId, wrestlerId);
+  if (snap != null) return snap;
+
+  if (await leagueHasSalarySnapshots(supabase, leagueId)) {
+    const { data } = await supabase.from("wrestlers").select("brand").eq("id", wrestlerId).maybeSingle();
+    if (isNxtSalaryCapWrestler((data as { brand?: string | null } | null)?.brand)) {
+      return SALARY_CAP_NXT_COST;
+    }
+    return null;
   }
-  const { data } = await supabase
-    .from("wrestlers")
-    .select("salary_cap_cost")
-    .eq("id", wrestlerId)
-    .maybeSingle();
-  const cost = (data as { salary_cap_cost?: number | null } | null)?.salary_cap_cost;
-  return typeof cost === "number" && isValidSalaryCapCost(cost) ? cost : null;
+
+  const frozen = await getLeagueFrozenSalaryCosts(supabase, leagueId);
+  const cost = frozen[wrestlerId];
+  if (typeof cost === "number" && isValidSalaryCapCost(cost)) return cost;
+
+  const { data } = await supabase.from("wrestlers").select("brand").eq("id", wrestlerId).maybeSingle();
+  if (isNxtSalaryCapWrestler((data as { brand?: string | null } | null)?.brand)) {
+    return SALARY_CAP_NXT_COST;
+  }
+  return null;
 }
 
-/** Sum of salary_cap_cost for a member's active roster. */
+/** Sum of league-frozen values for a member's active roster. */
 export async function getSalaryCapSpentForUser(
   supabase: Pick<SupabaseClient, "from">,
   leagueId: string,
   userId: string
 ): Promise<{ spent: number; rosterIds: string[] }> {
-  const { data: rosterRows } = await supabase
+  let rosterRows: Array<{ wrestler_id: string; salary_cap_cost?: number | null }> = [];
+  const withCost = await supabase
     .from("league_rosters")
-    .select("wrestler_id")
+    .select("wrestler_id, salary_cap_cost")
     .eq("league_id", leagueId)
     .eq("user_id", userId)
     .is("released_at", null);
-  const rosterIds = (rosterRows ?? []).map((r) => (r as { wrestler_id: string }).wrestler_id);
+  if (!withCost.error) {
+    rosterRows = (withCost.data ?? []) as typeof rosterRows;
+  } else {
+    const withoutCost = await supabase
+      .from("league_rosters")
+      .select("wrestler_id")
+      .eq("league_id", leagueId)
+      .eq("user_id", userId)
+      .is("released_at", null);
+    rosterRows = ((withoutCost.data ?? []) as Array<{ wrestler_id: string }>).map((r) => ({
+      wrestler_id: r.wrestler_id,
+      salary_cap_cost: null,
+    }));
+  }
+
+  const rosterIds = rosterRows.map((r) => r.wrestler_id);
   if (rosterIds.length === 0) return { spent: 0, rosterIds: [] };
 
-  const useSnapshots = await leagueHasSalarySnapshots(supabase, leagueId);
-  if (useSnapshots) {
-    const { data: snapRows } = await supabase
-      .from("league_wrestler_salary_snapshots")
-      .select("wrestler_id, salary_cap_cost")
-      .eq("league_id", leagueId)
-      .in("wrestler_id", rosterIds);
-    let spent = 0;
-    for (const row of snapRows ?? []) {
-      const c = (row as { salary_cap_cost?: number | null }).salary_cap_cost;
-      if (typeof c === "number" && isValidSalaryCapCost(c)) spent += c;
+  const frozenCosts = await getLeagueFrozenSalaryCosts(supabase, leagueId);
+
+  const needsBrandFallback = rosterRows.some((row) => {
+    if (lockedSalaryCapCostFromRosterRow(row.salary_cap_cost) != null) return false;
+    const frozen = frozenCosts[row.wrestler_id];
+    return !(typeof frozen === "number" && isValidSalaryCapCost(frozen));
+  });
+
+  let brandByWrestlerId: Record<string, string | null> = {};
+  if (needsBrandFallback) {
+    const { data: wrestlers } = await supabase.from("wrestlers").select("id, brand").in("id", rosterIds);
+    for (const w of wrestlers ?? []) {
+      const row = w as { id: string; brand?: string | null };
+      brandByWrestlerId[row.id] = row.brand ?? null;
     }
-    return { spent, rosterIds };
   }
 
-  const { data: wrestlers } = await supabase
-    .from("wrestlers")
-    .select("id, salary_cap_cost")
-    .in("id", rosterIds);
   let spent = 0;
-  for (const w of wrestlers ?? []) {
-    const row = w as { salary_cap_cost?: number | null };
-    const c = row.salary_cap_cost;
-    if (typeof c === "number" && isValidSalaryCapCost(c)) spent += c;
+  for (const row of rosterRows) {
+    const locked = lockedSalaryCapCostFromRosterRow(row.salary_cap_cost);
+    if (locked != null) {
+      spent += locked;
+      continue;
+    }
+    const frozen = frozenCosts[row.wrestler_id];
+    if (typeof frozen === "number" && isValidSalaryCapCost(frozen)) {
+      spent += frozen;
+      continue;
+    }
+    if (isNxtSalaryCapWrestler(brandByWrestlerId[row.wrestler_id])) {
+      spent += SALARY_CAP_NXT_COST;
+    }
   }
+
   return { spent, rosterIds };
 }
 

@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getPacificWeekBoundsUtc } from "@/lib/freeAgentSigningLimits";
 import { getWrestlerSalaryCapCost } from "@/lib/salaryCap";
+import {
+  getLeagueFrozenSalaryCosts,
+  isNxtSalaryCapWrestler,
+  SALARY_CAP_NXT_COST,
+} from "@/lib/salaryCapSeedPricing";
 
 /** Max salary value (adds or drops) per faction per Pacific week in salary-cap leagues. */
 export const FA_SALARY_CAP_WEEKLY_BUDGET = 25;
@@ -25,22 +30,24 @@ type ActivityRow = {
 
 async function loadCostsForWrestlerIds(
   supabase: Pick<SupabaseClient, "from">,
+  leagueId: string,
   ids: string[]
 ): Promise<Record<string, number>> {
   const unique = [...new Set(ids.filter(Boolean))];
   if (unique.length === 0) return {};
 
-  const { data, error } = await supabase.from("wrestlers").select("id, salary_cap_cost").in("id", unique);
-  if (error) {
-    console.error("[salaryCapWeeklyLimits] wrestlers:", error.message);
-    return {};
-  }
-
+  const frozenCosts = await getLeagueFrozenSalaryCosts(supabase, leagueId);
   const out: Record<string, number> = {};
-  for (const row of data ?? []) {
-    const r = row as { id: string; salary_cap_cost?: number | null };
-    const c = r.salary_cap_cost;
-    if (typeof c === "number" && c > 0) out[r.id] = c;
+  for (const id of unique) {
+    const c = frozenCosts[id];
+    if (typeof c === "number" && c > 0) {
+      out[id] = c;
+      continue;
+    }
+    const { data } = await supabase.from("wrestlers").select("brand").eq("id", id).maybeSingle();
+    if (isNxtSalaryCapWrestler((data as { brand?: string | null } | null)?.brand)) {
+      out[id] = SALARY_CAP_NXT_COST;
+    }
   }
   return out;
 }
@@ -97,7 +104,7 @@ export async function getSalaryCapWeeklyFaSpend(
     ids.push(row.wrestler_id);
     if (row.secondary_wrestler_id) ids.push(row.secondary_wrestler_id);
   }
-  const costById = await loadCostsForWrestlerIds(supabase, ids);
+  const costById = await loadCostsForWrestlerIds(supabase, leagueId, ids);
   return sumSpendFromActivities(activities, costById);
 }
 
@@ -138,7 +145,7 @@ export async function assertSalaryCapWeeklyFaMoveAllowed(
   const weekNote = "Monday–Sunday, Pacific Time";
 
   if (move.addWrestlerId) {
-    const cost = await getWrestlerSalaryCapCost(supabase, move.addWrestlerId);
+    const cost = await getWrestlerSalaryCapCost(supabase, move.addWrestlerId, leagueId);
     if (cost == null) {
       return { error: "This wrestler does not have a salary cap value assigned yet." };
     }
@@ -151,7 +158,7 @@ export async function assertSalaryCapWeeklyFaMoveAllowed(
   }
 
   if (move.dropWrestlerId) {
-    const cost = await getWrestlerSalaryCapCost(supabase, move.dropWrestlerId);
+    const cost = await getWrestlerSalaryCapCost(supabase, move.dropWrestlerId, leagueId);
     if (cost == null) {
       return { error: "This wrestler does not have a salary cap value assigned yet." };
     }

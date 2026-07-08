@@ -46,7 +46,7 @@ import {
   leagueUsesWeeklyPstBeltHold,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
 } from "@/lib/leagueStructure";
-import { salaryCapCostFromDb } from "@/lib/salaryCap";
+import { getLeagueSalaryCapCostContext, resolveSalaryCapCostForLeague } from "@/lib/salaryCap";
 import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { EVENT_STATUSES_FOR_SCORING, SCORING_EVENTS_FETCH_LIMIT } from "@/lib/eventsScoring";
@@ -119,6 +119,9 @@ export default async function WrestlersFreeAgentsPage({
 
   const startDate = getEffectiveLeagueStartDate(league);
   const isSalaryCapLeague = leagueUsesSalaryCap(league.league_type);
+  const salaryCapCostContext = isSalaryCapLeague
+    ? await getLeagueSalaryCapCostContext(supabase, league.id)
+    : { frozenCostsByWrestlerId: {} as Record<string, number> };
 
   const [wrestlersResult, rosters, { data: rawReigns }, currentFromTable, currentFromChanges] = await Promise.all([
     (async () => {
@@ -330,7 +333,9 @@ export default async function WrestlersFreeAgentsPage({
       status: (raw.Status ?? raw.status) != null ? String(raw.Status ?? raw.status) : null,
       currentChampionship: titles.length > 0 ? titles.join(", ") : null,
       championBeltImageUrl: primaryTitle ? getBeltImageUrlForTitle(primaryTitle, w.gender) : null,
-      salary_cap_cost: isSalaryCapLeague ? salaryCapCostFromDb(raw.salary_cap_cost) : null,
+      salary_cap_cost: isSalaryCapLeague
+        ? resolveSalaryCapCostForLeague(w.id, w.brand, salaryCapCostContext.frozenCostsByWrestlerId)
+        : null,
     };
   });
 

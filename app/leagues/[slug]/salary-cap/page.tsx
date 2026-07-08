@@ -6,6 +6,7 @@ import { leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEFAULT } from "@/lib/leagueStru
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 import { purgeUnplacedPublicLeagueMembersIfRegistrationClosed, maybeActivatePlacementForStartedRoster } from "@/lib/leaguePlacement";
 import { buildSalaryCapWrestlerPool } from "@/lib/salaryCapWrestlerPool";
+import { getLeagueFrozenSalaryCostsForRoster, resolveSalaryCapCostForRosterWrestler } from "@/lib/salaryCapRosterCosts";
 import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
 import { SalaryCapRosterBuilder } from "./SalaryCapRosterBuilder";
 
@@ -75,13 +76,20 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
   const nameById = Object.fromEntries(poolWithStats.map((w) => [w.id, w.name]));
   const imageById = Object.fromEntries(poolWithStats.map((w) => [w.id, w.imageUrl]));
 
-  const costById = Object.fromEntries(poolWithStats.map((p) => [p.id, p.salaryCapCost]));
+  const frozenCostsByWrestlerId = await getLeagueFrozenSalaryCostsForRoster(supabase, league.id);
   const roster = myEntries.map((e) => {
     const p = poolById[e.wrestler_id];
+    const salaryCapCost =
+      resolveSalaryCapCostForRosterWrestler({
+        wrestlerId: e.wrestler_id,
+        lockedRosterCost: e.salary_cap_cost,
+        brand: p?.brand ?? null,
+        frozenCostsByWrestlerId,
+      }) ?? 0;
     return {
       wrestlerId: e.wrestler_id,
       name: nameById[e.wrestler_id] ?? e.wrestler_id,
-      salaryCapCost: costById[e.wrestler_id] ?? 0,
+      salaryCapCost,
       imageUrl: imageById[e.wrestler_id] ?? null,
       stats2026: stats2026ById[e.wrestler_id] ?? null,
       brand: p?.brand ?? null,

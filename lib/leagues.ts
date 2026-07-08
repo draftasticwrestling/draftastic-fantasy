@@ -367,7 +367,7 @@ export async function createLeague(params: {
     ...(isPublicSalaryCapCreate ? { placement_status: "pending" } : {}),
   });
 
-  if (isPublicSalaryCapCreate) {
+  if (league.league_type === "salary_cap") {
     await snapshotLeagueSalaryCosts(league.id);
   }
 
@@ -1223,6 +1223,8 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
 export type LeagueRosterEntry = {
   wrestler_id: string;
   contract: string | null;
+  /** Locked salary cap value when this stint began (salary cap leagues). */
+  salary_cap_cost?: number | null;
   /** YYYY-MM-DD when added (for matchup display). */
   acquired_at?: string;
   /** YYYY-MM-DD when dropped (for matchup display). */
@@ -1275,17 +1277,28 @@ export const getRostersForLeague = cacheFn(
     }
     const { data, error } = await supabase
       .from("league_rosters")
-      .select("user_id, wrestler_id, contract")
+      .select("user_id, wrestler_id, contract, salary_cap_cost, acquired_at")
       .eq("league_id", leagueId)
       .is("released_at", null)
       .order("created_at", { ascending: true });
 
     if (error) return {};
-    const rows = (data ?? []) as { user_id: string; wrestler_id: string; contract: string | null }[];
+    const rows = (data ?? []) as {
+      user_id: string;
+      wrestler_id: string;
+      contract: string | null;
+      salary_cap_cost?: number | null;
+      acquired_at?: string;
+    }[];
     const byUser: Record<string, LeagueRosterEntry[]> = {};
     for (const r of rows) {
       if (!byUser[r.user_id]) byUser[r.user_id] = [];
-      byUser[r.user_id].push({ wrestler_id: r.wrestler_id, contract: r.contract });
+      byUser[r.user_id].push({
+        wrestler_id: r.wrestler_id,
+        contract: r.contract,
+        salary_cap_cost: r.salary_cap_cost ?? null,
+        acquired_at: r.acquired_at,
+      });
     }
 
     if (leagueUsesSalaryCap(leagueType) && !isSiteAdmin) {
@@ -1639,7 +1652,14 @@ export async function addWrestlerToRoster(
     (acquiredAt && /^\d{4}-\d{2}-\d{2}$/.test(acquiredAt.trim()) ? acquiredAt.trim() : null) ||
     rosterCivilDateYmd(clock);
   const acquiredAtTs = timestamptzForAcquiredAtDate(acquiredDate, clock);
-  const { error } = await insertClient.from("league_rosters").insert({
+
+  let lockedSalaryCapCost: number | null = null;
+  if (isSalaryCap) {
+    const { getWrestlerSalaryCapCost } = await import("@/lib/salaryCap");
+    lockedSalaryCapCost = await getWrestlerSalaryCapCost(insertClient, wid, leagueId);
+  }
+
+  const insertPayload: Record<string, unknown> = {
     league_id: leagueId,
     user_id: userId,
     wrestler_id: wid,
@@ -1647,7 +1667,16 @@ export async function addWrestlerToRoster(
     acquired_at: acquiredDate,
     acquired_at_ts: acquiredAtTs,
     released_at: null,
-  });
+  };
+  if (lockedSalaryCapCost != null) {
+    insertPayload.salary_cap_cost = lockedSalaryCapCost;
+  }
+
+  let { error } = await insertClient.from("league_rosters").insert(insertPayload);
+  if (error && insertPayload.salary_cap_cost != null && /salary_cap_cost/i.test(error.message)) {
+    const { salary_cap_cost: _omit, ...withoutCost } = insertPayload;
+    ({ error } = await insertClient.from("league_rosters").insert(withoutCost));
+  }
 
   if (error) {
     const isColumnError = /column.*acquired_at_ts does not exist/i.test(error.message ?? "");
