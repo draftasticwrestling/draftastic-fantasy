@@ -15,6 +15,7 @@ import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
 import { resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
 import { getXpLevelInfo } from "@/lib/xp/xpLevels";
 import { PLAY_PATH } from "@/lib/playFunnel";
+import { mergeAnonymousHowItWorksViewIfNeeded } from "@/lib/client/howItWorksEngagement";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
 
@@ -170,6 +171,7 @@ export default function Nav() {
       setAccountHoverTitle("");
       return;
     }
+    void mergeAnonymousHowItWorksViewIfNeeded();
     const supabase = createClient();
     const loadProfile = () => {
       supabase

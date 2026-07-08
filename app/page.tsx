@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FantasyHomeLink } from "@/app/components/FantasyHomeLink";
 import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
 import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
+import HubSiteActivityPulse from "@/app/components/HubSiteActivityPulse";
 import HubSiteLeaderboards from "@/app/components/HubSiteLeaderboards";
 import FantasyHubHero from "@/app/components/FantasyHubHero";
 import BreakingNewsBanner from "@/app/components/BreakingNewsBanner";
@@ -65,8 +66,9 @@ export default async function HubHomePage({
       <div className="hub-shell-wrap">
         <div className="hub-shell">
           <div className="hub-col hub-left-rail">
+            <HubSiteActivityPulse />
             <HubSiteLeaderboards leaderboardWeek={sp.leaderboard_week ?? null} />
-            <aside className="hub-col-side" aria-label="Quick links">
+            <aside className="hub-col-side hub-quick-links-card" aria-label="Quick links">
               <h2 className="hub-col-title">Quick links</h2>
               <nav className="hub-quick-nav">
                 <Link href="/event-results">Events</Link>

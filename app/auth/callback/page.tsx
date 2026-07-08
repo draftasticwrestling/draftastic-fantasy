@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { sanitizeRelativeNext } from "@/lib/auth/oauthCallbackNext";
+import { mergeAnonymousHowItWorksViewIfNeeded } from "@/lib/client/howItWorksEngagement";
 
 function readCallbackIntent(origin: string) {
   const url = new URL(window.location.href);
@@ -112,6 +113,8 @@ export default function AuthCallbackPage() {
         credentials: "same-origin",
         keepalive: true,
       }).catch(() => {});
+
+      await mergeAnonymousHowItWorksViewIfNeeded();
 
       if (intent.isSignup) {
         setHint("Saving your profile…");

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { HowItWorksEngagementTrack } from "@/app/components/HowItWorksEngagementTrack";
 import { HowItWorksPublicLeague } from "./HowItWorksPublicLeague";
 import { HowItWorksRoadToWarGames } from "./HowItWorksRoadToWarGames";
 import { HowItWorksRoadToSummerSlam } from "./HowItWorksRoadToSummerSlam";
@@ -32,6 +33,7 @@ export default async function HowItWorksPage({
 
   return (
     <main className={styles.page}>
+      <HowItWorksEngagementTrack />
       <p style={{ marginBottom: 24 }}>
         <Link href="/">← Home</Link>
       </p>

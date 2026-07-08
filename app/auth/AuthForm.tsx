@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { mapSupabaseAuthErrorMessage } from "@/lib/authUserFacingErrors";
+import { mergeAnonymousHowItWorksViewIfNeeded } from "@/lib/client/howItWorksEngagement";
 import { PLAY_PATH } from "@/lib/playFunnel";
 
 type Mode = "sign-in" | "sign-up";
@@ -80,6 +81,7 @@ export function AuthForm({ mode, searchParams }: Props) {
           setMessage({ type: "err", text });
           return;
         }
+        await mergeAnonymousHowItWorksViewIfNeeded();
       } else {
         const acceptedAt = new Date().toISOString();
         const params = new URLSearchParams({ next });

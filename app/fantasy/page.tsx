@@ -1,9 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
+import { FantasyOnboardingDashboard } from "@/app/components/FantasyOnboardingDashboard";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeaguesForUser } from "@/lib/leagues";
 import { getHubHomeHref } from "@/lib/hubHomeHref";
+import { getOnboardingProgress } from "@/lib/onboardingProgress";
+import { getSiteActivityPulse } from "@/lib/siteActivityPulse";
+import { getUserCareerStats } from "@/lib/userCareerStats";
 import { PLAY_PATH } from "@/lib/playFunnel";
 import { getAdsenseSlotFantasy } from "@/lib/adsenseConfig";
 import { siteLogoHref } from "@/lib/siteLogo";
@@ -238,100 +242,94 @@ export default async function FantasyHomePage() {
     );
   }
 
-  // Logged-in: dashboard with My Leagues and quick links
+  // Logged-in: onboarding dashboard with career stats, checklist, and live activity
   let leagues: Awaited<ReturnType<typeof getLeaguesForUser>> = [];
   let profileDisplayName: string | null = null;
+  let career = {
+    championships: 0,
+    leaguesJoined: 0,
+    pointsScored: 0,
+    tradesCompleted: 0,
+    freeAgentsSigned: 0,
+  };
+  let pulse = {
+    weeklyPointsScored: 0,
+    activeLeagues: 0,
+    seasonMatchesScored: 0,
+    seasonTradesProposed: 0,
+    seasonFreeAgentsSigned: 0,
+    newChampionsCrowned: 0,
+  };
+  let onboarding = {
+    steps: [],
+    completedCount: 0,
+    allComplete: false,
+    primaryCtaHref: PLAY_PATH,
+    primaryCtaLabel: "Join your first league",
+    showEmptyCareerHero: true,
+  } as Awaited<ReturnType<typeof getOnboardingProgress>>;
+
   try {
-    const [leaguesData, profileData] = await Promise.all([
+    const [leaguesData, profileData, pulseData, memberRowsRes, rosterRowsRes] = await Promise.all([
       getLeaguesForUser(),
       supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle(),
+      getSiteActivityPulse(),
+      supabase
+        .from("league_members")
+        .select(
+          "league_id, onboarding_completed_at, placement_status, leagues(slug, name, league_type, visibility_type, season_slug, draft_status, is_archived)"
+        )
+        .eq("user_id", user.id),
+      supabase
+        .from("league_rosters")
+        .select("league_id")
+        .eq("user_id", user.id)
+        .is("released_at", null),
     ]);
     leagues = leaguesData;
     profileDisplayName = (profileData.data as { display_name?: string } | null)?.display_name ?? null;
+    pulse = pulseData;
+
+    const rosterCountByLeagueId = new Map<string, number>();
+    for (const row of rosterRowsRes.data ?? []) {
+      const leagueId = (row as { league_id: string }).league_id;
+      rosterCountByLeagueId.set(leagueId, (rosterCountByLeagueId.get(leagueId) ?? 0) + 1);
+    }
+
+    const leagueIds = leagues.map((l) => l.id);
+    career = await getUserCareerStats(supabase, user.id, leagueIds);
+    onboarding = await getOnboardingProgress(
+      supabase,
+      user.id,
+      (memberRowsRes.data ?? []) as Parameters<typeof getOnboardingProgress>[2],
+      rosterCountByLeagueId
+    );
   } catch {
-    // leave leagues empty
+    // leave defaults
   }
 
   const displayName = profileDisplayName?.trim() || user.email?.split("@")[0] || "there";
 
   return (
-    <main className="app-page" style={{ maxWidth: 900 }}>
-      <p style={{ marginBottom: 8, color: "var(--color-text-muted)", fontSize: 15 }}>
-        <Link href={hubHomeHref} className="app-link" style={{ fontWeight: 500 }}>← Site home</Link>
-      </p>
-      <p style={{ marginBottom: 8, color: "var(--color-text-muted)", fontSize: 15 }}>
-        Welcome back{displayName !== "there" ? `, ${displayName}` : ""}.
-      </p>
-
-      <div className="home-panel" style={{ marginBottom: 24 }}>
-        <h2>My Leagues</h2>
-        {leagues.length === 0 ? (
-          <p style={{ margin: "8px 0 16px", color: "var(--color-text-muted)" }}>
-            You&apos;re not in any leagues yet. Use <strong>Join a league</strong> with a code from your GM, or create your
-            own league below.
-          </p>
-        ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
-            {leagues.map((league) => (
-              <li
-                key={league.id}
-                style={{
-                  padding: "12px 0",
-                  borderBottom: "1px solid var(--color-border)",
-                }}
-              >
-                <Link
-                  href={`/leagues/${league.slug}`}
-                  className="app-link"
-                  style={{ fontWeight: 600, fontSize: "1.05rem" }}
-                >
-                  {league.name}
-                </Link>
-                <span style={{ marginLeft: 8, fontSize: 14, color: "var(--color-text-dim)" }}>
-                  {league.role === "commissioner" ? "(GM)" : ""}
-                </span>
-                {(league.start_date || league.end_date) && (
-                  <div style={{ fontSize: 14, color: "var(--color-text-muted)", marginTop: 4 }}>
-                    {league.start_date && league.end_date
-                      ? `${league.start_date} – ${league.end_date}`
-                      : league.start_date || league.end_date}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        <p style={{ marginTop: 16, marginBottom: 0, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-          <Link
-            href={PLAY_PATH}
-            style={{
-              display: "inline-block",
-              padding: "10px 20px",
-              background: "var(--color-blue)",
-              color: "var(--color-text-inverse)",
-              textDecoration: "none",
-              borderRadius: "var(--radius)",
-              fontWeight: 600,
-              fontSize: 14,
-            }}
-          >
-            Play Now
-          </Link>
-        </p>
+    <>
+      <FantasyOnboardingDashboard
+        displayName={displayName}
+        career={career}
+        pulse={pulse}
+        onboarding={onboarding}
+        leagues={leagues.map((league) => ({
+          id: league.id,
+          name: league.name,
+          slug: league.slug,
+          role: league.role,
+          start_date: league.start_date,
+          end_date: league.end_date,
+        }))}
+        hubHomeHref={hubHomeHref}
+      />
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 16px 32px" }}>
+        <AdsenseDisplayAd slot={adsSlotFantasy} />
       </div>
-
-      <div className="home-panel">
-        <h2>Quick links</h2>
-        <ul className="home-quick-links">
-          <li><Link href={hubHomeHref}>Site home</Link> — results and news</li>
-          <li><Link href="/leagues">Private Leagues</Link> — manage and view all your leagues</li>
-          <li><Link href="/how-it-works">How it works</Link> — scoring rules and event types</li>
-          <li><Link href="/event-results">Event Results</Link> — fantasy scoring for completed events</li>
-          <li><Link href="/account">Account</Link> — profile and settings</li>
-        </ul>
-      </div>
-
-      <AdsenseDisplayAd slot={adsSlotFantasy} />
-    </main>
+    </>
   );
 }

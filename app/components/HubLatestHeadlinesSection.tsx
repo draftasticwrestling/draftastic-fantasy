@@ -75,6 +75,25 @@ function hubArticleCardEl(a: ArticleRow) {
   );
 }
 
+/** Mobile hub stacks feed slots 1–2, pulse, slot 3, leaderboards, then the rest. */
+function wrapHubFeedItemsForMobileOrder(nodes: ReactNode[]): ReactNode[] {
+  return nodes.map((node, i) => {
+    const slotClass =
+      i === 0
+        ? "hub-mobile-feed-slot-1"
+        : i === 1
+          ? "hub-mobile-feed-slot-2"
+          : i === 2
+            ? "hub-mobile-feed-slot-3"
+            : "hub-mobile-feed-slot-rest";
+    return (
+      <div key={`hub-feed-slot-${i}`} className={`hub-latest-feed-item ${slotClass}`}>
+        {node}
+      </div>
+    );
+  });
+}
+
 function buildHeadlines(articles: ArticleRow[], variant: HubHeadlineVariant): HubHeadlineItem[] {
   const staticHeadlines: HubHeadlineItem[] =
     variant === "marketing"
@@ -213,7 +232,7 @@ export default async function HubLatestHeadlinesSection({
     if (completedNotInPrimary) fullFeedNodes.push(completedCard!);
     if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
     if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
-    feedNodes = fullFeedNodes;
+    feedNodes = wrapHubFeedItemsForMobileOrder(fullFeedNodes);
 
     if (hasCompleted === false && hasUpcoming && upcoming && !hasArticles && !todayPrimary && !live && !completedPin) {
       latestBlockExtras = (
@@ -325,7 +344,7 @@ export default async function HubLatestHeadlinesSection({
         {latestBlock}
       </section>
 
-      <aside className="hub-col hub-col-side" aria-label="Headlines">
+      <aside className="hub-col hub-col-side hub-headlines-aside" aria-label="Headlines">
         <h2 className="hub-col-title">Top headlines</h2>
         {headlinesBlock}
       </aside>

@@ -17,6 +17,7 @@ export type EngagementEventName =
   | "page.news_article_view"
   | "page.news_article_dwell"
   | "page.event_results_view"
+  | "page.how_it_works_view"
   | "session.logged_in_start";
 
 type Payload = {

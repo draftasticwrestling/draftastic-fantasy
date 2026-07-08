@@ -19,6 +19,8 @@
 # GET /api/cron/recompute-wrestler-stats-cache with header x-cron-secret.
 # Public league registration cron: `netlify/functions/close-public-leagues.ts` runs every 15m and calls
 # GET /api/cron/close-public-leagues with header x-cron-secret.
+# Abandoned signup nudge: `netlify/functions/abandoned-signup-nudge.ts` runs daily and calls
+# GET /api/cron/abandoned-signup-nudge with header x-cron-secret.
 
 # Force correct MIME type for Next.js CSS (avoids "text/plain" / strict MIME refusal)
 [[headers]]
