@@ -68,7 +68,7 @@ function getActivePrimary(pathname: string, slug: string): MobileLeagueSectionKe
   if (rest === "team" || rest === "transactions" || rest === "team-log" || rest === "watchlist" || rest === "edit-team-info" || rest === "faction-actions") return "my-team";
   if (rest === "") return "league";
   if (rest === "wrestlers" || rest === "league-leaders" || rest === "stat-corrections") return "wrestlers";
-  if (rest === "matchups") return "matchups";
+  if (rest === "matchups" || rest === "playoffs") return "matchups";
   if (rest === "ple") return "ple";
   if (rest === "draft" || rest === "draft-history" || rest === "draft-settings") return "draft";
   if (rest === "notify-league" || rest === "manage-rosters" || rest === "league-settings" || rest === "pending-trades") return "gm-tools";
@@ -94,7 +94,7 @@ function getFantasyMobilePrimaryTab(
   if (head === "team") return "faction";
   if (head === "transactions" || head === "team-log" || head === "watchlist" || head === "edit-team-info" || head === "faction-actions") return "faction";
 
-  if (head === "matchups") return "matchups";
+  if (head === "matchups" || head === "playoffs") return "matchups";
 
   if (head === "wrestlers" || head === "league-leaders" || head === "stat-corrections") return "wrestlers";
 

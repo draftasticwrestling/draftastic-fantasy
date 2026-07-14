@@ -2,7 +2,13 @@
 
 import { useRouter, usePathname } from "next/navigation";
 
-type WeekOption = { weekStart: string; weekEnd: string; label: string; weekNumber: number };
+type WeekOption = {
+  weekStart: string;
+  weekEnd: string;
+  label: string;
+  weekNumber: number;
+  roundLabel?: string | null;
+};
 
 type Props = {
   weeks: WeekOption[];
@@ -42,7 +48,9 @@ export function MatchupWeekSelector({ weeks, selectedWeekStart, slug }: Props) {
       >
         {weeks.map((w) => (
           <option key={w.weekStart} value={w.weekStart}>
-            Matchup {w.weekNumber} ({w.label})
+            {w.roundLabel
+              ? `${w.roundLabel} (${w.label})`
+              : `Matchup ${w.weekNumber} (${w.label})`}
           </option>
         ))}
       </select>

@@ -20,6 +20,10 @@ import {
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
   getPointsByOwnerForLeagueWithBonuses,
+  leagueHasEightTeamPlayoffSchedule,
+  eightTeamPlayoffsUnlocked,
+  eightTeamPlayoffWeekLabel,
+  getEightTeamPlayoffBracket,
 } from "@/lib/leagueMatchups";
 import { getMatchupWrestlerChampionTitleLineBySlug } from "@/lib/matchupWrestlerCurrentTitles";
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
@@ -31,10 +35,11 @@ import { MatchupOwnerAvatarRing } from "./MatchupOwnerHeading";
 import { MatchupMobileH2hMasthead, type MatchupMobileRosterRow } from "./MatchupMobileH2h";
 import { MatchupMobileH2hCollapsible } from "./MatchupMobileH2hCollapsible";
 import { MatchupWeekSelector } from "./MatchupWeekSelector";
+import { PlayoffBracketView } from "./PlayoffBracketView";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{ week?: string; view?: string }>;
 };
 
 export const dynamic = "force-dynamic";
@@ -297,7 +302,7 @@ function RosterCell({
 
 export default async function LeagueMatchupsPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const { week: weekParam } = await searchParams;
+  const { week: weekParam, view: viewParam } = await searchParams;
   const league = await getLeagueBySlug(slug);
   if (!league) notFound();
 
@@ -330,12 +335,120 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
         ? currentWeek
         : weeks[0] ?? null;
 
+  const hasEightTeamPlayoffSchedule = leagueHasEightTeamPlayoffSchedule({
+    memberCount: members.length,
+    weekCount: weeks.length,
+    maxTeams: league.max_teams ?? null,
+    draftStatus: league.draft_status ?? null,
+  });
+  const playoffsUnlocked = hasEightTeamPlayoffSchedule && eightTeamPlayoffsUnlocked(weeks);
+  const view = viewParam === "bracket" && hasEightTeamPlayoffSchedule ? "bracket" : "matchups";
+  const matchupsHref =
+    selectedWeekStart != null
+      ? `/leagues/${slug}/matchups?week=${encodeURIComponent(selectedWeekStart)}`
+      : `/leagues/${slug}/matchups`;
+  const bracketHref = `/leagues/${slug}/matchups?view=bracket`;
+
   const weekOptions = weeks.map((ws, idx) => ({
     weekStart: ws,
     weekEnd: getSundayOfWeek(ws),
     label: formatWeekRangeShort(ws, getSundayOfWeek(ws)),
     weekNumber: idx + 1,
+    roundLabel: hasEightTeamPlayoffSchedule ? eightTeamPlayoffWeekLabel(idx + 1) : null,
   }));
+
+  if (view === "bracket") {
+    const bracket = playoffsUnlocked
+      ? getEightTeamPlayoffBracket({
+          weekStarts: weeks,
+          memberUserIds: members.map((m) => m.user_id),
+          seededMemberUserIds,
+          maxTeams: league.max_teams ?? null,
+          draftStatus: league.draft_status ?? null,
+          weeklyResults: matchups,
+        })
+      : null;
+    const playoffMonday = weeks[9];
+
+    return (
+      <main
+        className="app-page matchups-page playoffs-page"
+        style={{ maxWidth: 1100, fontSize: 16, lineHeight: 1.5 }}
+      >
+        <p style={{ marginBottom: 24 }}>
+          <Link href={`/leagues/${slug}`} className="app-link">
+            ← {league.name}
+          </Link>
+        </p>
+
+        <nav
+          aria-label="Matchups view"
+          style={{
+            display: "inline-flex",
+            border: "1px solid var(--color-border)",
+            borderRadius: 8,
+            overflow: "hidden",
+            marginBottom: 16,
+          }}
+        >
+          <Link
+            href={matchupsHref}
+            style={{
+              padding: "8px 12px",
+              textDecoration: "none",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              color: "var(--color-text)",
+              background: "var(--color-bg-surface)",
+            }}
+          >
+            Matchups
+          </Link>
+          <Link
+            href={bracketHref}
+            style={{
+              padding: "8px 12px",
+              textDecoration: "none",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              color: "#fff",
+              background: "#111",
+              borderLeft: "1px solid var(--color-border)",
+            }}
+            aria-current="page"
+          >
+            Bracket
+          </Link>
+        </nav>
+
+        <h1 style={{ fontSize: "1.5rem", marginBottom: 8, color: "var(--color-text)", fontWeight: 700 }}>
+          Playoff bracket
+        </h1>
+
+        {!playoffsUnlocked || !bracket ? (
+          <p className="playoffs-page__empty">
+            The playoff bracket unlocks after regular-season week 9 ends
+            {playoffMonday
+              ? ` (quarterfinals begin the week of ${new Date(playoffMonday + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })})`
+              : ""}
+            .
+          </p>
+        ) : (
+          <>
+            <p className="playoffs-page__blurb">
+              Seeds are set by regular-season record (then points). Championship and placement games
+              update as each playoff week completes.
+            </p>
+            <PlayoffBracketView slug={slug} bracket={bracket} memberByUserId={memberByUserId} />
+          </>
+        )}
+      </main>
+    );
+  }
 
   const rosterRules = getRosterRulesForLeague(
     members.length,
@@ -428,6 +541,52 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
           ← {league.name}
         </Link>
       </p>
+
+      {hasEightTeamPlayoffSchedule ? (
+        <nav
+          aria-label="Matchups view"
+          style={{
+            display: "inline-flex",
+            border: "1px solid var(--color-border)",
+            borderRadius: 8,
+            overflow: "hidden",
+            marginBottom: 16,
+          }}
+        >
+          <Link
+            href={matchupsHref}
+            style={{
+              padding: "8px 12px",
+              textDecoration: "none",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              color: "#fff",
+              background: "#111",
+            }}
+            aria-current="page"
+          >
+            Matchups
+          </Link>
+          <Link
+            href={bracketHref}
+            style={{
+              padding: "8px 12px",
+              textDecoration: "none",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              color: "var(--color-text)",
+              background: "var(--color-bg-surface)",
+              borderLeft: "1px solid var(--color-border)",
+            }}
+          >
+            Bracket
+          </Link>
+        </nav>
+      ) : null}
 
       <div className="matchups-page__toolbar">
         <h1 style={{ fontSize: "1.5rem", margin: 0, color: "var(--color-text)", fontWeight: 700 }}>

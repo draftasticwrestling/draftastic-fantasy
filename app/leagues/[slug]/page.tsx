@@ -526,6 +526,12 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
           <div className="lm-card lm-league-card">
             <h1 className="lm-card-title" style={{ fontSize: "1.35rem", marginBottom: 8 }}>{league.name}</h1>
             <nav className="lm-subnav" aria-label="League sections">
+              {showMatchupsInTopNav ? (
+                <>
+                  <Link href={`/leagues/${slug}/matchups`}>Matchup</Link>
+                  <span className="lm-subnav-sep">|</span>
+                </>
+              ) : null}
               <Link href={currentUser ? `/leagues/${slug}/team/${encodeURIComponent(currentUser.id)}` : `/leagues/${slug}/team`}>My Faction</Link>
               <span className="lm-subnav-sep">|</span>
               <Link href={`/leagues/${slug}/standings`}>Standings</Link>

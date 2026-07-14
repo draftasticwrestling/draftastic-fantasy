@@ -1258,6 +1258,319 @@ export function getScheduledMatchupsForWeek(params: {
   ];
 }
 
+/** True when this league uses the fixed 8-team / 12-week playoff schedule. */
+export function leagueHasEightTeamPlayoffSchedule(params: {
+  memberCount: number;
+  weekCount: number;
+  maxTeams: number | null | undefined;
+  draftStatus: string | null | undefined;
+}): boolean {
+  if (params.memberCount !== 8 || params.weekCount < 12) return false;
+  if (params.maxTeams != null && params.maxTeams !== 8) return false;
+  return (params.draftStatus ?? "not_started") === "completed";
+}
+
+/** Playoff bracket unlocks after the Sunday of regular-season week 9. */
+export function eightTeamPlayoffsUnlocked(
+  weekStarts: string[],
+  todayYmd: string = new Date().toISOString().slice(0, 10)
+): boolean {
+  if (weekStarts.length < 12) return false;
+  return getSundayOfWeek(weekStarts[8]!) < todayYmd;
+}
+
+export type PlayoffBracketTeam = {
+  userId: string | null;
+  seed: number | null;
+  points: number | null;
+};
+
+export type PlayoffBracketMatch = {
+  id: string;
+  label: string;
+  weekStart: string;
+  weekEnd: string;
+  teams: [PlayoffBracketTeam, PlayoffBracketTeam];
+  winnerUserId: string | null;
+  status: "pending" | "active" | "complete";
+};
+
+export type EightTeamPlayoffBracket = {
+  seeds: Array<{ userId: string; seed: number }>;
+  quarterfinals: PlayoffBracketMatch[];
+  championshipSemifinals: PlayoffBracketMatch[];
+  consolationSemifinals: PlayoffBracketMatch[];
+  finals: PlayoffBracketMatch[];
+};
+
+function playoffRoundStatus(
+  weekStart: string,
+  weekEnd: string,
+  bothTeamsKnown: boolean,
+  todayYmd: string,
+  weekFinalized: boolean
+): PlayoffBracketMatch["status"] {
+  if (!bothTeamsKnown) return "pending";
+  if (weekFinalized) return "complete";
+  if (todayYmd >= weekStart && todayYmd <= weekEnd) return "active";
+  if (todayYmd > weekEnd) return "active"; // week calendar ended but PLE/scoring not finalized yet
+  return "pending";
+}
+
+function bracketTeam(
+  userId: string | null,
+  seedByUserId: Map<string, number>,
+  weekPoints: Record<string, number> | null
+): PlayoffBracketTeam {
+  if (!userId) return { userId: null, seed: null, points: null };
+  return {
+    userId,
+    seed: seedByUserId.get(userId) ?? null,
+    points: weekPoints ? (weekPoints[userId] ?? 0) : null,
+  };
+}
+
+function makePlayoffMatch(opts: {
+  id: string;
+  label: string;
+  weekStart: string;
+  a: string | null;
+  b: string | null;
+  seedByUserId: Map<string, number>;
+  weekResult: WeeklyMatchupResult | undefined;
+  seeds: string[];
+  todayYmd: string;
+  resolveWinner: boolean;
+}): PlayoffBracketMatch {
+  const weekEnd = getSundayOfWeek(opts.weekStart);
+  const weekPoints = opts.weekResult?.pointsByUserId ?? null;
+  const bothKnown = Boolean(opts.a && opts.b);
+  const weekFinalized = Boolean(opts.weekResult?.weekScoringFinalized);
+  const status = playoffRoundStatus(opts.weekStart, weekEnd, bothKnown, opts.todayYmd, weekFinalized);
+  // Only crown a winner after the fantasy week is fully scored (all events completed).
+  let winnerUserId: string | null = null;
+  if (opts.resolveWinner && opts.a && opts.b && opts.weekResult && weekFinalized) {
+    winnerUserId = winnerByPointsThenSeed(opts.weekResult.pointsByUserId, opts.a, opts.b, opts.seeds);
+  }
+  return {
+    id: opts.id,
+    label: opts.label,
+    weekStart: opts.weekStart,
+    weekEnd,
+    teams: [
+      bracketTeam(opts.a, opts.seedByUserId, weekPoints),
+      bracketTeam(opts.b, opts.seedByUserId, weekPoints),
+    ],
+    winnerUserId,
+    status,
+  };
+}
+
+/**
+ * Full 8-team playoff bracket for display once the regular season is complete.
+ * Future rounds show TBD until prior-round winners are known.
+ */
+export function getEightTeamPlayoffBracket(params: {
+  weekStarts: string[];
+  memberUserIds: string[];
+  seededMemberUserIds?: string[];
+  maxTeams: number | null | undefined;
+  draftStatus: string | null | undefined;
+  weeklyResults: WeeklyMatchupResult[];
+  todayYmd?: string;
+}): EightTeamPlayoffBracket | null {
+  const {
+    weekStarts,
+    memberUserIds,
+    seededMemberUserIds,
+    maxTeams,
+    draftStatus,
+    weeklyResults,
+  } = params;
+  const todayYmd = params.todayYmd ?? new Date().toISOString().slice(0, 10);
+  if (
+    !leagueHasEightTeamPlayoffSchedule({
+      memberCount: memberUserIds.length,
+      weekCount: weekStarts.length,
+      maxTeams,
+      draftStatus,
+    })
+  ) {
+    return null;
+  }
+  if (!eightTeamPlayoffsUnlocked(weekStarts, todayYmd)) return null;
+
+  const baseOrder =
+    seededMemberUserIds && seededMemberUserIds.length === memberUserIds.length
+      ? seededMemberUserIds
+      : memberUserIds;
+  const seeds = buildRegularSeasonSeedsForEightTeamLeague(
+    baseOrder,
+    weekStarts.slice(0, 9),
+    weeklyResults
+  );
+  if (seeds.length !== 8) return null;
+
+  const seedByUserId = new Map(seeds.map((id, i) => [id, i + 1]));
+  const qfWeekStart = weekStarts[9]!;
+  const sfWeekStart = weekStarts[10]!;
+  const finalsWeekStart = weekStarts[11]!;
+  const qfWeek = weeklyResults.find((r) => r.weekStart === qfWeekStart);
+  const sfWeek = weeklyResults.find((r) => r.weekStart === sfWeekStart);
+  const finalsWeek = weeklyResults.find((r) => r.weekStart === finalsWeekStart);
+
+  const qfPairs: Array<[string, string, string, string]> = [
+    [seeds[0]!, seeds[7]!, "qf-1", "Quarterfinal · 1 vs 8"],
+    [seeds[3]!, seeds[4]!, "qf-2", "Quarterfinal · 4 vs 5"],
+    [seeds[1]!, seeds[6]!, "qf-3", "Quarterfinal · 2 vs 7"],
+    [seeds[2]!, seeds[5]!, "qf-4", "Quarterfinal · 3 vs 6"],
+  ];
+
+  const quarterfinals = qfPairs.map(([a, b, id, label]) =>
+    makePlayoffMatch({
+      id,
+      label,
+      weekStart: qfWeekStart,
+      a,
+      b,
+      seedByUserId,
+      weekResult: qfWeek,
+      seeds,
+      todayYmd,
+      resolveWinner: true,
+    })
+  );
+
+  const qfResolved = Boolean(qfWeek?.weekScoringFinalized);
+  let qfWinners: [string, string, string, string] | null = null;
+  let qfLosers: [string, string, string, string] | null = null;
+  if (qfResolved && qfWeek) {
+    const w1 = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[0]!, seeds[7]!, seeds);
+    const w2 = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[3]!, seeds[4]!, seeds);
+    const w3 = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[1]!, seeds[6]!, seeds);
+    const w4 = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[2]!, seeds[5]!, seeds);
+    qfWinners = [w1, w2, w3, w4];
+    qfLosers = [
+      w1 === seeds[0] ? seeds[7]! : seeds[0]!,
+      w2 === seeds[3] ? seeds[4]! : seeds[3]!,
+      w3 === seeds[1] ? seeds[6]! : seeds[1]!,
+      w4 === seeds[2] ? seeds[5]! : seeds[2]!,
+    ];
+  }
+
+  const championshipSemifinals = [
+    makePlayoffMatch({
+      id: "sf-champ-1",
+      label: "Semifinal",
+      weekStart: sfWeekStart,
+      a: qfWinners?.[0] ?? null,
+      b: qfWinners?.[1] ?? null,
+      seedByUserId,
+      weekResult: sfWeek,
+      seeds,
+      todayYmd,
+      resolveWinner: Boolean(qfWinners),
+    }),
+    makePlayoffMatch({
+      id: "sf-champ-2",
+      label: "Semifinal",
+      weekStart: sfWeekStart,
+      a: qfWinners?.[2] ?? null,
+      b: qfWinners?.[3] ?? null,
+      seedByUserId,
+      weekResult: sfWeek,
+      seeds,
+      todayYmd,
+      resolveWinner: Boolean(qfWinners),
+    }),
+  ];
+
+  const consolationSemifinals = [
+    makePlayoffMatch({
+      id: "sf-cons-1",
+      label: "Consolation semifinal",
+      weekStart: sfWeekStart,
+      a: qfLosers?.[0] ?? null,
+      b: qfLosers?.[1] ?? null,
+      seedByUserId,
+      weekResult: sfWeek,
+      seeds,
+      todayYmd,
+      resolveWinner: Boolean(qfLosers),
+    }),
+    makePlayoffMatch({
+      id: "sf-cons-2",
+      label: "Consolation semifinal",
+      weekStart: sfWeekStart,
+      a: qfLosers?.[2] ?? null,
+      b: qfLosers?.[3] ?? null,
+      seedByUserId,
+      weekResult: sfWeek,
+      seeds,
+      todayYmd,
+      resolveWinner: Boolean(qfLosers),
+    }),
+  ];
+
+  const sfResolved =
+    Boolean(sfWeek?.weekScoringFinalized) && Boolean(qfWinners) && Boolean(qfLosers);
+  let finalsSlots: Array<[string | null, string | null, string, string]> = [
+    [null, null, "final-1", "Championship"],
+    [null, null, "final-3", "3rd place"],
+    [null, null, "final-5", "5th place"],
+    [null, null, "final-7", "7th place"],
+  ];
+  if (sfResolved && sfWeek && qfWinners && qfLosers) {
+    const [qf1w, qf2w, qf3w, qf4w] = qfWinners;
+    const [qf1l, qf2l, qf3l, qf4l] = qfLosers;
+    const sf1w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf1w, qf2w, seeds);
+    const sf2w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf3w, qf4w, seeds);
+    const sf1l = sf1w === qf1w ? qf2w : qf1w;
+    const sf2l = sf2w === qf3w ? qf4w : qf3w;
+    const sf3w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf1l, qf2l, seeds);
+    const sf4w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf3l, qf4l, seeds);
+    const sf3l = sf3w === qf1l ? qf2l : qf1l;
+    const sf4l = sf4w === qf3l ? qf4l : qf3l;
+    finalsSlots = [
+      [sf1w, sf2w, "final-1", "Championship"],
+      [sf1l, sf2l, "final-3", "3rd place"],
+      [sf3w, sf4w, "final-5", "5th place"],
+      [sf3l, sf4l, "final-7", "7th place"],
+    ];
+  }
+
+  const finals = finalsSlots.map(([a, b, id, label]) =>
+    makePlayoffMatch({
+      id,
+      label,
+      weekStart: finalsWeekStart,
+      a,
+      b,
+      seedByUserId,
+      weekResult: finalsWeek,
+      seeds,
+      todayYmd,
+      resolveWinner: Boolean(a && b),
+    })
+  );
+
+  return {
+    seeds: seeds.map((userId, i) => ({ userId, seed: i + 1 })),
+    quarterfinals,
+    championshipSemifinals,
+    consolationSemifinals,
+    finals,
+  };
+}
+
+/** Label for fantasy week N (1-based) in an 8-team playoff schedule. */
+export function eightTeamPlayoffWeekLabel(weekNumber: number): string | null {
+  if (weekNumber === 10) return "Quarterfinals";
+  if (weekNumber === 11) return "Semifinals";
+  if (weekNumber === 12) return "Finals";
+  return null;
+}
+
 export type MatchupWlt = { w: number; l: number; t: number };
 
 /**
