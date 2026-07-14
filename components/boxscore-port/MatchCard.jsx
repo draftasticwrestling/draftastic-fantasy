@@ -217,7 +217,7 @@ function LastFiveBoxes({ outcomes, size = 24 }) {
 }
 
 /** Draftastic: fantasy total (+N in green) and scoring breakdown (white italic) under wrestler / belt. */
-function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4, compact = false }) {
+function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4, compact = false, totalsOnly = false }) {
   if (!fantasyPointsBySlug || slug == null || String(slug).trim() === '') return null;
   const row = fantasyPointsBySlug[slug];
   if (row == null) return null;
@@ -226,6 +226,7 @@ function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4, compact = fa
   const breakdown = Array.isArray(row.breakdown) ? row.breakdown.filter((x) => typeof x === 'string' && String(x).trim()) : [];
   const totalLabel = pts >= 0 ? `+${pts}` : String(pts);
   const tip = breakdown.length > 0 ? breakdown.join('\n') : undefined;
+  const showBreakdown = !totalsOnly && breakdown.length > 0;
   return (
     <div
       style={{
@@ -235,13 +236,13 @@ function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4, compact = fa
         marginTop,
         textAlign: 'center',
         lineHeight: 1.25,
-        maxWidth: compact ? 120 : 160,
+        maxWidth: compact || totalsOnly ? 140 : 160,
       }}
       title={tip}
     >
       <div
         style={{
-          fontSize: compact ? 11 : 12,
+          fontSize: compact || totalsOnly ? 12 : 12,
           color: '#4CAF50',
           fontWeight: row.isWinner ? 800 : 700,
           letterSpacing: 0.02,
@@ -249,7 +250,7 @@ function FantasyPtsLine({ slug, fantasyPointsBySlug, marginTop = 4, compact = fa
       >
         {totalLabel}
       </div>
-      {breakdown.length > 0 && (
+      {showBreakdown && (
         <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
           {breakdown.map((line, i) => (
             <div
@@ -1350,18 +1351,7 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
           <div style={{ color: '#bbb', fontSize: 15, textAlign: 'center' }}>{match.time}</div>
           </div>
 
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            gap: 8,
-            marginBottom: 16,
-            width: '100%',
-            maxWidth: 400,
-            marginLeft: 'auto',
-            marginRight: 'auto',
-          }}>
+          <div className="match-card__gauntlet-rounds">
             {(() => {
               const isTagGauntlet = match.matchType === 'Tag Team Gauntlet Match';
               const getPartDisplay = (str) => {
@@ -1370,16 +1360,19 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                 return wrestlerMap[str]?.name || str;
               };
               const firstSlug = (str) => (str && str.includes(' & ') ? str.split('&').map(s => s.trim())[0] : str) || '';
-              const matches = [];
+              const partKey = (str) => String(str || '').trim().toLowerCase();
+
+              // Build each round first so we know each wrestler's last appearance.
+              const rounds = [];
               let currentWinner = teamStrings[0];
-              
               for (let i = 0; i < teamStrings.length - 1; i++) {
                 const participant1 = currentWinner;
                 const participant2 = teamStrings[i + 1];
-                
                 let winner = null;
+                let roundMethod = '';
                 if (match.gauntletProgression && match.gauntletProgression[i]) {
                   const matchResult = match.gauntletProgression[i];
+                  roundMethod = matchResult.method || '';
                   if (matchResult.winner) {
                     if (matchResult.winner === participant1) {
                       winner = getPartDisplay(participant1);
@@ -1390,130 +1383,101 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                     }
                   }
                 }
+                rounds.push({ i, participant1, participant2, winner, roundMethod });
+              }
+
+              const lastRoundByPart = new Map();
+              for (const round of rounds) {
+                lastRoundByPart.set(partKey(round.participant1), round.i);
+                lastRoundByPart.set(partKey(round.participant2), round.i);
+              }
+
+              const showPtsFor = (participantStr, roundIndex) =>
+                lastRoundByPart.get(partKey(participantStr)) === roundIndex;
+
+              const renderRoundSide = (participantStr, isWinnerSide, showPoints) => {
+                const disp = getPartDisplay(participantStr);
+                if (isTagGauntlet) {
+                  return (
+                    <div className={`match-card__gauntlet-side${isWinnerSide ? ' match-card__gauntlet-side--winner' : ''}`}>
+                      <span className="match-card__gauntlet-name">{disp}</span>
+                      {showPoints ? (
+                        <div className="match-card__gauntlet-pts-row">
+                          {parseTeamString(participantStr, wrestlerMap).slugs.map((slug) => (
+                            <FantasyPtsLine
+                              key={slug}
+                              slug={slug}
+                              fantasyPointsBySlug={fantasyPointsBySlug}
+                              marginTop={0}
+                              totalsOnly
+                              compact
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                }
+                return (
+                  <div className={`match-card__gauntlet-side${isWinnerSide ? ' match-card__gauntlet-side--winner' : ''}`}>
+                    <Link
+                      to={wrestlerTo(participantStr)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="match-card__gauntlet-wrestler-link"
+                      style={{ color: isWinnerSide ? '#C6A04F' : '#fff', fontWeight: isWinnerSide ? 700 : 500 }}
+                    >
+                      <WrestlerHeadshotImage
+                        src={wrestlerMap[firstSlug(participantStr)]?.image_url || wrestlerMap[participantStr]?.image_url}
+                        alt={disp}
+                        width={28}
+                        height={28}
+                        sizes="28px"
+                        className="match-card__gauntlet-avatar"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: isWinnerSide ? '2px solid #C6A04F' : '1px solid #666',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span className="match-card__gauntlet-name">{disp}</span>
+                    </Link>
+                    {showPoints ? (
+                      <FantasyPtsLine
+                        slug={participantStr}
+                        fantasyPointsBySlug={fantasyPointsBySlug}
+                        marginTop={0}
+                        totalsOnly
+                        compact
+                      />
+                    ) : null}
+                  </div>
+                );
+              };
+
+              return rounds.map(({ i, participant1, participant2, winner, roundMethod }) => {
                 const disp1 = getPartDisplay(participant1);
                 const disp2 = getPartDisplay(participant2);
                 const winnerIs1 = winner === disp1;
                 const winnerIs2 = winner === disp2;
-               
-                matches.push(
-                  <div key={i} style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 10,
-                    marginLeft: i * 24,
-                  }}>
-                    <span style={{
-                      color: '#C6A04F',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      minWidth: 52,
-                    }}>
+                return (
+                  <div key={i} className="match-card__gauntlet-round">
+                    <div className="match-card__gauntlet-round-label">
                       Match {i + 1}
-                    </span>
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: 6,
-                      background: '#2a2a2a',
-                      borderRadius: 6,
-                      border: '1px solid #444',
-                      minWidth: isTagGauntlet ? 240 : 140,
-                    }}>
-                      {isTagGauntlet ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, maxWidth: 120 }}>
-                          <span style={{ color: winnerIs1 ? '#C6A04F' : '#fff', fontWeight: winnerIs1 ? 'bold' : 'normal', fontSize: 10, whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.2 }}>
-                            {disp1}
-                          </span>
-                          <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
-                            {parseTeamString(participant1, wrestlerMap).slugs.map((slug) => (
-                              <FantasyPtsLine key={slug} slug={slug} fantasyPointsBySlug={fantasyPointsBySlug} marginTop={0} />
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                          <Link to={wrestlerTo(participant1)} onClick={e => e.stopPropagation()} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            color: winnerIs1 ? '#C6A04F' : '#fff',
-                            fontWeight: winnerIs1 ? 'bold' : 'normal',
-                            textDecoration: 'none',
-                          }}>
-                            <WrestlerHeadshotImage
-                              src={wrestlerMap[firstSlug(participant1)]?.image_url || wrestlerMap[participant1]?.image_url}
-                              alt={disp1}
-                              width={20}
-                              height={20}
-                              sizes="20px"
-                              style={{
-                                width: 20,
-                                height: 20,
-                                borderRadius: '50%',
-                                objectFit: 'cover',
-                                border: winnerIs1 ? '2px solid #C6A04F' : '1px solid #666',
-                              }}
-                            />
-                            <span style={{ fontSize: 10, maxWidth: 50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {disp1}
-                            </span>
-                          </Link>
-                          <FantasyPtsLine slug={participant1} fantasyPointsBySlug={fantasyPointsBySlug} marginTop={0} />
-                        </div>
-                      )}
-                      
-                      <div style={{ color: '#C6A04F', fontSize: 9, fontWeight: 'bold' }}>vs</div>
-                      
-                      {isTagGauntlet ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, maxWidth: 120 }}>
-                          <span style={{ color: winnerIs2 ? '#C6A04F' : '#fff', fontWeight: winnerIs2 ? 'bold' : 'normal', fontSize: 10, whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.2 }}>
-                            {disp2}
-                          </span>
-                          <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
-                            {parseTeamString(participant2, wrestlerMap).slugs.map((slug) => (
-                              <FantasyPtsLine key={slug} slug={slug} fantasyPointsBySlug={fantasyPointsBySlug} marginTop={0} />
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                          <Link to={wrestlerTo(participant2)} onClick={e => e.stopPropagation()} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            color: winnerIs2 ? '#C6A04F' : '#fff',
-                            fontWeight: winnerIs2 ? 'bold' : 'normal',
-                            textDecoration: 'none',
-                          }}>
-                            <WrestlerHeadshotImage
-                              src={wrestlerMap[firstSlug(participant2)]?.image_url || wrestlerMap[participant2]?.image_url}
-                              alt={disp2}
-                              width={20}
-                              height={20}
-                              sizes="20px"
-                              style={{
-                                width: 20,
-                                height: 20,
-                                borderRadius: '50%',
-                                objectFit: 'cover',
-                                border: winnerIs2 ? '2px solid #C6A04F' : '1px solid #666',
-                              }}
-                            />
-                            <span style={{ fontSize: 10, maxWidth: 50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {disp2}
-                            </span>
-                          </Link>
-                          <FantasyPtsLine slug={participant2} fantasyPointsBySlug={fantasyPointsBySlug} marginTop={0} />
-                        </div>
-                      )}
+                      {roundMethod ? <span className="match-card__gauntlet-round-method">{roundMethod}</span> : null}
+                    </div>
+                    <div className="match-card__gauntlet-round-card">
+                      {renderRoundSide(participant1, winnerIs1, showPtsFor(participant1, i))}
+                      <div className="match-card__gauntlet-vs" aria-hidden>
+                        vs
+                      </div>
+                      {renderRoundSide(participant2, winnerIs2, showPtsFor(participant2, i))}
                     </div>
                   </div>
                 );
-              }
-              return matches;
+              });
             })()}
           </div>
           

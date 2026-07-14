@@ -63,8 +63,10 @@ export function HowItWorksSpecialMatches({ variant }: Props) {
       >
         Multi-person and multi-team matches (triple threat, fatal four-way, five-way, handicap 2v1, etc.) earn an extra
         victory bonus of <strong>one tier point per opponent beyond the first</strong> you defeat in that match (a normal
-        singles match has one opponent, so no bonus). <strong>2 out of 3 Falls</strong> and <strong>Gauntlet</strong>{" "}
-        matches still award this same tier per round won.
+        singles match has one opponent, so no bonus). <strong>2 out of 3 Falls</strong> awards this same tier per fall
+        won. <strong>Gauntlet</strong> matches award <strong>one tier point per round you personally win</strong> (not
+        only to the final winner), on top of normal appearance points; the overall winner also gets the usual match-win
+        (or main-event win) points.
       </p>
       <div className={styles.darkBox}>
         <div className={styles.specialMatchesInner}>
