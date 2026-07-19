@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
-import { leagueCreationAccessIsConfigured } from "@/lib/leagueCreationAccess";
+import { roadToWarGamesCreateOpen } from "@/lib/leagueSeasons";
 import { CreateLeagueForm } from "../CreateLeagueForm";
 
 export const metadata = {
@@ -16,8 +16,8 @@ export default async function NewLeaguePage() {
     redirect("/auth/sign-in?next=/play?step=create");
   }
 
-  const requiresAccessCodeEnv = await leagueCreationAccessIsConfigured();
   const isSiteAdmin = await getIsSiteAdmin();
+  const createOpen = roadToWarGamesCreateOpen();
 
   return (
     <main className="create-league-page">
@@ -27,29 +27,23 @@ export default async function NewLeaguePage() {
         </Link>
         <h1>Create a League</h1>
         <p style={{ margin: "0 0 24px", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
-          Create a private league for friends. Managers join with your league code or invite link. During beta, creation
-          may require a mailing-list access code.
-          {requiresAccessCodeEnv && !isSiteAdmin ? (
+          Create a private <strong>Road to War Games</strong> league for friends. Managers join with your league code
+          or invite link — no access code needed. Choose Total Season Points (3–6 factions) or Head-to-Head (4–8
+          factions); NXT is included.
+          {!isSiteAdmin ? (
             <>
               {" "}
-              <strong>Private league beta:</strong> you need the access code from our mailing list to create a league.
               To join a public league instead, use <strong>Play Now</strong> from the home page.
             </>
-          ) : !isSiteAdmin ? (
-            <>
-              {" "}
-              To join a public league, use <strong>Play Now</strong> from the home page.
-            </>
-          ) : null}
-          {isSiteAdmin ? (
+          ) : (
             <>
               {" "}
               <strong>Site admin:</strong> full create options by default. Use the toggle on the form to preview the
-              standard user flow (mailing-list code and beta limits when enabled).
+              standard user flow.
             </>
-          ) : null}
+          )}
         </p>
-        <CreateLeagueForm requiresAccessCodeEnv={requiresAccessCodeEnv} isSiteAdmin={isSiteAdmin} />
+        <CreateLeagueForm isSiteAdmin={isSiteAdmin} createOpen={createOpen} />
       </div>
     </main>
   );

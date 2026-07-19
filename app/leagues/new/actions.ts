@@ -3,12 +3,12 @@
 import { redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { createLeague } from "@/lib/leagues";
-import {
-  leagueCreationAccessIsConfigured,
-  consumeLeagueCreationAccessCode,
-} from "@/lib/leagueCreationAccess";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
-import { STANDARD_USER_CREATE_SEASON_SLUG, PUBLIC_SALARY_CAP_SEASON_SLUG } from "@/lib/leagueSeasons";
+import {
+  STANDARD_USER_CREATE_SEASON_SLUG,
+  PUBLIC_SALARY_CAP_SEASON_SLUG,
+  roadToWarGamesCreateOpen,
+} from "@/lib/leagueSeasons";
 import { SALARY_CAP_LEAGUE_TYPE } from "@/lib/leagueStructure";
 import { leaguePostJoinPath } from "@/lib/leagueOnboarding";
 
@@ -23,8 +23,12 @@ const ADMIN_LEAGUE_TYPES = new Set([
   "salary_cap",
 ]);
 
-const BETA_MIN_TEAMS = 3;
-const BETA_MAX_TEAMS = 6;
+/** Road to War Games private-league formats and team-count limits. */
+const R2WG_TEAM_RANGE: Record<string, { min: number; max: number }> = {
+  season_overall: { min: 3, max: 6 },
+  head_to_head: { min: 4, max: 8 },
+};
+
 const ADMIN_MIN_TEAMS = 3;
 const ADMIN_MAX_TEAMS = 16;
 
@@ -33,7 +37,7 @@ export async function createLeagueAction(
   formData: FormData
 ): Promise<CreateLeagueState> {
   const isSiteAdmin = await getIsSiteAdmin();
-  /** Standard beta rules: mailing-list code (if configured), Road to SummerSlam season, season_overall only, 3–6 teams. */
+  /** Standard rules: Road to War Games season, Total Season Points (3–6) or Head-to-Head (4–8), NXT included, no access code. */
   const enforceStandardRules =
     !isSiteAdmin ||
     (isSiteAdmin && formData.get("enforce_standard_create_rules") === "1");
@@ -46,31 +50,34 @@ export async function createLeagueAction(
   const include_nxt = include_nxt_raw === "1" || include_nxt_raw === "on";
   const visibility_type_raw = (formData.get("visibility_type") as string)?.trim().toLowerCase() ?? "private";
   const visibility_type = visibility_type_raw === "public" ? "public" : "private";
-  const accessCode = (formData.get("access_code") as string)?.trim() ?? "";
-
   if (enforceStandardRules) {
     if (visibility_type === "public") {
       return {
         error: "Public leagues can't be created here. Join an open public league from Play Now instead.",
       };
     }
-    if (!accessCode) {
-      return { error: "Enter the beta access code from your mailing list invite." };
+    if (!roadToWarGamesCreateOpen()) {
+      return {
+        error:
+          "Road to War Games league creation is closed for this season (new leagues must start at least six weeks before Survivor Series: War Games).",
+      };
     }
     if (season_slug !== STANDARD_USER_CREATE_SEASON_SLUG) {
       return {
         error:
-          "During the beta, new private leagues use the Road to SummerSlam season window. Other seasons are available when creating a league with full admin options.",
+          "New private leagues use the Road to War Games season. Other seasons are available with full admin options.",
       };
     }
-    if (league_type !== "season_overall") {
+    const range = R2WG_TEAM_RANGE[league_type];
+    if (!range) {
       return {
         error:
-          "For the Road to SummerSlam beta, only Total Season Points leagues are available. Head-to-Head and other formats are coming soon.",
+          "Choose Total Season Points or Head-to-Head. Combo, Legacy, and Salary Cap private leagues are coming soon.",
       };
     }
-    if (team_count < BETA_MIN_TEAMS || team_count > BETA_MAX_TEAMS) {
-      return { error: `Choose between ${BETA_MIN_TEAMS} and ${BETA_MAX_TEAMS} teams for this season.` };
+    if (team_count < range.min || team_count > range.max) {
+      const label = league_type === "head_to_head" ? "Head-to-Head" : "Total Season Points";
+      return { error: `${label} leagues use ${range.min}–${range.max} factions.` };
     }
   } else {
     if (!ADMIN_LEAGUE_TYPES.has(league_type)) {
@@ -109,36 +116,21 @@ export async function createLeagueAction(
     };
   }
 
-  if (enforceStandardRules) {
-    if (!(await leagueCreationAccessIsConfigured())) {
-      return {
-        error:
-          "League creation access codes are not configured yet. Please contact Draftastic support.",
-      };
-    }
-    const consume = await consumeLeagueCreationAccessCode(accessCode);
-    if (!consume.ok) {
-      return {
-        error:
-          consume.error ??
-          "That access code isn’t valid. Check the email we sent you, or contact us if you need help.",
-      };
-    }
-  }
-
   const effectiveVisibility = visibility_type;
   const effectiveSeasonSlug =
     effectiveVisibility === "public" ? PUBLIC_SALARY_CAP_SEASON_SLUG : season_slug;
   const effectiveLeagueType =
     effectiveVisibility === "public" ? SALARY_CAP_LEAGUE_TYPE : league_type;
   const effectiveMaxTeams = effectiveVisibility === "public" ? null : team_count;
+  // Road to War Games private leagues always include NXT; admin full-mode respects the checkbox.
+  const effectiveIncludeNxt = enforceStandardRules ? true : include_nxt;
 
   const { league, error } = await createLeague({
     name: effectiveVisibility === "public" ? "Public League" : name,
     season_slug: effectiveSeasonSlug,
     max_teams: effectiveMaxTeams,
     league_type: effectiveLeagueType,
-    include_nxt: !enforceStandardRules && include_nxt,
+    include_nxt: effectiveIncludeNxt,
     visibility_type: effectiveVisibility,
   });
   if (error) return { error };

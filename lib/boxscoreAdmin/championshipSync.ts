@@ -11,7 +11,7 @@ export function computeDaysHeld(dateWon: string, dateLost: string | null): numbe
 }
 
 type HistoryRow = {
-  id: string;
+  id: string | number;
   championship_id: string;
   champion?: string | null;
   champion_slug?: string | null;
@@ -23,6 +23,10 @@ type HistoryRow = {
   event_lost?: string | null;
   days_held?: number | null;
 };
+
+function isOpenReign(row: HistoryRow): boolean {
+  return row.date_lost == null || String(row.date_lost).trim() === "";
+}
 
 /** Mirror PWBS: copy latest reign into `championships` current-champion fields. */
 export async function syncChampionshipFromHistory(
@@ -58,40 +62,54 @@ export async function syncChampionshipFromHistory(
 }
 
 /**
- * When recording a title change, close the prior open reign (no date_lost) before inserting the new one.
+ * When recording a title change, close every open reign that isn't the incoming
+ * champion+date (leftover open duplicates from prior double-submits included).
  */
 export async function closeOpenReignForTitleChange(
   admin: SupabaseClient,
   championshipId: string,
   newDateWon: string,
-  newEventWon: string | null
+  newEventWon: string | null,
+  newChampion?: string | null
 ): Promise<{ error?: string }> {
   const { data: rows, error } = await admin
     .from("championship_history")
-    .select("id,date_won,date_lost")
+    .select("id,champion,date_won,date_lost")
     .eq("championship_id", championshipId)
-    .order("date_won", { ascending: false })
-    .limit(1);
+    .order("date_won", { ascending: false });
   if (error) return { error: error.message };
-  const prev = (rows?.[0] as HistoryRow | undefined) ?? null;
-  if (!prev || (prev.date_lost != null && String(prev.date_lost).trim() !== "")) return {};
 
-  const daysHeld = computeDaysHeld(String(prev.date_won ?? ""), newDateWon);
-  const { error: updateErr } = await admin
-    .from("championship_history")
-    .update({
-      date_lost: newDateWon,
-      event_lost: newEventWon,
-      days_held: daysHeld,
-    })
-    .eq("id", prev.id);
-  if (updateErr) return { error: updateErr.message };
+  const openRows = ((rows ?? []) as HistoryRow[]).filter(isOpenReign);
+  const newChampKey = String(newChampion ?? "")
+    .trim()
+    .toLowerCase();
+  const newDateKey = String(newDateWon).slice(0, 10);
+
+  for (const prev of openRows) {
+    const sameChampion =
+      newChampKey !== "" &&
+      String(prev.champion ?? "")
+        .trim()
+        .toLowerCase() === newChampKey;
+    const sameDate = String(prev.date_won ?? "").slice(0, 10) === newDateKey;
+    if (sameChampion && sameDate) continue;
+
+    const daysHeld = computeDaysHeld(String(prev.date_won ?? ""), newDateWon);
+    const { error: updateErr } = await admin
+      .from("championship_history")
+      .update({
+        date_lost: newDateWon,
+        event_lost: newEventWon,
+        days_held: daysHeld,
+      })
+      .eq("id", prev.id);
+    if (updateErr) return { error: updateErr.message };
+  }
   return {};
 }
 
 /**
- * Close the open reign when a tag partner is replaced. Same date boundaries as a title change,
- * but Event lost is labeled so history does not read as losing the belt in a match.
+ * Close every open reign when a tag partner is replaced.
  */
 export async function closeOpenReignForPartnerSubstitution(
   admin: SupabaseClient,
@@ -102,21 +120,55 @@ export async function closeOpenReignForPartnerSubstitution(
     .from("championship_history")
     .select("id,date_won,date_lost")
     .eq("championship_id", championshipId)
-    .order("date_won", { ascending: false })
-    .limit(1);
+    .order("date_won", { ascending: false });
   if (error) return { error: error.message };
-  const prev = (rows?.[0] as HistoryRow | undefined) ?? null;
-  if (!prev || (prev.date_lost != null && String(prev.date_lost).trim() !== "")) return {};
 
-  const daysHeld = computeDaysHeld(String(prev.date_won ?? ""), substitutionDate);
-  const { error: updateErr } = await admin
-    .from("championship_history")
-    .update({
-      date_lost: substitutionDate,
-      event_lost: PARTNER_SUBSTITUTION_EVENT_LABEL,
-      days_held: daysHeld,
-    })
-    .eq("id", prev.id);
-  if (updateErr) return { error: updateErr.message };
+  const openRows = ((rows ?? []) as HistoryRow[]).filter(isOpenReign);
+  for (const prev of openRows) {
+    const daysHeld = computeDaysHeld(String(prev.date_won ?? ""), substitutionDate);
+    const { error: updateErr } = await admin
+      .from("championship_history")
+      .update({
+        date_lost: substitutionDate,
+        event_lost: PARTNER_SUBSTITUTION_EVENT_LABEL,
+        days_held: daysHeld,
+      })
+      .eq("id", prev.id);
+    if (updateErr) return { error: updateErr.message };
+  }
   return {};
+}
+
+/**
+ * Keep the oldest row for each (champion, date_won) pair; delete the rest.
+ * Heals duplicates left by React Strict Mode double-invoking server actions in dev.
+ */
+export async function dedupeChampionshipHistory(
+  admin: SupabaseClient,
+  championshipId: string
+): Promise<{ error?: string; removed?: number }> {
+  const { data: rows, error } = await admin
+    .from("championship_history")
+    .select("id,champion,date_won")
+    .eq("championship_id", championshipId)
+    .order("id", { ascending: true });
+  if (error) return { error: error.message };
+
+  const keepByKey = new Map<string, string | number>();
+  const removeIds: Array<string | number> = [];
+  for (const row of (rows ?? []) as HistoryRow[]) {
+    const key = `${String(row.champion ?? "")
+      .trim()
+      .toLowerCase()}|${String(row.date_won ?? "").slice(0, 10)}`;
+    if (!keepByKey.has(key)) {
+      keepByKey.set(key, row.id);
+    } else {
+      removeIds.push(row.id);
+    }
+  }
+  if (removeIds.length === 0) return { removed: 0 };
+
+  const { error: delErr } = await admin.from("championship_history").delete().in("id", removeIds);
+  if (delErr) return { error: delErr.message };
+  return { removed: removeIds.length };
 }

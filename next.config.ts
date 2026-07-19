@@ -13,6 +13,13 @@ function supabaseStorageHostname(): string {
 }
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      // Default is 1 MB, which rejects wrestler image uploads (boxscore admin)
+      // before the action runs. Headshot + full-body PNGs can total ~15 MB.
+      bodySizeLimit: "20mb",
+    },
+  },
   images: {
     remotePatterns: [
       {

@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { addWrestlerToRoster, removeWrestlerFromRoster } from "@/lib/leagues";
-import { getRosterRulesForLeague } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, isRoadToWarGamesSeasonSlug } from "@/lib/leagueStructure";
+import { getMondayOfWeek } from "@/lib/fantasyWeekBounds";
+import { getCivilYmdInPst } from "@/lib/pstCivilTime";
 import {
   runFullAutopickDraftAtScheduledTime,
   siteAdminClearDraftOrder,
@@ -185,6 +187,54 @@ export async function adminRedrawDraftOrderAction(formData: FormData): Promise<v
   redirect(`${base}?ok=${encodeURIComponent("New random draft order generated.")}`);
 }
 
+/**
+ * Road to War Games: when a private league's draft is completed + approved, lock
+ * the league to the number of teams that actually drafted and set the scoring
+ * start date. TSP counts the next WWE event on/after approval; H2H starts the
+ * Monday of the week after approval (matchups run full Mon–Sun weeks).
+ *
+ * `start_date` becomes the single source of truth for scoring start, so we clear
+ * `draft_date` (which otherwise takes precedence in getEffectiveLeagueStartDate
+ * and the H2H week grid). No-op for non-R2WG seasons.
+ */
+async function lockRoadToWarGamesLeagueOnApproval(leagueId: string): Promise<void> {
+  const admin = getAdminClient();
+  if (!admin) return;
+  const { data: league } = await admin
+    .from("leagues")
+    .select("season_slug, league_type")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const seasonSlug = (league as { season_slug?: string | null } | null)?.season_slug ?? null;
+  if (!isRoadToWarGamesSeasonSlug(seasonSlug)) return;
+
+  const leagueType = ((league as { league_type?: string | null } | null)?.league_type ?? "").trim();
+  const isHeadToHead = leagueType === "head_to_head" || leagueType === "combo";
+
+  const { count: memberCount } = await admin
+    .from("league_members")
+    .select("user_id", { count: "exact", head: true })
+    .eq("league_id", leagueId);
+  const draftedTeams = memberCount ?? 0;
+
+  const approvalYmd = getCivilYmdInPst(Date.now());
+  let scoringStartYmd = approvalYmd;
+  if (isHeadToHead) {
+    const monday = getMondayOfWeek(approvalYmd);
+    const d = new Date(monday + "T12:00:00Z");
+    d.setUTCDate(d.getUTCDate() + 7);
+    scoringStartYmd = d.toISOString().slice(0, 10);
+  }
+
+  const update: Record<string, unknown> = {
+    start_date: scoringStartYmd,
+    draft_date: null,
+  };
+  if (draftedTeams >= 3 && draftedTeams <= 16) update.max_teams = draftedTeams;
+
+  await admin.from("leagues").update(update).eq("id", leagueId);
+}
+
 export async function adminApproveDraftReviewAction(formData: FormData): Promise<void> {
   await requireSiteAdmin();
   const admin = getAdminClient();
@@ -214,6 +264,7 @@ export async function adminApproveDraftReviewAction(formData: FormData): Promise
     revalidatePath(`/internal-admin/leagues/${encodeURIComponent(leagueSlug)}`);
     redirect(`${adminPath}?review=error`);
   }
+  await lockRoadToWarGamesLeagueOnApproval(leagueId);
   if (note) {
     await admin.from("leagues").update({ manager_note: note }).eq("id", leagueId);
   }

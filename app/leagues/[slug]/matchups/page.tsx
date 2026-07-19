@@ -20,10 +20,11 @@ import {
   getPointsByOwnerByWrestlerForWeek,
   getMonthlyBeltBySlugForWeek,
   getPointsByOwnerForLeagueWithBonuses,
-  leagueHasEightTeamPlayoffSchedule,
-  eightTeamPlayoffsUnlocked,
-  eightTeamPlayoffWeekLabel,
-  getEightTeamPlayoffBracket,
+  leagueHasH2HPlayoffSchedule,
+  playoffsUnlocked,
+  playoffWeekLabel,
+  playoffRoundsForSize,
+  getPlayoffBracket,
 } from "@/lib/leagueMatchups";
 import { getMatchupWrestlerChampionTitleLineBySlug } from "@/lib/matchupWrestlerCurrentTitles";
 import { sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
@@ -335,14 +336,16 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
         ? currentWeek
         : weeks[0] ?? null;
 
-  const hasEightTeamPlayoffSchedule = leagueHasEightTeamPlayoffSchedule({
+  const hasPlayoffSchedule = leagueHasH2HPlayoffSchedule({
     memberCount: members.length,
     weekCount: weeks.length,
     maxTeams: league.max_teams ?? null,
     draftStatus: league.draft_status ?? null,
   });
-  const playoffsUnlocked = hasEightTeamPlayoffSchedule && eightTeamPlayoffsUnlocked(weeks);
-  const view = viewParam === "bracket" && hasEightTeamPlayoffSchedule ? "bracket" : "matchups";
+  const arePlayoffsUnlocked =
+    hasPlayoffSchedule &&
+    playoffsUnlocked({ weekStarts: weeks, size: members.length, weeklyResults: matchups });
+  const view = viewParam === "bracket" && hasPlayoffSchedule ? "bracket" : "matchups";
   const matchupsHref =
     selectedWeekStart != null
       ? `/leagues/${slug}/matchups?week=${encodeURIComponent(selectedWeekStart)}`
@@ -354,12 +357,12 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     weekEnd: getSundayOfWeek(ws),
     label: formatWeekRangeShort(ws, getSundayOfWeek(ws)),
     weekNumber: idx + 1,
-    roundLabel: hasEightTeamPlayoffSchedule ? eightTeamPlayoffWeekLabel(idx + 1) : null,
+    roundLabel: hasPlayoffSchedule ? playoffWeekLabel(idx + 1, weeks.length, members.length) : null,
   }));
 
   if (view === "bracket") {
-    const bracket = playoffsUnlocked
-      ? getEightTeamPlayoffBracket({
+    const bracket = arePlayoffsUnlocked
+      ? getPlayoffBracket({
           weekStarts: weeks,
           memberUserIds: members.map((m) => m.user_id),
           seededMemberUserIds,
@@ -368,7 +371,9 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
           weeklyResults: matchups,
         })
       : null;
-    const playoffMonday = weeks[9];
+    const playoffRounds = playoffRoundsForSize(members.length);
+    const firstPlayoffWeekIdx = Math.max(1, weeks.length - playoffRounds);
+    const playoffMonday = weeks[firstPlayoffWeekIdx];
 
     return (
       <main
@@ -429,11 +434,11 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
           Playoff bracket
         </h1>
 
-        {!playoffsUnlocked || !bracket ? (
+        {!arePlayoffsUnlocked || !bracket ? (
           <p className="playoffs-page__empty">
-            The playoff bracket unlocks after regular-season week 9 ends
+            The playoff bracket unlocks once the regular season is complete
             {playoffMonday
-              ? ` (quarterfinals begin the week of ${new Date(playoffMonday + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })})`
+              ? ` (playoffs begin the week of ${new Date(playoffMonday + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })})`
               : ""}
             .
           </p>
@@ -542,7 +547,7 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
         </Link>
       </p>
 
-      {hasEightTeamPlayoffSchedule ? (
+      {arePlayoffsUnlocked ? (
         <nav
           aria-label="Matchups view"
           style={{

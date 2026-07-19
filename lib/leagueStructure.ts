@@ -21,6 +21,12 @@ export const ROAD_TO_SUMMERSLAM_SEASON_SLUG = "road-to-summerslam";
  */
 export const ROAD_TO_SUMMERSLAM_BANNER_SRC = "/images/season-belts/road-to-summer-belt-26.png";
 
+/**
+ * League UI header for Road to War Games (desktop season rail, mobile pathway page).
+ * Single source of truth so asset swaps apply everywhere.
+ */
+export const ROAD_TO_WAR_GAMES_BANNER_SRC = "/images/season-belts/war-games-belt.png";
+
 /** Salary-cap league season championship (public leagues and admin salary-cap leagues). */
 export const PUBLIC_LEAGUE_CHAMPIONSHIP_BANNER_SRC =
   "/images/season-belts/public-league-championship-26.png";
@@ -83,6 +89,9 @@ export function leagueIsSalaryCapFormat(league: LeagueSeasonBeltInput | null | u
 export function getLeagueSeasonBelt(league: LeagueSeasonBeltInput | null | undefined): LeagueSeasonBelt | null {
   if (leagueIsSalaryCapFormat(league)) {
     return { src: PUBLIC_LEAGUE_CHAMPIONSHIP_BANNER_SRC, alt: "Public League Championship" };
+  }
+  if (isRoadToWarGamesSeasonSlug(league?.season_slug)) {
+    return { src: ROAD_TO_WAR_GAMES_BANNER_SRC, alt: "Road to War Games" };
   }
   if (league?.season_slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG) {
     return { src: ROAD_TO_SUMMERSLAM_BANNER_SRC, alt: "Road to SummerSlam" };
@@ -169,6 +178,25 @@ export const HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
   12: { rosterSize: 12, minFemale: 4, minMale: 4 },
 };
 
+/**
+ * Road to War Games roster ladder (NXT included). Used by both Head-to-Head/Combo
+ * and Total Season Points R2WG leagues. Deeper pool → bigger benches for smaller
+ * leagues, tapering as team count grows: 4 teams → 14, 5/6 → 12, 7/8 → 10
+ * wrestlers, each with a floor of 4 women. (TSP is 3–6 teams; H2H is 4–8.)
+ */
+export const HEAD_TO_HEAD_NXT_ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
+  3: { rosterSize: 14, minFemale: 4, minMale: 4 },
+  4: { rosterSize: 14, minFemale: 4, minMale: 4 },
+  5: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  6: { rosterSize: 12, minFemale: 4, minMale: 4 },
+  7: { rosterSize: 10, minFemale: 4, minMale: 4 },
+  8: { rosterSize: 10, minFemale: 4, minMale: 4 },
+  9: { rosterSize: 10, minFemale: 4, minMale: 4 },
+  10: { rosterSize: 10, minFemale: 4, minMale: 4 },
+  11: { rosterSize: 10, minFemale: 4, minMale: 4 },
+  12: { rosterSize: 10, minFemale: 4, minMale: 4 },
+};
+
 /** Leagues that use {@link HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS} instead of the Total Season Points ladder. */
 export function leagueUsesHeadToHeadStyleRosterRules(leagueType: string | null | undefined): boolean {
   return leagueType === "head_to_head" || leagueType === "combo";
@@ -189,6 +217,7 @@ export const ROSTER_RULES_BY_TEAMS: Record<number, RosterRules> = {
  */
 export const ACTIVE_PER_EVENT_BY_ROSTER_SIZE: Record<number, number> = {
   15: 8,
+  14: 8,
   13: 7,
   12: 7,
   11: 6,
@@ -203,7 +232,9 @@ export const ACTIVE_PER_EVENT_BY_ROSTER_SIZE: Record<number, number> = {
 /**
  * Get roster rules for a league based on team count and season.
  *
- * - `league_type` **head_to_head** or **combo**: {@link HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS} (roster 12 for 3–12 teams).
+ * - `league_type` **head_to_head** or **combo**: {@link HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS} (roster 12 for 3–12 teams),
+ *   or {@link HEAD_TO_HEAD_NXT_ROSTER_RULES_BY_TEAMS} when NXT is included.
+ * - Road to War Games (any league_type): {@link HEAD_TO_HEAD_NXT_ROSTER_RULES_BY_TEAMS} (NXT always included).
  * - Road to SummerSlam (`season_slug === road-to-summerslam`) with 3–6 teams: RTS beta caps.
  * - All other seasons (including Total Season Points test leagues in other seasons): legacy rules.
  *   For 3–6 teams, legacy uses the same rules as a 7-team league (roster 10 / mins 4F+4M).
@@ -223,7 +254,15 @@ export function getRosterRulesForLeague(
     return null;
   }
   if (leagueUsesHeadToHeadStyleRosterRules(leagueType)) {
+    if (includeNxt) {
+      return HEAD_TO_HEAD_NXT_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
+    }
     return HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
+  }
+  // Road to War Games Total Season Points leagues share the H2H (NXT-included)
+  // roster ladder (NXT is always included for R2WG).
+  if (isRoadToWarGamesSeasonSlug(seasonSlug)) {
+    return HEAD_TO_HEAD_NXT_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
   }
   if (includeNxt) {
     return INCLUDE_NXT_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;

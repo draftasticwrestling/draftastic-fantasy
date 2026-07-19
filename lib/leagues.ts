@@ -13,6 +13,7 @@ import {
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
   SALARY_CAP_LEAGUE_TYPE,
   SALARY_CAP_MAX_ROSTER_SIZE,
+  isRoadToWarGamesSeasonSlug,
 } from "@/lib/leagueStructure";
 import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getDefaultStartEndForSeason, PUBLIC_SALARY_CAP_SEASON_SLUG, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
@@ -252,7 +253,12 @@ export async function createLeague(params: {
     end_date = window.end_date;
   }
 
-  const maxTeamsCapForUser = isSiteAdmin ? 16 : 6;
+  const isRoadToWarGames = isRoadToWarGamesSeasonSlug(seasonSlug);
+  const requestedLeagueTypeForCap = params.league_type?.trim() || null;
+  // Non-admin caps: Road to War Games Head-to-Head allows up to 8 factions; everything else 6.
+  const nonAdminMaxTeams =
+    isRoadToWarGames && requestedLeagueTypeForCap === "head_to_head" ? 8 : 6;
+  const maxTeamsCapForUser = isSiteAdmin ? 16 : nonAdminMaxTeams;
   const maxTeamsRequested =
     params.max_teams != null && Number.isFinite(Number(params.max_teams))
       ? Math.min(maxTeamsCapForUser, Math.max(3, Math.floor(Number(params.max_teams))))
@@ -283,15 +289,22 @@ export async function createLeague(params: {
     return { error: "Only site administrators can create salary cap leagues." };
   }
   const include_nxt_requested = Boolean(params.include_nxt);
-  if (include_nxt_requested && !isSiteAdmin) {
+  if (include_nxt_requested && !isSiteAdmin && !isRoadToWarGames) {
     return { error: "Only site administrators can create leagues that include NXT." };
   }
-  if (include_nxt_requested && league_type !== "head_to_head" && league_type !== "salary_cap") {
+  if (
+    include_nxt_requested &&
+    !isRoadToWarGames &&
+    league_type !== "head_to_head" &&
+    league_type !== "salary_cap"
+  ) {
     return {
       error: "Include NXT is only available for Head-to-Head leagues (admin testing).",
     };
   }
-  const include_nxt = league_type === "salary_cap" ? true : include_nxt_requested;
+  // Road to War Games always includes NXT; salary cap always includes NXT.
+  const include_nxt =
+    league_type === "salary_cap" || isRoadToWarGames ? true : include_nxt_requested;
 
   const leagueSelect =
     "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, created_at";

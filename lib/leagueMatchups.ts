@@ -1077,22 +1077,47 @@ export async function getXpSeededMemberUserIds(
   });
 }
 
-function getRoundRobinH2HForWeek(memberUserIds: string[], roundIndex: number): WeekMatchup[] {
-  if (memberUserIds.length < 4 || memberUserIds.length % 2 !== 0) return [];
-  const ids = [...memberUserIds].sort((a, b) => a.localeCompare(b));
-  const n = ids.length;
-  const rounds = n - 1;
-  if (rounds <= 0) return [];
+/**
+ * Even-length 1-factorization via the circle method: for a list of `m` ids (m even),
+ * returns the m/2 pairings for `roundIndex`. Rotating roundIndex 0..m-2 yields a full
+ * single round-robin (each pair exactly once).
+ */
+function circleRoundRobinPairs(ids: string[], roundIndex: number): Array<[string, string]> {
+  const m = ids.length;
+  if (m < 2 || m % 2 !== 0) return [];
+  const rounds = m - 1;
   const r = ((roundIndex % rounds) + rounds) % rounds;
-  const arr = [...ids];
-  for (let i = 0; i < r; i++) {
-    const moved = arr.pop();
-    if (!moved) break;
-    arr.splice(1, 0, moved);
+  const rest = ids.slice(1);
+  const rotated: string[] = [];
+  for (let i = 0; i < rest.length; i++) rotated.push(rest[(i + r) % rest.length]!);
+  const row = [ids[0]!, ...rotated];
+  const pairs: Array<[string, string]> = [];
+  for (let i = 0; i < m / 2; i++) pairs.push([row[i]!, row[m - 1 - i]!]);
+  return pairs;
+}
+
+/**
+ * Weekly regular-season matchups for a rotating round-robin.
+ * - Even N: N/2 head-to-head games (no byes, no triple threats).
+ * - Odd N: exactly one triple threat + (N-3)/2 head-to-head games, using the circle
+ *   method with a rotating "bye" folded into a triple threat of three consecutive
+ *   teams. This guarantees each team lands in the triple threat exactly three times
+ *   per N-week cycle, so triple-threat duty is spread evenly (no team is always in one).
+ * `order` is the seeded member order (fixed across the season for determinism).
+ */
+export function getRegularSeasonMatchupsForRound(order: string[], roundIndex: number): WeekMatchup[] {
+  const n = order.length;
+  if (n < 3) return [];
+  if (n % 2 === 0) {
+    return circleRoundRobinPairs(order, roundIndex).map((p) => ({ type: "h2h", userIds: [p[0], p[1]] }));
   }
-  const out: WeekMatchup[] = [];
-  for (let i = 0; i < n / 2; i++) {
-    out.push({ type: "h2h", userIds: [arr[i]!, arr[n - 1 - i]!] });
+  const r = ((roundIndex % n) + n) % n;
+  const at = (k: number) => order[(((r + k) % n) + n) % n]!;
+  const half = (n - 1) / 2;
+  // The would-be "bye" team (r) plus the k=1 pair become a triple of 3 consecutive teams.
+  const out: WeekMatchup[] = [{ type: "triple", userIds: [at(-1), at(0), at(1)] }];
+  for (let k = 2; k <= half; k++) {
+    out.push({ type: "h2h", userIds: [at(k), at(-k)] });
   }
   return out;
 }
@@ -1110,46 +1135,266 @@ function winnerByPointsThenSeed(
   return seededOrder.indexOf(a) <= seededOrder.indexOf(b) ? a : b;
 }
 
-function buildRegularSeasonSeedsForEightTeamLeague(
-  memberUserIds: string[],
+/** Apply one week's matchup (H2H or triple threat) to a running W-L-T tally. */
+function applyMatchupToWlt(
+  mu: WeekMatchup,
+  pointsByUserId: Record<string, number>,
+  wlt: Record<string, { w: number; l: number; t: number }>
+): void {
+  if (mu.type === "h2h") {
+    const [a, b] = mu.userIds;
+    if (!a || !b || !wlt[a] || !wlt[b]) return;
+    const pa = pointsByUserId[a] ?? 0;
+    const pb = pointsByUserId[b] ?? 0;
+    if (pa > pb) {
+      wlt[a]!.w++;
+      wlt[b]!.l++;
+    } else if (pb > pa) {
+      wlt[b]!.w++;
+      wlt[a]!.l++;
+    } else {
+      wlt[a]!.t++;
+      wlt[b]!.t++;
+    }
+    return;
+  }
+  const pts = mu.userIds
+    .filter((id) => wlt[id])
+    .map((id) => ({ id, p: pointsByUserId[id] ?? 0 }))
+    .sort((x, y) => y.p - x.p);
+  if (pts.length < 3) return;
+  const [x, y, z] = pts;
+  if (x!.p > y!.p) {
+    wlt[x!.id]!.w++;
+    wlt[y!.id]!.l++;
+    wlt[z!.id]!.l++;
+    if (y!.p === z!.p) {
+      // second/third tie: both charged a loss (already applied above).
+    }
+  } else if (x!.p === y!.p && y!.p > z!.p) {
+    wlt[x!.id]!.t++;
+    wlt[y!.id]!.t++;
+    wlt[z!.id]!.l++;
+  } else {
+    wlt[x!.id]!.t++;
+    wlt[y!.id]!.t++;
+    wlt[z!.id]!.t++;
+  }
+}
+
+/**
+ * Seed managers by regular-season record (wins, then fewer losses, then ties),
+ * breaking ties on total points then the base (XP) order. Works for any league size
+ * and any number of regular-season weeks, using the rotating round-robin schedule.
+ */
+function buildRegularSeasonSeeds(
+  order: string[],
   regularSeasonWeekStarts: string[],
   weeklyResults: WeeklyMatchupResult[]
 ): string[] {
-  const rounds = regularSeasonWeekStarts.map((_, i) => getRoundRobinH2HForWeek(memberUserIds, i));
   const wlt: Record<string, { w: number; l: number; t: number }> = Object.fromEntries(
-    memberUserIds.map((id) => [id, { w: 0, l: 0, t: 0 }])
+    order.map((id) => [id, { w: 0, l: 0, t: 0 }])
   );
-  const pointsTotal: Record<string, number> = Object.fromEntries(memberUserIds.map((id) => [id, 0]));
+  const pointsTotal: Record<string, number> = Object.fromEntries(order.map((id) => [id, 0]));
   for (let i = 0; i < regularSeasonWeekStarts.length; i++) {
     const weekStart = regularSeasonWeekStarts[i]!;
     const weekResult = weeklyResults.find((r) => r.weekStart === weekStart);
     if (!weekResult) continue;
-    for (const id of memberUserIds) pointsTotal[id] = (pointsTotal[id] ?? 0) + (weekResult.pointsByUserId[id] ?? 0);
-    for (const mu of rounds[i] ?? []) {
-      const [a, b] = mu.userIds;
-      const pa = weekResult.pointsByUserId[a] ?? 0;
-      const pb = weekResult.pointsByUserId[b] ?? 0;
-      if (pa > pb) {
-        wlt[a]!.w++;
-        wlt[b]!.l++;
-      } else if (pb > pa) {
-        wlt[b]!.w++;
-        wlt[a]!.l++;
-      } else {
-        wlt[a]!.t++;
-        wlt[b]!.t++;
-      }
+    for (const id of order) pointsTotal[id] = (pointsTotal[id] ?? 0) + (weekResult.pointsByUserId[id] ?? 0);
+    for (const mu of getRegularSeasonMatchupsForRound(order, i)) {
+      applyMatchupToWlt(mu, weekResult.pointsByUserId, wlt);
     }
   }
-  return [...memberUserIds].sort((a, b) => {
+  const baseIndex = new Map(order.map((id, i) => [id, i]));
+  return [...order].sort((a, b) => {
     const wa = wlt[a]!;
     const wb = wlt[b]!;
     if (wb.w !== wa.w) return wb.w - wa.w;
     if (wa.l !== wb.l) return wa.l - wb.l;
     if (wb.t !== wa.t) return wb.t - wa.t;
     if ((pointsTotal[b] ?? 0) !== (pointsTotal[a] ?? 0)) return (pointsTotal[b] ?? 0) - (pointsTotal[a] ?? 0);
-    return a.localeCompare(b);
+    return (baseIndex.get(a) ?? 0) - (baseIndex.get(b) ?? 0);
   });
+}
+
+// ============================================================================
+// H2H playoffs (sizes 4–8), anchored to the final fantasy week.
+// The regular season is every week before the playoff rounds (variable length).
+// ============================================================================
+
+/** Head-to-Head leagues with a supported playoff bracket size. */
+export function leagueSupportsH2HPlayoffs(size: number): boolean {
+  return size >= 4 && size <= 8;
+}
+
+/** Number of playoff weeks (rounds) for a given league size. 4 = 2 weeks; 5–8 = 3 weeks. */
+export function playoffRoundsForSize(size: number): number {
+  if (!leagueSupportsH2HPlayoffs(size)) return 0;
+  return size === 4 ? 2 : 3;
+}
+
+/** Human labels for each playoff round (index 0 = first playoff week). */
+function playoffRoundLabels(size: number): string[] {
+  const po = playoffRoundsForSize(size);
+  if (po === 2) return ["Semifinals", "Finals"];
+  if (po === 3) {
+    const first = size === 5 ? "First Round" : "Quarterfinals";
+    return [first, "Semifinals", "Finals"];
+  }
+  return [];
+}
+
+type PlayoffRef =
+  | { kind: "seed"; seed: number }
+  | { kind: "win"; game: string }
+  | { kind: "lose"; game: string };
+
+const seedRef = (seed: number): PlayoffRef => ({ kind: "seed", seed });
+const winRef = (game: string): PlayoffRef => ({ kind: "win", game });
+const loseRef = (game: string): PlayoffRef => ({ kind: "lose", game });
+
+type PlayoffGameSpec = {
+  id: string;
+  round: number;
+  a: PlayoffRef;
+  b: PlayoffRef;
+  group: "championship" | "placement";
+  label: string;
+};
+
+type PlayoffSpec = {
+  size: number;
+  rounds: number;
+  games: PlayoffGameSpec[];
+  /** Teams that get a final rank with no game (single team left for a place). */
+  autoPlacements?: Array<{ rank: number; label: string; ref: PlayoffRef }>;
+};
+
+/**
+ * Bracket templates per league size. All games are 1v1; top seeds get byes in early
+ * rounds. Championship games decide 1st/2nd; placement games rank everyone else.
+ * Every size finishes within `playoffRoundsForSize(size)` weeks.
+ */
+const PLAYOFF_SPECS: Record<number, PlayoffSpec> = {
+  4: {
+    size: 4,
+    rounds: 2,
+    games: [
+      { id: "sf1", round: 0, a: seedRef(1), b: seedRef(4), group: "championship", label: "Semifinal" },
+      { id: "sf2", round: 0, a: seedRef(2), b: seedRef(3), group: "championship", label: "Semifinal" },
+      { id: "final", round: 1, a: winRef("sf1"), b: winRef("sf2"), group: "championship", label: "Championship" },
+      { id: "third", round: 1, a: loseRef("sf1"), b: loseRef("sf2"), group: "placement", label: "3rd Place" },
+    ],
+  },
+  5: {
+    size: 5,
+    rounds: 3,
+    games: [
+      { id: "pi", round: 0, a: seedRef(4), b: seedRef(5), group: "championship", label: "First Round" },
+      { id: "sf1", round: 1, a: seedRef(1), b: winRef("pi"), group: "championship", label: "Semifinal" },
+      { id: "sf2", round: 1, a: seedRef(2), b: seedRef(3), group: "championship", label: "Semifinal" },
+      { id: "final", round: 2, a: winRef("sf1"), b: winRef("sf2"), group: "championship", label: "Championship" },
+      { id: "third", round: 2, a: loseRef("sf1"), b: loseRef("sf2"), group: "placement", label: "3rd Place" },
+    ],
+    autoPlacements: [{ rank: 5, label: "5th Place", ref: loseRef("pi") }],
+  },
+  6: {
+    size: 6,
+    rounds: 3,
+    games: [
+      { id: "q1", round: 0, a: seedRef(3), b: seedRef(6), group: "championship", label: "Quarterfinal" },
+      { id: "q2", round: 0, a: seedRef(4), b: seedRef(5), group: "championship", label: "Quarterfinal" },
+      { id: "sf1", round: 1, a: seedRef(1), b: winRef("q2"), group: "championship", label: "Semifinal" },
+      { id: "sf2", round: 1, a: seedRef(2), b: winRef("q1"), group: "championship", label: "Semifinal" },
+      { id: "final", round: 2, a: winRef("sf1"), b: winRef("sf2"), group: "championship", label: "Championship" },
+      { id: "third", round: 2, a: loseRef("sf1"), b: loseRef("sf2"), group: "placement", label: "3rd Place" },
+      { id: "fifth", round: 2, a: loseRef("q1"), b: loseRef("q2"), group: "placement", label: "5th Place" },
+    ],
+  },
+  7: {
+    size: 7,
+    rounds: 3,
+    games: [
+      { id: "q1", round: 0, a: seedRef(4), b: seedRef(5), group: "championship", label: "Quarterfinal" },
+      { id: "q2", round: 0, a: seedRef(2), b: seedRef(7), group: "championship", label: "Quarterfinal" },
+      { id: "q3", round: 0, a: seedRef(3), b: seedRef(6), group: "championship", label: "Quarterfinal" },
+      { id: "sf1", round: 1, a: seedRef(1), b: winRef("q1"), group: "championship", label: "Semifinal" },
+      { id: "sf2", round: 1, a: winRef("q2"), b: winRef("q3"), group: "championship", label: "Semifinal" },
+      { id: "cs", round: 1, a: loseRef("q2"), b: loseRef("q3"), group: "placement", label: "5th Place Semifinal" },
+      { id: "final", round: 2, a: winRef("sf1"), b: winRef("sf2"), group: "championship", label: "Championship" },
+      { id: "third", round: 2, a: loseRef("sf1"), b: loseRef("sf2"), group: "placement", label: "3rd Place" },
+      { id: "fifth", round: 2, a: loseRef("q1"), b: winRef("cs"), group: "placement", label: "5th Place" },
+    ],
+    autoPlacements: [{ rank: 7, label: "7th Place", ref: loseRef("cs") }],
+  },
+  8: {
+    size: 8,
+    rounds: 3,
+    games: [
+      { id: "q1", round: 0, a: seedRef(1), b: seedRef(8), group: "championship", label: "Quarterfinal" },
+      { id: "q2", round: 0, a: seedRef(4), b: seedRef(5), group: "championship", label: "Quarterfinal" },
+      { id: "q3", round: 0, a: seedRef(2), b: seedRef(7), group: "championship", label: "Quarterfinal" },
+      { id: "q4", round: 0, a: seedRef(3), b: seedRef(6), group: "championship", label: "Quarterfinal" },
+      { id: "sf1", round: 1, a: winRef("q1"), b: winRef("q2"), group: "championship", label: "Semifinal" },
+      { id: "sf2", round: 1, a: winRef("q3"), b: winRef("q4"), group: "championship", label: "Semifinal" },
+      { id: "cs1", round: 1, a: loseRef("q1"), b: loseRef("q2"), group: "placement", label: "Consolation Semifinal" },
+      { id: "cs2", round: 1, a: loseRef("q3"), b: loseRef("q4"), group: "placement", label: "Consolation Semifinal" },
+      { id: "final", round: 2, a: winRef("sf1"), b: winRef("sf2"), group: "championship", label: "Championship" },
+      { id: "third", round: 2, a: loseRef("sf1"), b: loseRef("sf2"), group: "placement", label: "3rd Place" },
+      { id: "fifth", round: 2, a: winRef("cs1"), b: winRef("cs2"), group: "placement", label: "5th Place" },
+      { id: "seventh", round: 2, a: loseRef("cs1"), b: loseRef("cs2"), group: "placement", label: "7th Place" },
+    ],
+  },
+};
+
+function getPlayoffSpec(size: number): PlayoffSpec | null {
+  return PLAYOFF_SPECS[size] ?? null;
+}
+
+type ResolvedPlayoffGame = {
+  spec: PlayoffGameSpec;
+  a: string | null;
+  b: string | null;
+  weekStart: string;
+  weekEnd: string;
+  weekResult: WeeklyMatchupResult | undefined;
+  weekFinalized: boolean;
+  winner: string | null;
+  loser: string | null;
+};
+
+/** Resolve every playoff game's participants + winners from seeds and weekly results. */
+function resolvePlayoffGames(params: {
+  spec: PlayoffSpec;
+  seeds: string[];
+  playoffWeekStarts: string[];
+  weeklyResults: WeeklyMatchupResult[];
+}): Map<string, ResolvedPlayoffGame> {
+  const { spec, seeds, playoffWeekStarts, weeklyResults } = params;
+  const resolved = new Map<string, ResolvedPlayoffGame>();
+  const resolveRef = (ref: PlayoffRef): string | null => {
+    if (ref.kind === "seed") return seeds[ref.seed - 1] ?? null;
+    const g = resolved.get(ref.game);
+    if (!g) return null;
+    return ref.kind === "win" ? g.winner : g.loser;
+  };
+  const games = [...spec.games].sort((g1, g2) => g1.round - g2.round);
+  for (const g of games) {
+    const a = resolveRef(g.a);
+    const b = resolveRef(g.b);
+    const weekStart = playoffWeekStarts[g.round] ?? "";
+    const weekEnd = weekStart ? getSundayOfWeek(weekStart) : "";
+    const weekResult = weekStart ? weeklyResults.find((r) => r.weekStart === weekStart) : undefined;
+    const weekFinalized = Boolean(weekResult?.weekScoringFinalized);
+    let winner: string | null = null;
+    let loser: string | null = null;
+    if (a && b && weekResult && weekFinalized) {
+      winner = winnerByPointsThenSeed(weekResult.pointsByUserId, a, b, seeds);
+      loser = winner === a ? b : a;
+    }
+    resolved.set(g.id, { spec: g, a, b, weekStart, weekEnd, weekResult, weekFinalized, winner, loser });
+  }
+  return resolved;
 }
 
 export function getScheduledMatchupsForWeek(params: {
@@ -1180,103 +1425,82 @@ export function getScheduledMatchupsForWeek(params: {
 
   const idx = weekStarts.indexOf(weekStart);
   if (idx < 0) return [];
-  /** Eight-team H2H: 9 RS weeks (7 round-robin + repeat W1 + repeat W2), 3 playoff weeks (QF / SF / F) → 12 Mondays in range. */
-  if (memberUserIds.length !== 8 || weekStarts.length < 12) {
-    return getMatchupsForWeek(baseOrder, baseOrder.length);
+
+  const size = memberUserIds.length;
+  const totalWeeks = weekStarts.length;
+  const po = leagueSupportsH2HPlayoffs(size) ? playoffRoundsForSize(size) : 0;
+  const rsCount = po > 0 ? Math.max(1, totalWeeks - po) : totalWeeks;
+
+  // Regular-season week: rotating round-robin (1v1 first; one rotating triple threat when odd).
+  if (po === 0 || idx < rsCount) {
+    return getRegularSeasonMatchupsForRound(baseOrder, idx);
   }
 
-  const todayYmd = new Date().toISOString().slice(0, 10);
+  const spec = getPlayoffSpec(size);
+  if (!spec) return getRegularSeasonMatchupsForRound(baseOrder, idx);
 
-  // Weeks 1–7: rounds 0–6 of the 7-round single round-robin.
-  if (idx < 7) return getRoundRobinH2HForWeek(baseOrder, idx);
-  // Week 8: repeat week 1 pairings (round 0).
-  if (idx === 7) return getRoundRobinH2HForWeek(baseOrder, 0);
-  // Week 9: repeat week 2 pairings (round 1).
-  if (idx === 8) return getRoundRobinH2HForWeek(baseOrder, 1);
+  const rsWeekStarts = weekStarts.slice(0, rsCount);
+  const playoffWeekStarts = weekStarts.slice(rsCount);
+  const round = idx - rsCount;
 
-  const lastRegularWeekStart = weekStarts[8]!;
-  if (getSundayOfWeek(lastRegularWeekStart) >= todayYmd) return [];
+  // Playoffs only begin once the final regular-season week is fully scored (seeds locked).
+  const lastRsWeekStart = rsWeekStarts[rsCount - 1]!;
+  const lastRsFinalized = Boolean(
+    weeklyResults.find((r) => r.weekStart === lastRsWeekStart)?.weekScoringFinalized
+  );
+  if (!lastRsFinalized) return [];
 
-  const regularSeasonWeeks = weekStarts.slice(0, 9);
-  const seeds = buildRegularSeasonSeedsForEightTeamLeague(baseOrder, regularSeasonWeeks, weeklyResults);
-  if (seeds.length !== 8) return [];
+  const seeds = buildRegularSeasonSeeds(baseOrder, rsWeekStarts, weeklyResults);
+  if (seeds.length !== size) return [];
 
-  // Week 10: quarterfinals (1v8, 4v5, 2v7, 3v6), seeded from regular season through week 9.
-  if (idx === 9) {
-    return [
-      { type: "h2h", userIds: [seeds[0]!, seeds[7]!] },
-      { type: "h2h", userIds: [seeds[3]!, seeds[4]!] },
-      { type: "h2h", userIds: [seeds[1]!, seeds[6]!] },
-      { type: "h2h", userIds: [seeds[2]!, seeds[5]!] },
-    ];
+  const resolved = resolvePlayoffGames({ spec, seeds, playoffWeekStarts, weeklyResults });
+  const out: WeekMatchup[] = [];
+  for (const g of spec.games) {
+    if (g.round !== round) continue;
+    const rg = resolved.get(g.id);
+    if (rg?.a && rg.b) out.push({ type: "h2h", userIds: [rg.a, rg.b] });
   }
-
-  const qfWeekStart = weekStarts[9]!;
-  if (getSundayOfWeek(qfWeekStart) >= todayYmd) return [];
-  const qfWeek = weeklyResults.find((r) => r.weekStart === qfWeekStart);
-  if (!qfWeek) return [];
-  const qf1w = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[0]!, seeds[7]!, seeds);
-  const qf2w = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[3]!, seeds[4]!, seeds);
-  const qf3w = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[1]!, seeds[6]!, seeds);
-  const qf4w = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[2]!, seeds[5]!, seeds);
-  const qf1l = qf1w === seeds[0] ? seeds[7]! : seeds[0]!;
-  const qf2l = qf2w === seeds[3] ? seeds[4]! : seeds[3]!;
-  const qf3l = qf3w === seeds[1] ? seeds[6]! : seeds[1]!;
-  const qf4l = qf4w === seeds[2] ? seeds[5]! : seeds[2]!;
-
-  // Week 11: semifinals for championship + placement bracket.
-  if (idx === 10) {
-    return [
-      { type: "h2h", userIds: [qf1w, qf2w] },
-      { type: "h2h", userIds: [qf3w, qf4w] },
-      { type: "h2h", userIds: [qf1l, qf2l] },
-      { type: "h2h", userIds: [qf3l, qf4l] },
-    ];
-  }
-
-  const sfWeekStart = weekStarts[10]!;
-  if (getSundayOfWeek(sfWeekStart) >= todayYmd) return [];
-  const sfWeek = weeklyResults.find((r) => r.weekStart === sfWeekStart);
-  if (!sfWeek) return [];
-  const sf1w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf1w, qf2w, seeds);
-  const sf2w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf3w, qf4w, seeds);
-  const sf1l = sf1w === qf1w ? qf2w : qf1w;
-  const sf2l = sf2w === qf3w ? qf4w : qf3w;
-  const sf3w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf1l, qf2l, seeds);
-  const sf4w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf3l, qf4l, seeds);
-  const sf3l = sf3w === qf1l ? qf2l : qf1l;
-  const sf4l = sf4w === qf3l ? qf4l : qf3l;
-
-  // Week 12: finals for 1/2, 3/4, 5/6, 7/8.
-  if (idx !== 11) return [];
-
-  return [
-    { type: "h2h", userIds: [sf1w, sf2w] },
-    { type: "h2h", userIds: [sf1l, sf2l] },
-    { type: "h2h", userIds: [sf3w, sf4w] },
-    { type: "h2h", userIds: [sf3l, sf4l] },
-  ];
+  return out;
 }
 
-/** True when this league uses the fixed 8-team / 12-week playoff schedule. */
-export function leagueHasEightTeamPlayoffSchedule(params: {
+/** True when this league has a Head-to-Head playoff bracket (sizes 4–8, drafted + size-locked). */
+export function leagueHasH2HPlayoffSchedule(params: {
   memberCount: number;
   weekCount: number;
   maxTeams: number | null | undefined;
   draftStatus: string | null | undefined;
 }): boolean {
-  if (params.memberCount !== 8 || params.weekCount < 12) return false;
-  if (params.maxTeams != null && params.maxTeams !== 8) return false;
+  const size = params.memberCount;
+  if (!leagueSupportsH2HPlayoffs(size)) return false;
+  const po = playoffRoundsForSize(size);
+  if (params.weekCount < po + 1) return false;
+  if (params.maxTeams != null && params.maxTeams !== size) return false;
   return (params.draftStatus ?? "not_started") === "completed";
 }
 
-/** Playoff bracket unlocks after the Sunday of regular-season week 9. */
-export function eightTeamPlayoffsUnlocked(
-  weekStarts: string[],
-  todayYmd: string = new Date().toISOString().slice(0, 10)
-): boolean {
-  if (weekStarts.length < 12) return false;
-  return getSundayOfWeek(weekStarts[8]!) < todayYmd;
+/**
+ * Playoffs are unlocked once the final regular-season week has both passed on the
+ * calendar and been fully scored (seeds locked). Regular season = all weeks before
+ * the last `playoffRoundsForSize(size)` weeks.
+ */
+export function playoffsUnlocked(params: {
+  weekStarts: string[];
+  size: number;
+  weeklyResults: WeeklyMatchupResult[];
+  todayYmd?: string;
+}): boolean {
+  const { weekStarts, size, weeklyResults } = params;
+  if (!leagueSupportsH2HPlayoffs(size)) return false;
+  const po = playoffRoundsForSize(size);
+  const totalWeeks = weekStarts.length;
+  if (totalWeeks < po + 1) return false;
+  const rsCount = Math.max(1, totalWeeks - po);
+  const lastRs = weekStarts[rsCount - 1];
+  if (!lastRs) return false;
+  const todayYmd = params.todayYmd ?? new Date().toISOString().slice(0, 10);
+  const calendarPassed = getSundayOfWeek(lastRs) < todayYmd;
+  const finalized = Boolean(weeklyResults.find((r) => r.weekStart === lastRs)?.weekScoringFinalized);
+  return calendarPassed && finalized;
 }
 
 export type PlayoffBracketTeam = {
@@ -1295,12 +1519,24 @@ export type PlayoffBracketMatch = {
   status: "pending" | "active" | "complete";
 };
 
-export type EightTeamPlayoffBracket = {
+export type PlayoffBracketAutoPlacement = {
+  rank: number;
+  label: string;
+  team: PlayoffBracketTeam;
+};
+
+export type PlayoffBracket = {
+  size: number;
+  rounds: number;
   seeds: Array<{ userId: string; seed: number }>;
-  quarterfinals: PlayoffBracketMatch[];
-  championshipSemifinals: PlayoffBracketMatch[];
-  consolationSemifinals: PlayoffBracketMatch[];
-  finals: PlayoffBracketMatch[];
+  /** Championship-path matches by round (index 0 = first playoff week). */
+  championshipRounds: PlayoffBracketMatch[][];
+  /** Placement (consolation) matches by round. */
+  placementRounds: PlayoffBracketMatch[][];
+  /** Teams that earn a final rank with no game (e.g. a lone eliminated team). */
+  autoPlacements: PlayoffBracketAutoPlacement[];
+  champion: PlayoffBracketTeam | null;
+  roundLabels: string[];
 };
 
 function playoffRoundStatus(
@@ -1330,47 +1566,30 @@ function bracketTeam(
   };
 }
 
-function makePlayoffMatch(opts: {
-  id: string;
-  label: string;
-  weekStart: string;
-  a: string | null;
-  b: string | null;
-  seedByUserId: Map<string, number>;
-  weekResult: WeeklyMatchupResult | undefined;
-  seeds: string[];
-  todayYmd: string;
-  resolveWinner: boolean;
-}): PlayoffBracketMatch {
-  const weekEnd = getSundayOfWeek(opts.weekStart);
-  const weekPoints = opts.weekResult?.pointsByUserId ?? null;
-  const bothKnown = Boolean(opts.a && opts.b);
-  const weekFinalized = Boolean(opts.weekResult?.weekScoringFinalized);
-  const status = playoffRoundStatus(opts.weekStart, weekEnd, bothKnown, opts.todayYmd, weekFinalized);
-  // Only crown a winner after the fantasy week is fully scored (all events completed).
-  let winnerUserId: string | null = null;
-  if (opts.resolveWinner && opts.a && opts.b && opts.weekResult && weekFinalized) {
-    winnerUserId = winnerByPointsThenSeed(opts.weekResult.pointsByUserId, opts.a, opts.b, opts.seeds);
-  }
+function toBracketMatch(
+  g: ResolvedPlayoffGame,
+  seedByUserId: Map<string, number>,
+  todayYmd: string
+): PlayoffBracketMatch {
+  const bothKnown = Boolean(g.a && g.b);
+  const status = playoffRoundStatus(g.weekStart, g.weekEnd, bothKnown, todayYmd, g.weekFinalized);
+  const weekPoints = g.weekResult?.pointsByUserId ?? null;
   return {
-    id: opts.id,
-    label: opts.label,
-    weekStart: opts.weekStart,
-    weekEnd,
-    teams: [
-      bracketTeam(opts.a, opts.seedByUserId, weekPoints),
-      bracketTeam(opts.b, opts.seedByUserId, weekPoints),
-    ],
-    winnerUserId,
+    id: g.spec.id,
+    label: g.spec.label,
+    weekStart: g.weekStart,
+    weekEnd: g.weekEnd,
+    teams: [bracketTeam(g.a, seedByUserId, weekPoints), bracketTeam(g.b, seedByUserId, weekPoints)],
+    winnerUserId: g.winner,
     status,
   };
 }
 
 /**
- * Full 8-team playoff bracket for display once the regular season is complete.
- * Future rounds show TBD until prior-round winners are known.
+ * Full Head-to-Head playoff bracket (sizes 4–8) for display once the regular season
+ * is complete. Future rounds show TBD until prior-round winners are known.
  */
-export function getEightTeamPlayoffBracket(params: {
+export function getPlayoffBracket(params: {
   weekStarts: string[];
   memberUserIds: string[];
   seededMemberUserIds?: string[];
@@ -1378,19 +1597,13 @@ export function getEightTeamPlayoffBracket(params: {
   draftStatus: string | null | undefined;
   weeklyResults: WeeklyMatchupResult[];
   todayYmd?: string;
-}): EightTeamPlayoffBracket | null {
-  const {
-    weekStarts,
-    memberUserIds,
-    seededMemberUserIds,
-    maxTeams,
-    draftStatus,
-    weeklyResults,
-  } = params;
+}): PlayoffBracket | null {
+  const { weekStarts, memberUserIds, seededMemberUserIds, maxTeams, draftStatus, weeklyResults } = params;
   const todayYmd = params.todayYmd ?? new Date().toISOString().slice(0, 10);
+  const size = memberUserIds.length;
   if (
-    !leagueHasEightTeamPlayoffSchedule({
-      memberCount: memberUserIds.length,
+    !leagueHasH2HPlayoffSchedule({
+      memberCount: size,
       weekCount: weekStarts.length,
       maxTeams,
       draftStatus,
@@ -1398,177 +1611,76 @@ export function getEightTeamPlayoffBracket(params: {
   ) {
     return null;
   }
-  if (!eightTeamPlayoffsUnlocked(weekStarts, todayYmd)) return null;
+  if (!playoffsUnlocked({ weekStarts, size, weeklyResults, todayYmd })) return null;
+
+  const spec = getPlayoffSpec(size);
+  if (!spec) return null;
 
   const baseOrder =
     seededMemberUserIds && seededMemberUserIds.length === memberUserIds.length
       ? seededMemberUserIds
       : memberUserIds;
-  const seeds = buildRegularSeasonSeedsForEightTeamLeague(
-    baseOrder,
-    weekStarts.slice(0, 9),
-    weeklyResults
-  );
-  if (seeds.length !== 8) return null;
+  const po = playoffRoundsForSize(size);
+  const rsCount = Math.max(1, weekStarts.length - po);
+  const seeds = buildRegularSeasonSeeds(baseOrder, weekStarts.slice(0, rsCount), weeklyResults);
+  if (seeds.length !== size) return null;
 
   const seedByUserId = new Map(seeds.map((id, i) => [id, i + 1]));
-  const qfWeekStart = weekStarts[9]!;
-  const sfWeekStart = weekStarts[10]!;
-  const finalsWeekStart = weekStarts[11]!;
-  const qfWeek = weeklyResults.find((r) => r.weekStart === qfWeekStart);
-  const sfWeek = weeklyResults.find((r) => r.weekStart === sfWeekStart);
-  const finalsWeek = weeklyResults.find((r) => r.weekStart === finalsWeekStart);
+  const playoffWeekStarts = weekStarts.slice(rsCount);
+  const resolved = resolvePlayoffGames({ spec, seeds, playoffWeekStarts, weeklyResults });
 
-  const qfPairs: Array<[string, string, string, string]> = [
-    [seeds[0]!, seeds[7]!, "qf-1", "Quarterfinal · 1 vs 8"],
-    [seeds[3]!, seeds[4]!, "qf-2", "Quarterfinal · 4 vs 5"],
-    [seeds[1]!, seeds[6]!, "qf-3", "Quarterfinal · 2 vs 7"],
-    [seeds[2]!, seeds[5]!, "qf-4", "Quarterfinal · 3 vs 6"],
-  ];
-
-  const quarterfinals = qfPairs.map(([a, b, id, label]) =>
-    makePlayoffMatch({
-      id,
-      label,
-      weekStart: qfWeekStart,
-      a,
-      b,
-      seedByUserId,
-      weekResult: qfWeek,
-      seeds,
-      todayYmd,
-      resolveWinner: true,
-    })
-  );
-
-  const qfResolved = Boolean(qfWeek?.weekScoringFinalized);
-  let qfWinners: [string, string, string, string] | null = null;
-  let qfLosers: [string, string, string, string] | null = null;
-  if (qfResolved && qfWeek) {
-    const w1 = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[0]!, seeds[7]!, seeds);
-    const w2 = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[3]!, seeds[4]!, seeds);
-    const w3 = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[1]!, seeds[6]!, seeds);
-    const w4 = winnerByPointsThenSeed(qfWeek.pointsByUserId, seeds[2]!, seeds[5]!, seeds);
-    qfWinners = [w1, w2, w3, w4];
-    qfLosers = [
-      w1 === seeds[0] ? seeds[7]! : seeds[0]!,
-      w2 === seeds[3] ? seeds[4]! : seeds[3]!,
-      w3 === seeds[1] ? seeds[6]! : seeds[1]!,
-      w4 === seeds[2] ? seeds[5]! : seeds[2]!,
-    ];
+  const championshipRounds: PlayoffBracketMatch[][] = [];
+  const placementRounds: PlayoffBracketMatch[][] = [];
+  for (let r = 0; r < po; r++) {
+    const champ: PlayoffBracketMatch[] = [];
+    const place: PlayoffBracketMatch[] = [];
+    for (const g of spec.games) {
+      if (g.round !== r) continue;
+      const rg = resolved.get(g.id);
+      if (!rg) continue;
+      const match = toBracketMatch(rg, seedByUserId, todayYmd);
+      if (g.group === "championship") champ.push(match);
+      else place.push(match);
+    }
+    championshipRounds.push(champ);
+    placementRounds.push(place);
   }
 
-  const championshipSemifinals = [
-    makePlayoffMatch({
-      id: "sf-champ-1",
-      label: "Semifinal",
-      weekStart: sfWeekStart,
-      a: qfWinners?.[0] ?? null,
-      b: qfWinners?.[1] ?? null,
-      seedByUserId,
-      weekResult: sfWeek,
-      seeds,
-      todayYmd,
-      resolveWinner: Boolean(qfWinners),
-    }),
-    makePlayoffMatch({
-      id: "sf-champ-2",
-      label: "Semifinal",
-      weekStart: sfWeekStart,
-      a: qfWinners?.[2] ?? null,
-      b: qfWinners?.[3] ?? null,
-      seedByUserId,
-      weekResult: sfWeek,
-      seeds,
-      todayYmd,
-      resolveWinner: Boolean(qfWinners),
-    }),
-  ];
+  const finalGame = resolved.get("final");
+  const champion =
+    finalGame?.winner != null ? bracketTeam(finalGame.winner, seedByUserId, null) : null;
 
-  const consolationSemifinals = [
-    makePlayoffMatch({
-      id: "sf-cons-1",
-      label: "Consolation semifinal",
-      weekStart: sfWeekStart,
-      a: qfLosers?.[0] ?? null,
-      b: qfLosers?.[1] ?? null,
-      seedByUserId,
-      weekResult: sfWeek,
-      seeds,
-      todayYmd,
-      resolveWinner: Boolean(qfLosers),
-    }),
-    makePlayoffMatch({
-      id: "sf-cons-2",
-      label: "Consolation semifinal",
-      weekStart: sfWeekStart,
-      a: qfLosers?.[2] ?? null,
-      b: qfLosers?.[3] ?? null,
-      seedByUserId,
-      weekResult: sfWeek,
-      seeds,
-      todayYmd,
-      resolveWinner: Boolean(qfLosers),
-    }),
-  ];
-
-  const sfResolved =
-    Boolean(sfWeek?.weekScoringFinalized) && Boolean(qfWinners) && Boolean(qfLosers);
-  let finalsSlots: Array<[string | null, string | null, string, string]> = [
-    [null, null, "final-1", "Championship"],
-    [null, null, "final-3", "3rd place"],
-    [null, null, "final-5", "5th place"],
-    [null, null, "final-7", "7th place"],
-  ];
-  if (sfResolved && sfWeek && qfWinners && qfLosers) {
-    const [qf1w, qf2w, qf3w, qf4w] = qfWinners;
-    const [qf1l, qf2l, qf3l, qf4l] = qfLosers;
-    const sf1w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf1w, qf2w, seeds);
-    const sf2w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf3w, qf4w, seeds);
-    const sf1l = sf1w === qf1w ? qf2w : qf1w;
-    const sf2l = sf2w === qf3w ? qf4w : qf3w;
-    const sf3w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf1l, qf2l, seeds);
-    const sf4w = winnerByPointsThenSeed(sfWeek.pointsByUserId, qf3l, qf4l, seeds);
-    const sf3l = sf3w === qf1l ? qf2l : qf1l;
-    const sf4l = sf4w === qf3l ? qf4l : qf3l;
-    finalsSlots = [
-      [sf1w, sf2w, "final-1", "Championship"],
-      [sf1l, sf2l, "final-3", "3rd place"],
-      [sf3w, sf4w, "final-5", "5th place"],
-      [sf3l, sf4l, "final-7", "7th place"],
-    ];
-  }
-
-  const finals = finalsSlots.map(([a, b, id, label]) =>
-    makePlayoffMatch({
-      id,
-      label,
-      weekStart: finalsWeekStart,
-      a,
-      b,
-      seedByUserId,
-      weekResult: finalsWeek,
-      seeds,
-      todayYmd,
-      resolveWinner: Boolean(a && b),
-    })
-  );
+  const autoPlacements: PlayoffBracketAutoPlacement[] = (spec.autoPlacements ?? []).map((ap) => {
+    let userId: string | null = null;
+    if (ap.ref.kind === "seed") userId = seeds[ap.ref.seed - 1] ?? null;
+    else {
+      const g = resolved.get(ap.ref.game);
+      userId = g ? (ap.ref.kind === "win" ? g.winner : g.loser) : null;
+    }
+    return { rank: ap.rank, label: ap.label, team: bracketTeam(userId, seedByUserId, null) };
+  });
 
   return {
+    size,
+    rounds: po,
     seeds: seeds.map((userId, i) => ({ userId, seed: i + 1 })),
-    quarterfinals,
-    championshipSemifinals,
-    consolationSemifinals,
-    finals,
+    championshipRounds,
+    placementRounds,
+    autoPlacements,
+    champion,
+    roundLabels: playoffRoundLabels(size),
   };
 }
 
-/** Label for fantasy week N (1-based) in an 8-team playoff schedule. */
-export function eightTeamPlayoffWeekLabel(weekNumber: number): string | null {
-  if (weekNumber === 10) return "Quarterfinals";
-  if (weekNumber === 11) return "Semifinals";
-  if (weekNumber === 12) return "Finals";
-  return null;
+/** Label for fantasy week N (1-based) once the schedule enters its playoff rounds. */
+export function playoffWeekLabel(weekNumber: number, totalWeeks: number, size: number): string | null {
+  if (!leagueSupportsH2HPlayoffs(size)) return null;
+  const po = playoffRoundsForSize(size);
+  if (totalWeeks < po + 1) return null;
+  const rsCount = Math.max(1, totalWeeks - po);
+  if (weekNumber <= rsCount) return null;
+  const r = weekNumber - rsCount - 1;
+  return playoffRoundLabels(size)[r] ?? null;
 }
 
 export type MatchupWlt = { w: number; l: number; t: number };

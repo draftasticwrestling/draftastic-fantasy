@@ -210,7 +210,6 @@ export function WrestlerForm({ mode, wrestler, allWrestlers, tagTeamNames, stabl
             setSlug(e.target.value);
           }}
           required
-          pattern="[a-z0-9-]+"
           placeholder="e.g., becky-lynch"
           style={inputStyle}
         />
@@ -356,10 +355,12 @@ export function WrestlerForm({ mode, wrestler, allWrestlers, tagTeamNames, stabl
         preview={headshotPreview}
         removed={removeHeadshot}
         onRemove={() => {
+          if (headshotPreview?.startsWith("blob:")) URL.revokeObjectURL(headshotPreview);
           setHeadshotPreview(null);
           setRemoveHeadshot(true);
         }}
         onFile={(f) => {
+          if (headshotPreview?.startsWith("blob:")) URL.revokeObjectURL(headshotPreview);
           setRemoveHeadshot(false);
           setHeadshotPreview(URL.createObjectURL(f));
         }}
@@ -374,10 +375,12 @@ export function WrestlerForm({ mode, wrestler, allWrestlers, tagTeamNames, stabl
             preview={fullBodyPreview}
             removed={removeFullBody}
             onRemove={() => {
+              if (fullBodyPreview?.startsWith("blob:")) URL.revokeObjectURL(fullBodyPreview);
               setFullBodyPreview(null);
               setRemoveFullBody(true);
             }}
             onFile={(f) => {
+              if (fullBodyPreview?.startsWith("blob:")) URL.revokeObjectURL(fullBodyPreview);
               setRemoveFullBody(false);
               setFullBodyPreview(URL.createObjectURL(f));
             }}
@@ -524,6 +527,8 @@ function ImageUploadField({
   onFile: (file: File) => void;
   fileName: string;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
   return (
     <Field label={label}>
       {preview && !removed ? (
@@ -542,20 +547,31 @@ function ImageUploadField({
             }}
             unoptimized
           />
-          <button type="button" onClick={onRemove} style={removeImageBtnStyle} aria-label="Remove image">
+          <button
+            type="button"
+            onClick={() => {
+              // Clear the file input so a removed image is not re-submitted.
+              if (inputRef.current) inputRef.current.value = "";
+              onRemove();
+            }}
+            style={removeImageBtnStyle}
+            aria-label="Remove image"
+          >
             ×
           </button>
         </div>
       ) : null}
       <input
+        ref={inputRef}
         name={fileName}
         type="file"
         accept=".png,.webp,image/png,image/webp"
         style={inputStyle}
         onChange={(e) => {
           const f = e.target.files?.[0];
+          // Keep the File on the input so multipart form submit includes it.
+          // Clearing value here was discarding uploads before save.
           if (f) onFile(f);
-          e.target.value = "";
         }}
       />
     </Field>

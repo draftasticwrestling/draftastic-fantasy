@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useCallback, useState } from "react";
+import { useActionState, useCallback, useMemo, useState } from "react";
 import { createLeagueAction, type CreateLeagueState } from "./new/actions";
 import {
-  SEASON_OPTIONS,
+  CREATE_SEASON_OPTIONS,
   STANDARD_USER_CREATE_SEASON_SLUG,
   PUBLIC_SALARY_CAP_SEASON_WEEKS,
   getSeasonBySlug,
@@ -11,11 +11,23 @@ import {
 
 const STANDARD_CREATE_SEASON = getSeasonBySlug(STANDARD_USER_CREATE_SEASON_SLUG);
 
-/** Road to SummerSlam beta: 3–6 factions per league. Site admins: 3–16 (matches createLeague clamp). */
-const BETA_MIN_TEAMS = 3;
-const BETA_MAX_TEAMS = 6;
-const TEAM_COUNTS_BETA = [3, 4, 5, 6] as const;
+/** Site admins may create 3–16 teams for testing. */
 const TEAM_COUNTS_ADMIN = Array.from({ length: 14 }, (_, i) => i + 3);
+
+/** Road to War Games team-count limits by format. */
+const FORMAT_TEAM_RANGE: Record<string, { min: number; max: number }> = {
+  season_overall: { min: 3, max: 6 },
+  head_to_head: { min: 4, max: 8 },
+};
+
+function teamRangeFor(leagueType: string): { min: number; max: number } {
+  return FORMAT_TEAM_RANGE[leagueType] ?? { min: 3, max: 6 };
+}
+
+function teamCountsFor(leagueType: string): number[] {
+  const { min, max } = teamRangeFor(leagueType);
+  return Array.from({ length: max - min + 1 }, (_, i) => min + i);
+}
 
 const LEAGUE_TYPES: Array<{
   id: string;
@@ -27,60 +39,65 @@ const LEAGUE_TYPES: Array<{
     id: "season_overall",
     title: "Total Season Points",
     description:
-      "Compete against your whole league all season. The faction with the most overall points wins the Road to SummerSlam championship.",
+      "Compete against your whole league all season (3–6 factions). The faction with the most overall points wins the Road to War Games championship.",
   },
   {
     id: "head_to_head",
     title: "Head-to-Head",
     description:
-      "Weekly matchups and playoffs with win-loss records. Coming after the Total Season Points beta.",
-    comingSoon: true,
+      "Weekly matchups and a playoff bracket with win-loss records (4–8 factions). The final is Survivor Series: War Games week.",
   },
   {
     id: "combo",
-    title: "Combo League (H2H+Total Season Points)",
+    title: "Combo League (H2H + Total Season Points)",
     description:
-      "Earn extra season points for winning your weekly matchup, but the final winner is determined by your roster's cumulative overall points—not your win-loss record.",
+      "Earn extra season points for winning your weekly matchup, but the final winner is your roster's cumulative overall points.",
     comingSoon: true,
   },
   {
     id: "legacy",
     title: "Legacy",
     description:
-      "Draft your wrestlers and sign them to long-term contracts. Then go to work building your dynasty! This one is for die hard fans that want to play the long game.",
+      "Draft your wrestlers and sign them to long-term contracts, then build your dynasty over multiple seasons.",
     comingSoon: true,
   },
   {
     id: "salary_cap",
-    title: "Salary Cap — Total Season Points",
+    title: "Salary Cap",
     description:
-      "Site admin testing: $100 budget per faction, wrestlers priced $5–$25. Same season scoring as Total Season Points; wrestlers are not exclusive across factions.",
+      "Build your roster against a shared budget instead of an exclusive draft. Coming to private leagues later.",
+    comingSoon: true,
   },
 ];
 
 type FormProps = {
-  /** True when LEAGUE_CREATION_ACCESS_CODES is configured (server). */
-  requiresAccessCodeEnv?: boolean;
   /** Site admin: full options; can toggle to match standard user flow. */
   isSiteAdmin?: boolean;
+  /** Road to War Games league creation is still open (before the Oct 19 cutoff). */
+  createOpen?: boolean;
 };
 
-export function CreateLeagueForm({
-  requiresAccessCodeEnv = false,
-  isSiteAdmin = false,
-}: FormProps) {
+export function CreateLeagueForm({ isSiteAdmin = false, createOpen = true }: FormProps) {
   const [state, formAction] = useActionState(createLeagueAction, null);
   const [teamCount, setTeamCount] = useState<number>(4);
   const [leagueType, setLeagueType] = useState<string>("season_overall");
   const [visibilityType, setVisibilityType] = useState<"private" | "public">("private");
-  /** When true, admin sees the same fields/rules as a normal user (and submits enforce_standard_create_rules). */
+  /** When true, admin sees the same fields/rules as a normal user. */
   const [standardUserPreview, setStandardUserPreview] = useState(false);
 
   const useStandardRules = !isSiteAdmin || (isSiteAdmin && standardUserPreview);
   const adminFullMode = isSiteAdmin && !standardUserPreview;
-  const showAccessCodeField = requiresAccessCodeEnv && useStandardRules && visibilityType === "private";
 
-  const teamCountOptions = adminFullMode ? TEAM_COUNTS_ADMIN : [...TEAM_COUNTS_BETA];
+  const teamCountOptions = useMemo(
+    () => (adminFullMode ? TEAM_COUNTS_ADMIN : teamCountsFor(leagueType)),
+    [adminFullMode, leagueType]
+  );
+
+  const clampTeamCount = useCallback((n: number, type: string, admin: boolean) => {
+    if (admin) return Math.min(16, Math.max(3, n));
+    const { min, max } = teamRangeFor(type);
+    return Math.min(max, Math.max(min, n));
+  }, []);
 
   const handleTeamClick = useCallback((n: number) => {
     setTeamCount(n);
@@ -88,19 +105,24 @@ export function CreateLeagueForm({
 
   const handleTypeClick = useCallback(
     (id: string, comingSoon?: boolean) => {
-      if (comingSoon && !adminFullMode) return;
+      if (comingSoon) return;
       setLeagueType(id);
+      setTeamCount((c) => clampTeamCount(c, id, adminFullMode));
     },
-    [adminFullMode]
+    [adminFullMode, clampTeamCount]
   );
 
-  const handleStandardPreviewChange = useCallback((next: boolean) => {
-    setStandardUserPreview(next);
-    if (next) {
-      setLeagueType("season_overall");
-      setTeamCount((c) => Math.min(BETA_MAX_TEAMS, Math.max(BETA_MIN_TEAMS, c)));
-    }
-  }, []);
+  const handleStandardPreviewChange = useCallback(
+    (next: boolean) => {
+      setStandardUserPreview(next);
+      if (next) {
+        setVisibilityType("private");
+        setLeagueType("season_overall");
+        setTeamCount((c) => clampTeamCount(c, "season_overall", false));
+      }
+    },
+    [clampTeamCount]
+  );
 
   const handleVisibilityClick = useCallback(
     (next: "private" | "public") => {
@@ -114,6 +136,17 @@ export function CreateLeagueForm({
     [useStandardRules]
   );
 
+  if (useStandardRules && !createOpen) {
+    return (
+      <div className="form-group">
+        <p className="form-note" style={{ lineHeight: 1.6 }}>
+          <strong>Road to War Games league creation is closed.</strong> New leagues can be created up to six
+          weeks before Survivor Series: War Games. The season returns after WrestleMania 2027.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form action={formAction} className="create-league-form">
       {isSiteAdmin ? (
@@ -125,8 +158,8 @@ export function CreateLeagueForm({
               onChange={(e) => handleStandardPreviewChange(e.target.checked)}
             />
             <span>
-              <strong>Standard user view</strong> — mailing-list access code (when enabled) and beta limits (Road to
-              SummerSlam season, Total Season Points, 3–6 teams). Turn off for full admin options.
+              <strong>Standard user view</strong> — Road to War Games season, Total Season Points (3–6) or
+              Head-to-Head (4–8), NXT included. Turn off for full admin options.
             </span>
           </label>
         </div>
@@ -136,26 +169,6 @@ export function CreateLeagueForm({
         <input type="hidden" name="enforce_standard_create_rules" value="1" />
       ) : null}
 
-      {showAccessCodeField ? (
-        <div className="form-group">
-          <label htmlFor="league-access-code">Beta access code *</label>
-          <input
-            id="league-access-code"
-            name="access_code"
-            type="text"
-            required
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Enter the code from your invite email"
-            maxLength={256}
-          />
-          <p className="form-note" style={{ marginTop: 8 }}>
-            Only people on our beta mailing list receive this code. Invited managers can still join your league using
-            your league code or invite link as usual.
-          </p>
-        </div>
-      ) : null}
-
       <div className="form-group">
         {visibilityType === "public" ? (
           <>
@@ -163,8 +176,7 @@ export function CreateLeagueForm({
             <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.5 }}>
               <strong>Public League — {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> — Build your $100 roster
               after joining. Open enrollment until the next Monday RAW start (5:00 PM PT), or longer if fewer than three
-              factions have joined. Scoring runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} Monday–Sunday weeks from that RAW.
-              Wrestler prices are locked for your league&apos;s season when it is created.
+              factions have joined.
             </p>
           </>
         ) : useStandardRules ? (
@@ -178,7 +190,8 @@ export function CreateLeagueForm({
                 style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.5 }}
                 aria-labelledby="league-season-locked-label"
               >
-                <strong>{STANDARD_CREATE_SEASON.name}</strong> — {STANDARD_CREATE_SEASON.windowDescription}
+                <strong>{STANDARD_CREATE_SEASON.name}</strong> — {STANDARD_CREATE_SEASON.windowDescription}. NXT
+                rosters and events are included.
               </p>
             ) : null}
             <input type="hidden" name="season_slug" value={STANDARD_USER_CREATE_SEASON_SLUG} />
@@ -192,7 +205,7 @@ export function CreateLeagueForm({
               required
               defaultValue={STANDARD_USER_CREATE_SEASON_SLUG}
             >
-              {SEASON_OPTIONS.map((s) => (
+              {CREATE_SEASON_OPTIONS.map((s) => (
                 <option key={s.id} value={s.slug}>
                   {s.name} — {s.windowDescription}
                 </option>
@@ -249,90 +262,85 @@ export function CreateLeagueForm({
           maxLength={120}
           disabled={visibilityType === "public"}
         />
-        {visibilityType === "public" ? (
-          <p className="form-note" style={{ marginTop: 8 }}>
-            Public leagues use a standard generated name (for example, Public League 12).
-          </p>
-        ) : null}
       </div>
 
       {visibilityType === "public" ? (
         <div className="form-group">
           <label>League format</label>
           <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.55 }}>
-            Public leagues use <strong>Salary Cap — Total Season Points</strong>. After joining, build your roster from
-            the shared pool ($100 budget, wrestlers $5–$25). NXT is included. Anyone can join until the next Monday RAW
-            at 5:00 PM PT once at least three factions are in the league — if not, enrollment stays open another week,
-            then scoring runs for {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks.
+            Public leagues use <strong>Salary Cap — Total Season Points</strong>. NXT is included.
           </p>
           <input type="hidden" name="league_type" value="salary_cap" />
           <input type="hidden" name="season_slug" value="public-salary-cap" />
         </div>
       ) : (
         <>
-      <div className="form-group">
-        <label>Number of Teams *</label>
-        <div className={`create-league-teams-row${adminFullMode ? " create-league-teams-row--admin" : ""}`}>
-          {teamCountOptions.map((n) => (
-            <button
-              key={n}
-              type="button"
-              className={`create-league-teams-option ${teamCount === n ? "selected" : ""}`}
-              onClick={() => handleTeamClick(n)}
-              aria-pressed={teamCount === n}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-        <input type="hidden" name="team_count" value={teamCount} />
-      </div>
+          <div className="form-group">
+            <label>League Format *</label>
+            <div className="create-league-type-grid">
+              {LEAGUE_TYPES.map((opt) => {
+                const locked = !!(opt.comingSoon && !adminFullMode);
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`create-league-type-option ${leagueType === opt.id ? "selected" : ""} ${locked ? "coming-soon" : ""}`}
+                    onClick={() => handleTypeClick(opt.id, locked ? true : undefined)}
+                    aria-pressed={leagueType === opt.id}
+                    aria-disabled={locked || undefined}
+                  >
+                    <strong>{opt.title}</strong>
+                    {locked && <span className="create-league-type-badge">Coming soon</span>}
+                    <span className="create-league-type-desc">{opt.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <input type="hidden" name="league_type" value={leagueType} />
+          </div>
 
-      <div className="form-group">
-        <label>League Format *</label>
-        <div className="create-league-type-grid">
-          {LEAGUE_TYPES.map((opt) => {
-            const locked = !!(
-              opt.comingSoon &&
-              (!adminFullMode || (opt.id !== "head_to_head" && opt.id !== "salary_cap"))
-            );
-            return (
-            <button
-              key={opt.id}
-              type="button"
-              className={`create-league-type-option ${leagueType === opt.id ? "selected" : ""} ${locked ? "coming-soon" : ""}`}
-              onClick={() => handleTypeClick(opt.id, opt.comingSoon)}
-              aria-pressed={leagueType === opt.id}
-              aria-disabled={locked || undefined}
-            >
-              <strong>{opt.title}</strong>
-              {locked && <span className="create-league-type-badge">Coming soon</span>}
-              <span className="create-league-type-desc">{opt.description}</span>
-            </button>
-            );
-          })}
-        </div>
-        <input type="hidden" name="league_type" value={leagueType} />
-      </div>
+          <div className="form-group">
+            <label>Number of Teams *</label>
+            <div className={`create-league-teams-row${adminFullMode ? " create-league-teams-row--admin" : ""}`}>
+              {teamCountOptions.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`create-league-teams-option ${teamCount === n ? "selected" : ""}`}
+                  onClick={() => handleTeamClick(n)}
+                  aria-pressed={teamCount === n}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {!adminFullMode ? (
+              <p className="form-note" style={{ marginTop: 8 }}>
+                {leagueType === "head_to_head"
+                  ? "Head-to-Head leagues are 4–8 factions. Your league size locks to the number of factions that draft."
+                  : "Total Season Points leagues are 3–6 factions. Your league size locks to the number of factions that draft."}
+              </p>
+            ) : null}
+            <input type="hidden" name="team_count" value={teamCount} />
+          </div>
         </>
       )}
 
-      {adminFullMode && leagueType === "head_to_head" ? (
+      {adminFullMode && (leagueType === "head_to_head" || leagueType === "salary_cap") ? (
         <div className="form-group">
           <label className="create-league-toggle-label" style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
             <input type="checkbox" name="include_nxt" value="1" />
             <span>
-              <strong>Include NXT</strong> — NXT wrestlers, weekly NXT shows, and NXT titles count in this league
-              (site-admin testing only; Head-to-Head required).
+              <strong>Include NXT</strong> — NXT wrestlers, weekly NXT shows, and NXT titles count in this league.
             </span>
           </label>
         </div>
       ) : null}
 
+      {useStandardRules ? <input type="hidden" name="include_nxt" value="1" /> : null}
+
       {state?.error && (
-        <p style={{ margin: "0 0 16px", color: "var(--color-red)", fontSize: 14 }}>
-          {state.error}
-        </p>
+        <p style={{ margin: "0 0 16px", color: "var(--color-red)", fontSize: 14 }}>{state.error}</p>
       )}
 
       <button type="submit" className="create-league-submit">

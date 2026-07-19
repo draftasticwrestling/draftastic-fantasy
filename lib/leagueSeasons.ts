@@ -20,8 +20,27 @@ export type SeasonOption = {
   crossesCalendarYear: boolean;
 };
 
-/** Public beta: standard (non-admin) creators may only start a league in this season window until we open others. */
-export const STANDARD_USER_CREATE_SEASON_SLUG = "road-to-summerslam" as const;
+/** Standard (non-admin) private-league creation season. */
+export const STANDARD_USER_CREATE_SEASON_SLUG = ROAD_TO_WAR_GAMES_SEASON_SLUG;
+
+/**
+ * Road to War Games 2026 window and league-creation cutoff.
+ * - Season runs Aug 3 – Nov 28, 2026 (final PLE, Survivor Series: War Games).
+ * - New private leagues may be formed until Monday, Oct 19, 2026 (six weeks out).
+ */
+export const ROAD_TO_WAR_GAMES_2026 = {
+  season_start_ymd: "2026-08-03",
+  season_end_ymd: "2026-11-28",
+  /** Last Monday a new Road to War Games league may be created/started. */
+  last_create_start_ymd: "2026-10-19",
+} as const;
+
+/** True when new Road to War Games private leagues can still be created on `todayYmd`. */
+export function roadToWarGamesCreateOpen(
+  todayYmd: string = new Date().toISOString().slice(0, 10)
+): boolean {
+  return todayYmd <= ROAD_TO_WAR_GAMES_2026.last_create_start_ymd;
+}
 
 export { PUBLIC_SALARY_CAP_SEASON_SLUG, PUBLIC_SALARY_CAP_SEASON_WEEKS } from "@/lib/publicLeagueSchedule";
 
@@ -74,6 +93,15 @@ export const SEASON_OPTIONS: SeasonOption[] = [
   },
 ];
 
+/**
+ * Seasons offered in the admin "full options" create dropdown.
+ * Road to SummerSlam is excluded (no new RTS leagues until it returns post-WrestleMania 2027),
+ * and the rolling public salary-cap season is created through Play Now, not this form.
+ */
+export const CREATE_SEASON_OPTIONS: SeasonOption[] = SEASON_OPTIONS.filter(
+  (s) => s.slug !== "road-to-summerslam" && s.slug !== "public-salary-cap"
+);
+
 export function getSeasonBySlug(slug: string): SeasonOption | undefined {
   const normalized =
     slug === LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG ? ROAD_TO_WAR_GAMES_SEASON_SLUG : slug;
@@ -107,6 +135,16 @@ export function getDefaultStartEndForSeason(
 
   if (seasonSlug === "road-to-summerslam" && year === 2026) {
     return { start_date: "2026-05-09", end_date: "2026-08-02" };
+  }
+
+  // Road to War Games 2026: first Raw week (Aug 3) through Survivor Series: War Games
+  // (Nov 28). Exactly 17 Monday–Sunday weeks; the Final is anchored to the Nov 23 week.
+  if (
+    (seasonSlug === ROAD_TO_WAR_GAMES_SEASON_SLUG ||
+      seasonSlug === LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG) &&
+    year === 2026
+  ) {
+    return { start_date: ROAD_TO_WAR_GAMES_2026.season_start_ymd, end_date: ROAD_TO_WAR_GAMES_2026.season_end_ymd };
   }
 
   if (seasonSlug === "public-salary-cap") {

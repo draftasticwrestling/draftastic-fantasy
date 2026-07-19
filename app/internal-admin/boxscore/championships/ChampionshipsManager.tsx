@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import {
   formatChampionshipAdminDate,
   displayHistoryDaysHeld,
@@ -106,18 +114,38 @@ export function ChampionshipsManager({
   const [editingHistoryId, setEditingHistoryId] = useState("");
   const [reignForm, setReignForm] = useState<ReignForm>(emptyReignForm);
   const [showCreateChamp, setShowCreateChamp] = useState(false);
+  const [idempotencyToken, setIdempotencyToken] = useState("");
+  const createSubmitLock = useRef(false);
 
   const reignPanelOpen = showAddReign || Boolean(editingHistoryId);
   const reignFormReady = Boolean(editingHistoryId) || addReignType != null;
 
+  const newIdempotencyToken = () =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `reign-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
   useEffect(() => {
     if (createHistoryState?.success || updateHistoryState?.success) {
+      createSubmitLock.current = false;
       setShowAddReign(false);
       setAddReignType(null);
       setEditingHistoryId("");
       setReignForm(emptyReignForm());
+      setIdempotencyToken("");
     }
   }, [createHistoryState?.success, updateHistoryState?.success]);
+
+  useEffect(() => {
+    if (createHistoryState?.error) {
+      createSubmitLock.current = false;
+      setIdempotencyToken(newIdempotencyToken());
+    }
+  }, [createHistoryState?.error]);
+
+  useEffect(() => {
+    if (!createPending) createSubmitLock.current = false;
+  }, [createPending]);
 
   useEffect(() => {
     if (createChampState?.success) setShowCreateChamp(false);
@@ -127,11 +155,15 @@ export function ChampionshipsManager({
     setEditingHistoryId("");
     setAddReignType(null);
     setReignForm(emptyReignForm());
+    setIdempotencyToken("");
+    createSubmitLock.current = false;
     setShowAddReign(true);
   };
 
   const startAddReignAs = (type: "title_change" | "historical" | "partner_substitution") => {
     setAddReignType(type);
+    setIdempotencyToken(newIdempotencyToken());
+    createSubmitLock.current = false;
     const prev = selectedHistory[0];
     if (type === "title_change" && prev) {
       setReignForm((f) => ({
@@ -154,6 +186,7 @@ export function ChampionshipsManager({
   const openEditReign = (row: HistoryRow) => {
     setShowAddReign(false);
     setAddReignType(null);
+    setIdempotencyToken("");
     setEditingHistoryId(row.id);
     setReignForm({
       champion: row.champion ?? "",
@@ -168,10 +201,22 @@ export function ChampionshipsManager({
   };
 
   const cancelReignForm = () => {
+    createSubmitLock.current = false;
     setShowAddReign(false);
     setAddReignType(null);
     setEditingHistoryId("");
     setReignForm(emptyReignForm());
+    setIdempotencyToken("");
+  };
+
+  const onCreateReignSubmit = (e: FormEvent<HTMLFormElement>) => {
+    // Block twin submits from double-click / Strict Mode before the action runs.
+    if (createSubmitLock.current || createPending) {
+      e.preventDefault();
+      e.stopPropagation();
+    } else {
+      createSubmitLock.current = true;
+    }
   };
 
   const historyActionError = createHistoryState?.error ?? updateHistoryState?.error;
@@ -280,9 +325,10 @@ export function ChampionshipsManager({
                         />
                       </form>
                     ) : (
-                      <form action={createHistoryAction}>
+                      <form action={createHistoryAction} onSubmit={onCreateReignSubmit}>
                         <input type="hidden" name="championship_id" value={selectedId} />
                         <input type="hidden" name="reign_mode" value={addReignType ?? "title_change"} />
+                        <input type="hidden" name="idempotency_token" value={idempotencyToken} />
                         <ReignFormFields form={reignForm} setForm={setReignForm} />
                         <ReignFormActions
                           pending={createPending}
@@ -554,7 +600,7 @@ function ReignFormActions({
       <button className="btn-primary" type="submit" disabled={pending}>
         {submitLabel}
       </button>
-      <button type="button" className="btn-secondary" onClick={onCancel}>
+      <button type="button" className="btn-secondary" onClick={onCancel} disabled={pending}>
         Cancel
       </button>
     </div>

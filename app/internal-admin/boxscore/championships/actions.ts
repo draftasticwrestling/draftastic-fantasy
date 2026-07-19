@@ -6,12 +6,20 @@ import {
   closeOpenReignForPartnerSubstitution,
   closeOpenReignForTitleChange,
   computeDaysHeld,
+  dedupeChampionshipHistory,
   syncChampionshipFromHistory,
 } from "@/lib/boxscoreAdmin/championshipSync";
 import { PARTNER_SUBSTITUTION_EVENT_LABEL } from "@/lib/championshipPartnerSubstitution";
 import { getAdminClient } from "@/lib/supabase/admin";
 
 export type ChampionshipActionState = { error?: string; success?: string } | null;
+
+/**
+ * In-memory single-flight for a given client idempotency token.
+ * Next.js / React Strict Mode can invoke the same server action twice in dev
+ * with identical FormData; this rejects the second call in-process.
+ */
+const usedReignSubmitTokens = new Set<string>();
 
 function norm(v: FormDataEntryValue | null): string | null {
   const s = String(v ?? "").trim();
@@ -103,8 +111,9 @@ export async function createChampionshipHistoryAction(
   formData: FormData
 ): Promise<ChampionshipActionState> {
   await requireSiteAdmin();
-  const admin = getAdminClient();
-  if (!admin) return { error: "Missing SUPABASE_SERVICE_ROLE_KEY." };
+  const adminClient = getAdminClient();
+  if (!adminClient) return { error: "Missing SUPABASE_SERVICE_ROLE_KEY." };
+  const admin = adminClient;
 
   const championshipId = norm(formData.get("championship_id"));
   const champion = norm(formData.get("champion"));
@@ -114,52 +123,103 @@ export async function createChampionshipHistoryAction(
   const reignMode = norm(formData.get("reign_mode"));
   const dateLost = norm(formData.get("date_lost"));
   const eventName = norm(formData.get("event_name"));
+  const idempotencyToken = norm(formData.get("idempotency_token"));
 
-  if (reignMode === "title_change") {
-    const closeResult = await closeOpenReignForTitleChange(admin, championshipId, dateWon, eventName);
-    if (closeResult.error) return { error: closeResult.error };
+  // Same form submit token reused by a Strict Mode / double-click twin — bail out
+  // before closing any reign or inserting. Token is released only on hard failure.
+  if (idempotencyToken) {
+    if (usedReignSubmitTokens.has(idempotencyToken)) {
+      return { success: "This reign is already recorded — duplicate submit skipped." };
+    }
+    usedReignSubmitTokens.add(idempotencyToken);
   }
 
-  if (reignMode === "partner_substitution") {
-    const closeResult = await closeOpenReignForPartnerSubstitution(admin, championshipId, dateWon);
-    if (closeResult.error) return { error: closeResult.error };
+  try {
+    const { data: existing, error: existingErr } = await admin
+      .from("championship_history")
+      .select("id")
+      .eq("championship_id", championshipId)
+      .eq("champion", champion)
+      .eq("date_won", dateWon)
+      .limit(1);
+    if (existingErr) {
+      if (idempotencyToken) usedReignSubmitTokens.delete(idempotencyToken);
+      return { error: existingErr.message };
+    }
+    if (existing && existing.length > 0) {
+      await dedupeChampionshipHistory(admin, championshipId);
+      return { success: "This reign is already recorded — duplicate submit skipped." };
+    }
+
+    if (reignMode === "title_change") {
+      const closeResult = await closeOpenReignForTitleChange(
+        admin,
+        championshipId,
+        dateWon,
+        eventName,
+        champion
+      );
+      if (closeResult.error) {
+        if (idempotencyToken) usedReignSubmitTokens.delete(idempotencyToken);
+        return { error: closeResult.error };
+      }
+    }
+
+    if (reignMode === "partner_substitution") {
+      const closeResult = await closeOpenReignForPartnerSubstitution(admin, championshipId, dateWon);
+      if (closeResult.error) {
+        if (idempotencyToken) usedReignSubmitTokens.delete(idempotencyToken);
+        return { error: closeResult.error };
+      }
+    }
+
+    const payload: Record<string, unknown> = {
+      championship_id: championshipId,
+      champion,
+      champion_slug: norm(formData.get("champion_slug")),
+      previous_champion:
+        reignMode === "partner_substitution" ? null : norm(formData.get("previous_champion")),
+      previous_champion_slug:
+        reignMode === "partner_substitution" ? null : norm(formData.get("previous_champion_slug")),
+      date_won: dateWon,
+      date_lost: dateLost,
+      event_name:
+        reignMode === "partner_substitution"
+          ? eventName ?? PARTNER_SUBSTITUTION_EVENT_LABEL
+          : eventName,
+      event_lost: norm(formData.get("event_lost")),
+      days_held: computeDaysHeld(dateWon, dateLost),
+    };
+
+    const { error } = await admin.from("championship_history").insert(payload);
+    if (error) {
+      if (idempotencyToken) usedReignSubmitTokens.delete(idempotencyToken);
+      return { error: error.message };
+    }
+
+    // Heal any (champion, date_won) duplicates for this title — covers races and
+    // leftover previous-champion copies from earlier double submits.
+    const dedupe = await dedupeChampionshipHistory(admin, championshipId);
+    if (dedupe.error) return { error: dedupe.error };
+
+    if (reignMode !== "historical") {
+      const syncResult = await syncChampionshipFromHistory(admin, championshipId);
+      if (syncResult.error) return { error: syncResult.error };
+    }
+
+    await revalidateChampionships();
+    return {
+      success:
+        reignMode === "historical"
+          ? "Historical reign added (current champion unchanged)."
+          : reignMode === "partner_substitution"
+            ? "Partner substitution recorded — prior reign closed, new lineup is current champion."
+            : "Title change recorded and current champion updated.",
+    };
+  } catch (e) {
+    if (idempotencyToken) usedReignSubmitTokens.delete(idempotencyToken);
+    return { error: e instanceof Error ? e.message : "Failed to add reign." };
   }
-
-  const payload: Record<string, unknown> = {
-    championship_id: championshipId,
-    champion,
-    champion_slug: norm(formData.get("champion_slug")),
-    previous_champion:
-      reignMode === "partner_substitution" ? null : norm(formData.get("previous_champion")),
-    previous_champion_slug:
-      reignMode === "partner_substitution" ? null : norm(formData.get("previous_champion_slug")),
-    date_won: dateWon,
-    date_lost: dateLost,
-    event_name:
-      reignMode === "partner_substitution"
-        ? eventName ?? PARTNER_SUBSTITUTION_EVENT_LABEL
-        : eventName,
-    event_lost: norm(formData.get("event_lost")),
-    days_held: computeDaysHeld(dateWon, dateLost),
-  };
-
-  const { error } = await admin.from("championship_history").insert(payload);
-  if (error) return { error: error.message };
-
-  if (reignMode !== "historical") {
-    const syncResult = await syncChampionshipFromHistory(admin, championshipId);
-    if (syncResult.error) return { error: syncResult.error };
-  }
-
-  await revalidateChampionships();
-  return {
-    success:
-      reignMode === "historical"
-        ? "Historical reign added (current champion unchanged)."
-        : reignMode === "partner_substitution"
-          ? "Partner substitution recorded — prior reign closed, new lineup is current champion."
-          : "Title change recorded and current champion updated.",
-  };
 }
 
 export async function updateChampionshipHistoryAction(
@@ -229,10 +289,18 @@ export async function syncChampionshipFromHistoryAction(
   if (!admin) return { error: "Missing SUPABASE_SERVICE_ROLE_KEY." };
   const id = norm(formData.get("championship_id"));
   if (!id) return { error: "Missing championship id." };
+  const dedupe = await dedupeChampionshipHistory(admin, id);
+  if (dedupe.error) return { error: dedupe.error };
   const result = await syncChampionshipFromHistory(admin, id);
   if (result.error) return { error: result.error };
   await revalidateChampionships();
-  return { success: "Current champion synced from title history." };
+  const removed = dedupe.removed ?? 0;
+  return {
+    success:
+      removed > 0
+        ? `Removed ${removed} duplicate reign row(s) and synced current champion.`
+        : "Current champion synced from title history.",
+  };
 }
 
 export async function updateChampionshipTitleFactsAction(

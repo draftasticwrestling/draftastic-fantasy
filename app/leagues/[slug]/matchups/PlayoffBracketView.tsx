@@ -1,7 +1,8 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { LeagueMember } from "@/lib/leagues";
 import type {
-  EightTeamPlayoffBracket,
+  PlayoffBracket,
   PlayoffBracketMatch,
   PlayoffBracketTeam,
 } from "@/lib/leagueMatchups";
@@ -10,7 +11,7 @@ import { MatchupOwnerAvatarRing } from "./MatchupOwnerHeading";
 
 type Props = {
   slug: string;
-  bracket: EightTeamPlayoffBracket;
+  bracket: PlayoffBracket;
   memberByUserId: Record<string, LeagueMember>;
 };
 
@@ -62,10 +63,7 @@ function BracketSlot({
 
   if (team.userId) {
     return (
-      <Link
-        href={`/leagues/${slug}/team/${encodeURIComponent(team.userId)}`}
-        className={className}
-      >
+      <Link href={`/leagues/${slug}/team/${encodeURIComponent(team.userId)}`} className={className}>
         {inner}
       </Link>
     );
@@ -78,85 +76,52 @@ function BracketMatch({
   match,
   slug,
   memberByUserId,
-  className,
+  caption,
 }: {
   match: PlayoffBracketMatch;
   slug: string;
   memberByUserId: Record<string, LeagueMember>;
-  className?: string;
+  caption?: string;
 }) {
   return (
-    <div className={`bracket-match bracket-match--${match.status}${className ? ` ${className}` : ""}`}>
-      {match.teams.map((t, i) => (
-        <BracketSlot
-          key={`${match.id}-${i}`}
-          team={t}
-          slug={slug}
-          memberByUserId={memberByUserId}
-          isWinner={Boolean(t.userId && match.winnerUserId === t.userId)}
-          isLoser={Boolean(match.winnerUserId && t.userId && match.winnerUserId !== t.userId)}
-        />
-      ))}
+    <div className="bracket-cell">
+      {caption ? <div className="bracket-cell__caption">{caption}</div> : null}
+      <div className={`bracket-match bracket-match--${match.status}`}>
+        {match.teams.map((t, i) => (
+          <BracketSlot
+            key={`${match.id}-${i}`}
+            team={t}
+            slug={slug}
+            memberByUserId={memberByUserId}
+            isWinner={Boolean(t.userId && match.winnerUserId === t.userId)}
+            isLoser={Boolean(match.winnerUserId && t.userId && match.winnerUserId !== t.userId)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-function ChampionshipTree({
+function ChampionColumn({
   slug,
   bracket,
   memberByUserId,
 }: {
   slug: string;
-  bracket: EightTeamPlayoffBracket;
+  bracket: PlayoffBracket;
   memberByUserId: Record<string, LeagueMember>;
 }) {
-  const qf = bracket.quarterfinals;
-  const sf = bracket.championshipSemifinals;
-  const final = bracket.finals[0]!;
-  const championId = final.status === "complete" ? final.winnerUserId : null;
-  const championTeam: PlayoffBracketTeam = championId
-    ? {
-        userId: championId,
-        seed: bracket.seeds.find((s) => s.userId === championId)?.seed ?? null,
-        points: null,
-      }
-    : { userId: null, seed: null, points: null };
-
+  const champion = bracket.champion ?? { userId: null, seed: null, points: null };
   return (
-    <div className="bracket-champ" role="img" aria-label="Championship playoff bracket">
-      <div className="bracket-champ__labels">
-        <span>Quarterfinals</span>
-        <span aria-hidden />
-        <span>Semifinals</span>
-        <span aria-hidden />
-        <span>Finals</span>
-        <span aria-hidden />
-        <span>Champion</span>
-      </div>
-      <div className="bracket-champ__grid">
-        <BracketMatch className="bracket-champ__qf1" match={qf[0]!} slug={slug} memberByUserId={memberByUserId} />
-        <BracketMatch className="bracket-champ__qf2" match={qf[1]!} slug={slug} memberByUserId={memberByUserId} />
-        <BracketMatch className="bracket-champ__qf3" match={qf[2]!} slug={slug} memberByUserId={memberByUserId} />
-        <BracketMatch className="bracket-champ__qf4" match={qf[3]!} slug={slug} memberByUserId={memberByUserId} />
-
-        <div className="bracket-champ__conn bracket-champ__conn--fork bracket-champ__conn-qf-sf1" aria-hidden />
-        <div className="bracket-champ__conn bracket-champ__conn--fork bracket-champ__conn-qf-sf2" aria-hidden />
-
-        <BracketMatch className="bracket-champ__sf1" match={sf[0]!} slug={slug} memberByUserId={memberByUserId} />
-        <BracketMatch className="bracket-champ__sf2" match={sf[1]!} slug={slug} memberByUserId={memberByUserId} />
-
-        <div className="bracket-champ__conn bracket-champ__conn--fork bracket-champ__conn--fork-tall bracket-champ__conn-sf-f" aria-hidden />
-
-        <BracketMatch className="bracket-champ__final" match={final} slug={slug} memberByUserId={memberByUserId} />
-
-        <div className="bracket-champ__conn bracket-champ__conn--line bracket-champ__conn-f-c" aria-hidden />
-
-        <div className="bracket-champ__champion">
+    <div className="bracket-col bracket-col--champion">
+      <div className="bracket-col__label">Champion</div>
+      <div className="bracket-col__cells">
+        <div className="bracket-cell">
           <BracketSlot
-            team={championTeam}
+            team={champion}
             slug={slug}
             memberByUserId={memberByUserId}
-            isWinner={Boolean(championId)}
+            isWinner={Boolean(champion.userId)}
           />
         </div>
       </div>
@@ -164,60 +129,95 @@ function ChampionshipTree({
   );
 }
 
-function PlacementTree({
+function BracketColumns({
   slug,
-  bracket,
   memberByUserId,
+  rounds,
+  roundLabels,
+  showMatchCaptions,
+  trailing,
 }: {
   slug: string;
-  bracket: EightTeamPlayoffBracket;
   memberByUserId: Record<string, LeagueMember>;
+  rounds: PlayoffBracketMatch[][];
+  roundLabels: string[];
+  showMatchCaptions?: boolean;
+  trailing?: ReactNode;
 }) {
-  const semis = bracket.consolationSemifinals;
-  const place5 = bracket.finals[2]!;
-  const place7 = bracket.finals[3]!;
-
   return (
-    <div className="bracket-placement-wrap">
-      <div className="bracket-place" role="img" aria-label="5th place bracket">
-        <div className="bracket-place__labels">
-          <span>Consolation semis</span>
-          <span aria-hidden />
-          <span>5th place</span>
-        </div>
-        <div className="bracket-place__grid">
-          <BracketMatch className="bracket-place__sf1" match={semis[0]!} slug={slug} memberByUserId={memberByUserId} />
-          <BracketMatch className="bracket-place__sf2" match={semis[1]!} slug={slug} memberByUserId={memberByUserId} />
-          <div className="bracket-champ__conn bracket-champ__conn--fork bracket-place__conn" aria-hidden />
-          <BracketMatch className="bracket-place__final" match={place5} slug={slug} memberByUserId={memberByUserId} />
-        </div>
-      </div>
-
-      <div className="bracket-placement-7th">
-        <div className="bracket-tree__round-label">7th place</div>
-        <BracketMatch match={place7} slug={slug} memberByUserId={memberByUserId} />
+    <div className="bracket-scroll">
+      <div className="bracket-cols">
+        {rounds.map((matches, r) =>
+          matches.length === 0 ? null : (
+            <div className="bracket-col" key={`round-${r}`}>
+              <div className="bracket-col__label">{roundLabels[r] ?? ""}</div>
+              <div className="bracket-col__cells">
+                {matches.map((m) => (
+                  <BracketMatch
+                    key={m.id}
+                    match={m}
+                    slug={slug}
+                    memberByUserId={memberByUserId}
+                    caption={showMatchCaptions ? m.label : undefined}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        )}
+        {trailing}
       </div>
     </div>
   );
 }
 
 export function PlayoffBracketView({ slug, bracket, memberByUserId }: Props) {
+  const hasPlacement =
+    bracket.placementRounds.some((r) => r.length > 0) || bracket.autoPlacements.length > 0;
+
   return (
     <div className="playoff-bracket">
       <section className="playoff-path" aria-label="Championship bracket">
         <h2 className="playoff-section-title">Championship</h2>
-        <div className="bracket-scroll">
-          <ChampionshipTree slug={slug} bracket={bracket} memberByUserId={memberByUserId} />
-        </div>
+        <BracketColumns
+          slug={slug}
+          memberByUserId={memberByUserId}
+          rounds={bracket.championshipRounds}
+          roundLabels={bracket.roundLabels}
+          trailing={
+            <ChampionColumn slug={slug} bracket={bracket} memberByUserId={memberByUserId} />
+          }
+        />
       </section>
 
-      <section className="playoff-path playoff-path--consolation" aria-label="Placement bracket">
-        <h2 className="playoff-section-title">Placement</h2>
-        <p className="playoff-path__note">Quarterfinal losers play for places 5–8.</p>
-        <div className="bracket-scroll">
-          <PlacementTree slug={slug} bracket={bracket} memberByUserId={memberByUserId} />
-        </div>
-      </section>
+      {hasPlacement ? (
+        <section className="playoff-path playoff-path--consolation" aria-label="Placement bracket">
+          <h2 className="playoff-section-title">Placement</h2>
+          <p className="playoff-path__note">Losers play on to decide the remaining places.</p>
+          <BracketColumns
+            slug={slug}
+            memberByUserId={memberByUserId}
+            rounds={bracket.placementRounds}
+            roundLabels={bracket.roundLabels}
+            showMatchCaptions
+            trailing={
+              bracket.autoPlacements.length > 0 ? (
+                <div className="bracket-col">
+                  <div className="bracket-col__label">Final places</div>
+                  <div className="bracket-col__cells">
+                    {bracket.autoPlacements.map((ap) => (
+                      <div className="bracket-cell" key={`auto-${ap.rank}`}>
+                        <div className="bracket-cell__caption">{ap.label}</div>
+                        <BracketSlot team={ap.team} slug={slug} memberByUserId={memberByUserId} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : undefined
+            }
+          />
+        </section>
+      ) : null}
     </div>
   );
 }

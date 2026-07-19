@@ -123,7 +123,7 @@ export function WrestlersManager({ wrestlers, tagTeamNames, stableNames }: Props
         </p>
 
         {mode === "create" ? (
-          <form action={createFormAction} encType="multipart/form-data" style={cardStyle}>
+          <form action={createFormAction} style={cardStyle}>
             <h2 style={h2Style}>Add wrestler</h2>
             <WrestlerForm mode="create" allWrestlers={allWrestlers} tagTeamNames={tagTeamNames} stableNames={stableNames} />
             <div style={footerStyle}>
@@ -144,7 +144,7 @@ export function WrestlersManager({ wrestlers, tagTeamNames, stableNames }: Props
               </Link>
             </div>
             <WrestlerQuickEditHeader wrestler={selected} />
-            <form key={`${selected.id}-${editFormKey}`} action={updateFormAction} encType="multipart/form-data">
+            <form key={`${selected.id}-${editFormKey}`} action={updateFormAction}>
               <WrestlerForm
                 mode="edit"
                 wrestler={selected}
