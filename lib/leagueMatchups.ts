@@ -1083,16 +1083,23 @@ export async function getXpSeededMemberUserIds(
  * single round-robin (each pair exactly once).
  */
 function circleRoundRobinPairs(ids: string[], roundIndex: number): Array<[string, string]> {
+  // IMPORTANT: must exactly reproduce the legacy 8-team scheduler (pre-generalization):
+  // lexicographically sorted ids, rotated by moving the last element to index 1 each
+  // round. Existing leagues' past matchups (and therefore records + playoff seeds)
+  // are recomputed from this schedule, so changing it rewrites league history.
   const m = ids.length;
   if (m < 2 || m % 2 !== 0) return [];
+  const sorted = [...ids].sort((a, b) => a.localeCompare(b));
   const rounds = m - 1;
   const r = ((roundIndex % rounds) + rounds) % rounds;
-  const rest = ids.slice(1);
-  const rotated: string[] = [];
-  for (let i = 0; i < rest.length; i++) rotated.push(rest[(i + r) % rest.length]!);
-  const row = [ids[0]!, ...rotated];
+  const arr = [...sorted];
+  for (let i = 0; i < r; i++) {
+    const moved = arr.pop();
+    if (!moved) break;
+    arr.splice(1, 0, moved);
+  }
   const pairs: Array<[string, string]> = [];
-  for (let i = 0; i < m / 2; i++) pairs.push([row[i]!, row[m - 1 - i]!]);
+  for (let i = 0; i < m / 2; i++) pairs.push([arr[i]!, arr[m - 1 - i]!]);
   return pairs;
 }
 
@@ -1111,8 +1118,11 @@ export function getRegularSeasonMatchupsForRound(order: string[], roundIndex: nu
   if (n % 2 === 0) {
     return circleRoundRobinPairs(order, roundIndex).map((p) => ({ type: "h2h", userIds: [p[0], p[1]] }));
   }
+  // Sort ids so the schedule is stable across the whole season (XP-seeded order can
+  // drift week to week, which would rewrite past matchups).
+  const stable = [...order].sort((a, b) => a.localeCompare(b));
   const r = ((roundIndex % n) + n) % n;
-  const at = (k: number) => order[(((r + k) % n) + n) % n]!;
+  const at = (k: number) => stable[(((r + k) % n) + n) % n]!;
   const half = (n - 1) / 2;
   // The would-be "bye" team (r) plus the k=1 pair become a triple of 3 consecutive teams.
   const out: WeekMatchup[] = [{ type: "triple", userIds: [at(-1), at(0), at(1)] }];
@@ -1205,7 +1215,6 @@ function buildRegularSeasonSeeds(
       applyMatchupToWlt(mu, weekResult.pointsByUserId, wlt);
     }
   }
-  const baseIndex = new Map(order.map((id, i) => [id, i]));
   return [...order].sort((a, b) => {
     const wa = wlt[a]!;
     const wb = wlt[b]!;
@@ -1213,7 +1222,8 @@ function buildRegularSeasonSeeds(
     if (wa.l !== wb.l) return wa.l - wb.l;
     if (wb.t !== wa.t) return wb.t - wa.t;
     if ((pointsTotal[b] ?? 0) !== (pointsTotal[a] ?? 0)) return (pointsTotal[b] ?? 0) - (pointsTotal[a] ?? 0);
-    return (baseIndex.get(a) ?? 0) - (baseIndex.get(b) ?? 0);
+    // Legacy tiebreak: lexicographic user id (matches the pre-generalization seeder).
+    return a.localeCompare(b);
   });
 }
 

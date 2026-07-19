@@ -254,7 +254,10 @@ export function getRosterRulesForLeague(
     return null;
   }
   if (leagueUsesHeadToHeadStyleRosterRules(leagueType)) {
-    if (includeNxt) {
+    // Gate the NXT ladder by season, not the include_nxt flag: pre-R2WG H2H
+    // leagues (e.g. the RTSS H2H test league) run with NXT enabled but must
+    // keep their original roster sizes for the rest of their season.
+    if (isRoadToWarGamesSeasonSlug(seasonSlug)) {
       return HEAD_TO_HEAD_NXT_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
     }
     return HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;

@@ -1,0 +1,30 @@
+---
+description: Never retroactively change scheduling, scoring, or seeding behavior for active leagues
+alwaysApply: true
+---
+
+# Never Rewrite Active League History
+
+Active leagues are in progress at all times. League matchups, standings, playoff seeds,
+and brackets are NOT persisted — they are recomputed on the fly from deterministic
+algorithms (see `lib/leagueMatchups.ts`) plus stored weekly scores. This means any change
+to those algorithms retroactively rewrites past matchups, W-L records, seeds, and playoff
+brackets for every existing league.
+
+## Rules
+
+- When refactoring or generalizing schedule/seeding/playoff logic, the new code MUST
+  produce byte-for-byte identical output to the old code for all league shapes that
+  already exist in production (e.g. 8-team H2H). Verify by diffing new output against
+  a copy of the legacy algorithm across all rounds before shipping (see the incident:
+  the round-robin rotation and seed tiebreaker were changed during the 4–8 team
+  generalization, which reshuffled a live league's records and semifinal matchups).
+- Deterministic details that silently define league history and must never change for
+  existing leagues: sort order of member IDs (lexicographic), rotation direction/method
+  of the round-robin, seed tiebreakers (wins, losses, ties, total points, then
+  lexicographic user ID), and playoff pairing order (1v8, 4v5, 2v7, 3v6).
+- New behavior is fine for NEW league shapes or NEW seasons, but must be gated so
+  existing leagues keep their original computation (e.g. by season slug, league size,
+  or a stored config flag) unless the user explicitly asks to change live leagues.
+- If a change unavoidably affects active leagues, call it out explicitly to the user
+  before shipping and get confirmation.
