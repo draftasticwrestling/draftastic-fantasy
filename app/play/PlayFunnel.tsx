@@ -118,8 +118,7 @@ export function PlayFunnel({
       <div className="play-funnel">
         <h1>Create a League</h1>
         <p className="play-funnel-lead">
-          Set up a private league for friends. Private league creation during beta may require a mailing-list access
-          code.
+          Set up a private league for friends.
         </p>
         <div className="play-funnel-actions">
           <Link href="/leagues/new" className="play-funnel-btn play-funnel-btn-primary">

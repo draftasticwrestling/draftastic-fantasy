@@ -51,7 +51,8 @@ export default async function LeaguesPage() {
         }}
       >
         Public leagues use Salary Cap — Total Season Points. Join from Play Now, build your roster, then compete for 12
-        weeks. Private leagues use Road to SummerSlam season windows and may require a beta access code to create.
+        weeks. Private leagues use the Road to War Games season (Total Season Points or Head-to-Head); create one with
+        no access code, then invite friends with your league code or link.
       </div>
 
       <p style={{ marginBottom: 16 }}>

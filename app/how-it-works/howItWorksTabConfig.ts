@@ -1,8 +1,16 @@
+/**
+ * How it Works tab order.
+ * - Public League is always first.
+ * - Private season tabs follow upcoming / current season priority (not calendar order).
+ *   Current: Road to War Games (active create season) → Road to WrestleMania (next) →
+ *   Road to SummerSlam (winding down; returns post-WrestleMania 2027).
+ * Update this array when the active private season changes.
+ */
 export const HOW_IT_WORKS_TAB_IDS = [
   "public-league",
-  "road-to-summerslam",
   "road-to-war-games",
   "road-to-wrestlemania",
+  "road-to-summerslam",
 ] as const;
 
 export type HowItWorksTabId = (typeof HOW_IT_WORKS_TAB_IDS)[number];

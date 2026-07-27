@@ -278,24 +278,40 @@ export function CreateLeagueForm({ isSiteAdmin = false, createOpen = true }: For
           <div className="form-group">
             <label>League Format *</label>
             <div className="create-league-type-grid">
-              {LEAGUE_TYPES.map((opt) => {
-                const locked = !!(opt.comingSoon && !adminFullMode);
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    className={`create-league-type-option ${leagueType === opt.id ? "selected" : ""} ${locked ? "coming-soon" : ""}`}
-                    onClick={() => handleTypeClick(opt.id, locked ? true : undefined)}
-                    aria-pressed={leagueType === opt.id}
-                    aria-disabled={locked || undefined}
-                  >
-                    <strong>{opt.title}</strong>
-                    {locked && <span className="create-league-type-badge">Coming soon</span>}
-                    <span className="create-league-type-desc">{opt.description}</span>
-                  </button>
-                );
-              })}
+              {LEAGUE_TYPES.filter((opt) => !(opt.comingSoon && !adminFullMode)).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`create-league-type-option ${leagueType === opt.id ? "selected" : ""}`}
+                  onClick={() => handleTypeClick(opt.id)}
+                  aria-pressed={leagueType === opt.id}
+                >
+                  <strong>{opt.title}</strong>
+                  <span className="create-league-type-desc">{opt.description}</span>
+                </button>
+              ))}
             </div>
+            {!adminFullMode ? (
+              <>
+                <div className="create-league-type-divider" role="separator" aria-hidden="true" />
+                <div className="create-league-type-grid create-league-type-grid--coming-soon">
+                  {LEAGUE_TYPES.filter((opt) => opt.comingSoon).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className="create-league-type-option coming-soon"
+                      aria-disabled="true"
+                      disabled
+                      tabIndex={-1}
+                    >
+                      <strong>{opt.title}</strong>
+                      <span className="create-league-type-badge">Coming soon</span>
+                      <span className="create-league-type-desc">{opt.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : null}
             <input type="hidden" name="league_type" value={leagueType} />
           </div>
 

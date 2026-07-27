@@ -188,10 +188,30 @@ export async function adminRedrawDraftOrderAction(formData: FormData): Promise<v
 }
 
 /**
+ * Earliest WWE event date on/after `fromYmd` (Raw, SmackDown, NXT, and PLEs).
+ * Used for Road to War Games Total Season Points scoring start.
+ */
+async function getNextWweEventDateOnOrAfter(
+  admin: NonNullable<ReturnType<typeof getAdminClient>>,
+  fromYmd: string
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from("events")
+    .select("date")
+    .gte("date", fromYmd)
+    .order("date", { ascending: true })
+    .limit(1);
+  if (error || !data?.length) return null;
+  const date = (data[0] as { date?: string | null }).date;
+  return typeof date === "string" && date.length >= 10 ? date.slice(0, 10) : null;
+}
+
+/**
  * Road to War Games: when a private league's draft is completed + approved, lock
  * the league to the number of teams that actually drafted and set the scoring
- * start date. TSP counts the next WWE event on/after approval; H2H starts the
- * Monday of the week after approval (matchups run full Mon–Sun weeks).
+ * start date.
+ * - Total Season Points: first WWE event on/after approval (NXT included).
+ * - Head-to-Head: Monday of the week after approval (matchups run full Mon–Sun weeks).
  *
  * `start_date` becomes the single source of truth for scoring start, so we clear
  * `draft_date` (which otherwise takes precedence in getEffectiveLeagueStartDate
@@ -224,6 +244,9 @@ async function lockRoadToWarGamesLeagueOnApproval(leagueId: string): Promise<voi
     const d = new Date(monday + "T12:00:00Z");
     d.setUTCDate(d.getUTCDate() + 7);
     scoringStartYmd = d.toISOString().slice(0, 10);
+  } else {
+    const nextEvent = await getNextWweEventDateOnOrAfter(admin, approvalYmd);
+    if (nextEvent) scoringStartYmd = nextEvent;
   }
 
   const update: Record<string, unknown> = {
