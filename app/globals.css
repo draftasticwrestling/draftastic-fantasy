@@ -4808,6 +4808,13 @@ body > .site-footer {
   .lm-league-home .lm-league-home-back {
     display: none;
   }
+
+  .lm-league-home .league-home-mobile__invite .lm-btn-primary {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
+  }
 }
 
 /* Level-up celebration banner — desktop row; mobile stacked + readable type */

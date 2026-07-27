@@ -432,9 +432,23 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
       {showR2wgDraftPrefsCallout ? <R2wgDraftPrefsCallout leagueSlug={slug} /> : null}
 
+      {/* Post-create invite modal must live outside desktop/mobile display toggles so it works on both. */}
+      {isCommissioner ? (
+        <InviteSuccessModalTrigger
+          show={showInviteModal}
+          leagueId={league.id}
+          leagueName={league.name}
+          leagueSlug={slug}
+          joinCode={league.join_code ?? null}
+          showInviteButton={false}
+        />
+      ) : null}
+
       <LeagueHomeMobileLeagueView
         leagueSlug={slug}
+        leagueId={league.id}
         leagueName={league.name}
+        joinCode={league.join_code ?? null}
         seasonSubtitle={seasonSubtitle}
         seasonSlug={league.season_slug ?? null}
         leagueStartDate={league.start_date ?? null}
@@ -581,7 +595,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             {isCommissioner && (
               <div className="lm-actions">
                 <InviteSuccessModalTrigger
-                  show={showInviteModal}
+                  show={false}
                   leagueId={league.id}
                   leagueName={league.name}
                   leagueSlug={slug}

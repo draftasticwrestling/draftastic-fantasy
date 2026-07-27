@@ -11,10 +11,13 @@ import { LeagueLevelUpBanner } from "./LeagueLevelUpBanner";
 import { LeagueMobileStandingsTable } from "./LeagueMobileStandingsTable";
 import type { LeagueHomeLeaderboardsPayload } from "@/lib/weeklyLeaderboards";
 import { LeagueHomeLeaderboardsClient } from "./LeagueHomeLeaderboardsClient";
+import { InviteSuccessModalTrigger } from "../InviteSuccessModalTrigger";
 
 type Props = {
   leagueSlug: string;
+  leagueId: string;
   leagueName: string;
+  joinCode?: string | null;
   seasonSubtitle: string | null;
   seasonSlug: string | null;
   leagueStartDate?: string | null;
@@ -56,7 +59,9 @@ const menuItemStyle: CSSProperties = {
 
 export function LeagueHomeMobileLeagueView({
   leagueSlug,
+  leagueId,
   leagueName,
+  joinCode = null,
   seasonSubtitle,
   seasonSlug,
   leagueStartDate = null,
@@ -121,6 +126,19 @@ export function LeagueHomeMobileLeagueView({
       {levelUpCelebration ? (
         <div className="league-home-mobile__section" style={{ marginBottom: 12 }}>
           <LeagueLevelUpBanner celebration={levelUpCelebration} bannerKind={xpBannerKind} />
+        </div>
+      ) : null}
+
+      {isCommissioner ? (
+        <div className="league-home-mobile__section league-home-mobile__invite" style={{ marginBottom: 12 }}>
+          <InviteSuccessModalTrigger
+            show={false}
+            leagueId={leagueId}
+            leagueName={leagueName}
+            leagueSlug={leagueSlug}
+            joinCode={joinCode}
+            showInviteButton
+          />
         </div>
       ) : null}
 
