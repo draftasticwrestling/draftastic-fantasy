@@ -43,7 +43,7 @@ import {
   LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM,
   LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT,
 } from "@/lib/leagueLeadersAllTimeScoring";
-import { bigBoardLabel, getBigBoardPriorityList, isBigBoardId, type BigBoardId } from "@/lib/draftBigBoards";
+import { bigBoardLabel, getBigBoardPriorityList, getDefaultBigBoardIdForLeague, isBigBoardId, type BigBoardId } from "@/lib/draftBigBoards";
 import { isInBetaAutopickRunWindow } from "@/lib/betaAutopickSchedule";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
@@ -326,6 +326,9 @@ export async function getDraftPreferencesForAllMembers(
   const requiredPriorityCount = getAutopickRequiredPriorityCount(
     Boolean((leagueRow as { include_nxt?: boolean | null } | null)?.include_nxt)
   );
+  const includeNxtForBoards = Boolean((leagueRow as { include_nxt?: boolean | null } | null)?.include_nxt);
+  const siteDefaultBoardId = getDefaultBigBoardIdForLeague({ includeNxt: includeNxtForBoards }) ?? "default";
+  const siteDefaultBoardLabel = bigBoardLabel(siteDefaultBoardId);
 
   const out: { user_id: string; display_name: string; hasPreferences: boolean; summary: string }[] = [];
   for (const m of members) {
@@ -350,21 +353,21 @@ export async function getDraftPreferencesForAllMembers(
       }
     } else if (!prefs) {
       hasPreferencesDisplay = false;
-      summary = `Not set. The Default Big Board will be used at draft time. ${DEFAULT_AUTOPICK_DESCRIPTION}`;
+      summary = `Not set. ${siteDefaultBoardLabel} will be used at draft time. ${DEFAULT_AUTOPICK_DESCRIPTION}`;
     } else if (!isCustom) {
       hasPreferencesDisplay = true;
       const boardId: BigBoardId =
-        listSrc && isBigBoardId(String(listSrc)) ? (listSrc as BigBoardId) : "default";
+        listSrc && isBigBoardId(String(listSrc)) ? (listSrc as BigBoardId) : siteDefaultBoardId;
       summary =
-        boardId === "default"
-          ? `Default Big Board · ${DEFAULT_AUTOPICK_DESCRIPTION}`
+        boardId === siteDefaultBoardId
+          ? `${siteDefaultBoardLabel} · ${DEFAULT_AUTOPICK_DESCRIPTION}`
           : `${bigBoardLabel(boardId)} · ${listLen} wrestlers · ${DEFAULT_AUTOPICK_DESCRIPTION}`;
     } else if (customOk) {
       hasPreferencesDisplay = true;
       summary = `My own list: ${listLen} wrestlers · ${DEFAULT_AUTOPICK_DESCRIPTION}`;
     } else {
       hasPreferencesDisplay = false;
-      summary = `My own list incomplete (${listLen}/${requiredPriorityCount}). The Default Big Board will be used at draft time until this is complete.`;
+      summary = `My own list incomplete (${listLen}/${requiredPriorityCount}). ${siteDefaultBoardLabel} will be used at draft time until this is complete.`;
     }
     out.push({
       user_id: m.user_id,
@@ -1656,12 +1659,14 @@ export async function getTopAvailableWrestlerForUser(
   if (isAutopickLeague) {
     const so = prefs?.strategy_options as { priorityListSource?: string } | undefined;
     const src = so?.priorityListSource?.trim();
+    const fallbackBoardId =
+      getDefaultBigBoardIdForLeague({ includeNxt: poolOptionsForUser.includeNxt }) ?? "default";
     if (src === "custom") {
       const own = prefs?.priority_list ?? [];
       priorityWalkList =
-        own.length > 0 ? own : (getBigBoardPriorityList("default") ?? []);
+        own.length > 0 ? own : (getBigBoardPriorityList(fallbackBoardId) ?? []);
     } else {
-      const boardId = src && isBigBoardId(src) ? src : "default";
+      const boardId = src && isBigBoardId(src) ? src : fallbackBoardId;
       priorityWalkList = getBigBoardPriorityList(boardId) ?? [];
     }
   } else if (prefs?.priority_list?.length) {

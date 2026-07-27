@@ -1,7 +1,10 @@
 /** Autopick leagues: each manager must save at least this many ranked wrestler IDs before autopick runs. */
 export const AUTOPICK_REQUIRED_PRIORITY_COUNT = 50;
-/** Include-NXT leagues: use longer ranked lists so autopick is more reliable across larger pools. */
-export const AUTOPICK_REQUIRED_PRIORITY_COUNT_INCLUDE_NXT = 119;
+/**
+ * Include-NXT leagues (e.g. Road to War Games): longer ranked lists for the larger pool.
+ * Matches curated RTWG Big Board length (Dillster top 100).
+ */
+export const AUTOPICK_REQUIRED_PRIORITY_COUNT_INCLUDE_NXT = 100;
 /** Autopick leagues: at least this many listed wrestlers must normalize to female (see `normalizeDraftPoolGender`). */
 export const AUTOPICK_REQUIRED_FEMALE_COUNT = 16;
 

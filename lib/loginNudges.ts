@@ -10,6 +10,8 @@ import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser } from "@/lib/salaryCap";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { hasAdequateAutopickDraftPreferences } from "@/lib/draftBigBoards";
+import { isRoadToWarGamesSeasonSlug } from "@/lib/leagueStructure";
 
 export type LoginNudgeKey = "missing_draft_prefs" | "no_league_joined" | "pending_league_setup";
 
@@ -117,7 +119,7 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
   const primary = await supabase
     .from("league_members")
     .select(
-      "league_id, placement_status, onboarding_completed_at, leagues!inner(slug, name, draft_status, is_archived, league_type, season_slug, visibility_type)"
+      "league_id, placement_status, onboarding_completed_at, leagues!inner(slug, name, draft_status, is_archived, league_type, season_slug, visibility_type, draft_type, include_nxt)"
     )
     .eq("user_id", user.id);
   if (!primary.error) {
@@ -127,7 +129,7 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
     const fallback = await supabase
       .from("league_members")
       .select(
-        "league_id, onboarding_completed_at, leagues!inner(slug, name, draft_status, league_type, season_slug, visibility_type)"
+        "league_id, onboarding_completed_at, leagues!inner(slug, name, draft_status, league_type, season_slug, visibility_type, draft_type, include_nxt)"
       )
       .eq("user_id", user.id);
     if (!fallback.error) {
@@ -153,6 +155,8 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
       league_type?: string | null;
       season_slug?: string | null;
       visibility_type?: string | null;
+      draft_type?: string | null;
+      include_nxt?: boolean | null;
     } | null;
   }>;
   /** Leagues where the draft is not fully finished — prefs still matter (excludes completed + ready_for_review). */
@@ -164,7 +168,16 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
   });
   const leagueIds = eligibleLeagueRows.map((r) => r.league_id);
   const slugByLeagueId = new Map<string, string>();
-  const leagueMetaById = new Map<string, { slug: string; league_type?: string | null; season_slug?: string | null }>();
+  const leagueMetaById = new Map<
+    string,
+    {
+      slug: string;
+      league_type?: string | null;
+      season_slug?: string | null;
+      draft_type?: string | null;
+      include_nxt?: boolean | null;
+    }
+  >();
   for (const row of eligibleLeagueRows) {
     const slug = row.leagues?.slug;
     if (slug) {
@@ -173,6 +186,8 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
         slug,
         league_type: row.leagues?.league_type ?? null,
         season_slug: row.leagues?.season_slug ?? null,
+        draft_type: row.leagues?.draft_type ?? null,
+        include_nxt: row.leagues?.include_nxt ?? null,
       });
     }
   }
@@ -313,13 +328,64 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
     }
   }
 
-  const { data: prefRows } = await supabase
-    .from("league_draft_preferences")
-    .select("league_id")
-    .eq("user_id", user.id)
-    .in("league_id", draftLeagueIds);
-  const prefLeagueIds = new Set(((prefRows ?? []) as { league_id: string }[]).map((r) => r.league_id));
-  const missingLeagueIds = draftLeagueIds.filter((id) => !prefLeagueIds.has(id));
+  type PrefRow = {
+    league_id: string;
+    priority_list?: unknown;
+    strategy_options?: unknown;
+  };
+  const prefByLeagueId = new Map<string, PrefRow>();
+  if (draftLeagueIds.length > 0) {
+    const { data: prefRows } = await supabase
+      .from("league_draft_preferences")
+      .select("league_id, priority_list, strategy_options")
+      .eq("user_id", user.id)
+      .in("league_id", draftLeagueIds);
+    for (const row of (prefRows ?? []) as PrefRow[]) {
+      prefByLeagueId.set(row.league_id, row);
+    }
+  }
+
+  function priorityListFromPref(prefs: PrefRow | undefined): string[] {
+    if (!prefs) return [];
+    if (Array.isArray(prefs.priority_list)) return prefs.priority_list as string[];
+    if (typeof prefs.priority_list === "string") {
+      try {
+        const parsed = JSON.parse(prefs.priority_list) as unknown;
+        return Array.isArray(parsed) ? (parsed as string[]) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  function priorityListSourceFromPref(prefs: PrefRow | undefined): string | null {
+    if (!prefs?.strategy_options) return null;
+    let so = prefs.strategy_options as { priorityListSource?: string } | string;
+    if (typeof so === "string") {
+      try {
+        so = JSON.parse(so) as { priorityListSource?: string };
+      } catch {
+        return null;
+      }
+    }
+    const src = so?.priorityListSource?.trim();
+    return src || null;
+  }
+
+  const missingLeagueIds = draftLeagueIds.filter((id) => {
+    const meta = leagueMetaById.get(id);
+    const prefs = prefByLeagueId.get(id);
+    // Road to War Games: Big Boards just shipped — require a deliberate adequate list/board.
+    if (isRoadToWarGamesSeasonSlug(meta?.season_slug)) {
+      return !hasAdequateAutopickDraftPreferences({
+        includeNxt: true,
+        priorityList: priorityListFromPref(prefs),
+        priorityListSource: priorityListSourceFromPref(prefs),
+      });
+    }
+    return !prefs;
+  });
 
   if (missingLeagueIds.length > 0) {
     const cfg = configs.missing_draft_prefs;
@@ -331,13 +397,26 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
           ? leagueOnboardingPath(missingSingleMeta.slug)
           : `/leagues/${encodeURIComponent(missingSingleMeta.slug)}/draft/preferences`
         : cfg.primary_cta_href || "/leagues";
+      const hasR2wgMissing = missingLeagueIds.some((id) =>
+        isRoadToWarGamesSeasonSlug(leagueMetaById.get(id)?.season_slug)
+      );
+      const title = hasR2wgMissing ? "Set your Road to War Games draft list" : cfg.title;
+      const body = hasR2wgMissing
+        ? renderTemplate(
+            "Big Boards are ready for Road to War Games. Set draft preferences in {{missing_count}} of your {{league_count}} league(s).",
+            {
+              missing_count: missingLeagueIds.length,
+              league_count: draftLeagueIds.length,
+            }
+          )
+        : renderTemplate(cfg.body, {
+            missing_count: missingLeagueIds.length,
+            league_count: draftLeagueIds.length,
+          });
       nudges.push({
         key: cfg.nudge_key,
-        title: cfg.title,
-        body: renderTemplate(cfg.body, {
-          missing_count: missingLeagueIds.length,
-          league_count: draftLeagueIds.length,
-        }),
+        title,
+        body,
         primaryCta:
           cfg.primary_cta_label && href
             ? { label: cfg.primary_cta_label, href }

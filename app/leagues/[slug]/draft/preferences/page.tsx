@@ -15,6 +15,7 @@ import {
   getAutopickRequiredPriorityCount,
 } from "@/lib/draftPriorityRequirements";
 import {
+  bigBoardLabel,
   getAvailableBigBoardIdsForLeague,
   getBigBoardPriorityList,
   isBigBoardId,
@@ -282,6 +283,9 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
     } else if (availableBigBoardIds.includes("default")) {
       initialListSource = "default";
       autopickInitialList = keepEligibleOnly(getBigBoardPriorityList("default") ?? []);
+    } else if (availableBigBoardIds[0]) {
+      initialListSource = availableBigBoardIds[0];
+      autopickInitialList = keepEligibleOnly(getBigBoardPriorityList(availableBigBoardIds[0]) ?? []);
     } else {
       initialListSource = "custom";
       autopickInitialList = initialPriorityList;
@@ -312,9 +316,17 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
         {league.draft_type === "autopick" ? (
           <>
-            Beta autopick: everyone defaults to the site <strong>Default Big Board</strong> until they deliberately choose
-            another <strong>provided Big Board</strong> or <strong>My own list</strong> below and save (for My own list: at least{" "}
-            {autopickRequiredPriorityCount} wrestlers, including at least {AUTOPICK_REQUIRED_FEMALE_COUNT} female). Set
+            Beta autopick: everyone defaults to the site{" "}
+            <strong>
+              {availableBigBoardIds.includes("default")
+                ? "Default Big Board"
+                : availableBigBoardIds[0]
+                  ? bigBoardLabel(availableBigBoardIds[0])
+                  : "provided Big Board"}
+            </strong>{" "}
+            until they deliberately choose another <strong>provided Big Board</strong> or <strong>My own list</strong>{" "}
+            below and save (for My own list: at least {autopickRequiredPriorityCount} wrestlers, including at least{" "}
+            {AUTOPICK_REQUIRED_FEMALE_COUNT} female). Set
             preferences by end of day {BETA_AUTOPICK_PREF_DEADLINE_LABEL}; drafts run {BETA_AUTOPICK_DRAFT_WINDOW_LABEL}.{" "}
             <strong>Tie-break after your list runs out</strong> (same for everyone): {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
           </>

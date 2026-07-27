@@ -146,6 +146,18 @@ export function DraftPreferencesForm({
       : "custom"
   );
   const defaultBoardIds = availableBoardSet.has("default") ? getBigBoardPriorityList("default") ?? [] : [];
+  const primaryBoardId: BigBoardId | null = availableBoardSet.has("default")
+    ? "default"
+    : availableBigBoardIds[0] ?? null;
+  const primaryBoardIds =
+    primaryBoardId && primaryBoardId !== "default"
+      ? getBigBoardPriorityList(primaryBoardId) ?? []
+      : defaultBoardIds;
+  const otherBoardIds = useMemo(
+    () =>
+      availableOtherBoardIds.filter((id) => id !== primaryBoardId),
+    [availableOtherBoardIds, primaryBoardId]
+  );
   const [priorityList, setPriorityList] = useState<string[]>(initialPriorityList);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -366,34 +378,40 @@ export function DraftPreferencesForm({
             Priority list source
             <span style={{ color: "var(--color-success, #0d7d0d)", fontSize: 14, fontWeight: 500 }}>
               {" "}
-              (updated 4/26/26)
+              (updated 7/27/26)
             </span>
           </h2>
           <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 12 }}>
-            Everyone defaults to the site <strong>Default Big Board</strong> until you deliberately choose another provided Big Board or{" "}
-            <strong>My own list</strong> and save. If you reorder, add, or remove anyone after choosing a board, your source becomes{" "}
-            <strong>My own list</strong> with your edits. <strong>Tie-break after your list runs out</strong> (same for everyone):{" "}
-            {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
+            Everyone defaults to the site{" "}
+            <strong>{primaryBoardId ? DRAFT_BIG_BOARDS[primaryBoardId].label : "Default Big Board"}</strong> until you
+            deliberately choose another provided Big Board or <strong>My own list</strong> and save. If you reorder, add,
+            or remove anyone after choosing a board, your source becomes <strong>My own list</strong> with your edits.{" "}
+            <strong>Tie-break after your list runs out</strong> (same for everyone): {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 14, cursor: disabled ? "default" : "pointer" }}>
-              <input
-                type="radio"
-                name="list_source_ui"
-                checked={listSource === "default"}
-                onChange={() => {
-                  setListSource("default");
-                  setPriorityList([...defaultBoardIds]);
-                }}
-                disabled={disabled}
-                style={{ width: 18, height: 18, marginTop: 2 }}
-              />
-              <span>
-                <strong>{DRAFT_BIG_BOARDS.default.label}</strong>
-                <span style={{ color: "var(--color-text-muted)" }}> — {defaultBoardIds.length} wrestlers (recommended default)</span>
-              </span>
-            </label>
-            {availableOtherBoardIds.map((id) => {
+            {primaryBoardId ? (
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 14, cursor: disabled ? "default" : "pointer" }}>
+                <input
+                  type="radio"
+                  name="list_source_ui"
+                  checked={listSource === primaryBoardId}
+                  onChange={() => {
+                    setListSource(primaryBoardId);
+                    setPriorityList([...primaryBoardIds]);
+                  }}
+                  disabled={disabled}
+                  style={{ width: 18, height: 18, marginTop: 2 }}
+                />
+                <span>
+                  <strong>{DRAFT_BIG_BOARDS[primaryBoardId].label}</strong>
+                  <span style={{ color: "var(--color-text-muted)" }}>
+                    {" "}
+                    — {primaryBoardIds.length} wrestlers (recommended default)
+                  </span>
+                </span>
+              </label>
+            ) : null}
+            {otherBoardIds.map((id) => {
               const board = DRAFT_BIG_BOARDS[id];
               const ids = getBigBoardPriorityList(id);
               const ready = Boolean(ids && ids.length >= autopickRequiredPriorityCount);

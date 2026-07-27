@@ -324,7 +324,7 @@ export async function saveDraftPreferencesFormAction(
         ? rawListSource
         : availableBigBoardIds.includes("default")
           ? "default"
-          : "custom"
+          : availableBigBoardIds[0] ?? "custom"
       : rawListSource || "custom";
   let priority_list: string[] = [];
 

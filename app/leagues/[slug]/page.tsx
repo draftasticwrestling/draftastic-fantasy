@@ -13,6 +13,7 @@ import {
 import {
   getRosterRulesForLeague,
   getLeagueSeasonBelt,
+  isRoadToWarGamesSeasonSlug,
   leagueIncludesNxt,
   leagueIsSalaryCapFormat,
   leagueUsesSalaryCap,
@@ -51,6 +52,9 @@ import { getLeagueHomeLeaderboards } from "@/lib/weeklyLeaderboards";
 import { isLeagueHomeTop10Visible } from "@/lib/leagueHomeLeaderboardsGate";
 import { LeagueHomeLeaderboardsClient } from "./LeagueHomeLeaderboardsClient";
 import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
+import { getDraftPreferences } from "@/lib/leagueDraft";
+import { hasAdequateAutopickDraftPreferences } from "@/lib/draftBigBoards";
+import { R2wgDraftPrefsCallout } from "./R2wgDraftPrefsCallout";
 
 function formatLeagueType(type: string | null | undefined): string {
   if (!type) return "Standard";
@@ -395,6 +399,24 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const seasonBelt = getLeagueSeasonBelt(league);
     const isSalaryCapFormat = leagueIsSalaryCapFormat(league);
 
+    let showR2wgDraftPrefsCallout = false;
+    if (
+      currentUserMember &&
+      currentUser &&
+      isRoadToWarGamesSeasonSlug(league.season_slug) &&
+      !leagueUsesSalaryCap(league.league_type) &&
+      (league.draft_status ?? "not_started") !== "completed" &&
+      (league.draft_status ?? "not_started") !== "ready_for_review"
+    ) {
+      const prefs = await getDraftPreferences(league.id, currentUser.id);
+      const so = prefs?.strategy_options as { priorityListSource?: string } | null | undefined;
+      showR2wgDraftPrefsCallout = !hasAdequateAutopickDraftPreferences({
+        includeNxt: true,
+        priorityList: prefs?.priority_list ?? [],
+        priorityListSource: so?.priorityListSource ?? null,
+      });
+    }
+
     return (
     <>
     <main className="lm-dashboard lm-league-home">
@@ -407,6 +429,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         />
       ) : null}
       <Link href="/leagues" className="lm-dashboard-back lm-league-home-back">← My leagues</Link>
+
+      {showR2wgDraftPrefsCallout ? <R2wgDraftPrefsCallout leagueSlug={slug} /> : null}
 
       <LeagueHomeMobileLeagueView
         leagueSlug={slug}

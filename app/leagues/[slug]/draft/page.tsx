@@ -19,7 +19,6 @@ import {
   isDraftableWrestler,
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
-import { getAutopickRequiredPriorityCount } from "@/lib/draftPriorityRequirements";
 import {
   BETA_AUTOPICK_DRAFT_WINDOW_LABEL,
   BETA_AUTOPICK_FIRST_EVENT_LABEL,
@@ -30,7 +29,9 @@ import { MakePickForm } from "./MakePickForm";
 import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
 import { CommissionerDraftActions } from "./CommissionerDraftActions";
-import { getRosterRulesForLeague, leagueIncludesNxt, leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import { getRosterRulesForLeague, isRoadToWarGamesSeasonSlug, leagueIncludesNxt, leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import { hasAdequateAutopickDraftPreferences } from "@/lib/draftBigBoards";
+import { R2wgDraftPrefsCallout } from "../R2wgDraftPrefsCallout";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
@@ -300,14 +301,22 @@ export default async function LeagueDraftPage({ params }: Props) {
       league.draft_type === "offline" ? "offline" : league.draft_type === "autopick" ? "autopick" : "autopick";
 
     const prefSrc = userDraftPrefs?.strategy_options as { priorityListSource?: string } | undefined;
-    const customPrefs = prefSrc?.priorityListSource === "custom";
-    const listLen = userDraftPrefs?.priority_list?.length ?? 0;
-    const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(leagueIncludesNxt(league));
+    const hasAdequateAutopickPrefs = hasAdequateAutopickDraftPreferences({
+      includeNxt: leagueIncludesNxt(league),
+      priorityList: userDraftPrefs?.priority_list ?? [],
+      priorityListSource: prefSrc?.priorityListSource ?? null,
+    });
     const hasAutoDraftSettingsSaved =
       league.draft_type === "autopick"
-        ? !customPrefs || listLen >= autopickRequiredPriorityCount
+        ? hasAdequateAutopickPrefs
         : userDraftPrefs != null &&
           (userDraftPrefs.priority_list?.length > 0 || userDraftPrefs.strategy_options != null);
+    const showR2wgDraftPrefsCallout =
+      Boolean(user) &&
+      isRoadToWarGamesSeasonSlug(league.season_slug) &&
+      draftStatus !== "completed" &&
+      draftStatus !== "ready_for_review" &&
+      !hasAdequateAutopickPrefs;
 
     const orderInitial = await getDraftOrder(league.id);
     order = orderInitial;
@@ -363,6 +372,8 @@ export default async function LeagueDraftPage({ params }: Props) {
     return (
     <main className="app-page" style={{ maxWidth: wideDraftLayout ? 1100 : 720, margin: "0 auto", padding: showDraftRoom ? "2rem 1rem" : undefined, fontSize: 16, lineHeight: 1.5 }}>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem", color: "var(--color-text)" }}>Draft</h1>
+
+      {showR2wgDraftPrefsCallout ? <R2wgDraftPrefsCallout leagueSlug={slug} /> : null}
 
       <section
           aria-labelledby="league-draft-details-heading"
@@ -454,7 +465,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           className="app-link"
           style={{ fontWeight: 600 }}
         >
-          {userDraftPrefs ? "Edit your auto-draft preferences" : "Set your auto-draft preferences"} →
+          {hasAutoDraftSettingsSaved ? "Edit your auto-draft preferences" : "Set your auto-draft preferences"} →
         </Link>
       </section>
 
