@@ -14,11 +14,15 @@ type ChampionCard = {
   slug: string;
   title: string;
   champs: ChampionItem[];
+  secondaryChamps?: ChampionItem[];
+  primaryLabel?: string;
+  secondaryLabel?: string | null;
   tagTeamName: string | null;
   hasTeamNameRow: boolean;
   beltImageUrl: string | null;
   /** From full title history vs championships-table snapshot only. */
   hasHistory?: boolean;
+  hasInterim?: boolean;
 };
 
 type Props = {
@@ -60,6 +64,10 @@ export function CurrentChampionsToggle({ cards }: Props) {
     () => cards.filter((c) => (tab === "nxt" ? isNxtCard(c) : !isNxtCard(c))),
     [cards, tab]
   );
+  const gridHasInterim = useMemo(
+    () => filtered.some((c) => Boolean(c.hasInterim && c.champs.length > 0)),
+    [filtered]
+  );
 
   return (
     <>
@@ -86,80 +94,142 @@ export function CurrentChampionsToggle({ cards }: Props) {
           No championships found for this category yet.
         </p>
       ) : null}
-      <div className="wrestlers-page-champs-grid">
-        {filtered.map((card) => (
-          <article key={card.slug} className="wrestlers-champ-card">
-            <h3 className="wrestlers-champ-card__title">
-              <span className="wrestlers-champ-card__title-text">{card.title}</span>
-            </h3>
-            <div className="wrestlers-champ-card__belt" aria-hidden={!card.beltImageUrl}>
-              {card.beltImageUrl ? (
-                <Image
-                  src={card.beltImageUrl}
-                  alt=""
-                  width={200}
-                  height={58}
-                  sizes="200px"
-                  loading="lazy"
-                  className={beltClassName(card.beltImageUrl)}
-                />
-              ) : null}
-            </div>
-            <div className="wrestlers-champ-card__avatars">
-              {card.champs.map((c) => (
-                <div key={`${card.title}-${c.championSlug || c.champion}`}>
-                  {c.imageUrl ? (
-                    <Image
-                      src={c.imageUrl}
-                      alt={c.champion}
-                      width={52}
-                      height={52}
-                      sizes="52px"
-                      loading="lazy"
-                      className="wrestlers-champ-card__avatar-img"
-                    />
-                  ) : (
-                    <div className="wrestlers-champ-card__avatar-ph" aria-hidden>
-                      ?
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {card.hasTeamNameRow ? (
-              <div
-                className={`wrestlers-champ-card__team-name${
-                  card.tagTeamName ? "" : " wrestlers-champ-card__team-name--empty"
-                }`}
-              >
-                {card.tagTeamName ?? "\u00a0"}
-              </div>
-            ) : null}
-            <div
-              className={`wrestlers-champ-card__names${isTagTeamCard(card.title) ? " wrestlers-champ-card__names--single-line" : ""}`}
+      <div
+        className={`wrestlers-page-champs-grid${
+          gridHasInterim ? " wrestlers-page-champs-grid--has-interim" : ""
+        }`}
+      >
+        {filtered.map((card) => {
+          const secondary = card.secondaryChamps ?? [];
+          const showInterim = Boolean(card.hasInterim && card.champs.length > 0);
+          return (
+            <article
+              key={card.slug}
+              className={`wrestlers-champ-card${showInterim ? " wrestlers-champ-card--interim" : ""}`}
             >
-              {card.champs.map((c) => c.champion).join(" & ")}
-            </div>
-            <div className="wrestlers-champ-card__footer">
-              {card.hasHistory !== false ? (
-                <Link
-                  href={`/championship/${encodeURIComponent(card.slug)}`}
-                  className="wrestlers-champ-title-history-pill"
+              <h3 className="wrestlers-champ-card__title">
+                <span className="wrestlers-champ-card__title-text">{card.title}</span>
+              </h3>
+              <div className="wrestlers-champ-card__belt" aria-hidden={!card.beltImageUrl}>
+                {card.beltImageUrl ? (
+                  <Image
+                    src={card.beltImageUrl}
+                    alt=""
+                    width={200}
+                    height={58}
+                    sizes="200px"
+                    loading="lazy"
+                    className={beltClassName(card.beltImageUrl)}
+                  />
+                ) : null}
+              </div>
+              <div className="wrestlers-champ-card__avatars">
+                {card.champs.map((c) => (
+                  <div key={`${card.title}-${c.championSlug || c.champion}`}>
+                    {c.imageUrl ? (
+                      <Image
+                        src={c.imageUrl}
+                        alt={c.champion}
+                        width={52}
+                        height={52}
+                        sizes="52px"
+                        loading="lazy"
+                        className="wrestlers-champ-card__avatar-img"
+                      />
+                    ) : (
+                      <div className="wrestlers-champ-card__avatar-ph" aria-hidden>
+                        ?
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {showInterim ? (
+                <p className="wrestlers-champ-card__status-label">
+                  {card.primaryLabel ?? "Interim Champion"}
+                </p>
+              ) : gridHasInterim ? (
+                <p className="wrestlers-champ-card__status-label wrestlers-champ-card__status-label--spacer" aria-hidden>
+                  {"\u00a0"}
+                </p>
+              ) : null}
+              {card.hasTeamNameRow ? (
+                <div
+                  className={`wrestlers-champ-card__team-name${
+                    card.tagTeamName ? "" : " wrestlers-champ-card__team-name--empty"
+                  }`}
                 >
-                  Title History
-                </Link>
-              ) : (
-                <span
-                  className="wrestlers-champ-title-history-pill"
-                  style={{ opacity: 0.7, cursor: "default" }}
-                  aria-label="Current champion snapshot"
-                >
-                  Current Snapshot
-                </span>
-              )}
-            </div>
-          </article>
-        ))}
+                  {card.tagTeamName ?? "\u00a0"}
+                </div>
+              ) : null}
+              <div
+                className={`wrestlers-champ-card__names${
+                  isTagTeamCard(card.title) ? " wrestlers-champ-card__names--single-line" : ""
+                }${showInterim ? " wrestlers-champ-card__names--interim" : ""}`}
+              >
+                {showInterim ? (
+                  <>
+                    <span className="wrestlers-champ-card__name-primary">
+                      {card.champs.map((c) => c.champion).join(" & ")}
+                    </span>
+                    {secondary.length > 0 ? (
+                      <span className="wrestlers-champ-card__name-inactive">
+                        {secondary.map((c) => (
+                          <span
+                            key={`${card.title}-inactive-name-${c.championSlug || c.champion}`}
+                            className="wrestlers-champ-card__inactive-row"
+                          >
+                            {c.imageUrl ? (
+                              <Image
+                                src={c.imageUrl}
+                                alt=""
+                                width={28}
+                                height={28}
+                                sizes="28px"
+                                loading="lazy"
+                                className="wrestlers-champ-card__avatar-img wrestlers-champ-card__avatar-img--inline"
+                              />
+                            ) : (
+                              <span
+                                className="wrestlers-champ-card__avatar-ph wrestlers-champ-card__avatar-ph--inline"
+                                aria-hidden
+                              >
+                                ?
+                              </span>
+                            )}
+                            <span>
+                              {c.champion} <span className="wrestlers-champ-card__inactive-hint">(inactive)</span>
+                            </span>
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  card.champs.map((c) => c.champion).join(" & ")
+                )}
+              </div>
+              <div className="wrestlers-champ-card__footer">
+                {card.hasHistory !== false ? (
+                  <Link
+                    href={`/championship/${encodeURIComponent(card.slug)}`}
+                    className="wrestlers-champ-title-history-pill"
+                  >
+                    Title History
+                  </Link>
+                ) : (
+                  <span
+                    className="wrestlers-champ-title-history-pill"
+                    style={{ opacity: 0.7, cursor: "default" }}
+                    aria-label="Current champion snapshot"
+                  >
+                    Current Snapshot
+                  </span>
+                )}
+              </div>
+            </article>
+          );
+        })}
       </div>
     </>
   );

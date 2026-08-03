@@ -48,6 +48,11 @@ import {
   parseWrestlerAccomplishmentsColumn,
 } from "@/lib/wrestlerProfileChampionships";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
+import {
+  formatChampionshipTitleForHolder,
+  normalizeReignKind,
+  stripChampionshipTitleHolderSuffix,
+} from "@/lib/championshipReignKind";
 import { factionDisplayName } from "@/lib/factionName";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import {
@@ -417,38 +422,61 @@ export default async function WrestlerProfilePage({
   const fromChanges =
     currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
 
-  const primaryCurrentTitle = (fromTable ?? fromChanges)
+  const rawPrimaryCurrentTitle = (fromTable ?? fromChanges)
     ? (fromTable ?? fromChanges)!.title
     : (currentTitles[0] ?? null);
-  const championBeltImageUrl = primaryCurrentTitle
-    ? getBeltImageUrlForTitle(primaryCurrentTitle, wrestler.gender)
+  const primaryTitleBase = rawPrimaryCurrentTitle
+    ? stripChampionshipTitleHolderSuffix(rawPrimaryCurrentTitle)
     : null;
 
   const today = new Date().toISOString().slice(0, 10);
-  let reignWonDate: string | null;
+  const matchesProfileKeys = (key: string) =>
+    key === idKey || key === slugKey || (nameKey !== "" && key === nameKey);
+
+  let reignWonDate: string | null = null;
+  let primaryReignKind = normalizeReignKind(
+    / \(Interim\)$/i.test(rawPrimaryCurrentTitle ?? "") ? "interim" : null
+  );
   const fromSource = fromTable ?? fromChanges;
   if (fromSource?.wonDate) {
     reignWonDate = fromSource.wonDate.slice(0, 10);
-  } else {
-    const currentReign =
-      primaryCurrentTitle && reigns?.length
-        ? reigns.find((r) => {
-            const lost = (r.lost_date ?? r.end_date) ? String(r.lost_date ?? r.end_date).slice(0, 10) : null;
-            if (lost != null && lost <= today) return false;
-            const titleName = (r.title ?? r.title_name ?? "").trim();
-            if (titleName !== primaryCurrentTitle) return false;
-            const champName = r.champion ?? r.champion_name ?? "";
-            const raw =
-              r.champion_slug ?? r.champion_id ?? r.champion ?? (champName ? normalizeWrestlerName(champName) : null);
-            if (!raw) return false;
-            const won = (r.won_date ?? r.start_date)?.slice(0, 10) ?? "";
-            const resolved = resolvePersonaToCanonical(raw, won) ?? raw;
-            const key = normalizeWrestlerName(resolved) || resolved.toLowerCase().trim();
-            return key === idKey || key === slugKey || (nameKey !== "" && key === nameKey);
-          })
-        : null;
-    reignWonDate = currentReign ? (currentReign.won_date ?? currentReign.start_date)?.slice(0, 10) ?? null : null;
   }
+
+  const currentReign =
+    primaryTitleBase && reigns?.length
+      ? reigns.find((r) => {
+          const lost = (r.lost_date ?? r.end_date) ? String(r.lost_date ?? r.end_date).slice(0, 10) : null;
+          if (lost != null && lost <= today) return false;
+          const titleName = stripChampionshipTitleHolderSuffix(
+            (r.title ?? r.title_name ?? "").trim()
+          );
+          if (titleName !== primaryTitleBase) return false;
+          const champName = r.champion ?? r.champion_name ?? "";
+          const raw =
+            r.champion_slug ?? r.champion_id ?? r.champion ?? (champName ? normalizeWrestlerName(champName) : null);
+          if (!raw) return false;
+          const won = (r.won_date ?? r.start_date)?.slice(0, 10) ?? "";
+          const resolved = resolvePersonaToCanonical(raw, won) ?? raw;
+          const key = normalizeWrestlerName(resolved) || resolved.toLowerCase().trim();
+          return matchesProfileKeys(key);
+        })
+      : null;
+
+  if (currentReign) {
+    if (!reignWonDate) {
+      reignWonDate = (currentReign.won_date ?? currentReign.start_date)?.slice(0, 10) ?? null;
+    }
+    primaryReignKind = normalizeReignKind(currentReign.reign_kind) ?? primaryReignKind;
+  }
+
+  const primaryCurrentTitle = primaryTitleBase
+    ? formatChampionshipTitleForHolder(primaryTitleBase, primaryReignKind)
+    : null;
+  const isInterimChampion = primaryReignKind === "interim";
+  const championBeltImageUrl = primaryTitleBase
+    ? getBeltImageUrlForTitle(primaryTitleBase, wrestler.gender)
+    : null;
+
   const daysHeld =
     reignWonDate
       ? Math.floor(
@@ -878,7 +906,7 @@ export default async function WrestlerProfilePage({
         <section style={{ marginBottom: 32 }}>
           <div style={{ marginTop: 0, padding: "12px 16px", background: "linear-gradient(135deg, #f4e4bc 0%, #e8d08a 50%, #d4af37 100%)", borderRadius: 8, border: "1px solid #b8860b", boxShadow: "0 1px 3px rgba(184, 134, 11, 0.3)", textAlign: "center" }}>
             <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: 8, color: "#5c4a1a" }}>
-              Current championship
+              {isInterimChampion ? "Interim championship" : "Current championship"}
             </h3>
             <div style={{ fontSize: "1.35rem", fontWeight: 700, color: "#3d3511", marginBottom: 10, lineHeight: 1.2 }}>
               {primaryCurrentTitle}

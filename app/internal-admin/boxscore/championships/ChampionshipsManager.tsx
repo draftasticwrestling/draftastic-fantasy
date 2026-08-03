@@ -26,6 +26,9 @@ import {
 } from "./actions";
 import { TitleFactsEditor } from "./TitleFactsEditor";
 import { PARTNER_SUBSTITUTION_EVENT_LABEL } from "@/lib/championshipPartnerSubstitution";
+import { reignKindLabel, normalizeReignKind } from "@/lib/championshipReignKind";
+
+type ReignMode = "title_change" | "historical" | "partner_substitution" | "interim" | "resolve_interim";
 
 type ChampionshipRow = {
   id: string;
@@ -53,6 +56,7 @@ type HistoryRow = {
   event_name?: string | null;
   event_lost?: string | null;
   days_held?: number | null;
+  reign_kind?: string | null;
 };
 
 type ReignForm = {
@@ -110,7 +114,7 @@ export function ChampionshipsManager({
   const [syncState, syncAction, syncPending] = useActionState(syncChampionshipFromHistoryAction, defaultState);
 
   const [showAddReign, setShowAddReign] = useState(false);
-  const [addReignType, setAddReignType] = useState<"title_change" | "historical" | "partner_substitution" | null>(null);
+  const [addReignType, setAddReignType] = useState<ReignMode | null>(null);
   const [editingHistoryId, setEditingHistoryId] = useState("");
   const [reignForm, setReignForm] = useState<ReignForm>(emptyReignForm);
   const [showCreateChamp, setShowCreateChamp] = useState(false);
@@ -160,7 +164,7 @@ export function ChampionshipsManager({
     setShowAddReign(true);
   };
 
-  const startAddReignAs = (type: "title_change" | "historical" | "partner_substitution") => {
+  const startAddReignAs = (type: ReignMode) => {
     setAddReignType(type);
     setIdempotencyToken(newIdempotencyToken());
     createSubmitLock.current = false;
@@ -179,6 +183,34 @@ export function ChampionshipsManager({
         ...emptyReignForm(),
         date_won: new Date().toISOString().slice(0, 10),
         event_name: PARTNER_SUBSTITUTION_EVENT_LABEL,
+      }));
+    }
+    if (type === "interim") {
+      setReignForm((f) => ({
+        ...emptyReignForm(),
+        date_won: new Date().toISOString().slice(0, 10),
+        // Defeated left blank — interim crowns are often multi-way; injured champ was not defeated.
+        // Event won is the real show/PLE name (not a mode label).
+        event_name: "",
+      }));
+    }
+    if (type === "resolve_interim") {
+      const inactive = selectedHistory.find(
+        (h) =>
+          (!h.date_lost || String(h.date_lost).trim() === "") &&
+          normalizeReignKind(h.reign_kind) === "inactive_injured"
+      );
+      const interim = selectedHistory.find(
+        (h) =>
+          (!h.date_lost || String(h.date_lost).trim() === "") &&
+          normalizeReignKind(h.reign_kind) === "interim"
+      );
+      setReignForm((f) => ({
+        ...emptyReignForm(),
+        champion: inactive?.champion ?? interim?.champion ?? "",
+        champion_slug: inactive?.champion_slug ?? interim?.champion_slug ?? "",
+        date_won: new Date().toISOString().slice(0, 10),
+        event_name: "",
       }));
     }
   };
@@ -303,14 +335,32 @@ export function ChampionshipsManager({
                       <button type="button" className="btn-secondary" onClick={() => startAddReignAs("title_change")}>
                         Title Change
                       </button>
+                      <button type="button" className="btn-secondary" onClick={() => startAddReignAs("interim")}>
+                        Interim Champion
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={() => startAddReignAs("resolve_interim")}>
+                        Resolve Interim / Restore Sole
+                      </button>
                       <button type="button" className="btn-secondary" onClick={() => startAddReignAs("partner_substitution")}>
                         Partner Substitution
                       </button>
-                      <span style={{ fontSize: 13, color: "var(--color-text-muted)", maxWidth: 420 }}>
-                        Historical = past reign for records. Title Change = new champion; the prior open reign’s Date/Event
-                        lost are set from this entry. Partner Substitution = injured tag partner swap (same belt, new lineup).
+                      <span style={{ fontSize: 13, color: "var(--color-text-muted)", maxWidth: 520 }}>
+                        Historical = past reign for records. Title Change = new sole champion (closes prior open reigns).
+                        Interim = crown an interim while the injured champ stays open (both earn belt points). Resolve =
+                        close the other open reign(s) and restore sole ownership. Partner Substitution = injured tag
+                        partner swap.
                       </span>
                     </div>
+                  ) : null}
+
+                  {reignFormReady && addReignType && !editingHistoryId ? (
+                    <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
+                      {addReignType === "interim"
+                        ? "Enter the interim champion and the event where they were crowned. Leave Defeated blank unless you want an optional note (interim matches are often multi-way; the injured champion was not defeated). Open reigns stay open and are marked inactive."
+                        : addReignType === "resolve_interim"
+                          ? "Champion = who remains the sole champion (must match an open reign). Date/Event won = when the interim period ended."
+                          : null}
+                    </p>
                   ) : null}
 
                   {reignFormReady ? (
@@ -329,10 +379,16 @@ export function ChampionshipsManager({
                         <input type="hidden" name="championship_id" value={selectedId} />
                         <input type="hidden" name="reign_mode" value={addReignType ?? "title_change"} />
                         <input type="hidden" name="idempotency_token" value={idempotencyToken} />
-                        <ReignFormFields form={reignForm} setForm={setReignForm} />
+                        <ReignFormFields form={reignForm} setForm={setReignForm} mode={addReignType} />
                         <ReignFormActions
                           pending={createPending}
-                          submitLabel={createPending ? "Adding…" : "Add"}
+                          submitLabel={
+                            createPending
+                              ? "Saving…"
+                              : addReignType === "resolve_interim"
+                                ? "Resolve"
+                                : "Add"
+                          }
                           onCancel={cancelReignForm}
                         />
                       </form>
@@ -365,6 +421,23 @@ export function ChampionshipsManager({
                         <tr key={row.id} style={{ borderTop: "1px solid var(--color-border)" }}>
                           <td style={tdStyle}>
                             <strong>{row.champion ?? "—"}</strong>
+                            {reignKindLabel(normalizeReignKind(row.reign_kind)) ? (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  letterSpacing: "0.04em",
+                                  textTransform: "uppercase",
+                                  color:
+                                    normalizeReignKind(row.reign_kind) === "interim"
+                                      ? "#b45309"
+                                      : "#64748b",
+                                }}
+                              >
+                                {reignKindLabel(normalizeReignKind(row.reign_kind))}
+                              </span>
+                            ) : null}
                           </td>
                           <td style={tdStyle}>{row.previous_champion ?? "—"}</td>
                           <td style={tdStyle}>{formatChampionshipAdminDate(row.date_won)}</td>
@@ -534,12 +607,15 @@ export function ChampionshipsManager({
 function ReignFormFields({
   form,
   setForm,
+  mode = null,
 }: {
   form: ReignForm;
   setForm: React.Dispatch<React.SetStateAction<ReignForm>>;
+  mode?: ReignMode | null;
 }) {
   const set = (key: keyof ReignForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
+  const isInterim = mode === "interim";
 
   return (
     <>
@@ -549,8 +625,14 @@ function ReignFormFields({
           <input name="champion" value={form.champion} onChange={set("champion")} style={inputStyle} required />
         </label>
         <label>
-          Defeated
-          <input name="previous_champion" value={form.previous_champion} onChange={set("previous_champion")} style={inputStyle} />
+          Defeated{isInterim ? " (optional)" : ""}
+          <input
+            name="previous_champion"
+            value={form.previous_champion}
+            onChange={set("previous_champion")}
+            style={inputStyle}
+            placeholder={isInterim ? "Leave blank, or note multi-way field" : undefined}
+          />
         </label>
         <label>
           Date won *
@@ -558,7 +640,13 @@ function ReignFormFields({
         </label>
         <label style={{ gridColumn: "1 / -1" }}>
           Event won
-          <input name="event_name" value={form.event_name} onChange={set("event_name")} style={inputStyle} placeholder="e.g. WrestleMania" />
+          <input
+            name="event_name"
+            value={form.event_name}
+            onChange={set("event_name")}
+            style={inputStyle}
+            placeholder={isInterim ? "e.g. Raw, SmackDown, SummerSlam" : "e.g. WrestleMania"}
+          />
         </label>
         <label>
           Date lost

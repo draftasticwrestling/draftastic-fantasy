@@ -21,9 +21,10 @@ import {
   NXT_CHAMPIONSHIP_SLUG_ORDER,
   sortByChampionshipDisplayOrder,
 } from "@/lib/championshipDisplayOrder";
-import { collapseTagTeamChampionsForCard } from "@/lib/championshipCardTagChampions";
+import { buildCurrentChampionDisplay } from "@/lib/championshipCurrentReigns";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import type { TitleHistoryItem } from "@/lib/championshipTitleHistory";
+import type { ChampionCardRow } from "@/lib/championshipCardTagChampions";
 import { supabase } from "@/lib/supabase";
 import { getPwbsChampionshipPage } from "@/lib/pwbsChampionshipSlug.js";
 import {
@@ -179,40 +180,47 @@ export default async function WrestlersPage() {
 
   const currentChampionCards = historyCards
     .map((h) => {
-      const latest = h.items[0];
-      if (!latest) return null;
-      const latestWon = latest.wonDate;
-      const rawChamps = expandTagChampRows(
-        dedupeChampionRows(h.items.filter((x) => x.wonDate === latestWon)),
-        h.title
-      );
-      const { champions: champs, tagTeamName, hasTeamNameRow } = collapseTagTeamChampionsForCard(
-        h.title,
-        rawChamps,
-        {
-          wrestlerBySlug,
-          wrestlerByNameKey,
-          tagTeamMonikerByMemberKey,
-        }
-      );
+      if (!h.items[0]) return null;
+      const openItems = h.items.filter((x) => x.lostDate == null || String(x.lostDate).trim() === "");
+      const sourceItems =
+        openItems.length > 0
+          ? openItems
+          : (() => {
+              const latestWon = h.items[0]!.wonDate;
+              return h.items.filter((x) => x.wonDate === latestWon);
+            })();
+      const itemsForDisplay = expandTagChampRows(dedupeChampionRows(sourceItems), h.title);
+      const display = buildCurrentChampionDisplay(h.title, itemsForDisplay, {
+        wrestlerBySlug,
+        wrestlerByNameKey,
+        tagTeamMonikerByMemberKey,
+      });
       return {
         slug: h.slug,
         title: h.title,
-        champs,
-        tagTeamName,
-        hasTeamNameRow,
+        champs: display.primary,
+        secondaryChamps: display.secondary,
+        primaryLabel: display.primaryLabel,
+        secondaryLabel: display.secondaryLabel,
+        tagTeamName: display.tagTeamName,
+        hasTeamNameRow: display.hasTeamNameRow,
         beltImageUrl: getBeltImageUrlForTitle(h.title),
         hasHistory: true,
+        hasInterim: display.hasInterim,
       };
     })
     .filter(Boolean) as {
     slug: string;
     title: string;
-    champs: TitleHistoryItem[];
+    champs: ChampionCardRow[];
+    secondaryChamps: ChampionCardRow[];
+    primaryLabel: string;
+    secondaryLabel: string | null;
     tagTeamName: string | null;
     hasTeamNameRow: boolean;
     beltImageUrl: string | null;
     hasHistory: boolean;
+    hasInterim: boolean;
   }[];
 
   // Include titles that are only present in the `championships` current snapshot table
@@ -225,11 +233,15 @@ export default async function WrestlersPage() {
   const supplementalCards: {
     slug: string;
     title: string;
-    champs: TitleHistoryItem[];
+    champs: ChampionCardRow[];
+    secondaryChamps: ChampionCardRow[];
+    primaryLabel: string;
+    secondaryLabel: string | null;
     tagTeamName: string | null;
     hasTeamNameRow: boolean;
     beltImageUrl: string | null;
     hasHistory: boolean;
+    hasInterim: boolean;
   }[] = [];
   for (const row of (championshipRows ?? []) as {
     id?: string | null;
@@ -246,7 +258,7 @@ export default async function WrestlersPage() {
     const rawChampion = (row.current_champion ?? "").trim();
     const rawChampionSlug = (row.current_champion_slug ?? "").trim();
     const normalizedSlug = rawChampionSlug ? normalizeWrestlerName(rawChampionSlug) : "";
-    const champs: TitleHistoryItem[] = [];
+    const champs: ChampionCardRow[] = [];
     const isTag = isTagTeamTitle(title);
 
     if (isTag) {
@@ -265,11 +277,6 @@ export default async function WrestlersPage() {
             wonDate: "",
             lostDate: null,
             imageUrl: w?.image_url ?? null,
-            defeated: null,
-            defeatedSlug: null,
-            eventWon: null,
-            eventLost: null,
-            daysHeldDb: null,
           });
         }
       }
@@ -286,11 +293,6 @@ export default async function WrestlersPage() {
         wonDate: "",
         lostDate: null,
         imageUrl: w?.image_url ?? null,
-        defeated: null,
-        defeatedSlug: null,
-        eventWon: null,
-        eventLost: null,
-        daysHeldDb: null,
       });
     }
 
@@ -303,10 +305,14 @@ export default async function WrestlersPage() {
       slug: cardSlug,
       title,
       champs,
+      secondaryChamps: [],
+      primaryLabel: champs.length > 1 ? "Current champions" : "Current champion",
+      secondaryLabel: null,
       tagTeamName: isTag ? (rawChampion || null) : null,
       hasTeamNameRow: isTag,
       beltImageUrl: getBeltImageUrlForTitle(title),
       hasHistory: false,
+      hasInterim: false,
     });
   }
   if (supplementalCards.length > 0) {

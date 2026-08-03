@@ -7,6 +7,8 @@ import {
   closeOpenReignForTitleChange,
   computeDaysHeld,
   dedupeChampionshipHistory,
+  markOpenReignsInactiveInjured,
+  resolveInterimToSoleChampion,
   syncChampionshipFromHistory,
 } from "@/lib/boxscoreAdmin/championshipSync";
 import { PARTNER_SUBSTITUTION_EVENT_LABEL } from "@/lib/championshipPartnerSubstitution";
@@ -173,6 +175,34 @@ export async function createChampionshipHistoryAction(
       }
     }
 
+    if (reignMode === "interim") {
+      const markResult = await markOpenReignsInactiveInjured(admin, championshipId);
+      if (markResult.error) {
+        if (idempotencyToken) usedReignSubmitTokens.delete(idempotencyToken);
+        return { error: markResult.error };
+      }
+    }
+
+    if (reignMode === "resolve_interim") {
+      const resolveResult = await resolveInterimToSoleChampion(
+        admin,
+        championshipId,
+        champion,
+        dateWon,
+        eventName
+      );
+      if (resolveResult.error) {
+        if (idempotencyToken) usedReignSubmitTokens.delete(idempotencyToken);
+        return { error: resolveResult.error };
+      }
+      const dedupe = await dedupeChampionshipHistory(admin, championshipId);
+      if (dedupe.error) return { error: dedupe.error };
+      const syncResult = await syncChampionshipFromHistory(admin, championshipId);
+      if (syncResult.error) return { error: syncResult.error };
+      await revalidateChampionships();
+      return { success: "Interim resolved — sole champion restored and current champion updated." };
+    }
+
     const payload: Record<string, unknown> = {
       championship_id: championshipId,
       champion,
@@ -190,10 +220,21 @@ export async function createChampionshipHistoryAction(
       event_lost: norm(formData.get("event_lost")),
       days_held: computeDaysHeld(dateWon, dateLost),
     };
+    if (reignMode === "interim") {
+      payload.reign_kind = "interim";
+    } else if (reignMode === "title_change" || reignMode === "partner_substitution") {
+      payload.reign_kind = null;
+    }
 
     const { error } = await admin.from("championship_history").insert(payload);
     if (error) {
       if (idempotencyToken) usedReignSubmitTokens.delete(idempotencyToken);
+      if (/championship_history_unique_reign|unique constraint/i.test(error.message)) {
+        return {
+          error:
+            "A reign for this champion on this Date won already exists. Refresh the page — the interim may already be saved. If not, use a different Date won.",
+        };
+      }
       return { error: error.message };
     }
 
@@ -214,7 +255,9 @@ export async function createChampionshipHistoryAction(
           ? "Historical reign added (current champion unchanged)."
           : reignMode === "partner_substitution"
             ? "Partner substitution recorded — prior reign closed, new lineup is current champion."
-            : "Title change recorded and current champion updated.",
+            : reignMode === "interim"
+              ? "Interim champion recorded — prior champion stays open as inactive (both earn belt points)."
+              : "Title change recorded and current champion updated.",
     };
   } catch (e) {
     if (idempotencyToken) usedReignSubmitTokens.delete(idempotencyToken);

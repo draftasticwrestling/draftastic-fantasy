@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getProfile } from "@/lib/profiles";
 import { AccountAvatarField } from "./AccountAvatarField";
+import { AccountChampionshipBelts } from "./AccountChampionshipBelts";
 import { AccountForm } from "./AccountForm";
 import { AccountXpSection } from "./AccountXpSection";
 
@@ -131,6 +132,7 @@ export default async function AccountPage({
           Your display name is shown in the header and will be used in leagues. Your email is not shared with other users.
         </p>
       )}
+      {!avatarRequired ? <AccountChampionshipBelts userId={user.id} /> : null}
       {!avatarRequired ? <AccountXpSection userId={user.id} /> : null}
       {!avatarRequired ? (
         <AccountForm

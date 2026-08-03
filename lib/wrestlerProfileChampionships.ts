@@ -1,6 +1,7 @@
 import { titleToChampionshipSlug } from "@/lib/championshipPathSlug";
 import type { ChampionshipReignRow } from "@/lib/championshipTitleHistory";
 import { displayChampionshipDate, reignDetailsFromRow } from "@/lib/championshipTitleHistory";
+import { formatChampionshipTitleForHolder, normalizeReignKind } from "@/lib/championshipReignKind";
 import { getPwbsDisplayTitleForSlug, getPwbsReignGroupKey } from "@/lib/pwbsChampionshipSlug.js";
 import {
   getFantasyBeltMonthEndsForReign,
@@ -157,10 +158,14 @@ function routeSlugForReign(r: ChampionshipReignRow): string {
 function displayTitleForReign(r: ChampionshipReignRow): string {
   const cid = (r.championship_id ?? "").trim();
   const rawTitle = (r.title ?? r.title_name ?? "").trim();
-  if (cid) return (getPwbsDisplayTitleForSlug(cid) ?? rawTitle) || cid;
-  const g = getPwbsReignGroupKey(rawTitle);
-  if (g) return (getPwbsDisplayTitleForSlug(g) ?? rawTitle) || g;
-  return rawTitle || "Championship";
+  let base: string;
+  if (cid) base = (getPwbsDisplayTitleForSlug(cid) ?? rawTitle) || cid;
+  else {
+    const g = getPwbsReignGroupKey(rawTitle);
+    if (g) base = (getPwbsDisplayTitleForSlug(g) ?? rawTitle) || g;
+    else base = rawTitle || "Championship";
+  }
+  return formatChampionshipTitleForHolder(base, normalizeReignKind(r.reign_kind));
 }
 
 /**

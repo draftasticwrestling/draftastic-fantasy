@@ -1,4 +1,5 @@
 import { isPartnerSubstitutionEventLabel } from "@/lib/championshipPartnerSubstitution";
+import { normalizeReignKind, type ChampionshipReignKind } from "@/lib/championshipReignKind";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { getPwbsChampionshipPage, getPwbsDisplayTitleForSlug } from "@/lib/pwbsChampionshipSlug.js";
 import { titleToChampionshipSlug } from "@/lib/championshipPathSlug";
@@ -22,6 +23,8 @@ export type ChampionshipReignRow = {
   championship_id?: string | null;
   /** Boxscore-computed reign length when present. */
   days_held?: number | null;
+  /** null | sole | interim | inactive_injured */
+  reign_kind?: string | null;
 };
 
 export type TitleHistoryItem = {
@@ -37,6 +40,8 @@ export type TitleHistoryItem = {
   eventLost: string | null;
   /** From Boxscore `days_held` when set (preferred for display vs computed). */
   daysHeldDb: number | null;
+  /** Dual-reign classification when present. */
+  reignKind: ChampionshipReignKind | null;
 };
 
 function readOptionalString(row: Record<string, unknown>, keys: string[]): string | null {
@@ -188,6 +193,7 @@ export function buildTitleHistoryByTitle(
         r.days_held != null && Number.isFinite(Number(r.days_held))
           ? Math.trunc(Number(r.days_held))
           : null,
+      reignKind: normalizeReignKind((r as ChampionshipReignRow).reign_kind),
     });
     titleHistoryByTitle.set(title, list);
   }
@@ -270,6 +276,7 @@ export function buildTitleHistoryByChampionshipSlug(
       eventWon: d.eventWon,
       eventLost: d.eventLost,
       daysHeldDb,
+      reignKind: normalizeReignKind((r as ChampionshipReignRow).reign_kind),
     });
   }
 

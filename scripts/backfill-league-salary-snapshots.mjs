@@ -3,7 +3,8 @@
  * Backfill league_wrestler_salary_snapshots from official seed files (not global wrestlers table).
  * May 2026 tiers for leagues created before 2026-06-17;
  * June 2026 tiers for leagues created before 2026-07-07;
- * July 2026 tiers on/after.
+ * July 2026 tiers for leagues created before 2026-08-02;
+ * August 2026 tiers on/after.
  * NXT wrestlers are always $5.
  *
  * Usage: node scripts/backfill-league-salary-snapshots.mjs
@@ -22,6 +23,7 @@ dotenv.config({ path: path.join(root, ".env") });
 const VALID = new Set([5, 10, 15, 20, 25]);
 const JUNE_REPRICE_START = "2026-06-17";
 const JULY_REPRICE_START = "2026-07-07";
+const AUGUST_REPRICE_START = "2026-08-02";
 const NXT_COST = 5;
 
 function parseSeedValues(sql) {
@@ -58,10 +60,16 @@ function isNxtBrand(brand) {
   return l === "nxt" || l.includes("nxt");
 }
 
-function buildCostsFromSeed(wrestlers, leagueCreatedAt, maySeed, juneSeed, julySeed) {
+function buildCostsFromSeed(wrestlers, leagueCreatedAt, maySeed, juneSeed, julySeed, augustSeed) {
   const ymd = String(leagueCreatedAt ?? "").slice(0, 10);
   const seed =
-    ymd >= JULY_REPRICE_START ? julySeed : ymd >= JUNE_REPRICE_START ? juneSeed : maySeed;
+    ymd >= AUGUST_REPRICE_START
+      ? augustSeed
+      : ymd >= JULY_REPRICE_START
+        ? julySeed
+        : ymd >= JUNE_REPRICE_START
+          ? juneSeed
+          : maySeed;
   const out = {};
   for (const w of wrestlers) {
     const id = String(w.id ?? "");
@@ -92,9 +100,14 @@ async function main() {
     path.join(root, "supabase/seed_salary_cap_wrestler_values_2026-07-07.sql"),
     "utf8"
   );
+  const augustSql = fs.readFileSync(
+    path.join(root, "supabase/seed_salary_cap_wrestler_values_2026-08-02.sql"),
+    "utf8"
+  );
   const maySeed = seedMapFromRows(parseSeedValues(maySql));
   const juneSeed = seedMapFromRows(parseSeedValues(juneSql));
   const julySeed = seedMapFromRows(parseSeedValues(julySql));
+  const augustSeed = seedMapFromRows(parseSeedValues(augustSql));
 
   const { data: wrestlers, error: wErr } = await admin.from("wrestlers").select("id, name, brand");
   if (wErr) {
@@ -125,7 +138,14 @@ async function main() {
       continue;
     }
 
-    const costById = buildCostsFromSeed(wrestlers ?? [], league.created_at, maySeed, juneSeed, julySeed);
+    const costById = buildCostsFromSeed(
+      wrestlers ?? [],
+      league.created_at,
+      maySeed,
+      juneSeed,
+      julySeed,
+      augustSeed
+    );
     const rows = Object.entries(costById).map(([wrestler_id, salary_cap_cost]) => ({
       league_id: league.id,
       wrestler_id,
@@ -138,14 +158,17 @@ async function main() {
     }
 
     const ymd = String(league.created_at ?? "").slice(0, 10);
-    const useJuly = ymd >= JULY_REPRICE_START;
-    const useJune = !useJuly && ymd >= JUNE_REPRICE_START;
+    const seedLabel =
+      ymd >= AUGUST_REPRICE_START
+        ? "august"
+        : ymd >= JULY_REPRICE_START
+          ? "july"
+          : ymd >= JUNE_REPRICE_START
+            ? "june"
+            : "may";
     const { error } = await admin.from("league_wrestler_salary_snapshots").insert(rows);
     if (error) console.error(league.slug, error.message);
-    else
-      console.log(
-        `backfilled ${league.slug}: ${rows.length} wrestlers (${useJuly ? "july" : useJune ? "june" : "may"} seed)`
-      );
+    else console.log(`backfilled ${league.slug}: ${rows.length} wrestlers (${seedLabel} seed)`);
   }
 }
 

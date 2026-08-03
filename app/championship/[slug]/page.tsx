@@ -6,7 +6,8 @@ import { titleToChampionshipSlug } from "@/lib/championshipPathSlug";
 import { getPwbsDisplayTitleForSlug } from "@/lib/pwbsChampionshipSlug.js";
 import { displayChampionshipDate, reignLengthDays } from "@/lib/championshipTitleHistory";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
-import { collapseTagTeamChampionsForCard } from "@/lib/championshipCardTagChampions";
+import { buildCurrentChampionDisplay } from "@/lib/championshipCurrentReigns";
+import { reignKindLabel } from "@/lib/championshipReignKind";
 import styles from "../ChampionshipPages.module.css";
 
 export const dynamic = "force-dynamic";
@@ -43,26 +44,23 @@ export default async function ChampionshipDetailPage({ params }: Props) {
   const items = [...bucket.items].sort((a, b) => b.wonDate.localeCompare(a.wonDate));
   if (items.length === 0) notFound();
 
-  const latestWon = items[0].wonDate;
-  const rawCurrent = items.filter((x) => x.wonDate === latestWon);
-  const { champions: currentChamps, tagTeamName, hasTeamNameRow } = collapseTagTeamChampionsForCard(
-    title,
-    rawCurrent,
-    {
-      wrestlerBySlug: data.wrestlerBySlug,
-      wrestlerByNameKey: data.wrestlerByNameKey,
-      tagTeamMonikerByMemberKey: data.tagTeamMonikerByMemberKey,
-    }
-  );
+  const display = buildCurrentChampionDisplay(title, items, {
+    wrestlerBySlug: data.wrestlerBySlug,
+    wrestlerByNameKey: data.wrestlerByNameKey,
+    tagTeamMonikerByMemberKey: data.tagTeamMonikerByMemberKey,
+  });
+  const currentChamps = display.primary;
+  const inactiveChamps = display.secondary;
+  const { tagTeamName, hasTeamNameRow } = display;
 
   const beltImageUrl = getBeltImageUrlForTitle(title);
   const boxscoreUrl = `${BOXSORE_CHAMPIONSHIP_BASE}/${encodeURIComponent(slug)}`;
 
-  const current = items[0];
+  const metaItem = display.primaryMetaItem ?? items[0];
   const wonSubtitle =
-    current.eventWon != null && String(current.eventWon).trim() !== ""
-      ? `Won ${displayChampionshipDate(current.wonDate)} at ${current.eventWon}`
-      : `Won ${displayChampionshipDate(current.wonDate)}`;
+    metaItem.eventWon != null && String(metaItem.eventWon).trim() !== ""
+      ? `Won ${displayChampionshipDate(metaItem.wonDate)} at ${metaItem.eventWon}`
+      : `Won ${displayChampionshipDate(metaItem.wonDate)}`;
 
   const rowsNewestFirst = items.map((h) => ({
     ...h,
@@ -92,7 +90,7 @@ export default async function ChampionshipDetailPage({ params }: Props) {
           />
         )}
         <div className={styles.currentBlock}>
-          <p className={styles.currentLabel}>Current champion{currentChamps.length > 1 ? "s" : ""}</p>
+          <p className={styles.currentLabel}>{display.primaryLabel}</p>
           <div className={styles.avatarRow}>
             {currentChamps.map((c) => (
               <div key={`${c.championSlug}-${c.champion}`}>
@@ -126,6 +124,35 @@ export default async function ChampionshipDetailPage({ params }: Props) {
           ) : null}
           <p className={styles.championNames}>{currentChamps.map((c) => c.champion).join(" & ")}</p>
           <p className={styles.currentWonMeta}>{wonSubtitle}</p>
+
+          {display.hasInterim && inactiveChamps.length > 0 ? (
+            <div className={styles.inactiveBlock}>
+              <p className={`${styles.currentLabel} ${styles.inactiveLabel}`}>
+                {display.secondaryLabel ?? "Champion (inactive)"}
+              </p>
+              <div className={`${styles.avatarRow} ${styles.avatarRowSm}`}>
+                {inactiveChamps.map((c) => (
+                  <div key={`inactive-${c.championSlug}-${c.champion}`}>
+                    {c.imageUrl ? (
+                      <Image
+                        src={c.imageUrl}
+                        alt=""
+                        width={40}
+                        height={40}
+                        sizes="40px"
+                        className={`${styles.avatar} ${styles.avatarSm}`}
+                      />
+                    ) : (
+                      <div className={`${styles.avatarPlaceholder} ${styles.avatarPlaceholderSm}`} aria-hidden>
+                        ?
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className={styles.inactiveNames}>{inactiveChamps.map((c) => c.champion).join(" & ")}</p>
+            </div>
+          ) : null}
         </div>
       </article>
 
@@ -157,8 +184,9 @@ export default async function ChampionshipDetailPage({ params }: Props) {
                     : h.days != null
                       ? String(h.days)
                       : "—";
+              const kindBadge = reignKindLabel(h.reignKind);
               return (
-                <tr key={`${h.championSlug}-${h.wonDate}-${h.lostDate ?? "present"}`}>
+                <tr key={`${h.championSlug}-${h.wonDate}-${h.lostDate ?? "present"}-${h.reignKind ?? ""}`}>
                   <td>
                     <div className={styles.cellChampion}>
                       {h.imageUrl ? (
@@ -186,6 +214,11 @@ export default async function ChampionshipDetailPage({ params }: Props) {
                         ) : (
                           <span style={{ fontWeight: 600 }}>{h.champion}</span>
                         )}
+                        {kindBadge && h.lostDate == null ? (
+                          <span className={styles.reignKindBadge} data-kind={h.reignKind ?? ""}>
+                            {kindBadge}
+                          </span>
+                        ) : null}
                       </span>
                     </div>
                   </td>

@@ -1992,6 +1992,92 @@ body > .site-footer {
   color: #aaa;
 }
 
+.wrestlers-champ-card__status-label {
+  margin: 0 0 6px;
+  min-height: 1.2em;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #b45309;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.wrestlers-champ-card__status-label--spacer {
+  visibility: hidden;
+  color: transparent;
+  user-select: none;
+}
+
+.wrestlers-champ-card__avatar-img--sm,
+.wrestlers-champ-card__avatar-ph--sm {
+  width: 32px;
+  height: 32px;
+  border-width: 1px;
+  border-color: #666;
+}
+
+.wrestlers-champ-card__avatar-img--inline,
+.wrestlers-champ-card__avatar-ph--inline {
+  width: 22px;
+  height: 22px;
+  border-width: 1px;
+  border-color: #666;
+  flex-shrink: 0;
+}
+
+.wrestlers-champ-card__avatar-ph--inline {
+  display: inline-grid;
+  place-items: center;
+  font-size: 10px;
+  color: #aaa;
+  border-radius: 50%;
+  border: 1px solid #666;
+  box-sizing: border-box;
+}
+
+.wrestlers-champ-card__names--interim {
+  flex-direction: column;
+  gap: 4px;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+/* When any card shows interim + inactive, reserve matching name-band height on all cards. */
+.wrestlers-page-champs-grid--has-interim .wrestlers-champ-card__names {
+  min-height: 3.6em;
+}
+
+.wrestlers-champ-card__name-primary {
+  display: block;
+}
+
+.wrestlers-champ-card__name-inactive {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  line-height: 1.25;
+}
+
+.wrestlers-champ-card__inactive-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.wrestlers-champ-card__inactive-hint {
+  font-weight: 500;
+  opacity: 0.9;
+}
+
 .wrestlers-champ-card__team-name {
   margin: 0 0 6px;
   min-height: 1.25em;
@@ -6218,6 +6304,101 @@ body > .site-footer {
   min-width: 0;
 }
 
+.hub-rtss-champions-card {
+  min-width: 0;
+}
+
+.hub-rtss-champions-belt {
+  margin: 0 0 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.hub-rtss-champions-belt-img {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+}
+
+.hub-rtss-champions-empty {
+  margin: 0;
+}
+
+.hub-rtss-champions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hub-rtss-champions-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.hub-rtss-champions-row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.hub-rtss-champions-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hub-rtss-champions-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.25;
+}
+
+.hub-rtss-champions-league {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-link, #1a73e8);
+  text-decoration: none;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.hub-rtss-champions-league:hover {
+  text-decoration: underline;
+}
+
+.hub-rtss-champions-vis {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.hub-rtss-champions-vis--public {
+  color: #1b7a3d;
+}
+
+.hub-rtss-champions-vis--private {
+  color: #8a6d1d;
+}
+
+.hub-rtss-champions-pts {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
 .hub-leaderboards-hint {
   margin: 0 0 14px;
   font-size: 0.75rem;
@@ -6926,6 +7107,7 @@ button.hub-leaderboard-week-nav-btn:disabled {
   /* Uniform full-width cards in the content column */
   .hub-latest-feed-item,
   .hub-site-pulse-card,
+  .hub-rtss-champions-card,
   .hub-leaderboards-card,
   .hub-headlines-aside,
   .hub-quick-links-card {
@@ -6950,17 +7132,20 @@ button.hub-leaderboard-week-nav-btn:disabled {
   .hub-mobile-feed-slot-3 {
     order: 4;
   }
-  .hub-leaderboards-card {
+  .hub-rtss-champions-card {
     order: 5;
   }
-  .hub-mobile-feed-slot-rest {
+  .hub-leaderboards-card {
     order: 6;
   }
-  .hub-headlines-aside {
+  .hub-mobile-feed-slot-rest {
     order: 7;
   }
-  .hub-quick-links-card {
+  .hub-headlines-aside {
     order: 8;
+  }
+  .hub-quick-links-card {
+    order: 9;
   }
   .hub-col-side {
     background: transparent;
@@ -6969,6 +7154,7 @@ button.hub-leaderboard-week-nav-btn:disabled {
     padding: 0;
     box-shadow: none;
   }
+  .hub-rtss-champions-card.hub-col-side,
   .hub-leaderboards-card.hub-col-side,
   .hub-headlines-aside.hub-col-side,
   .hub-quick-links-card.hub-col-side {

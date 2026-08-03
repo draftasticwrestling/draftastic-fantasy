@@ -7,6 +7,7 @@
 
 import type { BeltKey } from "@/lib/howItWorksImages";
 import { BELT_IMAGE_URLS } from "@/lib/howItWorksImages";
+import { stripChampionshipTitleHolderSuffix } from "@/lib/championshipReignKind";
 
 function isFemale(gender: string | null | undefined): boolean {
   if (!gender || typeof gender !== "string") return false;
@@ -16,7 +17,7 @@ function isFemale(gender: string | null | undefined): boolean {
 
 /** Boxscore / DB sometimes use curly apostrophe (U+2019); normalize so "Women's …" patterns match. */
 function normalizeTitleForBeltMatch(title: string): string {
-  return title
+  return stripChampionshipTitleHolderSuffix(title)
     .replace(/[\u2018\u2019\u201B\u2032]/g, "'")
     .replace(/[-_]+/g, " ");
 }

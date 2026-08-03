@@ -10,6 +10,7 @@ import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 export const SALARY_CAP_NXT_COST = 5;
 const JUNE_REPRICE_START = "2026-06-17";
 const JULY_REPRICE_START = "2026-07-07";
+const AUGUST_REPRICE_START = "2026-08-02";
 
 export function isNxtSalaryCapWrestler(brand: string | null | undefined): boolean {
   return wrestlerRosterFromBrand(brand) === "NXT";
@@ -47,17 +48,20 @@ function seedMapFromRows(rows: Array<{ name: string; cost: number }>): Record<st
 let cachedMaySeedByKey: Record<string, number> | null = null;
 let cachedJuneSeedByKey: Record<string, number> | null = null;
 let cachedJulySeedByKey: Record<string, number> | null = null;
+let cachedAugustSeedByKey: Record<string, number> | null = null;
 
 function loadSeedMaps(): {
   maySeedByKey: Record<string, number>;
   juneSeedByKey: Record<string, number>;
   julySeedByKey: Record<string, number>;
+  augustSeedByKey: Record<string, number>;
 } {
-  if (cachedMaySeedByKey && cachedJuneSeedByKey && cachedJulySeedByKey) {
+  if (cachedMaySeedByKey && cachedJuneSeedByKey && cachedJulySeedByKey && cachedAugustSeedByKey) {
     return {
       maySeedByKey: cachedMaySeedByKey,
       juneSeedByKey: cachedJuneSeedByKey,
       julySeedByKey: cachedJulySeedByKey,
+      augustSeedByKey: cachedAugustSeedByKey,
     };
   }
   const root = process.cwd();
@@ -70,20 +74,27 @@ function loadSeedMaps(): {
     path.join(root, "supabase/seed_salary_cap_wrestler_values_2026-07-07.sql"),
     "utf8"
   );
+  const augustSql = fs.readFileSync(
+    path.join(root, "supabase/seed_salary_cap_wrestler_values_2026-08-02.sql"),
+    "utf8"
+  );
   cachedMaySeedByKey = seedMapFromRows(parseSalaryCapSeedSql(maySql));
   cachedJuneSeedByKey = seedMapFromRows(parseSalaryCapSeedSql(juneSql));
   cachedJulySeedByKey = seedMapFromRows(parseSalaryCapSeedSql(julySql));
+  cachedAugustSeedByKey = seedMapFromRows(parseSalaryCapSeedSql(augustSql));
   return {
     maySeedByKey: cachedMaySeedByKey,
     juneSeedByKey: cachedJuneSeedByKey,
     julySeedByKey: cachedJulySeedByKey,
+    augustSeedByKey: cachedAugustSeedByKey,
   };
 }
 
 /** Which monthly seed tier applies when a league is created. */
 export function seedMapForLeagueCreatedAt(createdAt: string): Record<string, number> {
   const ymd = String(createdAt ?? "").slice(0, 10);
-  const { maySeedByKey, juneSeedByKey, julySeedByKey } = loadSeedMaps();
+  const { maySeedByKey, juneSeedByKey, julySeedByKey, augustSeedByKey } = loadSeedMaps();
+  if (ymd >= AUGUST_REPRICE_START) return augustSeedByKey;
   if (ymd >= JULY_REPRICE_START) return julySeedByKey;
   if (ymd >= JUNE_REPRICE_START) return juneSeedByKey;
   return maySeedByKey;

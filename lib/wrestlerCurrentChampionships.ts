@@ -5,6 +5,7 @@ import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCur
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import { compareChampionshipTitleNames } from "@/lib/championshipDisplayOrder";
+import { stripChampionshipTitleHolderSuffix, formatChampionshipTitleForHolder } from "@/lib/championshipReignKind";
 import { getPwbsChampionshipPage } from "@/lib/pwbsChampionshipSlug.js";
 import { getCurrentChampionsBySlug } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import {
@@ -29,17 +30,29 @@ function dedupeChampionshipTitlesForDisplay(titles: string[]): string[] {
   for (const raw of titles) {
     const t = raw?.trim();
     if (!t) continue;
-    const page = getPwbsChampionshipPage(t);
-    const key = page?.slug ?? `literal:${t.toLowerCase()}`;
-    const label = page?.displayTitle ?? t;
-    if (!bySlug.has(key)) bySlug.set(key, label);
+    const base = stripChampionshipTitleHolderSuffix(t);
+    const isInterim = / \(Interim\)$/i.test(t);
+    const page = getPwbsChampionshipPage(base);
+    const key = page?.slug ?? `literal:${base.toLowerCase()}`;
+    const displayBase = page?.displayTitle ?? base;
+    const label = isInterim ? formatChampionshipTitleForHolder(displayBase, "interim") : displayBase;
+    const existing = bySlug.get(key);
+    if (!existing || (isInterim && !/ \(Interim\)$/i.test(existing))) {
+      bySlug.set(key, label);
+    }
   }
-  return [...bySlug.values()].sort((a, b) => compareChampionshipTitleNames(a, b));
+  return [...bySlug.values()].sort((a, b) =>
+    compareChampionshipTitleNames(
+      stripChampionshipTitleHolderSuffix(a),
+      stripChampionshipTitleHolderSuffix(b)
+    )
+  );
 }
 
 function titleKeyForChampionshipName(title: string): string {
-  const page = getPwbsChampionshipPage(title);
-  return page?.slug ?? `literal:${title.toLowerCase()}`;
+  const base = stripChampionshipTitleHolderSuffix(title);
+  const page = getPwbsChampionshipPage(base);
+  return page?.slug ?? `literal:${base.toLowerCase()}`;
 }
 
 /** Invert slug→titles so we can tell when reign history already names a current holder per belt. */

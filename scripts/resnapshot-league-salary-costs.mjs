@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Replace league_wrestler_salary_snapshots for one or more salary cap leagues.
- * Uses official seed files by league created_at (May / June / July tiers).
+ * Uses official seed files by league created_at (May / June / July / August tiers).
  *
  * Usage:
  *   node scripts/resnapshot-league-salary-costs.mjs salary-cap-test-1
@@ -21,6 +21,7 @@ dotenv.config({ path: path.join(root, ".env") });
 const VALID = new Set([5, 10, 15, 20, 25]);
 const JUNE_REPRICE_START = "2026-06-17";
 const JULY_REPRICE_START = "2026-07-07";
+const AUGUST_REPRICE_START = "2026-08-02";
 const NXT_COST = 5;
 
 function parseSeedValues(sql) {
@@ -57,15 +58,22 @@ function isNxtBrand(brand) {
   return l === "nxt" || l.includes("nxt");
 }
 
-function seedForLeagueCreatedAt(createdAt, maySeed, juneSeed, julySeed) {
+function seedForLeagueCreatedAt(createdAt, maySeed, juneSeed, julySeed, augustSeed) {
   const ymd = String(createdAt ?? "").slice(0, 10);
+  if (ymd >= AUGUST_REPRICE_START) return { seed: augustSeed, label: "august" };
   if (ymd >= JULY_REPRICE_START) return { seed: julySeed, label: "july" };
   if (ymd >= JUNE_REPRICE_START) return { seed: juneSeed, label: "june" };
   return { seed: maySeed, label: "may" };
 }
 
-function buildCostsFromSeed(wrestlers, leagueCreatedAt, maySeed, juneSeed, julySeed) {
-  const { seed } = seedForLeagueCreatedAt(leagueCreatedAt, maySeed, juneSeed, julySeed);
+function buildCostsFromSeed(wrestlers, leagueCreatedAt, maySeed, juneSeed, julySeed, augustSeed) {
+  const { seed } = seedForLeagueCreatedAt(
+    leagueCreatedAt,
+    maySeed,
+    juneSeed,
+    julySeed,
+    augustSeed
+  );
   const out = {};
   for (const w of wrestlers) {
     const id = String(w.id ?? "");
@@ -81,9 +89,22 @@ function buildCostsFromSeed(wrestlers, leagueCreatedAt, maySeed, juneSeed, julyS
   return out;
 }
 
-async function resnapshotLeague(admin, league, wrestlers, maySeed, juneSeed, julySeed) {
-  const { label } = seedForLeagueCreatedAt(league.created_at, maySeed, juneSeed, julySeed);
-  const costById = buildCostsFromSeed(wrestlers, league.created_at, maySeed, juneSeed, julySeed);
+async function resnapshotLeague(admin, league, wrestlers, maySeed, juneSeed, julySeed, augustSeed) {
+  const { label } = seedForLeagueCreatedAt(
+    league.created_at,
+    maySeed,
+    juneSeed,
+    julySeed,
+    augustSeed
+  );
+  const costById = buildCostsFromSeed(
+    wrestlers,
+    league.created_at,
+    maySeed,
+    juneSeed,
+    julySeed,
+    augustSeed
+  );
   const rows = Object.entries(costById).map(([wrestler_id, salary_cap_cost]) => ({
     league_id: league.id,
     wrestler_id,
@@ -138,9 +159,14 @@ async function main() {
     path.join(root, "supabase/seed_salary_cap_wrestler_values_2026-07-07.sql"),
     "utf8"
   );
+  const augustSql = fs.readFileSync(
+    path.join(root, "supabase/seed_salary_cap_wrestler_values_2026-08-02.sql"),
+    "utf8"
+  );
   const maySeed = seedMapFromRows(parseSeedValues(maySql));
   const juneSeed = seedMapFromRows(parseSeedValues(juneSql));
   const julySeed = seedMapFromRows(parseSeedValues(julySql));
+  const augustSeed = seedMapFromRows(parseSeedValues(augustSql));
 
   const { data: wrestlers, error: wErr } = await admin.from("wrestlers").select("id, name, brand");
   if (wErr) {
@@ -168,7 +194,18 @@ async function main() {
 
   let ok = 0;
   for (const league of targets) {
-    if (await resnapshotLeague(admin, league, wrestlers ?? [], maySeed, juneSeed, julySeed)) ok++;
+    if (
+      await resnapshotLeague(
+        admin,
+        league,
+        wrestlers ?? [],
+        maySeed,
+        juneSeed,
+        julySeed,
+        augustSeed
+      )
+    )
+      ok++;
   }
 
   console.log(`Done: ${ok}/${targets.length} leagues resnapshotted.`);

@@ -5,6 +5,7 @@ import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
 import HubLatestHeadlinesSection from "@/app/components/HubLatestHeadlinesSection";
 import HubSiteActivityPulse from "@/app/components/HubSiteActivityPulse";
 import HubSiteLeaderboards from "@/app/components/HubSiteLeaderboards";
+import HubRtssChampions from "@/app/components/HubRtssChampions";
 import FantasyHubHero from "@/app/components/FantasyHubHero";
 import BreakingNewsBanner from "@/app/components/BreakingNewsBanner";
 import { getAdsenseSlotHubHome } from "@/lib/adsenseConfig";
@@ -67,6 +68,7 @@ export default async function HubHomePage({
         <div className="hub-shell">
           <div className="hub-col hub-left-rail">
             <HubSiteActivityPulse />
+            <HubRtssChampions />
             <HubSiteLeaderboards leaderboardWeek={sp.leaderboard_week ?? null} />
             <aside className="hub-col-side hub-quick-links-card" aria-label="Quick links">
               <h2 className="hub-col-title">Quick links</h2>

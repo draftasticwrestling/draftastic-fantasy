@@ -1,13 +1,22 @@
 import { cache } from "react";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import { compareChampionshipTitleNames } from "@/lib/championshipDisplayOrder";
+import {
+  formatChampionshipTitleForHolder,
+  stripChampionshipTitleHolderSuffix,
+} from "@/lib/championshipReignKind";
 import { getPwbsChampionshipPage } from "@/lib/pwbsChampionshipSlug.js";
 import { getCurrentChampionsBySlug } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { mergeCurrentChampionTitleStrings } from "@/lib/scoring/draftAliasListMerge";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 
 function sortTitleNames(titles: string[]): string[] {
-  return [...titles].sort((a, b) => compareChampionshipTitleNames(a, b));
+  return [...titles].sort((a, b) =>
+    compareChampionshipTitleNames(
+      stripChampionshipTitleHolderSuffix(a),
+      stripChampionshipTitleHolderSuffix(b)
+    )
+  );
 }
 
 /** Collapse aliases (e.g. "Women's Speed Championship" vs "NXT Women's Speed Championship") to one PWBS label. */
@@ -16,10 +25,16 @@ function dedupeChampionshipTitlesForDisplay(titles: string[]): string[] {
   for (const raw of titles) {
     const t = raw?.trim();
     if (!t) continue;
-    const page = getPwbsChampionshipPage(t);
-    const key = page?.slug ?? `literal:${t.toLowerCase()}`;
-    const label = page?.displayTitle ?? t;
-    if (!bySlug.has(key)) bySlug.set(key, label);
+    const base = stripChampionshipTitleHolderSuffix(t);
+    const isInterim = / \(Interim\)$/i.test(t);
+    const page = getPwbsChampionshipPage(base);
+    const key = page?.slug ?? `literal:${base.toLowerCase()}`;
+    const displayBase = page?.displayTitle ?? base;
+    const label = isInterim ? formatChampionshipTitleForHolder(displayBase, "interim") : displayBase;
+    const existing = bySlug.get(key);
+    if (!existing || (isInterim && !/ \(Interim\)$/i.test(existing))) {
+      bySlug.set(key, label);
+    }
   }
   return [...bySlug.values()];
 }
