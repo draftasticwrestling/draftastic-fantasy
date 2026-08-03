@@ -4790,6 +4790,43 @@ body > .site-footer {
   content: " · ";
 }
 
+.lm-draft-day-banner {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--color-text);
+}
+
+.lm-draft-day-banner__label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-blue);
+}
+
+.lm-draft-day-banner__when {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--color-text);
+}
+
+.lm-draft-day-banner__time {
+  font-weight: 700;
+}
+
+.lm-draft-day-banner__note {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
 .lm-subnav {
   display: flex;
   flex-wrap: wrap;
@@ -4953,11 +4990,21 @@ body > .site-footer {
     display: none;
   }
 
-  .lm-league-home .league-home-mobile__invite .lm-btn-primary {
+  .lm-league-home .league-home-mobile__invite.lm-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .lm-league-home .league-home-mobile__invite .lm-btn-primary,
+  .lm-league-home .league-home-mobile__invite .lm-btn-secondary,
+  .lm-league-home .league-home-mobile__invite .lm-setup-verified {
     display: flex;
     width: 100%;
     justify-content: center;
     box-sizing: border-box;
+    text-align: center;
   }
 }
 

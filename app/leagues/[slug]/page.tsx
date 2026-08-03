@@ -404,6 +404,32 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       : "Prepare for your draft";
     const onboardingHref = leagueOnboardingPath(slug);
 
+    let draftDayLabel: string | null = null;
+    let draftTargetTimeLabel: string | null = null;
+    if (draftDateYmd && /^\d{4}-\d{2}-\d{2}$/.test(draftDateYmd)) {
+      draftDayLabel = new Date(`${draftDateYmd}T12:00:00`).toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+      if (league.draft_time) {
+        const t = String(league.draft_time).trim();
+        const [h, m] = t.split(":").map(Number);
+        if (!Number.isNaN(h)) {
+          const hour = h % 12 || 12;
+          const ampm = h < 12 ? "AM" : "PM";
+          const min = Number.isNaN(m) ? 0 : m;
+          draftTargetTimeLabel = `${hour}:${String(min).padStart(2, "0")} ${ampm}`;
+        }
+      }
+    }
+    const showDraftDayBanner =
+      Boolean(draftDayLabel) &&
+      isAutopickDraftLeague &&
+      draftStatus !== "completed" &&
+      draftStatus !== "ready_for_review";
+
     const myTeamName = factionDisplayName(currentUserMember, "My Faction");
     const myManagerName = truncateFactionDisplay(
       currentUserMember?.display_name?.trim() || "Manager"
@@ -533,6 +559,22 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         leaderboardInitial={leaderboardData}
         levelUpCelebration={levelUpCelebration}
         xpBannerKind={xpBannerKind}
+        showDraftDayBanner={showDraftDayBanner}
+        draftDayLabel={draftDayLabel}
+        draftTargetTimeLabel={draftTargetTimeLabel}
+        draftInProgress={draftStatus === "in_progress"}
+        showAlert={showAlert}
+        showOnboardingCta={showOnboardingCta}
+        needsDraftSetup={needsDraftSetup}
+        leagueNotFull={leagueNotFull}
+        showOnboardingComplete={showOnboardingComplete}
+        showGmSetUpDraft={showGmSetUpDraft}
+        setUpDraftHref={setUpDraftHref}
+        onboardingHref={onboardingHref}
+        showPrepareForDraft={showPrepareForDraft}
+        prepareForDraftLabel={prepareForDraftLabel}
+        rosterBuildHref={rosterBuildHref}
+        showPendingProposals={isCommissioner && !leagueUsesSalaryCap(league.league_type)}
       />
 
       <div className="lm-league-page-desktop">
@@ -651,6 +693,25 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               <span>Format: {formatLeagueType(league.league_type)}</span>
               <span>Factions: {standingsMembers.length}{maxTeams ? ` / ${maxTeams}` : ""}</span>
             </p>
+            {showDraftDayBanner ? (
+              <div className="lm-draft-day-banner" role="status">
+                <p className="lm-draft-day-banner__label">Draft day</p>
+                <p className="lm-draft-day-banner__when">
+                  {draftDayLabel}
+                  {draftTargetTimeLabel ? (
+                    <>
+                      {" · "}
+                      <span className="lm-draft-day-banner__time">Target {draftTargetTimeLabel}</span>
+                    </>
+                  ) : null}
+                </p>
+                <p className="lm-draft-day-banner__note">
+                  {draftStatus === "in_progress"
+                    ? "Draft is in progress."
+                    : "The GM begins the draft on or after this day. Set your auto-draft preferences before then."}
+                </p>
+              </div>
+            ) : null}
             {showAlert && (
               <div className="lm-alert" role="alert">
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
@@ -721,21 +782,6 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             {league.season_slug && (
               <p className="lm-league-meta" style={{ marginTop: 4, marginBottom: 0 }}>
                 Season: {getSeasonBySlug(league.season_slug)?.name ?? league.season_slug}
-                {league.draft_date && (
-                  <>
-                    {" · Draft day: "}
-                    {String(league.draft_date).slice(0, 10)}
-                    {league.draft_time && (() => {
-                      const t = String(league.draft_time).trim();
-                      const [h, m] = t.split(":").map(Number);
-                      if (Number.isNaN(h)) return null;
-                      const hour = h % 12 || 12;
-                      const ampm = h < 12 ? "AM" : "PM";
-                      const min = Number.isNaN(m) ? 0 : m;
-                      return ` (target ${hour}:${String(min).padStart(2, "0")} ${ampm})`;
-                    })()}
-                  </>
-                )}
               </p>
             )}
           </div>

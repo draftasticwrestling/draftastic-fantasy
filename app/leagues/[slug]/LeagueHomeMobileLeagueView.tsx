@@ -42,6 +42,23 @@ type Props = {
   seasonBelt?: LeagueSeasonBelt | null;
   levelUpCelebration?: LevelUpCelebration | null;
   xpBannerKind?: LeagueHomeXpBannerKind | null;
+  /** Draft day / setup prompts (same as desktop league card). */
+  showDraftDayBanner?: boolean;
+  draftDayLabel?: string | null;
+  draftTargetTimeLabel?: string | null;
+  draftInProgress?: boolean;
+  showAlert?: boolean;
+  showOnboardingCta?: boolean;
+  needsDraftSetup?: boolean;
+  leagueNotFull?: boolean;
+  showOnboardingComplete?: boolean;
+  showGmSetUpDraft?: boolean;
+  setUpDraftHref?: string;
+  onboardingHref?: string;
+  showPrepareForDraft?: boolean;
+  prepareForDraftLabel?: string;
+  rosterBuildHref?: string;
+  showPendingProposals?: boolean;
 };
 
 const menuItemStyle: CSSProperties = {
@@ -82,6 +99,22 @@ export function LeagueHomeMobileLeagueView({
   seasonBelt = null,
   levelUpCelebration = null,
   xpBannerKind = null,
+  showDraftDayBanner = false,
+  draftDayLabel = null,
+  draftTargetTimeLabel = null,
+  draftInProgress = false,
+  showAlert = false,
+  showOnboardingCta = false,
+  needsDraftSetup = false,
+  leagueNotFull = false,
+  showOnboardingComplete = false,
+  showGmSetUpDraft = false,
+  setUpDraftHref = "",
+  onboardingHref = "",
+  showPrepareForDraft = false,
+  prepareForDraftLabel = "Prepare for your draft",
+  rosterBuildHref = "",
+  showPendingProposals = false,
 }: Props) {
   const base = `/leagues/${encodeURIComponent(leagueSlug)}`;
   const pleHref = pleDefaultHref(leagueSlug, seasonSlug, leagueStartDate, leagueEndDate);
@@ -106,6 +139,13 @@ export function LeagueHomeMobileLeagueView({
     ...(isCommissioner ? [{ href: `${base}/league-settings`, label: "GM Tools" }] : []),
   ];
 
+  const showActions =
+    isCommissioner ||
+    showOnboardingCta ||
+    showOnboardingComplete ||
+    showPrepareForDraft ||
+    showGmSetUpDraft;
+
   return (
     <div className="league-home-mobile">
       {seasonBelt ? (
@@ -129,16 +169,88 @@ export function LeagueHomeMobileLeagueView({
         </div>
       ) : null}
 
-      {isCommissioner ? (
-        <div className="league-home-mobile__section league-home-mobile__invite" style={{ marginBottom: 12 }}>
-          <InviteSuccessModalTrigger
-            show={false}
-            leagueId={leagueId}
-            leagueName={leagueName}
-            leagueSlug={leagueSlug}
-            joinCode={joinCode}
-            showInviteButton
-          />
+      {showDraftDayBanner && draftDayLabel ? (
+        <div className="league-home-mobile__section" style={{ marginBottom: 12 }}>
+          <div className="lm-draft-day-banner" role="status">
+            <p className="lm-draft-day-banner__label">Draft day</p>
+            <p className="lm-draft-day-banner__when">
+              {draftDayLabel}
+              {draftTargetTimeLabel ? (
+                <>
+                  {" · "}
+                  <span className="lm-draft-day-banner__time">Target {draftTargetTimeLabel}</span>
+                </>
+              ) : null}
+            </p>
+            <p className="lm-draft-day-banner__note">
+              {draftInProgress
+                ? "Draft is in progress."
+                : "The GM begins the draft on or after this day. Set your auto-draft preferences before then."}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {showAlert ? (
+        <div className="league-home-mobile__section" style={{ marginBottom: 12 }}>
+          <div className="lm-alert" role="alert">
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {showOnboardingCta ? <li>Finish your faction setup (onboarding).</li> : null}
+              {needsDraftSetup ? (
+                <li>Set a draft date (and optional meeting time) so managers know when to prepare.</li>
+              ) : null}
+              {leagueNotFull ? <li>Your league is not full — invite more managers.</li> : null}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
+      {showActions ? (
+        <div
+          className="league-home-mobile__section league-home-mobile__invite lm-actions"
+          style={{ marginBottom: 12 }}
+        >
+          {isCommissioner ? (
+            <InviteSuccessModalTrigger
+              show={false}
+              leagueId={leagueId}
+              leagueName={leagueName}
+              leagueSlug={leagueSlug}
+              joinCode={joinCode}
+              showInviteButton
+            />
+          ) : null}
+          {showOnboardingCta && onboardingHref ? (
+            <Link href={onboardingHref} className="lm-btn-primary">
+              Complete Onboarding
+            </Link>
+          ) : null}
+          {showOnboardingComplete ? (
+            <span
+              className="lm-setup-verified"
+              title="Faction setup finished, including draft preferences"
+            >
+              Setup complete ✓
+            </span>
+          ) : null}
+          {showGmSetUpDraft && setUpDraftHref ? (
+            <Link
+              href={setUpDraftHref}
+              className={showOnboardingCta ? "lm-btn-secondary" : "lm-btn-primary"}
+            >
+              Set Up Draft
+            </Link>
+          ) : null}
+          {showPendingProposals ? (
+            <Link href={`${base}/proposals`} className="lm-btn-secondary">
+              Pending proposals
+            </Link>
+          ) : null}
+          {showPrepareForDraft && rosterBuildHref ? (
+            <Link href={rosterBuildHref} className="lm-btn-secondary">
+              {prepareForDraftLabel}
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
