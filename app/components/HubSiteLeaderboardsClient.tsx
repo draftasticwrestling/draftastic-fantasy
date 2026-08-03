@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { formatFantasyWeekRangeLabel } from "@/lib/formatFantasyWeekRange";
 import type { HubSiteLeaderboardsPayload } from "@/lib/hubSiteLeaderboardsTypes";
 
@@ -187,6 +188,10 @@ export default function HubSiteLeaderboardsClient({ initial }: { initial: HubSit
           </ol>
         )}
       </div>
+
+      <p className="hub-leaderboards-see-all">
+        <Link href="/leaderboards">See all leaderboards</Link>
+      </p>
     </section>
   );
 }

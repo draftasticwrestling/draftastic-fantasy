@@ -2,6 +2,9 @@
  * Seed championship placements for finished admin/test leagues (including archived).
  * Used so account Championship Belts show historical wins (e.g. Kayfabe King test leagues).
  *
+ * Placement XP is awarded at most once per league+user+place (see applyLeaguePlacementXp).
+ * Re-running with force will not double-pay if any prior seasonKey variant already granted XP.
+ *
  * Usage:
  *   npx tsx scripts/seed-historical-league-champions.ts
  *   npx tsx scripts/seed-historical-league-champions.ts --dry-run

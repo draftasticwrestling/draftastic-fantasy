@@ -4,6 +4,8 @@ import { getLeagueBySlug, getLeagueStandingsMembers } from "@/lib/leagues";
 import {
   computeMatchupWltByUserId,
   getLeagueWeeklyMatchups,
+  getPlayoffBracket,
+  getPlayoffFinalStandings,
   getPointsByOwnerForLeagueWithBonuses,
   getScheduledMatchupsForWeek,
   getWeeksInRange,
@@ -49,17 +51,18 @@ export default async function StandingsPage({
   const isHeadToHeadRecordStandings = (league.league_type ?? null) === "head_to_head";
   const weekStarts = getWeeksInRange((league.draft_date || league.start_date) ?? "", league.end_date ?? "");
   const seededMemberUserIds = await getXpSeededMemberUserIds(members.map((m) => m.user_id));
+  const memberUserIds = members.map((m) => m.user_id);
   const wltByUserId = isHeadToHeadRecordStandings
     ? computeMatchupWltByUserId(
         league.league_type ?? null,
-        members.map((m) => m.user_id),
+        memberUserIds,
         weeklyMatchups,
         {
           matchupResolver: (week) =>
             getScheduledMatchupsForWeek({
               weekStart: week.weekStart,
               weekStarts,
-              memberUserIds: members.map((m) => m.user_id),
+              memberUserIds,
               seededMemberUserIds,
               maxTeams: league.max_teams ?? null,
               draftStatus: league.draft_status ?? null,
@@ -68,7 +71,7 @@ export default async function StandingsPage({
         }
       )
     : {};
-  const membersByPoints = [...members].sort((a, b) => {
+  let membersByPoints = [...members].sort((a, b) => {
     if (isHeadToHeadRecordStandings) {
       const wa = wltByUserId[a.user_id] ?? { w: 0, l: 0, t: 0 };
       const wb = wltByUserId[b.user_id] ?? { w: 0, l: 0, t: 0 };
@@ -78,6 +81,27 @@ export default async function StandingsPage({
     }
     return (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0);
   });
+
+  if (isHeadToHeadRecordStandings) {
+    const playoffBracket = getPlayoffBracket({
+      weekStarts,
+      memberUserIds,
+      seededMemberUserIds,
+      maxTeams: league.max_teams ?? null,
+      draftStatus: league.draft_status ?? null,
+      weeklyResults: weeklyMatchups,
+    });
+    const finalStandings = getPlayoffFinalStandings(playoffBracket);
+    if (finalStandings) {
+      const rankByUserId = new Map(finalStandings.map((r) => [r.userId, r.rank]));
+      membersByPoints = [...members].sort((a, b) => {
+        const ra = rankByUserId.get(a.user_id) ?? 999;
+        const rb = rankByUserId.get(b.user_id) ?? 999;
+        if (ra !== rb) return ra - rb;
+        return a.user_id.localeCompare(b.user_id);
+      });
+    }
+  }
   const xpByUserId = await getXpDisplayByUserIds(membersByPoints.map((m) => m.user_id));
 
   return (

@@ -1682,6 +1682,60 @@ export function getPlayoffBracket(params: {
   };
 }
 
+const FINAL_PLACE_LABEL_RE = /^(\d+)(?:st|nd|rd|th)\s+Place$/i;
+
+/**
+ * Final 1..N ranks from a fully decided playoff bracket.
+ * Returns null until every team has a determined place (championship + place games + autos).
+ */
+export function getPlayoffFinalStandings(
+  bracket: PlayoffBracket | null | undefined
+): Array<{ userId: string; rank: number }> | null {
+  if (!bracket || bracket.size < 4) return null;
+  const champId = bracket.champion?.userId ?? null;
+  if (!champId) return null;
+
+  const rankByUserId = new Map<string, number>();
+  rankByUserId.set(champId, 1);
+
+  const allMatches = [...bracket.championshipRounds.flat(), ...bracket.placementRounds.flat()];
+  const finalMatch = allMatches.find((m) => m.id === "final") ?? null;
+  if (!finalMatch?.winnerUserId) return null;
+  const finalLoser = finalMatch.teams
+    .map((t) => t.userId)
+    .find((id) => id && id !== finalMatch.winnerUserId);
+  if (!finalLoser) return null;
+  rankByUserId.set(finalLoser, 2);
+
+  for (const match of bracket.placementRounds.flat()) {
+    const m = match.label.match(FINAL_PLACE_LABEL_RE);
+    if (!m) continue; // Consolation / place semifinals do not assign final ranks.
+    if (!match.winnerUserId) return null;
+    const place = Number(m[1]);
+    if (!Number.isFinite(place) || place < 3) return null;
+    const loser = match.teams.map((t) => t.userId).find((id) => id && id !== match.winnerUserId);
+    if (!loser) return null;
+    rankByUserId.set(match.winnerUserId, place);
+    rankByUserId.set(loser, place + 1);
+  }
+
+  for (const ap of bracket.autoPlacements) {
+    const uid = ap.team.userId;
+    if (!uid) return null;
+    rankByUserId.set(uid, ap.rank);
+  }
+
+  if (rankByUserId.size !== bracket.size) return null;
+  const ranks = [...rankByUserId.values()].sort((a, b) => a - b);
+  for (let i = 0; i < ranks.length; i++) {
+    if (ranks[i] !== i + 1) return null;
+  }
+
+  return [...rankByUserId.entries()]
+    .map(([userId, rank]) => ({ userId, rank }))
+    .sort((a, b) => a.rank - b.rank || a.userId.localeCompare(b.userId));
+}
+
 /** Label for fantasy week N (1-based) once the schedule enters its playoff rounds. */
 export function playoffWeekLabel(weekNumber: number, totalWeeks: number, size: number): string | null {
   if (!leagueSupportsH2HPlayoffs(size)) return null;

@@ -5,6 +5,8 @@ import { getLeagueBySlug, getLeagueMembers, getLeagueStandingsMembers, getRoster
 import {
   computeMatchupWltByUserId,
   getLeagueWeeklyMatchups,
+  getPlayoffBracket,
+  getPlayoffFinalStandings,
   getPointsByOwnerForLeagueWithBonuses,
   getScheduledMatchupsForWeek,
   getWeeksInRange,
@@ -216,16 +218,17 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       const seededMemberUserIds = await getXpSeededMemberUserIds(standingsMembers.map((m) => m.user_id));
       const maxTeamsCap = league.max_teams ?? null;
       const draftStatusVal = league.draft_status ?? null;
+      const memberUserIds = standingsMembers.map((m) => m.user_id);
       standingsRecordByUserId = computeMatchupWltByUserId(
         league.league_type ?? null,
-        standingsMembers.map((m) => m.user_id),
+        memberUserIds,
         weeklyMatchups,
         {
           matchupResolver: (week) =>
             getScheduledMatchupsForWeek({
               weekStart: week.weekStart,
               weekStarts,
-              memberUserIds: standingsMembers.map((m) => m.user_id),
+              memberUserIds,
               seededMemberUserIds,
               maxTeams: maxTeamsCap,
               draftStatus: draftStatusVal,
@@ -241,6 +244,26 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         if (wb.t !== wa.t) return wb.t - wa.t;
         return (pointsByUserId[b.user_id] ?? 0) - (pointsByUserId[a.user_id] ?? 0);
       });
+
+      // Once the playoff bracket is fully decided, order by final place (not regular-season W-L).
+      const playoffBracket = getPlayoffBracket({
+        weekStarts,
+        memberUserIds,
+        seededMemberUserIds,
+        maxTeams: maxTeamsCap,
+        draftStatus: draftStatusVal,
+        weeklyResults: weeklyMatchups,
+      });
+      const finalStandings = getPlayoffFinalStandings(playoffBracket);
+      if (finalStandings) {
+        const rankByUserId = new Map(finalStandings.map((r) => [r.userId, r.rank]));
+        membersByPoints = [...standingsMembers].sort((a, b) => {
+          const ra = rankByUserId.get(a.user_id) ?? 999;
+          const rb = rankByUserId.get(b.user_id) ?? 999;
+          if (ra !== rb) return ra - rb;
+          return a.user_id.localeCompare(b.user_id);
+        });
+      }
     }
     const showTop10 = isLeagueHomeTop10Visible();
     const searchForLeaderboard = searchParams ? await searchParams : {};

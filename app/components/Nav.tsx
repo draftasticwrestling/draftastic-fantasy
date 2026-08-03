@@ -16,8 +16,24 @@ import { resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
 import { getXpLevelInfo } from "@/lib/xp/xpLevels";
 import { PLAY_PATH } from "@/lib/playFunnel";
 import { mergeAnonymousHowItWorksViewIfNeeded } from "@/lib/client/howItWorksEngagement";
+import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 
 const LAST_LEAGUE_KEY = "draftastic_last_league_slug";
+
+/** Show NEW above Leaderboards through end of day PT (~one month from launch). */
+const LEADERBOARDS_NAV_NEW_UNTIL_YMD = "2026-09-02";
+
+function LeaderboardsNavLabel({ stacked, showNew }: { stacked?: boolean; showNew: boolean }) {
+  if (!showNew) return <>Leaderboards</>;
+  return (
+    <span className={`nav-link-with-new${stacked ? " nav-link-with-new--stacked" : ""}`}>
+      <span className="nav-link-new-badge" aria-hidden="true">
+        New
+      </span>
+      <span>Leaderboards</span>
+    </span>
+  );
+}
 
 type LeagueItem = {
   slug: string;
@@ -415,6 +431,8 @@ export default function Nav() {
     ? getFantasyMobilePrimaryTab(pathname, currentLeagueSlug, { showMatchupsInTopNav })
     : null;
 
+  const showLeaderboardsNew = !isPastEndOfDayPst(LEADERBOARDS_NAV_NEW_UNTIL_YMD);
+
   if (pathname === "/coming-soon") return null;
 
   return (
@@ -430,6 +448,13 @@ export default function Nav() {
           <Link href="/news" className="nav-top-link">News</Link>
           <Link href="/event-results" className="nav-top-link">Results</Link>
           <Link href="/wrestlers" className="nav-top-link">Wrestlers</Link>
+          <Link
+            href="/leaderboards"
+            className="nav-top-link"
+            aria-label={showLeaderboardsNew ? "Leaderboards, new" : undefined}
+          >
+            <LeaderboardsNavLabel stacked showNew={showLeaderboardsNew} />
+          </Link>
           <Link href="/faq" className="nav-top-link">FAQ</Link>
           <Link href="/about-us" className="nav-top-link">About Us</Link>
         </nav>
@@ -550,6 +575,14 @@ export default function Nav() {
             </Link>
             <Link href="/wrestlers" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               Wrestlers
+            </Link>
+            <Link
+              href="/leaderboards"
+              className="nav-mobile-panel-link"
+              onClick={closeMobileMenu}
+              aria-label={showLeaderboardsNew ? "Leaderboards, new" : undefined}
+            >
+              <LeaderboardsNavLabel stacked showNew={showLeaderboardsNew} />
             </Link>
             <Link href="/faq" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               FAQ

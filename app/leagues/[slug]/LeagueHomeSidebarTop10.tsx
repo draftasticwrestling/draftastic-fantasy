@@ -84,6 +84,10 @@ export function LeagueHomeSidebarTop10({
           </ol>
         )}
       </div>
+
+      <p className="hub-leaderboards-see-all">
+        <Link href="/leaderboards">See all leaderboards</Link>
+      </p>
     </div>
   );
 }

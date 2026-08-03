@@ -75,6 +75,7 @@ export default async function HubHomePage({
               <nav className="hub-quick-nav">
                 <Link href="/event-results">Events</Link>
                 <Link href="/wrestlers">Wrestlers</Link>
+                <Link href="/leaderboards">Leaderboards</Link>
                 <FantasyHomeLink>Fantasy home</FantasyHomeLink>
                 <Link href="/how-it-works">Fantasy rules</Link>
               </nav>

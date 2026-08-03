@@ -6,6 +6,7 @@ import {
   getRegularSeasonMatchupsForRound,
   getScheduledMatchupsForWeek,
   getPlayoffBracket,
+  getPlayoffFinalStandings,
   playoffRoundsForSize,
   playoffWeekLabel,
   type WeeklyMatchupResult,
@@ -129,6 +130,14 @@ for (const size of [4, 5, 6, 7, 8]) {
     }
     for (const ap of bracket.autoPlacements) if (ap.team.userId) ranked.add(ap.team.userId);
     check(ranked.size === size, `${size}: every team gets a final rank (${ranked.size}/${size})`);
+
+    const standings = getPlayoffFinalStandings(bracket);
+    check(standings != null, `${size}: getPlayoffFinalStandings returns ranks`);
+    if (standings) {
+      check(standings.length === size, `${size}: standings length ${standings.length}`);
+      check(standings[0]?.userId === "u0", `${size}: 1st place is champion u0`);
+      check(standings.every((r, i) => r.rank === i + 1), `${size}: ranks are 1..N contiguous`);
+    }
 
     const champLabels = bracket.roundLabels.join(" / ");
     console.log(`  round labels: ${champLabels}`);
