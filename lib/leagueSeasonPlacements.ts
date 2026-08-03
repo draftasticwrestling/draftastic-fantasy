@@ -15,7 +15,7 @@ import {
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
   getLeagueSeasonBelt,
 } from "@/lib/leagueStructure";
-import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
+import { isPastEndOfDayPst, getCivilYmdInPst } from "@/lib/pstCivilTime";
 import { applyLeaguePlacementXp, type LeagueTeamCount } from "@/lib/xp/leaguePlacementGrants";
 
 /** Season key for RTSS 2026 placements + XP idempotency. */
@@ -225,7 +225,7 @@ export async function finalizeLeagueChampionPlacement(
   champion?: ResolvedLeagueChampion;
   message: string;
 }> {
-  const seasonKey = opts?.seasonKey ?? RTSS_2026_SEASON_KEY;
+  const seasonKey = opts?.seasonKey ?? seasonKeyForLeague(league);
   const dryRun = Boolean(opts?.dryRun);
 
   if (!opts?.force && (await hasChampionPlacement(admin, league.id, seasonKey))) {
@@ -304,6 +304,69 @@ export async function finalizeAllRtss2026Champions(
     out.push({ leagueId: league.id, status: result.status, message: result.message });
   }
   return out;
+}
+
+const LEAGUE_SELECT_FOR_PLACEMENT =
+  "id, name, slug, league_type, draft_type, season_slug, start_date, end_date, draft_date, draft_status, max_teams, visibility_type, is_archived";
+
+/**
+ * Completed, non-archived leagues whose end_date has passed end-of-day Pacific.
+ * Used by the daily finalize cron so every season (not only RTSS 2026) gets placements.
+ */
+export async function listLeaguesDueForChampionFinalization(
+  admin: SupabaseClient
+): Promise<LeagueForPlacementResolve[]> {
+  const todayYmd = getCivilYmdInPst(Date.now());
+  const { data, error } = await admin
+    .from("leagues")
+    .select(LEAGUE_SELECT_FOR_PLACEMENT)
+    .eq("draft_status", "completed")
+    .eq("is_archived", false)
+    .not("end_date", "is", null)
+    .lte("end_date", todayYmd);
+  if (error || !data) return [];
+  return (data as LeagueForPlacementResolve[]).filter((league) => {
+    const endYmd = (league.end_date ?? "").slice(0, 10);
+    return Boolean(endYmd) && isPastEndOfDayPst(endYmd);
+  });
+}
+
+/**
+ * Idempotent batch finalize for any due league. Skips leagues that already have a champion
+ * placement for their season key; leaves H2H finals as pending until the bracket is decided.
+ */
+export async function finalizeDueLeagueChampions(
+  admin: SupabaseClient,
+  opts?: { dryRun?: boolean; force?: boolean; limit?: number }
+): Promise<{
+  leagues: number;
+  recorded: number;
+  skipped: number;
+  pending: number;
+  error: number;
+  results: Array<{ leagueId: string; status: string; message: string }>;
+}> {
+  const leagues = await listLeaguesDueForChampionFinalization(admin);
+  const limit = opts?.limit && opts.limit > 0 ? opts.limit : leagues.length;
+  const slice = leagues.slice(0, limit);
+  const results: Array<{ leagueId: string; status: string; message: string }> = [];
+  const counts = { recorded: 0, skipped: 0, pending: 0, error: 0 };
+
+  for (const league of slice) {
+    const result = await finalizeLeagueChampionPlacement(admin, league, {
+      dryRun: opts?.dryRun,
+      force: opts?.force,
+      seasonKey: seasonKeyForLeague(league),
+    });
+    results.push({ leagueId: league.id, status: result.status, message: result.message });
+    if (result.status in counts) counts[result.status as keyof typeof counts] += 1;
+  }
+
+  return {
+    leagues: slice.length,
+    ...counts,
+    results,
+  };
 }
 
 function visibilityLabel(raw: string | null | undefined): "public" | "private" {

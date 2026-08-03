@@ -21,6 +21,8 @@
 # GET /api/cron/close-public-leagues with header x-cron-secret.
 # Abandoned signup nudge: `netlify/functions/abandoned-signup-nudge.ts` runs daily and calls
 # GET /api/cron/abandoned-signup-nudge with header x-cron-secret.
+# League champion placements: `netlify/functions/finalize-league-placements.ts` runs daily (~00:15 PT)
+# and calls GET /api/cron/finalize-league-placements with header x-cron-secret.
 
 # Force correct MIME type for Next.js CSS (avoids "text/plain" / strict MIME refusal)
 [[headers]]

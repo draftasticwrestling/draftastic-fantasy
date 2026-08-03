@@ -2,6 +2,10 @@
  * Finalize Road to SummerSlam 2026 league champions into league_season_placements
  * and award placement XP (idempotent).
  *
+ * Prefer the daily cron in production:
+ *   GET /api/cron/finalize-league-placements (Netlify: finalize-league-placements)
+ * which finalizes any due season, not only RTSS 2026.
+ *
  * Prerequisites:
  *   - Run supabase/league_season_placements.sql
  *   - Season past end-of-day PST on 2026-08-02
