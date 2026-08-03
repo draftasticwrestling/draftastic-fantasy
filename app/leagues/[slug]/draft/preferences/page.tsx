@@ -296,7 +296,7 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
     <main className="app-page" style={{ maxWidth: 640, margin: "0 auto", padding: "2rem 1rem", fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 24 }}>
         <Link
-          href={fromOnboarding ? `/leagues/${slug}/onboarding` : `/leagues/${slug}/draft`}
+          href={fromOnboarding ? `/leagues/${slug}/onboarding?step=draft` : `/leagues/${slug}/draft`}
           className="app-link"
         >
           {fromOnboarding ? "← Back to league setup" : "← Back to draft"}
@@ -305,7 +305,7 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
       {fromOnboarding ? (
         <div className="league-onboarding-callout" style={{ marginBottom: 24 }}>
           <p style={{ margin: 0 }}>
-            <strong>League setup:</strong> Save your auto-draft list below, then return to setup to finish joining{" "}
+            <strong>League setup:</strong> Save your auto-draft list below and you&apos;ll return to finish joining{" "}
             <strong>{league.name}</strong>.
           </p>
         </div>
@@ -315,21 +315,39 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
       </h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 24, fontSize: 14 }}>
         {league.draft_type === "autopick" ? (
-          <>
-            Beta autopick: everyone defaults to the site{" "}
-            <strong>
-              {availableBigBoardIds.includes("default")
-                ? "Default Big Board"
-                : availableBigBoardIds[0]
-                  ? bigBoardLabel(availableBigBoardIds[0])
-                  : "provided Big Board"}
-            </strong>{" "}
-            until they deliberately choose another <strong>provided Big Board</strong> or <strong>My own list</strong>{" "}
-            below and save (for My own list: at least {autopickRequiredPriorityCount} wrestlers, including at least{" "}
-            {AUTOPICK_REQUIRED_FEMALE_COUNT} female). Set
-            preferences by end of day {BETA_AUTOPICK_PREF_DEADLINE_LABEL}; drafts run {BETA_AUTOPICK_DRAFT_WINDOW_LABEL}.{" "}
-            <strong>Tie-break after your list runs out</strong> (same for everyone): {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
-          </>
+          league.visibility_type === "public" ? (
+            <>
+              Autopick: everyone defaults to the site{" "}
+              <strong>
+                {availableBigBoardIds.includes("default")
+                  ? "Default Big Board"
+                  : availableBigBoardIds[0]
+                    ? bigBoardLabel(availableBigBoardIds[0])
+                    : "provided Big Board"}
+              </strong>{" "}
+              until they deliberately choose another <strong>provided Big Board</strong> or <strong>My own list</strong>{" "}
+              below and save (for My own list: at least {autopickRequiredPriorityCount} wrestlers, including at least{" "}
+              {AUTOPICK_REQUIRED_FEMALE_COUNT} female). Set preferences by end of day{" "}
+              {BETA_AUTOPICK_PREF_DEADLINE_LABEL}; drafts run {BETA_AUTOPICK_DRAFT_WINDOW_LABEL}.{" "}
+              <strong>Tie-break after your list runs out</strong> (same for everyone): {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
+            </>
+          ) : (
+            <>
+              Autopick: everyone defaults to the site{" "}
+              <strong>
+                {availableBigBoardIds.includes("default")
+                  ? "Default Big Board"
+                  : availableBigBoardIds[0]
+                    ? bigBoardLabel(availableBigBoardIds[0])
+                    : "provided Big Board"}
+              </strong>{" "}
+              until they deliberately choose another <strong>provided Big Board</strong> or <strong>My own list</strong>{" "}
+              below and save (for My own list: at least {autopickRequiredPriorityCount} wrestlers, including at least{" "}
+              {AUTOPICK_REQUIRED_FEMALE_COUNT} female). Set preferences before the GM begins the draft on draft day; if
+              you have not saved prefs by then, the Default Big Board is used.{" "}
+              <strong>Tie-break after your list runs out</strong> (same for everyone): {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
+            </>
+          )
         ) : (
           <>
             If the draft clock runs out, your pick is made automatically. Optionally set a ranked list of 10 or more

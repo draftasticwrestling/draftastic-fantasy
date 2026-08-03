@@ -6,7 +6,7 @@ import { LeagueOnboardingWizard } from "./LeagueOnboardingWizard";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<{ error?: string; step?: string }>;
 };
 
 export async function generateMetadata({ params }: Props) {
@@ -21,7 +21,9 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function LeagueOnboardingPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const { error: errorParam } = searchParams ? await searchParams : {};
+  const search = searchParams ? await searchParams : {};
+  const errorParam = search.error;
+  const initialStep = search.step === "draft" ? "draft" : undefined;
   const { league } = await assertOnboardingRequired(slug);
 
   const { supabase, user } = await getServerAuth();
@@ -55,6 +57,7 @@ export default async function LeagueOnboardingPage({ params, searchParams }: Pro
           "Manager"
         }
         initialError={errorParam ? decodeURIComponent(errorParam) : null}
+        initialStep={initialStep}
       />
     </main>
   );

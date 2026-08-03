@@ -53,7 +53,7 @@ import { LeagueLevelUpBanner } from "./LeagueLevelUpBanner";
 import { getLeagueHomeLeaderboards } from "@/lib/weeklyLeaderboards";
 import { isLeagueHomeTop10Visible } from "@/lib/leagueHomeLeaderboardsGate";
 import { LeagueHomeLeaderboardsClient } from "./LeagueHomeLeaderboardsClient";
-import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
+import { leagueOnboardingPath, leagueUsesMemberOnboarding, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
 import { getDraftPreferences } from "@/lib/leagueDraft";
 import { hasAdequateAutopickDraftPreferences } from "@/lib/draftBigBoards";
 import { R2wgDraftPrefsCallout } from "./R2wgDraftPrefsCallout";
@@ -140,16 +140,17 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
 
     const { supabase, user: currentUser } = await getServerAuth();
 
+    let needsOnboarding = false;
     if (currentUser) {
-      const { needsOnboarding } = await resolveMemberOnboardingState(
+      const onboardingState = await resolveMemberOnboardingState(
         supabase,
         league.id,
         league,
         currentUser.id
       );
-      if (needsOnboarding) {
-        redirect(leagueOnboardingPath(slug));
-      }
+      needsOnboarding = onboardingState.needsOnboarding;
+      // Soft prompt on the league card instead of hard-redirecting — GMs need access to
+      // invite / draft settings while finishing (or returning to) onboarding.
     }
 
     const [membersData, rostersData, wrestlersData, pointsByOwner, standingsMembersData] = await Promise.all([
@@ -371,17 +372,37 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     const creatorLabel = factionDisplayName(commissionerMember, "GM");
     const maxTeams = league.max_teams ?? 12;
     const leagueNotFull = members.length < maxTeams;
-    const showAlert = isCommissioner && leagueNotFull;
+    const draftStatus = league.draft_status ?? "not_started";
+    const draftDateYmd = league.draft_date ? String(league.draft_date).slice(0, 10) : "";
+    const isAutopickDraftLeague = !leagueUsesSalaryCap(league.league_type);
+    /** GM: league draft settings / draft room. Non-GM: personal prefs / draft board. */
+    const needsDraftSetup =
+      isCommissioner && isAutopickDraftLeague && draftStatus === "not_started" && !draftDateYmd;
+    const showGmSetUpDraft =
+      isCommissioner && isAutopickDraftLeague && draftStatus === "not_started";
+    const setUpDraftHref = needsDraftSetup
+      ? `/leagues/${slug}/league-settings#draft-settings-heading`
+      : `/leagues/${slug}/draft`;
+    const showOnboardingCta = needsOnboarding && leagueUsesMemberOnboarding(league);
+    const showOnboardingComplete =
+      !needsOnboarding &&
+      Boolean(currentUserMember) &&
+      leagueUsesMemberOnboarding(league);
+    const showAlert =
+      isCommissioner && (leagueNotFull || needsDraftSetup || showOnboardingCta);
     const myRosterCount = currentUser ? (rosters[currentUser.id] ?? []).length : 0;
-    const showPrepareForDraft = leagueUsesSalaryCap(league.league_type)
-      ? myRosterCount === 0 || (league.draft_status ?? "in_progress") === "in_progress"
-      : (league.draft_status ?? "not_started") === "not_started";
+    const showPrepareForDraft =
+      !isCommissioner &&
+      (leagueUsesSalaryCap(league.league_type)
+        ? myRosterCount === 0 || draftStatus === "in_progress"
+        : draftStatus === "not_started");
     const rosterBuildHref = leagueUsesSalaryCap(league.league_type)
       ? `/leagues/${slug}/salary-cap`
       : `/leagues/${slug}/draft`;
     const prepareForDraftLabel = leagueUsesSalaryCap(league.league_type)
       ? "Build your salary cap roster"
       : "Prepare for your draft";
+    const onboardingHref = leagueOnboardingPath(slug);
 
     const myTeamName = factionDisplayName(currentUserMember, "My Faction");
     const myManagerName = truncateFactionDisplay(
@@ -454,6 +475,26 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       <Link href="/leagues" className="lm-dashboard-back lm-league-home-back">← My leagues</Link>
 
       {showR2wgDraftPrefsCallout ? <R2wgDraftPrefsCallout leagueSlug={slug} /> : null}
+
+      {(league.draft_status ?? "not_started") === "ready_for_review" ? (
+        <div
+          className="lm-callout"
+          role="status"
+          style={{
+            marginBottom: 16,
+            padding: "12px 14px",
+            borderRadius: "var(--radius)",
+            border: "1px solid rgba(217, 119, 6, 0.35)",
+            background: "var(--color-warning-bg, rgba(217, 119, 6, 0.12))",
+            color: "var(--color-text)",
+            fontSize: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>Draft completed — awaiting admin review.</strong> Rosters will appear in the league after a site admin
+          approves the draft.
+        </div>
+      ) : null}
 
       {/* Post-create invite modal must live outside desktop/mobile display toggles so it works on both. */}
       {isCommissioner ? (
@@ -612,36 +653,61 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             </p>
             {showAlert && (
               <div className="lm-alert" role="alert">
-                {leagueNotFull ? "Your league is not full." : null}
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {showOnboardingCta ? <li>Finish your faction setup (onboarding).</li> : null}
+                  {needsDraftSetup ? (
+                    <li>Set a draft date (and optional meeting time) so managers know when to prepare.</li>
+                  ) : null}
+                  {leagueNotFull ? <li>Your league is not full — invite more managers.</li> : null}
+                </ul>
               </div>
             )}
-            {isCommissioner && (
+            {(isCommissioner ||
+              showOnboardingCta ||
+              showOnboardingComplete ||
+              showPrepareForDraft) && (
               <div className="lm-actions">
-                <InviteSuccessModalTrigger
-                  show={false}
-                  leagueId={league.id}
-                  leagueName={league.name}
-                  leagueSlug={slug}
-                  joinCode={league.join_code ?? null}
-                  showInviteButton
-                />
-                {showPrepareForDraft && (
-                  <Link href={rosterBuildHref} className="lm-btn-secondary">
-                    {prepareForDraftLabel}
+                {isCommissioner ? (
+                  <InviteSuccessModalTrigger
+                    show={false}
+                    leagueId={league.id}
+                    leagueName={league.name}
+                    leagueSlug={slug}
+                    joinCode={league.join_code ?? null}
+                    showInviteButton
+                  />
+                ) : null}
+                {showOnboardingCta ? (
+                  <Link href={onboardingHref} className="lm-btn-primary">
+                    Complete Onboarding
                   </Link>
-                )}
-                {!leagueUsesSalaryCap(league.league_type) ? (
+                ) : null}
+                {showOnboardingComplete ? (
+                  <span
+                    className="lm-setup-verified"
+                    title="Faction setup finished, including draft preferences"
+                  >
+                    Setup complete ✓
+                  </span>
+                ) : null}
+                {showGmSetUpDraft ? (
+                  <Link
+                    href={setUpDraftHref}
+                    className={showOnboardingCta ? "lm-btn-secondary" : "lm-btn-primary"}
+                  >
+                    Set Up Draft
+                  </Link>
+                ) : null}
+                {isCommissioner && !leagueUsesSalaryCap(league.league_type) ? (
                   <Link href={`/leagues/${slug}/proposals`} className="lm-btn-secondary">
                     Pending proposals
                   </Link>
                 ) : null}
-              </div>
-            )}
-            {!isCommissioner && showPrepareForDraft && (
-              <div className="lm-actions">
-                <Link href={rosterBuildHref} className="lm-btn-secondary">
-                  {prepareForDraftLabel}
-                </Link>
+                {showPrepareForDraft ? (
+                  <Link href={rosterBuildHref} className="lm-btn-secondary">
+                    {prepareForDraftLabel}
+                  </Link>
+                ) : null}
               </div>
             )}
 
@@ -657,8 +723,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                 Season: {getSeasonBySlug(league.season_slug)?.name ?? league.season_slug}
                 {league.draft_date && (
                   <>
-                    {" · Draft: "}
-                    {league.draft_date}
+                    {" · Draft day: "}
+                    {String(league.draft_date).slice(0, 10)}
                     {league.draft_time && (() => {
                       const t = String(league.draft_time).trim();
                       const [h, m] = t.split(":").map(Number);
@@ -666,7 +732,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
                       const hour = h % 12 || 12;
                       const ampm = h < 12 ? "AM" : "PM";
                       const min = Number.isNaN(m) ? 0 : m;
-                      return ` at ${hour}:${String(min).padStart(2, "0")} ${ampm}`;
+                      return ` (target ${hour}:${String(min).padStart(2, "0")} ${ampm})`;
                     })()}
                   </>
                 )}

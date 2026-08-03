@@ -46,8 +46,6 @@ export async function createLeagueAction(
   const season_slug = (formData.get("season_slug") as string)?.trim() ?? "";
   const team_count = Math.floor(Number(formData.get("team_count")));
   const league_type = (formData.get("league_type") as string)?.trim() ?? "";
-  const include_nxt_raw = formData.get("include_nxt");
-  const include_nxt = include_nxt_raw === "1" || include_nxt_raw === "on";
   const visibility_type_raw = (formData.get("visibility_type") as string)?.trim().toLowerCase() ?? "private";
   const visibility_type = visibility_type_raw === "public" ? "public" : "private";
   if (enforceStandardRules) {
@@ -83,16 +81,6 @@ export async function createLeagueAction(
     if (!ADMIN_LEAGUE_TYPES.has(league_type)) {
       return { error: "Select a league format." };
     }
-    if (include_nxt) {
-      if (!isSiteAdmin) {
-        return { error: "Only site administrators can create leagues that include NXT." };
-      }
-      if (league_type !== "head_to_head" && league_type !== "salary_cap") {
-        return {
-          error: "Include NXT is only available for Head-to-Head leagues (admin testing).",
-        };
-      }
-    }
     if (
       !Number.isFinite(team_count) ||
       team_count < ADMIN_MIN_TEAMS ||
@@ -122,8 +110,8 @@ export async function createLeagueAction(
   const effectiveLeagueType =
     effectiveVisibility === "public" ? SALARY_CAP_LEAGUE_TYPE : league_type;
   const effectiveMaxTeams = effectiveVisibility === "public" ? null : team_count;
-  // Road to War Games private leagues always include NXT; admin full-mode respects the checkbox.
-  const effectiveIncludeNxt = enforceStandardRules ? true : include_nxt;
+  // NXT is always included — roster sizes assume the full pool.
+  const effectiveIncludeNxt = true;
 
   const { league, error } = await createLeague({
     name: effectiveVisibility === "public" ? "Public League" : name,

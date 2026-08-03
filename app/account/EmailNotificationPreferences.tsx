@@ -143,7 +143,7 @@ export function EmailNotificationPreferences(props: Props) {
           checked={props.notifyDraftReminder}
           onChange={props.setNotifyDraftReminder}
           label="Draft reminders"
-          description="Before a scheduled league draft starts."
+          description="When your GM sets a draft date, and reminders before draft day."
         />
         <PrefCheckbox
           id="notify-weekly-results"

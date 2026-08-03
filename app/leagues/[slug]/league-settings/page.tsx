@@ -6,7 +6,6 @@ import { getLeagueTransactionStats } from "@/lib/leagueTransactionStats";
 import { BasicSettingsSection } from "./BasicSettingsSection";
 import { DraftSettingsSection } from "./DraftSettingsSection";
 import { LeagueTypeSection } from "./LeagueTypeSection";
-import { IncludeNxtSection } from "./IncludeNxtSection";
 import { RemoveOwnerSection } from "./RemoveOwnerSection";
 import { DeleteLeagueSection } from "./DeleteLeagueSection";
 import { GmToolsNav } from "./GmToolsNav";
@@ -37,7 +36,6 @@ export default async function LeagueSettingsPage({
 
   const isCommissioner = league.role === "commissioner";
   const isSiteAdmin = await getIsSiteAdmin();
-  const includeNxt = Boolean((league as { include_nxt?: boolean | null }).include_nxt);
   const teamCountOptions = !isSiteAdmin
     ? [3, 4, 5, 6]
     : [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -48,6 +46,9 @@ export default async function LeagueSettingsPage({
 
   const draftType = league.draft_type ?? (league.draft_style as "snake" | "linear" | undefined) ?? "autopick";
   const isPublicLeague = String(league.visibility_type ?? "").toLowerCase() === "public";
+  const draftDate = (league.draft_date ?? null) as string | null;
+  const draftTime = (league.draft_time ?? null) as string | null;
+  const draftNotStarted = (league.draft_status ?? "not_started") === "not_started";
   const draftTypeLabel =
     draftType === "offline"
       ? "Offline"
@@ -95,15 +96,15 @@ export default async function LeagueSettingsPage({
             isPublicLeague={isPublicLeague}
             leagueTypeChangeAllowed={isLeagueTypeChangeAllowed(league)}
           />
-          {isSiteAdmin && leagueType === "head_to_head" ? (
-            <IncludeNxtSection
-              key={`nxt-${slug}-${includeNxt ? "1" : "0"}`}
-              leagueSlug={slug}
-              includeNxt={includeNxt}
-            />
-          ) : null}
           {!isSalaryCapLeague ? (
-            <DraftSettingsSection leagueSlug={slug} draftType={draftType} isPublicLeague={isPublicLeague} />
+            <DraftSettingsSection
+              leagueSlug={slug}
+              draftType={draftType}
+              draftDate={draftDate}
+              draftTime={draftTime}
+              isPublicLeague={isPublicLeague}
+              draftNotStarted={draftNotStarted}
+            />
           ) : null}
           {(league.draft_status !== "in_progress" &&
             league.draft_status !== "completed" &&
@@ -142,8 +143,9 @@ export default async function LeagueSettingsPage({
                 Draft
               </h2>
               <p style={{ color: "var(--color-text-muted)" }}>
-                Only the GM can change draft settings. Current draft type: <strong>{draftTypeLabel}</strong>. On-site autopick uses snake
-                pick order; the GM randomizes round-1 order once on the Draft tab before the beta draft window.
+                Only the GM can change draft settings. Current draft type: <strong>{draftTypeLabel}</strong>. On-site
+                autopick uses snake pick order; the GM randomizes order once on the Draft tab before draft day, then
+                clicks <strong>Begin Draft</strong> to start.
               </p>
               <p style={{ color: "var(--color-text-muted)", marginTop: 10 }}>
                 Offline resources:{" "}

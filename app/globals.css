@@ -4829,6 +4829,19 @@ body > .site-footer {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  align-items: center;
+}
+
+.lm-setup-verified {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  color: var(--color-success-muted);
+  background: var(--color-success-bg);
+  border: 1px solid rgba(46, 125, 50, 0.25);
 }
 
 .lm-btn-primary {

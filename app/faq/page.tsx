@@ -196,7 +196,7 @@ const SECTIONS: FaqSection[] = [
       },
       {
         q: "How do draft settings work?",
-        a: "Draft settings control mode, timing, order behavior, and status transitions. Once a draft is active or completed, some settings become locked to preserve integrity.",
+        a: "Private leagues: the GM sets a draft date, sets draft order on the Draft tab, and clicks Begin Draft on or after draft day (the draft does not auto-start). Members should set auto-draft preferences beforehand; anyone without prefs uses the Default Big Board. Public leagues follow the site schedule. Once a draft is active or completed, some settings lock to preserve integrity.",
       },
       {
         q: "What do draft statuses mean?",
@@ -208,7 +208,7 @@ const SECTIONS: FaqSection[] = [
       },
       {
         q: "What changes when Include NXT is enabled?",
-        a: "Include NXT expands the eligible wrestler pool and can affect roster rule behavior and filtering defaults in relevant league views.",
+        a: "NXT is included for all leagues. NXT wrestlers, weekly NXT shows, and NXT titles count in the draft pool, free agents, and scoring. Roster sizes assume that full pool, so Include NXT cannot be turned off.",
       },
       {
         q: "How are playoffs generated?",

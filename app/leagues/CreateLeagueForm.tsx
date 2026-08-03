@@ -342,18 +342,8 @@ export function CreateLeagueForm({ isSiteAdmin = false, createOpen = true }: For
         </>
       )}
 
-      {adminFullMode && (leagueType === "head_to_head" || leagueType === "salary_cap") ? (
-        <div className="form-group">
-          <label className="create-league-toggle-label" style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-            <input type="checkbox" name="include_nxt" value="1" />
-            <span>
-              <strong>Include NXT</strong> — NXT wrestlers, weekly NXT shows, and NXT titles count in this league.
-            </span>
-          </label>
-        </div>
-      ) : null}
-
-      {useStandardRules ? <input type="hidden" name="include_nxt" value="1" /> : null}
+      {/* NXT is always included — roster sizes assume the full Raw/SmackDown/NXT pool. */}
+      <input type="hidden" name="include_nxt" value="1" />
 
       {state?.error && (
         <p style={{ margin: "0 0 16px", color: "var(--color-red)", fontSize: 14 }}>{state.error}</p>

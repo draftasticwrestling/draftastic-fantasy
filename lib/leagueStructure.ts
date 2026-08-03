@@ -9,6 +9,13 @@ export const MIN_LEAGUE_TEAMS = 3;
 /** Upper bound for legacy leagues already in the database (larger than beta max). */
 export const MAX_LEAGUE_TEAMS = 12;
 
+/** Minimum factions required to start a draft for this league type. */
+export function getMinimumTeamsForLeagueType(leagueType: string | null | undefined): number {
+  const t = String(leagueType ?? "").trim().toLowerCase();
+  if (t === "head_to_head" || t === "combo") return 4;
+  return MIN_LEAGUE_TEAMS;
+}
+
 /** Road to SummerSlam beta: new leagues may only use 3–6 teams. */
 export const MAX_LEAGUE_TEAMS_BETA = 6;
 
@@ -106,7 +113,10 @@ export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefine
   );
 }
 
-/** Leagues that include NXT in the player pool and scoring. Salary cap leagues always include NXT. */
+/** Whether this league includes NXT in the player pool and scoring.
+ * Salary cap always includes NXT. Other leagues use the stored `include_nxt` flag
+ * (always true for new leagues; legacy leagues may still be false — do not flip live leagues).
+ */
 export function leagueIncludesNxt(
   league: { include_nxt?: boolean | null; league_type?: string | null } | null | undefined
 ): boolean {

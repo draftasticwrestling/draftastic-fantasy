@@ -208,6 +208,66 @@ export async function notifyTradeGmDecision(
   }
 }
 
+/** League members when the GM sets or changes the draft date. */
+export async function notifyLeagueDraftDateSet(args: {
+  leagueId: string;
+  leagueName: string;
+  leagueSlug: string;
+  draftDateYmd: string;
+}): Promise<void> {
+  if (!isEmailConfigured()) {
+    logEmailSkip("RESEND_API_KEY is not set");
+    return;
+  }
+  try {
+    const admin = getAdminClient();
+    if (!admin) return;
+
+    const { data: members, error } = await admin
+      .from("league_members")
+      .select("user_id")
+      .eq("league_id", args.leagueId);
+    if (error) {
+      console.warn("[email] draft date members:", error.message);
+      return;
+    }
+
+    const draftUrl = absoluteUrl(`/leagues/${encodeURIComponent(args.leagueSlug)}/draft/preferences`);
+    const dateLabel = new Date(`${args.draftDateYmd}T12:00:00`).toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    const subject = `Draft date set — ${args.leagueName}`;
+    const body = `
+      <p style="font-size:16px;line-height:1.5;">Hi,</p>
+      <p style="font-size:16px;line-height:1.5;">The GM set the draft date for <strong>${escapeHtml(args.leagueName)}</strong> to <strong>${escapeHtml(dateLabel)}</strong>.</p>
+      <p style="font-size:16px;line-height:1.5;">Set your auto-draft preferences before draft day. If you have not saved preferences when the GM begins the draft, the Default Big Board will be used for your picks.</p>
+      ${emailButton(draftUrl, "Set draft preferences")}
+      ${emailMutedLink(draftUrl)}`;
+
+    const userIds = uniqueUserIds((members ?? []) as { user_id: string }[]);
+    const chunkSize = 8;
+    for (let i = 0; i < userIds.length; i += chunkSize) {
+      const chunk = userIds.slice(i, i + chunkSize);
+      await Promise.all(
+        chunk.map((userId) =>
+          sendToUser(
+            userId,
+            (p) => p.notify_draft_reminder,
+            subject,
+            body,
+            `Draft date: ${dateLabel}`
+          )
+        )
+      );
+    }
+  } catch (err) {
+    console.warn("[email] notifyLeagueDraftDateSet:", err);
+  }
+}
+
 export type EventScoresPublishedParams = {
   eventId: string;
   name: string;

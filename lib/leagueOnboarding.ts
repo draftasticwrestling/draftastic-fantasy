@@ -92,12 +92,11 @@ export async function resolveMemberOnboardingState(
   }
 
   const teamName = member.team_name?.trim() ?? "";
+  // Salary cap: faction name is enough to leave the wizard and go build a roster.
+  // Draft leagues stay in onboarding until the member explicitly finishes (so returning
+  // from draft preferences does not kick them out of the wizard).
   if (teamName && leagueUsesSalaryCap(league.league_type)) {
     return { needsOnboarding: false, member };
-  }
-  if (teamName && !leagueUsesSalaryCap(league.league_type)) {
-    const hasPrefs = await hasSavedDraftPreferences(leagueId, userId);
-    if (hasPrefs) return { needsOnboarding: false, member };
   }
 
   return { needsOnboarding: true, member };

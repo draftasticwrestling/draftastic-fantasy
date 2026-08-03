@@ -13,6 +13,7 @@ import {
   getLeagueMemberUserIdsForAdmin,
 } from "@/lib/leagues";
 import {
+  getMinimumTeamsForLeagueType,
   getRosterRulesForLeague,
   getRosterRulesForLeagueId,
   leagueIncludesNxt,
@@ -43,7 +44,14 @@ import {
   LEAGUE_LEADERS_ALL_TIME_EVENTS_FROM,
   LEAGUE_LEADERS_ALL_TIME_EVENTS_LIMIT,
 } from "@/lib/leagueLeadersAllTimeScoring";
-import { bigBoardLabel, getBigBoardPriorityList, getDefaultBigBoardIdForLeague, isBigBoardId, type BigBoardId } from "@/lib/draftBigBoards";
+import {
+  bigBoardLabel,
+  getBigBoardPriorityList,
+  getDefaultBigBoardIdForLeague,
+  hasAdequateAutopickDraftPreferences,
+  isBigBoardId,
+  type BigBoardId,
+} from "@/lib/draftBigBoards";
 import { isInBetaAutopickRunWindow } from "@/lib/betaAutopickSchedule";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
@@ -435,6 +443,10 @@ export async function getDraftPreferences(
   };
 }
 
+/**
+ * Ensure the league can run autopick. Managers without saved prefs (or with an incomplete custom
+ * list) use the site Default Big Board at pick time — that counts as coverage.
+ */
 async function validateAutopickPriorityCoverage(
   admin: AdminClient,
   leagueId: string
@@ -444,73 +456,20 @@ async function validateAutopickPriorityCoverage(
 
   const { data: leagueRow } = await admin
     .from("leagues")
-    .select("include_nxt, league_type")
+    .select("include_nxt")
     .eq("id", leagueId)
     .maybeSingle();
-  const requiredPriorityCount = getAutopickRequiredPriorityCount(
-    Boolean((leagueRow as { include_nxt?: boolean | null } | null)?.include_nxt)
-  );
-
-  const { data: prefRows } = await admin
-    .from("league_draft_preferences")
-    .select("user_id, priority_list")
-    .eq("league_id", leagueId)
-    .in("user_id", memberIds);
-  const rows = (prefRows ?? []) as { user_id?: string | null; priority_list?: unknown }[];
-  const listByUser = new Map<string, string[]>();
-  for (const r of rows) {
-    const uid = r.user_id ? String(r.user_id) : "";
-    if (!uid) continue;
-    let ids: string[] = [];
-    if (Array.isArray(r.priority_list)) ids = r.priority_list.map((v) => String(v)).filter(Boolean);
-    else if (typeof r.priority_list === "string") {
-      try {
-        const parsed = JSON.parse(r.priority_list) as unknown;
-        if (Array.isArray(parsed)) ids = parsed.map((v) => String(v)).filter(Boolean);
-      } catch {}
-    }
-    listByUser.set(uid, ids);
+  const includeNxt = Boolean((leagueRow as { include_nxt?: boolean | null } | null)?.include_nxt);
+  const requiredPriorityCount = getAutopickRequiredPriorityCount(includeNxt);
+  const defaultBoardId = getDefaultBigBoardIdForLeague({ includeNxt }) ?? "default";
+  const defaultBoard = getBigBoardPriorityList(defaultBoardId) ?? [];
+  if (defaultBoard.length < requiredPriorityCount) {
+    return {
+      ok: false,
+      error: `Site Default Big Board is too short for this league (${defaultBoard.length}/${requiredPriorityCount}).`,
+    };
   }
-
-  const allIds = Array.from(
-    new Set(
-      Array.from(listByUser.values())
-        .flat()
-        .map((v) => String(v).trim())
-        .filter(Boolean)
-    )
-  );
-  const genderById: Record<string, "F" | "M" | null> = {};
-  if (allIds.length > 0) {
-    const g = await getWrestlerGendersBatch(admin, allIds);
-    for (const [id, raw] of Object.entries(g)) {
-      const ng = normalizeGender(raw);
-      genderById[id] = ng;
-      genderById[id.toLowerCase()] = ng;
-    }
-  }
-
-  const failures: string[] = [];
-  for (const uid of memberIds) {
-    const list = listByUser.get(uid) ?? [];
-    const femaleCount = list.reduce((n, id) => {
-      const key = String(id).trim();
-      const gen = genderById[key] ?? genderById[key.toLowerCase()] ?? null;
-      return n + (gen === "F" ? 1 : 0);
-    }, 0);
-    if (list.length < requiredPriorityCount || femaleCount < AUTOPICK_REQUIRED_FEMALE_COUNT) {
-      failures.push(
-        `${uid.slice(0, 8)}… (${list.length}/${requiredPriorityCount} listed, ${femaleCount}/${AUTOPICK_REQUIRED_FEMALE_COUNT} female)`
-      );
-    }
-  }
-  if (failures.length === 0) return { ok: true };
-  return {
-    ok: false,
-    error:
-      `Autopick requires each manager to set at least ${requiredPriorityCount} ranked wrestlers ` +
-      `including at least ${AUTOPICK_REQUIRED_FEMALE_COUNT} female. Missing coverage: ${failures.join("; ")}`,
-  };
+  return { ok: true };
 }
 
 /**
@@ -1185,40 +1144,114 @@ export async function setDraftOrderFromRound1(
 }
 
 /**
- * Start the draft (site admin only from member UI). Sets draft in progress and first pick clock.
+ * Start the draft. Private league GMs may begin on/after draft day; site admins may begin anytime.
+ * Sets draft in progress and first pick clock. When starting short of max_teams (but at/above the
+ * league-type minimum), pass confirmShortRoster to shrink max_teams to the current member count.
  */
-export async function startDraft(leagueId: string): Promise<{ error?: string }> {
+export async function startDraft(
+  leagueId: string,
+  opts?: { confirmShortRoster?: boolean }
+): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, draft_current_pick, visibility_type, current_draft_run_id")
+    .select(
+      "id, commissioner_id, draft_current_pick, visibility_type, current_draft_run_id, draft_date, draft_status, league_type, max_teams"
+    )
     .eq("id", leagueId)
     .single();
   if (!league) {
     return { error: "League not found." };
   }
 
+  const isCommissioner = (league as { commissioner_id?: string }).commissioner_id === user.id;
   const adminGate = await assertSiteAdminForMemberUi(supabase, user.id);
-  if (adminGate.error) return adminGate;
+  const isSiteAdmin = !adminGate.error;
+  if (!isCommissioner && !isSiteAdmin) {
+    return { error: "Only the GM or a site admin can begin the draft." };
+  }
+
+  const draftStatus = (league as { draft_status?: string | null }).draft_status ?? "not_started";
+  if (draftStatus !== "not_started") {
+    return { error: `Draft status is ${draftStatus}; expected not_started.` };
+  }
+
+  const isPublic = (league as { visibility_type?: string | null }).visibility_type === "public";
+  if (isCommissioner && !isSiteAdmin && !isPublic) {
+    const draftDateYmd = String((league as { draft_date?: string | null }).draft_date ?? "").slice(0, 10);
+    if (!draftDateYmd) {
+      return { error: "Set a draft date in League Settings before beginning the draft." };
+    }
+    const { getCivilYmdInPst } = await import("@/lib/pstCivilTime");
+    const todayYmd = getCivilYmdInPst(Date.now());
+    if (todayYmd < draftDateYmd) {
+      return { error: `Draft day is ${draftDateYmd}. You can begin the draft on or after that date.` };
+    }
+  }
+
+  const members = await getLeagueMembers(leagueId);
+  const memberCount = members.length;
+  const minTeams = getMinimumTeamsForLeagueType(
+    (league as { league_type?: string | null }).league_type ?? null
+  );
+  if (memberCount < minTeams) {
+    return {
+      error: `You need at least ${minTeams} teams to begin the draft. You currently have ${memberCount}.`,
+    };
+  }
+
+  const maxTeamsRaw = Number((league as { max_teams?: number | null }).max_teams ?? 0);
+  const maxTeams = Number.isFinite(maxTeamsRaw) && maxTeamsRaw > 0 ? maxTeamsRaw : null;
+  const isShort = maxTeams != null && memberCount < maxTeams;
+  if (isShort && !opts?.confirmShortRoster) {
+    const waiting = maxTeams! - memberCount;
+    return {
+      error:
+        `You are still waiting on ${waiting} team${waiting === 1 ? "" : "s"} to join. ` +
+        `Confirm to start with the ${memberCount} team${memberCount === 1 ? "" : "s"} you have now ` +
+        `(once the draft starts, no new teams can join).`,
+    };
+  }
 
   const orderRunId =
     (league as { current_draft_run_id?: string | null }).current_draft_run_id?.trim() || null;
-  let countQ = supabase
-    .from("league_draft_order")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", leagueId);
-  if (orderRunId) countQ = countQ.eq("draft_run_id", orderRunId);
-  const { count } = await countQ;
-  if (!count || count === 0) return { error: "No draft order. Generate draft order first." };
-  if ((league as { visibility_type?: string | null }).visibility_type === "public") {
-    const members = await getLeagueMembers(leagueId);
-    if (members.length < 3) return { error: "Public leagues must have at least 3 teams before draft can start." };
+  let orderQ = supabase.from("league_draft_order").select("user_id").eq("league_id", leagueId);
+  if (orderRunId) orderQ = orderQ.eq("draft_run_id", orderRunId);
+  const { data: orderRows } = await orderQ;
+  const orderUserIds = [...new Set((orderRows ?? []).map((r) => String((r as { user_id: string }).user_id)))];
+  if (orderUserIds.length === 0) return { error: "No draft order. Set draft order first." };
+
+  const memberIdSet = new Set(members.map((m) => m.user_id));
+  if (
+    orderUserIds.length !== memberCount ||
+    orderUserIds.some((id) => !memberIdSet.has(id))
+  ) {
+    return {
+      error:
+        "Draft order does not match the current teams. Re-set the draft order, then try beginning the draft again.",
+    };
+  }
+
+  if (isPublic && memberCount < 3) {
+    return { error: "Public leagues must have at least 3 teams before draft can start." };
   }
 
   const admin = getAdminClient();
+  const client = admin ?? supabase;
+
+  if (isShort && opts?.confirmShortRoster && maxTeams != null) {
+    const { error: resizeErr } = await client
+      .from("leagues")
+      .update({ max_teams: memberCount })
+      .eq("id", leagueId);
+    if (resizeErr) return { error: resizeErr.message };
+  }
+
   const updatePayload: {
     draft_status: "in_progress";
     draft_current_pick: number;
@@ -1229,12 +1262,10 @@ export async function startDraft(leagueId: string): Promise<{ error?: string }> 
     draft_current_pick: 1,
     draft_current_pick_started_at: new Date().toISOString(),
   };
-  if ((league as { visibility_type?: string | null }).visibility_type === "public") {
+  if (isPublic) {
     updatePayload.public_status = "active";
   }
-  const { error: updateError } = admin
-    ? await admin.from("leagues").update(updatePayload).eq("id", leagueId)
-    : await supabase.from("leagues").update(updatePayload).eq("id", leagueId);
+  const { error: updateError } = await client.from("leagues").update(updatePayload).eq("id", leagueId);
   if (updateError) return { error: updateError.message };
   return {};
 }
@@ -1661,13 +1692,22 @@ export async function getTopAvailableWrestlerForUser(
     const src = so?.priorityListSource?.trim();
     const fallbackBoardId =
       getDefaultBigBoardIdForLeague({ includeNxt: poolOptionsForUser.includeNxt }) ?? "default";
+    const fallbackList = getBigBoardPriorityList(fallbackBoardId) ?? [];
     if (src === "custom") {
       const own = prefs?.priority_list ?? [];
-      priorityWalkList =
-        own.length > 0 ? own : (getBigBoardPriorityList(fallbackBoardId) ?? []);
+      // Incomplete custom lists fall back to the Default Big Board (same as "not set").
+      priorityWalkList = hasAdequateAutopickDraftPreferences({
+        includeNxt: poolOptionsForUser.includeNxt,
+        priorityList: own,
+        priorityListSource: "custom",
+      })
+        ? own
+        : fallbackList;
+    } else if (src && isBigBoardId(src)) {
+      priorityWalkList = getBigBoardPriorityList(src) ?? fallbackList;
     } else {
-      const boardId = src && isBigBoardId(src) ? src : fallbackBoardId;
-      priorityWalkList = getBigBoardPriorityList(boardId) ?? [];
+      // No prefs saved yet — use the site Default Big Board.
+      priorityWalkList = fallbackList;
     }
   } else if (prefs?.priority_list?.length) {
     priorityWalkList = prefs.priority_list;

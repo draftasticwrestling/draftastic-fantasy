@@ -6,7 +6,7 @@ export function R2wgDraftPrefsCallout({ leagueSlug }: { leagueSlug: string }) {
     <div className="league-onboarding-callout" style={{ marginBottom: 24 }} role="status">
       <p style={{ margin: 0 }}>
         <strong>Set your draft preferences.</strong> Big Boards are ready for Road to War Games — pick a provided
-        board or build your own list before the draft.{" "}
+        board or build your own list before the GM begins the draft. If you skip this, the Default Big Board is used.{" "}
         <Link href={`/leagues/${encodeURIComponent(leagueSlug)}/draft/preferences`} className="app-link">
           Set draft preferences →
         </Link>

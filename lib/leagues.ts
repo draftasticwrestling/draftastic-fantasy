@@ -288,23 +288,9 @@ export async function createLeague(params: {
   } else if (league_type === SALARY_CAP_LEAGUE_TYPE && !isSiteAdmin) {
     return { error: "Only site administrators can create salary cap leagues." };
   }
-  const include_nxt_requested = Boolean(params.include_nxt);
-  if (include_nxt_requested && !isSiteAdmin && !isRoadToWarGames) {
-    return { error: "Only site administrators can create leagues that include NXT." };
-  }
-  if (
-    include_nxt_requested &&
-    !isRoadToWarGames &&
-    league_type !== "head_to_head" &&
-    league_type !== "salary_cap"
-  ) {
-    return {
-      error: "Include NXT is only available for Head-to-Head leagues (admin testing).",
-    };
-  }
-  // Road to War Games always includes NXT; salary cap always includes NXT.
-  const include_nxt =
-    league_type === "salary_cap" || isRoadToWarGames ? true : include_nxt_requested;
+  // NXT is always on — roster sizes assume the NXT pool. Legacy leagues may still have
+  // include_nxt=false in the DB; that flag is no longer editable.
+  const include_nxt = true;
 
   const leagueSelect =
     "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, created_at";
@@ -343,7 +329,7 @@ export async function createLeague(params: {
         draft_time: null,
         draft_type: isSalaryCapLeague ? "salary_cap" : "autopick",
         draft_style: "snake",
-        draft_order_method: isSalaryCapLeague ? "manual_by_gm" : "random_one_hour_before",
+        draft_order_method: isSalaryCapLeague || visibilityType !== "public" ? "manual_by_gm" : "random_one_hour_before",
         draft_status: isSalaryCapLeague ? "in_progress" : "not_started",
         league_type,
         include_nxt,
@@ -1650,7 +1636,7 @@ export async function addWrestlerToRoster(
       return {
         error: includeNxt
           ? "This wrestler is not in the eligible pool (Raw, SmackDown, or NXT only)."
-          : "This wrestler is not in the eligible pool (Raw and SmackDown only). For Head-to-Head test leagues, turn on Include NXT (site admin) to add NXT roster talent.",
+          : "This wrestler is not in the eligible pool (Raw and SmackDown only).",
       };
     }
   }

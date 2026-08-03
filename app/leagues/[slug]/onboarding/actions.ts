@@ -80,7 +80,7 @@ export async function finishLeagueOnboardingAndRedirect(leagueSlug: string): Pro
   redirect(result.redirectTo ?? `/leagues/${leagueSlug}`);
 }
 
-/** Used by draft preferences page when ?from=onboarding */
+/** Legacy helper; prefer finishing from the onboarding wizard after prefs save. */
 export async function completeOnboardingFromDraftPrefsAction(leagueSlug: string): Promise<void> {
   await finishLeagueOnboardingAndRedirect(leagueSlug);
 }

@@ -31,6 +31,7 @@ type Props = {
   profileAvatarUrl: string | null;
   displayName: string;
   initialError: string | null;
+  initialStep?: Step;
 };
 
 export function LeagueOnboardingWizard({
@@ -45,9 +46,12 @@ export function LeagueOnboardingWizard({
   profileAvatarUrl,
   displayName,
   initialError,
+  initialStep,
 }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("faction");
+  const [step, setStep] = useState<Step>(
+    initialStep && (!isSalaryCap || initialStep !== "draft") ? initialStep : "faction"
+  );
   const [teamName, setTeamName] = useState(initialTeamName);
   const [catchphrase, setCatchphrase] = useState(initialCatchphrase);
   const [leagueAvatarUrl, setLeagueAvatarUrl] = useState<string | null>(initialLeagueAvatarUrl);
@@ -326,7 +330,8 @@ export function LeagueOnboardingWizard({
           </p>
           <div className="league-onboarding-callout">
             <p style={{ margin: 0 }}>
-              Open the preferences page, build your list, and <strong>save</strong>. Then return here to finish.
+              Open the preferences page, build your list, and <strong>save</strong>. You&apos;ll return here to finish
+              setup.
             </p>
           </div>
           <Link

@@ -79,15 +79,51 @@ export async function updateDraftDateAction(
     return { error: "Only the GM can set the draft date." };
   }
 
-  const draft_date = (formData.get("draft_date") as string)?.trim() || null;
+  if (String(league.visibility_type ?? "").toLowerCase() === "public") {
+    return { error: "Public leagues use the site draft schedule; GMs cannot set a custom draft date." };
+  }
 
+  const draftStatus = league.draft_status ?? "not_started";
+  if (draftStatus !== "not_started") {
+    return { error: "Draft date can only be changed before the draft starts." };
+  }
+
+  const draft_date = (formData.get("draft_date") as string)?.trim() || null;
+  if (draft_date && !/^\d{4}-\d{2}-\d{2}$/.test(draft_date)) {
+    return { error: "Enter a valid draft date." };
+  }
+  const draft_timeRaw = (formData.get("draft_time") as string)?.trim() || null;
+  const draft_time =
+    draft_timeRaw && /^\d{1,2}:\d{2}/.test(draft_timeRaw) ? draft_timeRaw.slice(0, 5) : null;
+
+  const prevDate = (league.draft_date ?? "").toString().slice(0, 10) || null;
   const { error } = await supabase
     .from("leagues")
-    .update({ draft_date: draft_date || null })
+    .update({
+      draft_date: draft_date || null,
+      draft_time: draft_date ? draft_time : null,
+      draft_order_method: "manual_by_gm" satisfies DraftOrderMethod,
+    })
     .eq("id", league.id);
 
   if (error) return { error: error.message };
+
+  if (draft_date && draft_date !== prevDate) {
+    const { scheduleTransactionalEmail } = await import("@/lib/email/scheduleTransactionalEmail");
+    const { notifyLeagueDraftDateSet } = await import("@/lib/email/leagueNotifications");
+    scheduleTransactionalEmail(() =>
+      notifyLeagueDraftDateSet({
+        leagueId: league.id,
+        leagueName: league.name,
+        leagueSlug,
+        draftDateYmd: draft_date,
+      })
+    );
+  }
+
   revalidatePath(`/leagues/${leagueSlug}`);
+  revalidatePath(`/leagues/${leagueSlug}/league-settings`);
+  revalidatePath(`/leagues/${leagueSlug}/draft`);
   return {};
 }
 
@@ -113,13 +149,35 @@ export async function updateDraftSettingsAction(
   const draft_type_ui = (formData.get("draft_type_ui") as string)?.trim();
   const isPublicLeague = String(league.visibility_type ?? "").toLowerCase() === "public";
 
+  const draft_date = (formData.get("draft_date") as string)?.trim() || null;
+  if (draft_date && !/^\d{4}-\d{2}-\d{2}$/.test(draft_date)) {
+    return { error: "Enter a valid draft date." };
+  }
+  const draft_timeRaw = (formData.get("draft_time") as string)?.trim() || null;
+  const draft_time =
+    draft_timeRaw && /^\d{1,2}:\d{2}/.test(draft_timeRaw) ? draft_timeRaw.slice(0, 5) : null;
+
+  if (!isPublicLeague && (league.draft_status ?? "not_started") !== "not_started" && draft_date) {
+    const prev = (league.draft_date ?? "").toString().slice(0, 10) || null;
+    if (draft_date !== prev) {
+      return { error: "Draft date can only be changed before the draft starts." };
+    }
+  }
+
   const payload: Record<string, unknown> = {
-    draft_date: null,
-    draft_time: null,
     draft_style: "snake",
-    draft_order_method: "random_one_hour_before" satisfies DraftOrderMethod,
     time_per_pick_seconds: null,
   };
+
+  if (isPublicLeague) {
+    payload.draft_date = null;
+    payload.draft_time = null;
+    payload.draft_order_method = "random_one_hour_before" satisfies DraftOrderMethod;
+  } else {
+    payload.draft_date = draft_date || null;
+    payload.draft_time = draft_date ? draft_time : null;
+    payload.draft_order_method = "manual_by_gm" satisfies DraftOrderMethod;
+  }
 
   if (draft_type_ui === "offline" && isPublicLeague) {
     return { error: "Public leagues must use Autopick draft type." };
@@ -131,6 +189,7 @@ export async function updateDraftSettingsAction(
     payload.draft_type = "autopick";
   }
 
+  const prevDate = (league.draft_date ?? "").toString().slice(0, 10) || null;
   const { data: updatedRows, error } = await supabase
     .from("leagues")
     .update(payload)
@@ -141,6 +200,20 @@ export async function updateDraftSettingsAction(
   if (!updatedRows?.length) {
     return { error: "Update did not apply. You may not have permission to change this league." };
   }
+
+  if (!isPublicLeague && draft_date && draft_date !== prevDate) {
+    const { scheduleTransactionalEmail } = await import("@/lib/email/scheduleTransactionalEmail");
+    const { notifyLeagueDraftDateSet } = await import("@/lib/email/leagueNotifications");
+    scheduleTransactionalEmail(() =>
+      notifyLeagueDraftDateSet({
+        leagueId: league.id,
+        leagueName: league.name,
+        leagueSlug,
+        draftDateYmd: draft_date,
+      })
+    );
+  }
+
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/league-settings`);
   revalidatePath(`/leagues/${leagueSlug}/draft`);
@@ -301,37 +374,13 @@ export async function updateLeagueTypeAction(
 }
 
 export async function updateIncludeNxtAction(
-  leagueSlug: string,
-  formData: FormData
+  _leagueSlug: string,
+  _formData: FormData
 ): Promise<{ error?: string }> {
-  const isSiteAdmin = await getIsSiteAdmin();
-  if (!isSiteAdmin) {
-    return { error: "Only site administrators can change the Include NXT setting." };
-  }
-  const league = await getLeagueBySlug(leagueSlug);
-  if (!league) return { error: "League not found." };
-
-  const { supabase, user } = await getServerAuth();
-  if (!user || league.commissioner_id !== user.id) {
-    return { error: "Only the GM can update this league." };
-  }
-  if ((league.league_type ?? "") !== "head_to_head") {
-    return { error: "Include NXT only applies to Head-to-Head leagues." };
-  }
-
-  const include_nxt =
-    formData.get("include_nxt") === "1" || formData.get("include_nxt") === "on" || formData.get("include_nxt") === "true";
-
-  let { error } = await supabase.from("leagues").update({ include_nxt }).eq("id", league.id);
-  if (error && /include_nxt/i.test(error.message ?? "")) {
-    return { error: "Database is missing the include_nxt column. Apply the latest Supabase migration." };
-  }
-  if (error) return { error: error.message };
-  revalidatePath(`/leagues/${leagueSlug}`);
-  revalidatePath(`/leagues/${leagueSlug}/league-settings`);
-  revalidatePath(`/leagues/${leagueSlug}/draft`);
-  revalidatePath(`/leagues/${leagueSlug}/wrestlers/free-agents`);
-  return {};
+  return {
+    error:
+      "Include NXT is locked on for all leagues (roster sizes assume the NXT pool) and cannot be changed.",
+  };
 }
 
 export async function updateIncludeNxtFormAction(

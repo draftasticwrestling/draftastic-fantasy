@@ -10,13 +10,14 @@ import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser } from "@/lib/salaryCap";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { hasAdequateAutopickDraftPreferences } from "@/lib/draftBigBoards";
 import { isRoadToWarGamesSeasonSlug } from "@/lib/leagueStructure";
 
 export type LoginNudgeKey = "missing_draft_prefs" | "no_league_joined" | "pending_league_setup";
 
 /** Shown once per browser (localStorage) when rules match; not configurable in admin. */
-export type DynamicLoginNudgeKey = "salary_cap_budget_remaining";
+export type DynamicLoginNudgeKey = "salary_cap_budget_remaining" | "drafts_ready_for_review";
 
 export type LoginNudgeConfig = {
   nudge_key: LoginNudgeKey;
@@ -426,6 +427,35 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
             ? { label: cfg.secondary_cta_label, href: cfg.secondary_cta_href }
             : null,
       });
+    }
+  }
+
+  const isSiteAdminUser = await getIsSiteAdmin();
+  if (isSiteAdminUser) {
+    const admin = getAdminClient();
+    if (admin) {
+      const { count } = await admin
+        .from("leagues")
+        .select("id", { count: "exact", head: true })
+        .eq("draft_status", "ready_for_review")
+        .eq("is_archived", false);
+      const pending = count ?? 0;
+      if (pending > 0) {
+        nudges.push({
+          key: "drafts_ready_for_review",
+          title: pending === 1 ? "1 draft ready for review" : `${pending} drafts ready for review`,
+          body:
+            pending === 1
+              ? "A league draft finished and is awaiting site admin approval before rosters go live."
+              : "League drafts finished and are awaiting site admin approval before rosters go live.",
+          primaryCta: {
+            label: "Review drafts",
+            href: "/internal-admin/leagues",
+          },
+          secondaryCta: null,
+          persist: "daily",
+        });
+      }
     }
   }
 

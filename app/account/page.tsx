@@ -120,7 +120,7 @@ export default async function AccountPage({
           {needsTimezone ? (
             <>
               <strong>Timezone is required</strong> — choose your region below and click <strong>Save changes</strong>
-              (used for draft times and weekly windows).
+              (used for draft meeting times and weekly windows).
             </>
           ) : null}
         </p>

@@ -19,26 +19,26 @@ import {
   isDraftableWrestler,
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
-import {
-  BETA_AUTOPICK_DRAFT_WINDOW_LABEL,
-  BETA_AUTOPICK_FIRST_EVENT_LABEL,
-  BETA_AUTOPICK_PREF_DEADLINE_LABEL,
-  BETA_AUTOPICK_ROSTERS_LIVE_LABEL,
-} from "@/lib/betaAutopickSchedule";
 import { MakePickForm } from "./MakePickForm";
 import { DraftTimer } from "./DraftTimer";
 import { DraftPolling } from "./DraftPolling";
 import { CommissionerDraftActions } from "./CommissionerDraftActions";
-import { getRosterRulesForLeague, isRoadToWarGamesSeasonSlug, leagueIncludesNxt, leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import {
+  getMinimumTeamsForLeagueType,
+  getRosterRulesForLeague,
+  isRoadToWarGamesSeasonSlug,
+  leagueIncludesNxt,
+  leagueUsesSalaryCap,
+} from "@/lib/leagueStructure";
 import { hasAdequateAutopickDraftPreferences } from "@/lib/draftBigBoards";
 import { R2wgDraftPrefsCallout } from "../R2wgDraftPrefsCallout";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
+import { BeginDraftForm } from "./BeginDraftForm";
 import { LeagueDraftRoom } from "./LeagueDraftRoom";
 import { AutopickClientRunner } from "./AutopickClientRunner";
 import { AutopickDraftBoardView } from "./AutopickDraftBoardView";
-import { startDraftFromFormAction } from "./actions";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -120,7 +120,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           : await runAutoPickIfExpired(league.id, { maxPicksPerInvocation: MAX_AUTOPICK_PICKS_DRAFT_PAGE });
     if (autoResult.didAutoPick) redirect(`/leagues/${slug}/draft`);
 
-    // Do not auto-start autopick on page load. Beginning/restarting the draft is site-admin-only; cron handles scheduled runs.
+    // Do not auto-start autopick on page load. Private leagues: GM clicks Begin Draft. Public/cron may still advance in-progress drafts.
 
     const skipHeavyDraftPool =
       isAutopickInProgress || draftStatusEarly === "completed" || draftStatusEarly === "ready_for_review";
@@ -398,9 +398,14 @@ export default async function LeagueDraftPage({ params }: Props) {
             </li>
             {leagueDraftType === "autopick" && (
               <li>
-                <strong style={{ color: "var(--color-text)" }}>Beta schedule:</strong> Set preferences by end of day{" "}
-                {BETA_AUTOPICK_PREF_DEADLINE_LABEL}. Autopick runs {BETA_AUTOPICK_DRAFT_WINDOW_LABEL}. Rosters should appear{" "}
-                {BETA_AUTOPICK_ROSTERS_LIVE_LABEL}, before {BETA_AUTOPICK_FIRST_EVENT_LABEL}.
+                <strong style={{ color: "var(--color-text)" }}>Schedule:</strong>{" "}
+                {league.draft_date
+                  ? `Draft day ${String(league.draft_date).slice(0, 10)}${
+                      league.draft_time
+                        ? ` (target time ${String(league.draft_time).slice(0, 5)} — display only)`
+                        : ""
+                    }. The GM sets order before draft day, then clicks Begin Draft.`
+                  : "GM sets a draft date in League Settings, sets draft order, then clicks Begin Draft on draft day."}
               </li>
             )}
             {leagueDraftType === "offline" && (
@@ -485,7 +490,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           </h2>
           <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
             {canSeeAllDraftReadiness
-              ? "Before the draft runs at the scheduled time, confirm each manager has set preferences. If not set, the default is used."
+              ? "Before the GM begins the draft, confirm each manager has set preferences. If not set, the Default Big Board is used."
               : "Your readiness is shown below. Only the GM and site admins can view other managers' draft-preference readiness."}
             {" "}
             <strong style={{ color: "var(--color-text)" }}>
@@ -541,7 +546,7 @@ export default async function LeagueDraftPage({ params }: Props) {
       )}
       {isReviewPending && (
         <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
-          Draft completed. Rosters are being reviewed and will appear shortly.
+          Draft completed. Rosters are awaiting site admin review and approval before they appear in the league.
         </p>
       )}
 
@@ -555,9 +560,9 @@ export default async function LeagueDraftPage({ params }: Props) {
           ) : (
             <>
               <p style={{ marginBottom: 16 }}>
-                No pick order yet. The GM must click once below to randomize the full snake order for all managers. This cannot be undone;
-                if the GM skips it, a random order is created automatically when autopick runs during {BETA_AUTOPICK_DRAFT_WINDOW_LABEL}.
-                Starting the draft, restarting, and undoing picks are handled from the site admin panel.
+                No pick order yet. The GM should click <strong>Set draft order</strong> once to randomize the full snake
+                order for all managers. This cannot be undone. After the order is set, managers can see their slot and
+                refine preferences. On draft day, the GM clicks <strong>Begin Draft</strong>.
               </p>
               {isCommissioner && <GenerateDraftOrderForm leagueSlug={slug} />}
             </>
@@ -569,22 +574,26 @@ export default async function LeagueDraftPage({ params }: Props) {
         <>
           <p style={{ marginBottom: 8, color: "#555" }}>
             {league.draft_type === "autopick"
-              ? "Pick order is locked in (snake). Autopick runs during the beta window — you do not start the draft manually."
+              ? "Pick order is locked in (snake). On draft day, the GM begins the draft from this page."
               : "Draft order is listed below for reference."}
           </p>
-          {!isSiteAdmin && league.draft_type === "autopick" && (
-            <p style={{ marginBottom: 24, fontSize: 14, color: "#666" }}>
-              A site admin starts the draft from the site admin panel when it is time. You can still set preferences until the deadline in
-              League draft details.
-            </p>
+          {league.draft_type === "autopick" && (isCommissioner || isSiteAdmin) && (
+            <BeginDraftForm
+              leagueSlug={slug}
+              draftDateYmd={league.draft_date ? String(league.draft_date).slice(0, 10) : null}
+              showDateHint={isCommissioner && !isSiteAdmin}
+              memberCount={members.length}
+              maxTeams={
+                typeof league.max_teams === "number" && league.max_teams > 0 ? league.max_teams : null
+              }
+              minTeams={getMinimumTeamsForLeagueType(league.league_type)}
+            />
           )}
-          {isSiteAdmin && league.draft_type === "autopick" && (
-            <form action={startDraftFromFormAction} style={{ marginBottom: 16 }}>
-              <input type="hidden" name="league_slug" value={slug} />
-              <button type="submit" className="app-button">
-                Begin draft now
-              </button>
-            </form>
+          {!isCommissioner && !isSiteAdmin && league.draft_type === "autopick" && (
+            <p style={{ marginBottom: 24, fontSize: 14, color: "#666" }}>
+              The GM will begin the draft on draft day. You can still set preferences until then; if you have not saved
+              prefs, the Default Big Board is used.
+            </p>
           )}
           <section style={{ marginBottom: 24 }}>
             <h2 style={{ fontSize: "1.1rem", marginBottom: 12, color: "var(--color-text)" }}>Draft board</h2>
@@ -622,7 +631,7 @@ export default async function LeagueDraftPage({ params }: Props) {
               intervalMs={isAutopickRunning ? 3500 : undefined}
             />
           )}
-          {draftStatus === "in_progress" && !autopickDisabled && league.draft_type === "autopick" && isSiteAdmin && (
+          {draftStatus === "in_progress" && !autopickDisabled && league.draft_type === "autopick" && (isSiteAdmin || isCommissioner) && (
             <AutopickClientRunner leagueSlug={slug} enabled />
           )}
           {isAutopickRunning || draftStatus === "completed" || isReviewPending ? (

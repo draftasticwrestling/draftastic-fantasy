@@ -186,7 +186,9 @@ export function DraftPreferencesForm({
       }
       setMessage({
         type: "success",
-        text: fromOnboarding ? "Preferences saved. Return to league setup to finish." : "Preferences saved.",
+        text: fromOnboarding
+          ? "Preferences saved. Taking you back to league setup…"
+          : "Preferences saved.",
       });
       router.refresh();
     } else if (formState?.error) {

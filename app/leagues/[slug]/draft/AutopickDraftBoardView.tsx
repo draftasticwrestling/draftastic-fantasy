@@ -43,7 +43,7 @@ export function AutopickDraftBoardView({
       </h2>
       {inProgress && isAutopickLeague && (
         <p style={{ color: "var(--color-text-muted)", fontSize: 14, marginBottom: 16, lineHeight: 1.65 }}>
-          Picks run on the server. This board updates as each pick is saved. You can close this tab—your league cron (if enabled) can finish the draft—or watch the board update here.
+          Picks run on the server. This board updates as each pick is saved. You can keep this tab open to watch progress, or leave — the draft continues on the server.
         </p>
       )}
       {!inProgress && (

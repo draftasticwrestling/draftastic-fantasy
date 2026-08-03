@@ -3,26 +3,20 @@
 import Link from "next/link";
 import { useState, useActionState, useEffect } from "react";
 import { updateDraftSettingsFormAction } from "../actions";
-import {
-  BETA_AUTOPICK_DRAFT_WINDOW_LABEL,
-  BETA_AUTOPICK_FIRST_EVENT_LABEL,
-  BETA_AUTOPICK_PREF_DEADLINE_LABEL,
-  BETA_AUTOPICK_ROSTERS_LIVE_LABEL,
-} from "@/lib/betaAutopickSchedule";
 
-/** Beta: only Offline and Autopick (stored as draft_type). Live drafts are disabled. */
+/** Offline and Autopick (stored as draft_type). */
 const DRAFT_TYPE_OPTIONS: { value: "offline" | "autopick"; label: string; description: string }[] = [
   {
     value: "offline",
     label: "Offline",
     description:
-      "Your league runs its own draft outside the site. When you are ready, the GM adds wrestlers to each roster (roster tools on each team page — more guidance coming soon).",
+      "Your league runs its own draft outside the site. When you are ready, the GM adds wrestlers to each roster (roster tools on each team page).",
   },
   {
     value: "autopick",
     label: "Autopick",
     description:
-      "Each manager sets auto-draft preferences (everyone defaults to the site Default Big Board until they deliberately choose another provided Big Board or My own list). Drafts run during the beta window, and rosters appear in your league in time for the first scored show.",
+      "Each manager sets auto-draft preferences (everyone defaults to the site Default Big Board until they choose another Big Board or My own list). On draft day, the GM starts the draft from the Draft tab.",
   },
 ];
 
@@ -33,7 +27,10 @@ type Props = {
   leagueSlug: string;
   /** Stored draft_type: offline | autopick | legacy linear/snake (treated as Autopick in UI). */
   draftType: string | null | undefined;
+  draftDate: string | null | undefined;
+  draftTime: string | null | undefined;
   isPublicLeague: boolean;
+  draftNotStarted: boolean;
 };
 
 function toUiDraftType(stored: string | null | undefined): "offline" | "autopick" {
@@ -42,16 +39,42 @@ function toUiDraftType(stored: string | null | undefined): "offline" | "autopick
   return "autopick";
 }
 
-export function DraftSettingsSection({ leagueSlug, draftType, isPublicLeague }: Props) {
+function normalizeDateInput(raw: string | null | undefined): string {
+  if (!raw) return "";
+  return String(raw).slice(0, 10);
+}
+
+function normalizeTimeInput(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const s = String(raw).trim();
+  if (/^\d{1,2}:\d{2}/.test(s)) return s.slice(0, 5);
+  return "";
+}
+
+export function DraftSettingsSection({
+  leagueSlug,
+  draftType,
+  draftDate,
+  draftTime,
+  isPublicLeague,
+  draftNotStarted,
+}: Props) {
   const storedUi = toUiDraftType(draftType);
   const initialType: "offline" | "autopick" =
     isPublicLeague && storedUi === "offline" ? "autopick" : storedUi;
   const [selectedType, setSelectedType] = useState<"offline" | "autopick">(initialType);
+  const [dateValue, setDateValue] = useState(normalizeDateInput(draftDate));
+  const [timeValue, setTimeValue] = useState(normalizeTimeInput(draftTime));
 
   useEffect(() => {
     const next = toUiDraftType(draftType);
     setSelectedType(isPublicLeague && next === "offline" ? "autopick" : next);
   }, [draftType, isPublicLeague]);
+
+  useEffect(() => {
+    setDateValue(normalizeDateInput(draftDate));
+    setTimeValue(normalizeTimeInput(draftTime));
+  }, [draftDate, draftTime]);
 
   const [state, formAction] = useActionState(updateDraftSettingsFormAction, null as { error?: string } | null);
 
@@ -61,43 +84,32 @@ export function DraftSettingsSection({ leagueSlug, draftType, isPublicLeague }: 
         Draft
       </h2>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 16, maxWidth: 640 }}>
-        Road to SummerSlam beta: choose <strong>Offline</strong> or <strong>Autopick</strong>. There is no live on-site draft and no scheduled draft date — timing follows the beta schedule below.
+        {isPublicLeague ? (
+          <>
+            Public leagues use <strong>Autopick</strong>. Draft timing follows the site schedule.
+          </>
+        ) : (
+          <>
+            Choose <strong>Offline</strong> or <strong>Autopick</strong>, then set a <strong>draft date</strong>. Members
+            are emailed when you save a date and should set their draft preferences. Before draft day, open the{" "}
+            <Link href={`/leagues/${leagueSlug}/draft`} className="app-link">
+              Draft
+            </Link>{" "}
+            tab to <strong>Set draft order</strong>. On draft day, click <strong>Begin Draft</strong> to start.
+          </>
+        )}
       </p>
       {isPublicLeague ? (
         <p style={{ color: "var(--color-text-muted)", marginBottom: 16, maxWidth: 640, fontSize: 14 }}>
-          Public leagues are limited to <strong>Autopick</strong> so managers across different regions/time zones can participate fairly.
+          Public leagues are limited to <strong>Autopick</strong> so managers across different regions/time zones can
+          participate fairly.
         </p>
       ) : null}
 
-      <div
-        style={{
-          marginBottom: 24,
-          padding: "14px 16px",
-          background: "var(--color-bg-elevated)",
-          borderRadius: "var(--radius)",
-          border: "1px solid var(--color-border)",
-          fontSize: 14,
-          color: "var(--color-text-muted)",
-          lineHeight: 1.65,
-        }}
-      >
-        <p style={{ margin: "0 0 10px", fontWeight: 600, color: "var(--color-text)" }}>Autopick beta schedule</p>
-        <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
-          <li>
-            Managers can set preferences through end of day <strong>{BETA_AUTOPICK_PREF_DEADLINE_LABEL}</strong> (everyone defaults to the
-            site Default Big Board until they deliberately choose another provided Big Board or &quot;My own list&quot;).
-          </li>
-          <li>Drafts are intended to run <strong>{BETA_AUTOPICK_DRAFT_WINDOW_LABEL}</strong>.</li>
-          <li>Rosters should appear <strong>{BETA_AUTOPICK_ROSTERS_LIVE_LABEL}</strong>, ahead of <strong>{BETA_AUTOPICK_FIRST_EVENT_LABEL}</strong>.</li>
-        </ul>
-      </div>
-
       <p style={{ color: "var(--color-text-muted)", marginBottom: 20, maxWidth: 640, fontSize: 14 }}>
-        <strong>Snake draft order</strong> is used for any on-site autopick run (same order reverses each round). The GM uses the{" "}
-        <Link href={`/leagues/${leagueSlug}/draft`} className="app-link">
-          Draft
-        </Link>{" "}
-        tab to <strong>randomize pick order once</strong> before the draft window so managers know their slot while building lists. That order cannot be changed after it is generated; if the GM never clicks it, a random order is created automatically when the autopick draft runs.
+        <strong>Snake draft order</strong> is used for on-site autopick (order reverses each round). The GM sets the
+        order once from the Draft tab so managers can see their slot while building lists. That order cannot be changed
+        after it is generated.
       </p>
 
       <div
@@ -139,37 +151,92 @@ export function DraftSettingsSection({ leagueSlug, draftType, isPublicLeague }: 
             {DRAFT_TYPE_OPTIONS.map((opt) => {
               const disabled = isPublicLeague && opt.value === "offline";
               return (
-              <li key={opt.value} style={{ marginBottom: 16 }}>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 12,
-                    cursor: disabled ? "not-allowed" : "pointer",
-                    opacity: disabled ? 0.65 : 1,
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="draft_type_ui_display"
-                    value={opt.value}
-                    checked={selectedType === opt.value}
-                    onChange={() => setSelectedType(opt.value)}
-                    disabled={disabled}
-                    style={{ marginTop: 4, flexShrink: 0 }}
-                  />
-                  <span>
-                    <span style={{ fontWeight: 600 }}>{opt.label}</span>
-                    {opt.description && (
-                      <>: <span style={{ color: "var(--color-text-muted)" }}>{opt.description}</span></>
-                    )}
-                  </span>
-                </label>
-              </li>
+                <li key={opt.value} style={{ marginBottom: 16 }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      opacity: disabled ? 0.65 : 1,
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="draft_type_ui_display"
+                      value={opt.value}
+                      checked={selectedType === opt.value}
+                      onChange={() => setSelectedType(opt.value)}
+                      disabled={disabled}
+                      style={{ marginTop: 4, flexShrink: 0 }}
+                    />
+                    <span>
+                      <span style={{ fontWeight: 600 }}>{opt.label}</span>
+                      {opt.description && (
+                        <>
+                          : <span style={{ color: "var(--color-text-muted)" }}>{opt.description}</span>
+                        </>
+                      )}
+                    </span>
+                  </label>
+                </li>
               );
             })}
           </ul>
         </div>
+
+        {!isPublicLeague && selectedType === "autopick" ? (
+          <div style={{ marginBottom: 28, maxWidth: 420 }}>
+            <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>Draft date</h3>
+            <p style={{ color: "var(--color-text-muted)", fontSize: 14, marginBottom: 12, lineHeight: 1.5 }}>
+              Saving a date emails league members (if they have draft reminders on) and prompts them to set preferences.
+              {!draftNotStarted ? " The draft has already started, so the date is locked." : null}
+            </p>
+            <label htmlFor="draft_date" style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6 }}>
+              Date
+            </label>
+            <input
+              id="draft_date"
+              name="draft_date"
+              type="date"
+              value={dateValue}
+              onChange={(e) => setDateValue(e.target.value)}
+              disabled={!draftNotStarted}
+              style={{
+                display: "block",
+                width: "100%",
+                maxWidth: 240,
+                padding: "8px 10px",
+                marginBottom: 12,
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-sm)",
+              }}
+            />
+            <label htmlFor="draft_time" style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6 }}>
+              Optional meeting time
+            </label>
+            <p style={{ color: "var(--color-text-muted)", fontSize: 13, marginBottom: 8, lineHeight: 1.5 }}>
+              Display only for your group. The draft does not start automatically — the GM clicks{" "}
+              <strong>Begin Draft</strong> on or after draft day.
+            </p>
+            <input
+              id="draft_time"
+              name="draft_time"
+              type="time"
+              value={timeValue}
+              onChange={(e) => setTimeValue(e.target.value)}
+              disabled={!draftNotStarted}
+              style={{
+                display: "block",
+                width: "100%",
+                maxWidth: 240,
+                padding: "8px 10px",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-sm)",
+              }}
+            />
+          </div>
+        ) : null}
 
         {state?.error && <p style={{ color: "var(--color-red)", marginBottom: 12 }}>{state.error}</p>}
         {state && !state.error && (

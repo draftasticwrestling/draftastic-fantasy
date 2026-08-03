@@ -79,6 +79,9 @@ export async function GET(request: Request) {
         .from("leagues")
         .update({ public_status: teams >= cap ? "full" : "open" })
         .eq("id", league.id);
+    } else {
+      // Private: GM sets order via "Set draft order" — do not auto-generate.
+      continue;
     }
     const scheduledMs = getScheduledDraftTimeMs(league);
     let inOneHourWindow = false;
@@ -104,6 +107,10 @@ export async function GET(request: Request) {
 
   const due: { id: string }[] = [];
   for (const league of leagues) {
+    // Private leagues: GM begins the draft manually — cron only advances in_progress drafts.
+    if ((league as { visibility_type?: string | null }).visibility_type !== "public") {
+      continue;
+    }
     const scheduledMs = getScheduledDraftTimeMs(league);
     const dueBySchedule = scheduledMs != null && now >= scheduledMs;
     const dueByBeta = scheduledMs == null && isInBetaAutopickRunWindow(now);

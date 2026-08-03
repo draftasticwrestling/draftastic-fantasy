@@ -105,16 +105,31 @@ export async function setDraftOrderAction(
   return {};
 }
 
-/** Site admin only: start the draft (begin pick clock). */
-export async function startDraftAction(leagueSlug: string): Promise<{ error?: string }> {
+/** GM or site admin: start the draft (begin pick clock). */
+export async function startDraftAction(
+  leagueSlug: string,
+  opts?: { confirmShortRoster?: boolean }
+): Promise<{ error?: string }> {
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
-  const result = await startDraft(league.id);
+  const result = await startDraft(league.id, opts);
   if (result.error) return result;
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/draft`);
   return {};
+}
+
+export async function startDraftWithStateAction(
+  _prevState: { error?: string } | null,
+  formData: FormData
+): Promise<{ error?: string } | null> {
+  const leagueSlug = (formData.get("league_slug") as string)?.trim();
+  if (!leagueSlug) return { error: "League slug is required." };
+  const confirmShortRoster =
+    formData.get("confirm_short_roster") === "1" || formData.get("confirm_short_roster") === "true";
+  const result = await startDraftAction(leagueSlug, { confirmShortRoster });
+  return result.error ? result : {};
 }
 
 /**
@@ -152,7 +167,9 @@ export async function runAutopickTickAction(
 export async function startDraftFromFormAction(formData: FormData): Promise<void> {
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return;
-  await startDraftAction(leagueSlug);
+  const confirmShortRoster =
+    formData.get("confirm_short_roster") === "1" || formData.get("confirm_short_roster") === "true";
+  await startDraftAction(leagueSlug, { confirmShortRoster });
 }
 
 /** FormData-only wrapper so draft page form has no closure (better RSC serialization). */
@@ -365,10 +382,8 @@ export async function saveDraftPreferencesFormAction(
   if (result.error) return { error: result.error };
 
   if (formData.get("from_onboarding") === "1") {
-    const { completeLeagueOnboardingAction } = await import("../onboarding/actions");
-    const complete = await completeLeagueOnboardingAction(leagueSlug);
-    if (complete.error) return { error: complete.error };
-    return { redirectTo: complete.redirectTo ?? `/leagues/${leagueSlug}` };
+    revalidatePath(`/leagues/${leagueSlug}/onboarding`);
+    return { redirectTo: `/leagues/${leagueSlug}/onboarding?step=draft` };
   }
 
   return null;

@@ -16,7 +16,7 @@ const R2WG_TEAM_RANGE: Record<string, { min: number; max: number }> = {
 
 /**
  * POST /api/leagues — create a new league.
- * Body: { name, season_slug?, season_year?, league_type?, max_teams?, include_nxt?, visibility_type? }
+ * Body: { name, season_slug?, season_year?, league_type?, max_teams?, visibility_type? }
  *
  * Non-admin private creates follow the same Road to War Games rules as the Create a League
  * form: no access code, season locked to R2WG, TSP (3–6) or H2H (4–8), NXT always included.
@@ -53,12 +53,6 @@ export async function POST(request: Request) {
       typeof body === "object" && body !== null && "max_teams" in body
         ? Number((body as { max_teams?: unknown }).max_teams)
         : NaN;
-    const include_nxt_raw =
-      typeof body === "object" && body !== null && "include_nxt" in body
-        ? (body as { include_nxt?: unknown }).include_nxt
-        : false;
-    const include_nxt =
-      include_nxt_raw === true || include_nxt_raw === "true" || include_nxt_raw === 1;
     const visibility_type_raw =
       typeof body === "object" && body !== null && "visibility_type" in body
         ? String((body as { visibility_type?: unknown }).visibility_type ?? "").trim().toLowerCase()
@@ -153,12 +147,6 @@ export async function POST(request: Request) {
     if (!isPublicCreate && league_type_raw && !league_type) {
       return NextResponse.json({ error: "Invalid league_type." }, { status: 400 });
     }
-    if (include_nxt && league_type !== "head_to_head" && league_type !== "salary_cap") {
-      return NextResponse.json(
-        { error: "include_nxt requires league_type head_to_head or salary_cap." },
-        { status: 400 }
-      );
-    }
     const max_teams = Number.isFinite(max_teams_raw)
       ? Math.min(16, Math.max(3, Math.floor(max_teams_raw)))
       : undefined;
@@ -171,7 +159,7 @@ export async function POST(request: Request) {
       season_year,
       league_type: isPublicCreate ? SALARY_CAP_LEAGUE_TYPE : league_type ?? "season_overall",
       max_teams: isPublicCreate ? null : max_teams,
-      include_nxt: isPublicCreate ? true : include_nxt,
+      include_nxt: true,
       visibility_type,
     });
     if (error) {

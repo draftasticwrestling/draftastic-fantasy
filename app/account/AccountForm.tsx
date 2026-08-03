@@ -174,7 +174,7 @@ export function AccountForm({
             ))}
           </select>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: "#666" }}>
-            Required. Used for draft times and weekly matchup windows.
+            Required. Used for draft meeting times (display) and weekly matchup windows.
           </p>
         </div>
 
