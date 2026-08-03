@@ -1,7 +1,6 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
-import { getPointsByOwnerForLeagueWeekFromMatchups } from "@/lib/leagueMatchups";
 import { getCurrentWeekStartMondayPst } from "@/lib/weeklyLeaderboards";
 import { getAdminClient } from "@/lib/supabase/admin";
 
@@ -32,14 +31,6 @@ const EMPTY_PULSE: SiteActivityPulse = {
   seasonFreeAgentsSigned: 0,
   draftasticChampions: 0,
 };
-
-function weekDateRangePst(weekStartMonday: string): { start: string; end: string } {
-  const start = new Date(`${weekStartMonday}T00:00:00-07:00`);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { start: fmt(start), end: fmt(end) };
-}
 
 /** Matches that contribute fantasy points on a completed event (mirrors scoreEvent skips). */
 function isScoredMatchOnCompletedEvent(match: unknown): boolean {
@@ -88,10 +79,36 @@ function normalizeSiteActivityPulse(raw: Partial<SiteActivityPulse> & Record<str
     seasonMatchesScored: Number(raw.seasonMatchesScored ?? raw.matchesScoredThisWeek ?? 0),
     seasonTradesProposed: Number(raw.seasonTradesProposed ?? raw.tradesCompletedThisWeek ?? 0),
     seasonFreeAgentsSigned: Number(raw.seasonFreeAgentsSigned ?? raw.freeAgentsSignedThisWeek ?? 0),
-    draftasticChampions: Number(
-      raw.draftasticChampions ?? raw.newChampionsCrowned ?? 0
-    ),
+    draftasticChampions: Number(raw.draftasticChampions ?? raw.newChampionsCrowned ?? 0),
   };
+}
+
+/**
+ * Sum fantasy points for the current Pacific week from the weekly snapshot table.
+ * Avoids per-league live matchup scoring (which can exceed Netlify SSR timeouts).
+ */
+async function sumWeeklyPointsFromSnapshot(
+  admin: NonNullable<ReturnType<typeof getAdminClient>>,
+  weekStart: string,
+  leagueIds: string[]
+): Promise<number> {
+  if (leagueIds.length === 0) return 0;
+  let total = 0;
+  const chunkSize = 100;
+  for (let i = 0; i < leagueIds.length; i += chunkSize) {
+    const chunk = leagueIds.slice(i, i + chunkSize);
+    const { data, error } = await admin
+      .from("league_weekly_points_snapshot")
+      .select("points")
+      .eq("week_start", weekStart)
+      .in("league_id", chunk);
+    if (error || !data) continue;
+    for (const row of data as Array<{ points?: number | null }>) {
+      const n = Number(row.points ?? 0);
+      if (Number.isFinite(n)) total += n;
+    }
+  }
+  return Math.round(total);
 }
 
 async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
@@ -99,7 +116,6 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
   if (!admin) return { ...EMPTY_PULSE };
 
   const weekStart = getCurrentWeekStartMondayPst();
-  const { start: weekStartDate, end: weekEndDate } = weekDateRangePst(weekStart);
 
   const { data: leagueRows } = await admin
     .from("leagues")
@@ -122,16 +138,8 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
     }
   }
 
-  let weeklyPointsScored = 0;
-  for (const leagueId of leagueIds) {
-    const byOwner = await getPointsByOwnerForLeagueWeekFromMatchups(leagueId, weekStart, admin);
-    for (const pts of Object.values(byOwner)) {
-      weeklyPointsScored += Number(pts ?? 0);
-    }
-  }
-  weeklyPointsScored = Math.round(weeklyPointsScored);
-
-  const [seasonEventsRes, championsRes, tradesRes, faRes] = await Promise.all([
+  const [weeklyPointsScored, seasonEventsRes, championsRes, tradesRes, faRes] = await Promise.all([
+    sumWeeklyPointsFromSnapshot(admin, weekStart, leagueIds),
     (() => {
       let q = admin.from("events").select("matches").eq("status", "completed");
       if (seasonStartDate) q = q.gte("date", seasonStartDate);
@@ -173,7 +181,7 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
 
 const getCachedSiteActivityPulse = unstable_cache(
   computeSiteActivityPulse,
-  ["site-activity-pulse-v9"],
+  ["site-activity-pulse-v10"],
   { revalidate: 900 }
 );
 
