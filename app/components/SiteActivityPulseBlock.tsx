@@ -18,7 +18,7 @@ const HUB_RAIL_LABELS: Record<keyof SiteActivityPulse, string> = {
   seasonMatchesScored: "matches scored this season",
   seasonTradesProposed: "trades proposed",
   seasonFreeAgentsSigned: "free agents signed",
-  newChampionsCrowned: "new champions",
+  draftasticChampions: "Draftastic Champions",
 };
 
 export function SiteActivityPulseBlock({ pulse, variant = "panel", showCta = false }: Props) {

@@ -258,7 +258,7 @@ export default async function FantasyHomePage() {
     seasonMatchesScored: 0,
     seasonTradesProposed: 0,
     seasonFreeAgentsSigned: 0,
-    newChampionsCrowned: 0,
+    draftasticChampions: 0,
   };
   let onboarding = {
     steps: [],

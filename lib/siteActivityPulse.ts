@@ -11,7 +11,8 @@ export type SiteActivityPulse = {
   seasonMatchesScored: number;
   seasonTradesProposed: number;
   seasonFreeAgentsSigned: number;
-  newChampionsCrowned: number;
+  /** Fantasy league champions recorded in league_season_placements (placement 1). */
+  draftasticChampions: number;
 };
 
 export const SITE_ACTIVITY_PULSE_ITEMS: Array<{ key: keyof SiteActivityPulse; label: string }> = [
@@ -20,7 +21,7 @@ export const SITE_ACTIVITY_PULSE_ITEMS: Array<{ key: keyof SiteActivityPulse; la
   { key: "seasonMatchesScored", label: "matches scored this season" },
   { key: "seasonTradesProposed", label: "season trades proposed" },
   { key: "seasonFreeAgentsSigned", label: "season free agents signed" },
-  { key: "newChampionsCrowned", label: "new champions crowned" },
+  { key: "draftasticChampions", label: "Draftastic Champions" },
 ];
 
 const EMPTY_PULSE: SiteActivityPulse = {
@@ -29,7 +30,7 @@ const EMPTY_PULSE: SiteActivityPulse = {
   seasonMatchesScored: 0,
   seasonTradesProposed: 0,
   seasonFreeAgentsSigned: 0,
-  newChampionsCrowned: 0,
+  draftasticChampions: 0,
 };
 
 function weekDateRangePst(weekStartMonday: string): { start: string; end: string } {
@@ -87,7 +88,9 @@ function normalizeSiteActivityPulse(raw: Partial<SiteActivityPulse> & Record<str
     seasonMatchesScored: Number(raw.seasonMatchesScored ?? raw.matchesScoredThisWeek ?? 0),
     seasonTradesProposed: Number(raw.seasonTradesProposed ?? raw.tradesCompletedThisWeek ?? 0),
     seasonFreeAgentsSigned: Number(raw.seasonFreeAgentsSigned ?? raw.freeAgentsSignedThisWeek ?? 0),
-    newChampionsCrowned: Number(raw.newChampionsCrowned ?? 0),
+    draftasticChampions: Number(
+      raw.draftasticChampions ?? raw.newChampionsCrowned ?? 0
+    ),
   };
 }
 
@@ -136,10 +139,9 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
       return q;
     })(),
     admin
-      .from("championship_history")
+      .from("league_season_placements")
       .select("id", { count: "exact", head: true })
-      .gte("date_won", weekStartDate)
-      .lte("date_won", weekEndDate),
+      .eq("placement", 1),
     leagueIds.length > 0
       ? admin
           .from("league_trade_proposals")
@@ -165,13 +167,13 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
     seasonMatchesScored,
     seasonTradesProposed: tradesRes.count ?? 0,
     seasonFreeAgentsSigned: faRes.count ?? 0,
-    newChampionsCrowned: championsRes.error ? 0 : (championsRes.count ?? 0),
+    draftasticChampions: championsRes.error ? 0 : (championsRes.count ?? 0),
   });
 }
 
 const getCachedSiteActivityPulse = unstable_cache(
   computeSiteActivityPulse,
-  ["site-activity-pulse-v7"],
+  ["site-activity-pulse-v9"],
   { revalidate: 900 }
 );
 
