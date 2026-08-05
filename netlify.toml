@@ -23,6 +23,8 @@
 # GET /api/cron/abandoned-signup-nudge with header x-cron-secret.
 # League champion placements: `netlify/functions/finalize-league-placements.ts` runs daily (~00:15 PT)
 # and calls GET /api/cron/finalize-league-placements with header x-cron-secret.
+# FOMO weekly points: `netlify/functions/refresh-weekly-points-pulse.ts` runs every 3h and calls
+# GET /api/cron/refresh-weekly-points-pulse with header x-cron-secret.
 
 # Force correct MIME type for Next.js CSS (avoids "text/plain" / strict MIME refusal)
 [[headers]]

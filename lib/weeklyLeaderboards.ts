@@ -96,7 +96,15 @@ function toRankedRows(pointsByUserId: Record<string, number>): WeeklyLeaderboard
 
 export async function processWeeklyXpAndLeaderboards(
   targetWeekStartMonday?: string,
-  opts?: { reprocess?: boolean }
+  opts?: {
+    reprocess?: boolean;
+    /**
+     * Refresh snapshot rows only (no weekly high XP / tier refresh). Used to keep the
+     * hub FOMO “pts this week” metric current without waiting for Sunday close.
+     * Also skips the end-of-week belt unlock gate so mid-week RS points are stored.
+     */
+    skipXp?: boolean;
+  }
 ): Promise<{
   weekStart: string;
   weekEnd: string;
@@ -123,6 +131,7 @@ export async function processWeeklyXpAndLeaderboards(
   }
 
   const reprocess = Boolean(opts?.reprocess);
+  const skipXp = Boolean(opts?.skipXp);
   const weekStart = targetWeekStartMonday ?? getPreviousWeekStartMondayPst();
   const weekEnd = getSundayOfWeek(weekStart);
   const errors: string[] = [];
@@ -164,25 +173,27 @@ export async function processWeeklyXpAndLeaderboards(
       continue;
     }
 
-    const { data: weekGateRows } = await admin
-      .from("events")
-      .select("date, status")
-      .in("status", [...EVENT_STATUSES_FOR_WEEK_SCHEDULE])
-      .gte("date", weekStart)
-      .lte("date", weekEnd)
-      .order("date", { ascending: true })
-      .limit(SCORING_EVENTS_FETCH_LIMIT);
-    if (
-      !fantasyWeekBeltScoringUnlocked(
-        (weekGateRows ?? []) as Array<{ date: string | null; status?: string | null }>,
-        weekStart,
-        weekEnd,
-        leagueStart,
-        leagueEnd || "2099-12-31"
-      )
-    ) {
-      skippedLeagues += 1;
-      continue;
+    if (!skipXp) {
+      const { data: weekGateRows } = await admin
+        .from("events")
+        .select("date, status")
+        .in("status", [...EVENT_STATUSES_FOR_WEEK_SCHEDULE])
+        .gte("date", weekStart)
+        .lte("date", weekEnd)
+        .order("date", { ascending: true })
+        .limit(SCORING_EVENTS_FETCH_LIMIT);
+      if (
+        !fantasyWeekBeltScoringUnlocked(
+          (weekGateRows ?? []) as Array<{ date: string | null; status?: string | null }>,
+          weekStart,
+          weekEnd,
+          leagueStart,
+          leagueEnd || "2099-12-31"
+        )
+      ) {
+        skippedLeagues += 1;
+        continue;
+      }
     }
 
     const { data: membersData, error: membersErr } = await admin
@@ -199,7 +210,8 @@ export async function processWeeklyXpAndLeaderboards(
       continue;
     }
 
-    if (!reprocess) {
+    // Mid-week FOMO refresh must rewrite rows; finalized XP runs skip when already complete.
+    if (!reprocess && !skipXp) {
       const { count: snapCount } = await admin
         .from("league_weekly_points_snapshot")
         .select("*", { count: "exact", head: true })
@@ -241,33 +253,36 @@ export async function processWeeklyXpAndLeaderboards(
       continue;
     }
 
-    const topScore = rankedRows.length > 0 ? rankedRows[0]!.points : 0;
-    if (topScore > 0) {
-      for (const winner of rankedRows.filter((r) => r.isWeeklyHigh && r.points > 0)) {
-        try {
-          await awardWeeklyHighScoreXp({
-            userId: winner.userId,
-            leagueId: league.id,
-            weekKey: weekStart,
-          });
-          awardsGranted += 1;
-        } catch {
-          errors.push(`league ${league.id}: weekly XP failed for ${winner.userId}`);
+    if (!skipXp) {
+      const topScore = rankedRows.length > 0 ? rankedRows[0]!.points : 0;
+      if (topScore > 0) {
+        for (const winner of rankedRows.filter((r) => r.isWeeklyHigh && r.points > 0)) {
+          try {
+            await awardWeeklyHighScoreXp({
+              userId: winner.userId,
+              leagueId: league.id,
+              weekKey: weekStart,
+            });
+            awardsGranted += 1;
+          } catch {
+            errors.push(`league ${league.id}: weekly XP failed for ${winner.userId}`);
+          }
         }
       }
+      for (const uid of memberUserIds) usersToRefresh.add(uid);
     }
-
-    for (const uid of memberUserIds) usersToRefresh.add(uid);
     processedLeagues += 1;
   }
 
   let xpUsersRefreshed = 0;
-  for (const uid of usersToRefresh) {
-    try {
-      await refreshFantasyPointsTiersForUser(uid, { force: true });
-      xpUsersRefreshed += 1;
-    } catch {
-      errors.push(`refreshFantasyPointsTiersForUser failed for ${uid}`);
+  if (!skipXp) {
+    for (const uid of usersToRefresh) {
+      try {
+        await refreshFantasyPointsTiersForUser(uid, { force: true });
+        xpUsersRefreshed += 1;
+      } catch {
+        errors.push(`refreshFantasyPointsTiersForUser failed for ${uid}`);
+      }
     }
   }
 
@@ -280,6 +295,26 @@ export async function processWeeklyXpAndLeaderboards(
     awardsGranted,
     xpUsersRefreshed,
     errors,
+  };
+}
+
+/** Refresh current-week snapshot totals for the hub FOMO pulse (no XP awards). */
+export async function refreshCurrentWeekPointsSnapshotsForPulse(): Promise<{
+  weekStart: string;
+  weekEnd: string;
+  processedLeagues: number;
+  skippedLeagues: number;
+  errors: string[];
+}> {
+  const result = await processWeeklyXpAndLeaderboards(getCurrentWeekStartMondayPst(), {
+    skipXp: true,
+  });
+  return {
+    weekStart: result.weekStart,
+    weekEnd: result.weekEnd,
+    processedLeagues: result.processedLeagues,
+    skippedLeagues: result.skippedLeagues,
+    errors: result.errors,
   };
 }
 

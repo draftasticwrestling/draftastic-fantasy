@@ -241,6 +241,10 @@ export async function insertBoxscoreEventAction(
 
   if (status === "completed") {
     scheduleTransactionalEmail(() => notifyEventScoresPublished({ eventId: id, name, date }));
+    scheduleTransactionalEmail(async () => {
+      const { refreshCurrentWeekPointsSnapshotsForPulse } = await import("@/lib/weeklyLeaderboards");
+      await refreshCurrentWeekPointsSnapshotsForPulse();
+    });
   }
 
   const resultsSlug = buildEventResultsSlug({ id, name, date });
@@ -357,6 +361,10 @@ export async function updateBoxscoreEventAction(
 
   if (becameCompleted) {
     scheduleTransactionalEmail(() => notifyEventScoresPublished({ eventId, name, date }));
+    scheduleTransactionalEmail(async () => {
+      const { refreshCurrentWeekPointsSnapshotsForPulse } = await import("@/lib/weeklyLeaderboards");
+      await refreshCurrentWeekPointsSnapshotsForPulse();
+    });
   }
 
   revalidateAfterEventMatchesChange(eventId, name, date);
