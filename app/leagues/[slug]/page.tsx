@@ -517,8 +517,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             lineHeight: 1.5,
           }}
         >
-          <strong>Draft completed — awaiting admin review.</strong> Rosters will appear in the league after a site admin
-          approves the draft.
+          <strong>Draft completed — awaiting admin review.</strong> Automatic roster validation found issues (size or
+          gender minimums). Rosters appear after a site admin reviews and approves the draft.
         </div>
       ) : null}
 

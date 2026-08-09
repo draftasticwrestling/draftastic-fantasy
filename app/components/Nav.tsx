@@ -47,7 +47,7 @@ type LeagueItem = {
 
 type MobileLeagueSectionKey = "league" | "my-team" | "wrestlers" | "matchups" | "ple" | "draft" | "gm-tools";
 
-/** Grouped admin menu: portal vs internal tools vs demos (flat list for mobile order). */
+/** Grouped admin menu: portal vs internal tools (flat list for mobile order). */
 const ADMIN_MENU_SECTIONS: readonly {
   title: string;
   links: readonly { href: string; label: string; primary?: boolean }[];
@@ -59,16 +59,7 @@ const ADMIN_MENU_SECTIONS: readonly {
   {
     title: "Tools",
     links: [
-      { href: "/internal-admin/engagement", label: "Season engagement" },
-      { href: "/internal-admin/nudges", label: "Login nudges" },
       { href: "/internal-admin/draft-testing", label: "Draft testing" },
-    ],
-  },
-  {
-    title: "Demos",
-    links: [
-      { href: "/league/teams", label: "Legacy league" },
-      { href: "/mvl", label: "MVL example" },
     ],
   },
 ] as const;

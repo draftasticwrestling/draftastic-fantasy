@@ -97,14 +97,14 @@ export const SUMMERSLAM_POINTS: [string, number][] = [
 ];
 
 export const SURVIVOR_SERIES_POINTS: [string, number | string][] = [
-  ["Winning the Main Event", 15],
-  ["Winning War Games", 14],
-  ["Main Eventing", 12],
-  ["Winning Your Match", 10],
-  ["Wrestler Who Makes the Pin", 10],
-  ["Being on a War Games Team", 8],
-  ["Being on the Non-ME Card", 5],
-  ["Point Bonus for Entry Order", "1-5"],
+  ["Winning the Main Event", 30],
+  ["Main Eventing", 30],
+  ["Winning War Games", 30],
+  ["Winning Your Match", 20],
+  ["Wrestler Who Makes the Pin", 20],
+  ["Being on a War Games Team", 15],
+  ["Being on the Non-ME Card", 10],
+  ["Point Bonus for Entry Order", "10,8,6,4,2"],
 ];
 
 export const ROYAL_RUMBLE_POINTS: [string, number][] = [
@@ -138,12 +138,12 @@ export const NOC_POINTS: [string, number][] = [
 ];
 
 export const MITB_POINTS: [string, number][] = [
-  ["Money in the Bank Winner", 25],
-  ["Winning the Main Event", 15],
-  ["Earning a Spot in the Ladder Match", 12],
-  ["Main Eventing", 9],
-  ["Winning Your Match", 8],
-  ["Being on the Match Card (non-main event)", 4],
+  ["Money in the Bank Winner", 30],
+  ["Winning the Main Event", 16],
+  ["Earning a Spot in the Ladder Match", 15],
+  ["Main Eventing", 12],
+  ["Winning Your Match", 10],
+  ["Being on the Match Card (non-main event)", 5],
 ];
 
 export const CROWN_JEWEL_POINTS: [string, number][] = [

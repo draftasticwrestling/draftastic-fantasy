@@ -1,4 +1,3 @@
-import Link from "next/link";
 import styles from "../../internal-admin.module.css";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -28,11 +27,6 @@ export default async function BoxscoreTagTeamsStablesPage() {
 
   return (
     <div>
-      <p style={{ marginBottom: 16 }}>
-        <Link href="/internal-admin/boxscore" className="app-link">
-          ← Boxscore admin
-        </Link>
-      </p>
       <h1 className={styles.pageTitle}>Tag teams &amp; stables</h1>
       <p className={styles.intro}>
         Manage tag teams, members, and stable assignments in one place. This ports PWBS team/stable admin workflows into

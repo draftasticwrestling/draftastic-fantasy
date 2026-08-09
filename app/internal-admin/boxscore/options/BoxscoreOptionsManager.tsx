@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState } from "react";
-import Link from "next/link";
 import type { BoxscoreUiOptionCategory } from "@/lib/boxscoreAdmin/boxscoreUiOptionsCore";
 import {
   addBoxscoreUiOptionAction,
@@ -152,11 +151,6 @@ export function BoxscoreOptionsManager({ rows }: { rows: Row[] }) {
         <code style={{ fontSize: 12 }}>lib/boxscoreAdmin/boxscoreMatchOptions.ts</code> and{" "}
         <code style={{ fontSize: 12 }}>lib/boxscoreAdmin/boxscoreUiOptions.ts</code> (event types). To remove a built-in option,
         edit the code; this page only manages <strong>additional</strong> labels.
-      </p>
-      <p style={{ fontSize: 13, margin: 0 }}>
-        <Link href="/internal-admin/boxscore" className="app-link">
-          ← Boxscore admin
-        </Link>
       </p>
     </div>
   );

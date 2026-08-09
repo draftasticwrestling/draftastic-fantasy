@@ -546,7 +546,8 @@ export default async function LeagueDraftPage({ params }: Props) {
       )}
       {isReviewPending && (
         <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
-          Draft completed. Rosters are awaiting site admin review and approval before they appear in the league.
+          Draft finished, but automatic roster validation found issues. A site admin must review and approve before
+          rosters appear in the league.
         </p>
       )}
 
@@ -554,8 +555,11 @@ export default async function LeagueDraftPage({ params }: Props) {
         <>
           {league.draft_type === "offline" ? (
             <p style={{ marginBottom: 16, color: "var(--color-text-muted)" }}>
-              Offline league: there is no on-site draft order. When your draft is finished, the GM adds wrestlers to each roster from the
-              team pages (full workflow coming soon).
+              Offline league: there is no on-site draft order. When your draft is finished, the GM enters wrestlers on{" "}
+              <Link href={`/leagues/${slug}/manage-rosters`} className="app-link">
+                Manage Rosters
+              </Link>
+              , then finalizes the draft. Clean rosters auto-approve; validation errors go to site admin review.
             </p>
           ) : (
             <>

@@ -23,7 +23,9 @@ import {
   adminArchiveLeagueAction,
   adminBulkMoveMembersAction,
   adminClearDraftOrderAction,
+  adminClearInactiveLeagueAction,
   adminDeleteLeagueAction,
+  adminMarkOfflineDraftReadyForReviewAction,
   adminMoveUserToLeagueAction,
   adminRedrawDraftOrderAction,
   adminRemoveRosterEntryAction,
@@ -33,6 +35,12 @@ import {
   adminUnarchiveLeagueAction,
 } from "../actions";
 import { getLeagueTransactionStats } from "@/lib/leagueTransactionStats";
+import { LEAGUE_AUTO_ARCHIVE_DAYS_AFTER_END } from "@/lib/leagueArchiveConstants";
+import {
+  PRIVATE_LEAGUE_ABANDON_ARCHIVE_AFTER_DAYS,
+  PRIVATE_LEAGUE_INACTIVE_AFTER_DAYS,
+} from "@/lib/leagueAdminLifecycle";
+import { addDaysToYmd } from "@/lib/publicLeagueSchedule";
 import { MemberPovQuickNav } from "./MemberPovQuickNav";
 import { RunAutopickSubmitButton } from "./RunAutopickSubmitButton";
 
@@ -314,6 +322,13 @@ export default async function InternalAdminLeagueDetailPage({
             {league.archived_at ? ` (${league.archived_at.slice(0, 10)})` : ""}
           </>
         ) : null}
+        {league.is_inactive && !league.is_archived ? (
+          <>
+            {" "}
+            · <strong style={{ color: "#92400e" }}>Inactive</strong>
+            {league.inactivated_at ? ` (${league.inactivated_at.slice(0, 10)})` : ""}
+          </>
+        ) : null}
         {" "}
         ·{" "}
         {(league.pending_member_count ?? 0) > 0 ? (
@@ -460,6 +475,14 @@ export default async function InternalAdminLeagueDetailPage({
           <dt style={{ color: "var(--color-text-muted)" }}>Season window</dt>
           <dd style={{ margin: 0 }}>
             {league.start_date ?? "—"} → {league.end_date ?? "—"}
+            {!league.is_archived && league.end_date ? (
+              <span style={{ display: "block", fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+                Auto-archive on/after{" "}
+                {addDaysToYmd(String(league.end_date).slice(0, 10), LEAGUE_AUTO_ARCHIVE_DAYS_AFTER_END)}
+                {" "}
+                ({LEAGUE_AUTO_ARCHIVE_DAYS_AFTER_END} days after end; requires champion placement)
+              </span>
+            ) : null}
           </dd>
           <dt style={{ color: "var(--color-text-muted)" }}>Season slug</dt>
           <dd style={{ margin: 0 }}>{league.season_slug ?? "—"}</dd>
@@ -748,6 +771,8 @@ export default async function InternalAdminLeagueDetailPage({
           <strong>
             {league.draft_status === "ready_for_review" ? "Ready for review" : league.draft_status ?? "not_started"}
           </strong>
+          . Drafts auto-approve when roster validation passes; this queue is only for failed automatic checks (or
+          offline drafts that still need a finalize).
         </p>
         {league.draft_status === "ready_for_review" ? (
           <>
@@ -794,10 +819,47 @@ export default async function InternalAdminLeagueDetailPage({
           <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 14 }}>
             Draft is approved. League members can view rosters and scoring.
           </p>
+        ) : draftTypeLc === "offline" ? (
+          <div style={{ display: "grid", gap: 12, maxWidth: 640 }}>
+            <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 14, lineHeight: 1.5 }}>
+              Offline drafts do not auto-finish with picks. After the GM enters rosters, they finalize on Manage Rosters —
+              or use the button below. Clean rosters auto-approve; validation errors stay in ready for review.
+            </p>
+            {rosterWarnings.length > 0 ? (
+              <p style={{ margin: 0, fontSize: 14, color: "#92400e" }}>
+                {rosterWarnings.length} roster warning(s) — finalize will queue admin review, or approve with a note now.
+              </p>
+            ) : null}
+            <form action={adminMarkOfflineDraftReadyForReviewAction}>
+              <input type="hidden" name="leagueId" value={league.id} />
+              <input type="hidden" name="leagueSlug" value={league.slug} />
+              <button type="submit" className="admin-article-submit" style={{ width: "fit-content" }}>
+                Finalize offline draft (auto-approve if valid)
+              </button>
+            </form>
+            <form action={adminApproveDraftReviewAction} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <input type="hidden" name="leagueId" value={league.id} />
+              <input type="hidden" name="leagueSlug" value={league.slug} />
+              <textarea
+                name="reviewNote"
+                rows={2}
+                placeholder={
+                  rosterWarnings.length > 0
+                    ? "Required note to approve offline draft with roster warnings…"
+                    : "Optional note — approve offline draft now (skips ready-for-review)"
+                }
+                className="admin-article-input"
+                style={{ width: "100%" }}
+              />
+              <button type="submit" className="admin-article-submit" style={{ width: "fit-content" }}>
+                Approve offline draft now
+              </button>
+            </form>
+          </div>
         ) : (
           <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 14 }}>
-            Approve appears here after autopick completes and status is <strong>ready for review</strong>. Until then,
-            members see empty rosters (admins can still use POV links and roster tools below).
+            Approve appears here only when automatic roster validation failed after a draft finished (status{" "}
+            <strong>ready for review</strong>). Clean drafts auto-complete without admin action.
           </p>
         )}
       </section>
@@ -855,13 +917,37 @@ export default async function InternalAdminLeagueDetailPage({
 
       <section style={{ marginTop: 28 }}>
         <h2 style={{ fontSize: "1.05rem", marginBottom: 12 }}>Lifecycle admin</h2>
+        <p style={{ margin: "0 0 12px", color: "var(--color-text-muted)", maxWidth: 620, fontSize: 14, lineHeight: 1.5 }}>
+          Completed seasons auto-archive <strong>{LEAGUE_AUTO_ARCHIVE_DAYS_AFTER_END} days</strong> after their end date
+          (Pacific), once a champion placement exists. Private leagues that never reach the format minimum of owners or
+          never complete a draft become <strong>inactive after {PRIVATE_LEAGUE_INACTIVE_AFTER_DAYS} days</strong> and
+          auto-archive after <strong>{PRIVATE_LEAGUE_ABANDON_ARCHIVE_AFTER_DAYS} days</strong> from creation.
+        </p>
         <div style={{ display: "grid", gap: 14 }}>
+          {league.is_inactive && !league.is_archived ? (
+            <form
+              action={adminClearInactiveLeagueAction}
+              style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: 12, display: "grid", gap: 8, maxWidth: 620 }}
+            >
+              <input type="hidden" name="leagueId" value={league.id} />
+              <input type="hidden" name="leagueSlug" value={league.slug} />
+              <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
+                This private league is marked inactive (underfilled or draft never completed). Clearing inactive returns
+                it to the Active list; the daily cron will mark it inactive again if it still hasn&apos;t fully started
+                after the grace period.
+              </p>
+              <button type="submit" className="admin-article-submit" style={{ width: "fit-content" }}>
+                Clear inactive flag
+              </button>
+            </form>
+          ) : null}
           <form action={league.is_archived ? adminUnarchiveLeagueAction : adminArchiveLeagueAction} style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: 12, display: "grid", gap: 8, maxWidth: 620 }}>
             <input type="hidden" name="leagueId" value={league.id} />
             <input type="hidden" name="leagueSlug" value={league.slug} />
             {league.is_archived ? (
               <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
-                Archived leagues are hidden from normal user league lists and nav, but preserved for history.
+                Archived leagues are hidden from normal user league lists and nav, but preserved for history. Unarchiving
+                also clears the inactive flag.
               </p>
             ) : (
               <label>

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import styles from "../../internal-admin.module.css";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -41,11 +40,6 @@ export default async function BoxscoreChampionshipsPage() {
 
   return (
     <div>
-      <p style={{ marginBottom: 16 }}>
-        <Link href="/internal-admin/boxscore" className="app-link">
-          ← Boxscore admin
-        </Link>
-      </p>
       <h1 className={styles.pageTitle}>Champions &amp; title history</h1>
       <p className={styles.intro}>
         Manage current champions and title history rows from PWBS tables directly in the Draftastic admin panel.

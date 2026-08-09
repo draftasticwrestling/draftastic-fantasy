@@ -6,7 +6,7 @@ import { isPlacedLeagueMember, syncLeaguePlacementFromRosters } from "@/lib/leag
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 
 const LEAGUE_LIST_SELECT =
-  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_type, league_type, include_nxt, max_teams, draft_status, draft_order_method, created_at, visibility_type, public_status, is_archived, archived_at";
+  "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_type, league_type, include_nxt, max_teams, draft_status, draft_order_method, created_at, visibility_type, public_status, is_archived, archived_at, is_inactive, inactivated_at";
 
 /** When `include_nxt` migration is not applied yet. */
 const LEAGUE_LIST_SELECT_NO_INCLUDE_NXT = LEAGUE_LIST_SELECT.replace(", include_nxt", "");
@@ -32,6 +32,8 @@ export type SiteAdminLeagueSummary = {
   public_status: string | null;
   is_archived: boolean | null;
   archived_at: string | null;
+  is_inactive: boolean | null;
+  inactivated_at: string | null;
   member_count: number;
   commissioner_display_name: string | null;
 };
@@ -98,7 +100,7 @@ export async function siteAdminSearchLeagues(
   query: string
 ): Promise<{ rows: SiteAdminLeagueSummary[]; error?: string }> {
   const q = query.trim();
-  let qb = admin.from("leagues").select(LEAGUE_LIST_SELECT).order("created_at", { ascending: false }).limit(40);
+  let qb = admin.from("leagues").select(LEAGUE_LIST_SELECT).order("created_at", { ascending: false }).limit(200);
 
   if (q.length > 0) {
     const safe = escapeIlikePattern(q);
@@ -109,15 +111,46 @@ export async function siteAdminSearchLeagues(
   if (error) {
     const isMissingCol =
       error.code === "42703" ||
-      /column.*visibility_type|public_status|is_archived|archived_at|include_nxt/i.test(error.message ?? "") ||
+      /column.*visibility_type|public_status|is_archived|archived_at|is_inactive|inactivated_at|include_nxt/i.test(error.message ?? "") ||
       /schema cache/i.test(error.message ?? "");
     if (!isMissingCol) return { rows: [], error: error.message };
+    if (/is_inactive|inactivated_at/i.test(error.message ?? "")) {
+      const selectNoInactive = LEAGUE_LIST_SELECT.replace(", is_inactive, inactivated_at", "");
+      let qbi = admin.from("leagues").select(selectNoInactive).order("created_at", { ascending: false }).limit(200);
+      if (q.length > 0) {
+        const safe = escapeIlikePattern(q);
+        qbi = qbi.or(`slug.ilike.%${safe}%,name.ilike.%${safe}%`);
+      }
+      const { data: dataI, error: errI } = await qbi;
+      if (!errI && dataI) {
+        const leaguesI = (dataI ?? []) as unknown as Omit<
+          SiteAdminLeagueSummary,
+          "commissioner_display_name" | "member_count" | "is_inactive" | "inactivated_at"
+        >[];
+        const namesI = await commissionerNamesByIds(
+          admin,
+          leaguesI.map((l) => l.commissioner_id)
+        );
+        const countsI = await memberCountsByLeagueId(
+          admin,
+          leaguesI.map((l) => l.id)
+        );
+        const rows: SiteAdminLeagueSummary[] = leaguesI.map((l) => ({
+          ...l,
+          is_inactive: false,
+          inactivated_at: null,
+          member_count: countsI.get(l.id) ?? 0,
+          commissioner_display_name: namesI.get(l.commissioner_id) ?? null,
+        }));
+        return { rows };
+      }
+    }
     if (/include_nxt/i.test(error.message ?? "")) {
       let qbn = admin
         .from("leagues")
         .select(LEAGUE_LIST_SELECT_NO_INCLUDE_NXT)
         .order("created_at", { ascending: false })
-        .limit(40);
+        .limit(200);
       if (q.length > 0) {
         const safe = escapeIlikePattern(q);
         qbn = qbn.or(`slug.ilike.%${safe}%,name.ilike.%${safe}%`);
@@ -151,7 +184,7 @@ export async function siteAdminSearchLeagues(
         "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, league_type, max_teams, draft_status, created_at"
       )
       .order("created_at", { ascending: false })
-      .limit(40);
+      .limit(200);
     if (q.length > 0) {
       const safe = escapeIlikePattern(q);
       qb2 = qb2.or(`slug.ilike.%${safe}%,name.ilike.%${safe}%`);
@@ -160,7 +193,14 @@ export async function siteAdminSearchLeagues(
     if (err2) return { rows: [], error: err2.message };
     const leagues2 = (data2 ?? []) as Omit<
       SiteAdminLeagueSummary,
-      "commissioner_display_name" | "visibility_type" | "public_status" | "is_archived" | "archived_at" | "member_count"
+      | "commissioner_display_name"
+      | "visibility_type"
+      | "public_status"
+      | "is_archived"
+      | "archived_at"
+      | "is_inactive"
+      | "inactivated_at"
+      | "member_count"
     >[];
     const names2 = await commissionerNamesByIds(
       admin,
@@ -179,6 +219,8 @@ export async function siteAdminSearchLeagues(
       public_status: null,
       is_archived: false,
       archived_at: null,
+      is_inactive: false,
+      inactivated_at: null,
       member_count: counts2.get(l.id) ?? 0,
       commissioner_display_name: names2.get(l.commissioner_id) ?? null,
     }));
@@ -227,7 +269,7 @@ export async function siteAdminGetLeagueBySlug(
   if (leagueErr) {
     const isMissingCol =
       leagueErr.code === "42703" ||
-      /column.*visibility_type|public_status|is_archived|archived_at/i.test(leagueErr.message ?? "") ||
+      /column.*visibility_type|public_status|is_archived|archived_at|is_inactive|inactivated_at/i.test(leagueErr.message ?? "") ||
       /schema cache/i.test(leagueErr.message ?? "");
     if (!isMissingCol) return { detail: null, error: leagueErr.message };
     const retry = await admin.from("leagues").select(LEAGUE_DETAIL_SELECT_LEGACY).eq("slug", slug).maybeSingle();
@@ -243,6 +285,8 @@ export async function siteAdminGetLeagueBySlug(
         public_status: null,
         is_archived: false,
         archived_at: null,
+        is_inactive: false,
+        inactivated_at: null,
       } as typeof league;
     }
   }
@@ -386,6 +430,8 @@ async function buildSiteAdminLeagueDetail(
   const public_status = L.public_status ?? null;
   const is_archived = Boolean(L.is_archived ?? false);
   const archived_at = L.archived_at ?? null;
+  const is_inactive = Boolean((L as { is_inactive?: boolean | null }).is_inactive ?? false);
+  const inactivated_at = (L as { inactivated_at?: string | null }).inactivated_at ?? null;
   const placedCount = membersOut.filter((m) => m.placement_label.startsWith("Placed")).length;
   const pendingCount = membersOut.filter((m) => m.placement_label === "Pending setup").length;
 
@@ -397,6 +443,8 @@ async function buildSiteAdminLeagueDetail(
         public_status,
         is_archived,
         archived_at,
+        is_inactive,
+        inactivated_at,
         member_count: memberRows.length,
         placed_member_count: placedCount,
         pending_member_count: pendingCount,

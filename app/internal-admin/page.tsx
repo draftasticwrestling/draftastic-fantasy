@@ -62,10 +62,23 @@ export default function InternalAdminHomePage() {
         </li>
         <li>
           <Link href="/internal-admin/boxscore" className={styles.cardLink}>
-            <span className={styles.cardTitle}>Boxscore admin</span>
+            <span className={styles.cardTitle}>Wrestlers</span>
             <span className={styles.cardDesc}>
-              Wrestlers, tag teams, championships, live results, and dropdown options. Event editing lives under Events
-              above.
+              Wrestlers, tag teams, stables, and related roster tools used by results and fantasy scoring.
+            </span>
+          </Link>
+        </li>
+        <li>
+          <Link href="/internal-admin/boxscore/championships" className={styles.cardLink}>
+            <span className={styles.cardTitle}>Championships</span>
+            <span className={styles.cardDesc}>Current champions and championship history edits.</span>
+          </Link>
+        </li>
+        <li>
+          <Link href="/internal-admin/boxscore/options" className={styles.cardLink}>
+            <span className={styles.cardTitle}>Dropdown options</span>
+            <span className={styles.cardDesc}>
+              Event type, stipulation, and special match winner labels (merged with built-in lists).
             </span>
           </Link>
         </li>

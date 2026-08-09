@@ -1,12 +1,26 @@
 import Link from "next/link";
 import { FA_SIGNINGS_PER_WEEK } from "@/lib/publicLeagueRosterRules";
 import { HEAD_TO_HEAD_NXT_ROSTER_RULES_BY_TEAMS } from "@/lib/leagueStructure";
-import { GENERAL_RULES, RAWSMACKDOWN_POINTS } from "@/lib/howItWorksPoints";
+import {
+  GENERAL_RULES,
+  MINOR_PLE_BASE_POINTS,
+  MITB_POINTS,
+  RAWSMACKDOWN_POINTS,
+  SURVIVOR_SERIES_POINTS,
+} from "@/lib/howItWorksPoints";
 import { HowItWorksEventLogo } from "./HowItWorksEventLogo";
 import { HowItWorksNxtScoring } from "./HowItWorksNxtScoring";
 import { HowItWorksSpecialMatches } from "./HowItWorksSpecialMatches";
 import { HowItWorksTitlePoints } from "./HowItWorksTitlePoints";
 import styles from "./HowItWorks.module.css";
+
+/** Same table as other non–Stand & Deliver NXT PLEs (see NXT scoring below). */
+const NXT_HEATWAVE_POINTS: [string, number][] = [
+  ["Main Eventing", 3],
+  ["Winning the Main Event", 4],
+  ["Being on the Match Card (non-main event)", 2],
+  ["Winning your Match", 3],
+];
 
 /** Faction counts shown in the R2WG roster table (TSP 3–6 + H2H 4–8). */
 const R2WG_ROSTER_TABLE_SIZES = [3, 4, 5, 6, 7, 8] as const;
@@ -186,9 +200,108 @@ export function HowItWorksRoadToWarGames() {
       <section style={{ marginBottom: 40 }}>
         <h2 className={styles.sectionTitle}>Premium live events in this season</h2>
         <p style={{ marginBottom: 16, color: "#555" }}>
-          Main roster PLE details for Road to War Games will be added here as the August–November card is finalized.
-          The season championship final for Head-to-Head leagues is Survivor Series: War Games week.
+          This window includes <strong>NXT Heatwave</strong> (Aug 30), one <strong>minor PLE</strong> (Saturday
+          Night&apos;s Main Event, Sep 6), one <strong>medium PLE</strong> (Money in the Bank, Oct 10), and{" "}
+          <strong>Survivor Series: War Games</strong> (Nov 28) — the season championship final for Head-to-Head
+          leagues. They use the structures below.
         </p>
+        <div className={styles.rulesBlock}>
+          <p>
+            A standard match victory earns full points. If a victory occurs via disqualification (DQ), it is worth half
+            points.
+          </p>
+          <p>
+            A successful title defense is worth an additional 4 points (2 if via DQ). An initial title win earns an
+            additional 5 points. NXT Heatwave uses NXT title bonuses (see NXT scoring below).
+          </p>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 8 }}>NXT PLE — Heatwave (Aug 30)</h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="nxt-heatwave"
+                placeholderText="NXT Heatwave"
+                className={styles.eventCardLogo}
+              />
+              {NXT_HEATWAVE_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>
+          Minor PLE — Saturday Night&apos;s Main Event (Sep 6)
+        </h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="saturday-nights-main-event"
+                placeholderText="Saturday Night's Main Event"
+                className={styles.eventCardLogo}
+              />
+              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>
+          Medium PLE — Money in the Bank (Oct 10)
+        </h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="money-in-the-bank"
+                placeholderText="Money in the Bank logo"
+                className={styles.eventCardLogo}
+              />
+              {MITB_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>
+          Major PLE — Survivor Series: War Games (Nov 28)
+        </h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="survivor-series"
+                placeholderText="Survivor Series: War Games logo"
+                className={styles.eventCardLogo}
+              />
+              {SURVIVOR_SERIES_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{String(pts)}</span>
+                </div>
+              ))}
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 8 }}>
+                Men&apos;s War Games is expected to main-event; War Games scoring does not stack additional main-event
+                points (Winning War Games = Winning the Main Event). Entry-order bonus is per team: 1st = 10, 2nd = 8,
+                3rd = 6, 4th = 4, 5th = 2.
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section style={{ marginBottom: 32 }}>
@@ -203,7 +316,7 @@ export function HowItWorksRoadToWarGames() {
       <HowItWorksNxtScoring
         sectionContext={
           <>
-            This scoring profile is used for all <strong>Road to War Games</strong> leagues — NXT is always included.
+            The below scoring profile is used for all <strong>Road to War Games</strong> leagues — NXT is always included.
           </>
         }
         beltContext={

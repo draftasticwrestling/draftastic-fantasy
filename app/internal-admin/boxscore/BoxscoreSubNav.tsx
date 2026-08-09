@@ -3,20 +3,36 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const LINKS = [
-  { href: "/internal-admin/boxscore/events", label: "Events", match: (p: string) => p.startsWith("/internal-admin/boxscore/events") },
-  { href: "/internal-admin/boxscore/wrestlers", label: "Wrestlers", match: (p: string) => p.startsWith("/internal-admin/boxscore/wrestlers") },
-  { href: "/internal-admin/boxscore/tag-teams-stables", label: "Tag teams", match: (p: string) => p.startsWith("/internal-admin/boxscore/tag-teams-stables") },
-  { href: "/internal-admin/boxscore/championships", label: "Championships", match: (p: string) => p.startsWith("/internal-admin/boxscore/championships") },
-  { href: "/internal-admin/boxscore/options", label: "Options", match: (p: string) => p.startsWith("/internal-admin/boxscore/options") },
+const WRESTLERS_LINKS = [
+  {
+    href: "/internal-admin/boxscore/wrestlers",
+    label: "Wrestlers",
+    match: (p: string) => p.startsWith("/internal-admin/boxscore/wrestlers"),
+  },
+  {
+    href: "/internal-admin/boxscore/tag-teams-stables",
+    label: "Tag teams & stables",
+    match: (p: string) => p.startsWith("/internal-admin/boxscore/tag-teams-stables"),
+  },
 ] as const;
 
+function isWrestlersSection(pathname: string): boolean {
+  return (
+    pathname === "/internal-admin/boxscore" ||
+    pathname === "/internal-admin/boxscore/" ||
+    pathname.startsWith("/internal-admin/boxscore/wrestlers") ||
+    pathname.startsWith("/internal-admin/boxscore/tag-teams-stables")
+  );
+}
+
+/** Sub-nav for the Wrestlers section (wrestlers + tag teams / stables). */
 export function BoxscoreSubNav() {
   const pathname = usePathname() ?? "";
+  if (!isWrestlersSection(pathname)) return null;
 
   return (
     <nav
-      aria-label="Boxscore admin sections"
+      aria-label="Wrestlers admin sections"
       style={{
         display: "flex",
         flexWrap: "wrap",
@@ -26,7 +42,7 @@ export function BoxscoreSubNav() {
         borderBottom: "1px solid var(--color-border)",
       }}
     >
-      {LINKS.map((item) => {
+      {WRESTLERS_LINKS.map((item) => {
         const active = item.match(pathname);
         return (
           <Link

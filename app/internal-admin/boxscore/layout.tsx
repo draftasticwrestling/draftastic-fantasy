@@ -5,8 +5,8 @@ export default function BoxscoreAdminLayout({ children }: { children: React.Reac
   return (
     <>
       <p style={{ marginBottom: 12 }}>
-        <Link href="/internal-admin/boxscore" className="app-link" style={{ fontSize: 14 }}>
-          ← Boxscore admin home
+        <Link href="/internal-admin" className="app-link" style={{ fontSize: 14 }}>
+          ← Site admin
         </Link>
       </p>
       <BoxscoreSubNav />

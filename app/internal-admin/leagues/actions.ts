@@ -5,9 +5,11 @@ import { redirect } from "next/navigation";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { addWrestlerToRoster, removeWrestlerFromRoster } from "@/lib/leagues";
-import { getRosterRulesForLeague, isRoadToWarGamesSeasonSlug } from "@/lib/leagueStructure";
-import { getMondayOfWeek } from "@/lib/fantasyWeekBounds";
-import { getCivilYmdInPst } from "@/lib/pstCivilTime";
+import { getLeagueRosterValidationFailures } from "@/lib/leagueRosterValidation";
+import {
+  finalizeDraftWithRosterValidation,
+  lockRoadToWarGamesLeagueOnApproval,
+} from "@/lib/leagueDraftFinalize";
 import {
   runFullAutopickDraftAtScheduledTime,
   siteAdminClearDraftOrder,
@@ -15,7 +17,7 @@ import {
   restartDraft,
 } from "@/lib/leagueDraft";
 
-type Failure = { userId: string; expectedSize: number; actualSize: number; female: number; male: number; minFemale: number; minMale: number };
+type Failure = Awaited<ReturnType<typeof getLeagueRosterValidationFailures>>[number];
 
 function leagueRedirect(slug: string, ok?: string, err?: string): never {
   const params = new URLSearchParams();
@@ -26,56 +28,7 @@ function leagueRedirect(slug: string, ok?: string, err?: string): never {
 }
 
 async function getRosterFailures(leagueId: string): Promise<Failure[]> {
-  const admin = getAdminClient();
-  if (!admin) return [];
-  const [{ data: league }, { data: members }, { data: rows }, { data: genders }] = await Promise.all([
-    admin.from("leagues").select("season_slug, league_type, include_nxt").eq("id", leagueId).maybeSingle(),
-    admin.from("league_members").select("user_id").eq("league_id", leagueId),
-    admin.from("league_rosters").select("user_id, wrestler_id").eq("league_id", leagueId).is("released_at", null),
-    admin.from("wrestlers").select("id, gender"),
-  ]);
-  const memberIds = ((members ?? []) as { user_id: string }[]).map((m) => m.user_id);
-  const rules = getRosterRulesForLeague(
-    memberIds.length,
-    (league as { season_slug?: string | null } | null)?.season_slug ?? null,
-    Boolean((league as { include_nxt?: boolean | null } | null)?.include_nxt),
-    (league as { league_type?: string | null } | null)?.league_type ?? null
-  );
-  if (!rules) return [];
-  const genderById = new Map<string, "F" | "M" | null>();
-  for (const w of (genders ?? []) as { id: string; gender: string | null }[]) {
-    const g = String(w.gender ?? "").trim().toLowerCase();
-    genderById.set(w.id, g === "female" || g === "f" ? "F" : g === "male" || g === "m" ? "M" : null);
-  }
-  const rosterByUser = new Map<string, string[]>();
-  for (const r of (rows ?? []) as { user_id: string; wrestler_id: string }[]) {
-    const list = rosterByUser.get(r.user_id) ?? [];
-    list.push(r.wrestler_id);
-    rosterByUser.set(r.user_id, list);
-  }
-  const failures: Failure[] = [];
-  for (const userId of memberIds) {
-    const roster = rosterByUser.get(userId) ?? [];
-    let female = 0;
-    let male = 0;
-    for (const wid of roster) {
-      const g = genderById.get(wid) ?? null;
-      if (g === "F") female += 1;
-      if (g === "M") male += 1;
-    }
-    if (roster.length !== rules.rosterSize || female < rules.minFemale || male < rules.minMale) {
-      failures.push({
-        userId,
-        expectedSize: rules.rosterSize,
-        actualSize: roster.length,
-        female,
-        male,
-        minFemale: rules.minFemale,
-        minMale: rules.minMale,
-      });
-    }
-  }
-  return failures;
+  return getLeagueRosterValidationFailures(leagueId);
 }
 
 /**
@@ -135,7 +88,7 @@ export async function adminRunAutopickDraftAction(formData: FormData): Promise<v
   }
   redirect(
     `${base}?ok=${encodeURIComponent(
-      "Autopick run finished this request. Refresh: status should be ready_for_review (or still in_progress if the draft is large—use cron to finish)."
+      "Autopick run finished this request. Refresh: status should be completed if rosters validated, or ready_for_review if validation failed (or still in_progress if the draft is large—use cron to finish)."
     )}`
   );
 }
@@ -187,77 +140,6 @@ export async function adminRedrawDraftOrderAction(formData: FormData): Promise<v
   redirect(`${base}?ok=${encodeURIComponent("New random draft order generated.")}`);
 }
 
-/**
- * Earliest WWE event date on/after `fromYmd` (Raw, SmackDown, NXT, and PLEs).
- * Used for Road to War Games Total Season Points scoring start.
- */
-async function getNextWweEventDateOnOrAfter(
-  admin: NonNullable<ReturnType<typeof getAdminClient>>,
-  fromYmd: string
-): Promise<string | null> {
-  const { data, error } = await admin
-    .from("events")
-    .select("date")
-    .gte("date", fromYmd)
-    .order("date", { ascending: true })
-    .limit(1);
-  if (error || !data?.length) return null;
-  const date = (data[0] as { date?: string | null }).date;
-  return typeof date === "string" && date.length >= 10 ? date.slice(0, 10) : null;
-}
-
-/**
- * Road to War Games: when a private league's draft is completed + approved, lock
- * the league to the number of teams that actually drafted and set the scoring
- * start date.
- * - Total Season Points: first WWE event on/after approval (NXT included).
- * - Head-to-Head: Monday of the week after approval (matchups run full Mon–Sun weeks).
- *
- * `start_date` becomes the single source of truth for scoring start, so we clear
- * `draft_date` (which otherwise takes precedence in getEffectiveLeagueStartDate
- * and the H2H week grid). No-op for non-R2WG seasons.
- */
-async function lockRoadToWarGamesLeagueOnApproval(leagueId: string): Promise<void> {
-  const admin = getAdminClient();
-  if (!admin) return;
-  const { data: league } = await admin
-    .from("leagues")
-    .select("season_slug, league_type")
-    .eq("id", leagueId)
-    .maybeSingle();
-  const seasonSlug = (league as { season_slug?: string | null } | null)?.season_slug ?? null;
-  if (!isRoadToWarGamesSeasonSlug(seasonSlug)) return;
-
-  const leagueType = ((league as { league_type?: string | null } | null)?.league_type ?? "").trim();
-  const isHeadToHead = leagueType === "head_to_head" || leagueType === "combo";
-
-  const { count: memberCount } = await admin
-    .from("league_members")
-    .select("user_id", { count: "exact", head: true })
-    .eq("league_id", leagueId);
-  const draftedTeams = memberCount ?? 0;
-
-  const approvalYmd = getCivilYmdInPst(Date.now());
-  let scoringStartYmd = approvalYmd;
-  if (isHeadToHead) {
-    const monday = getMondayOfWeek(approvalYmd);
-    const d = new Date(monday + "T12:00:00Z");
-    d.setUTCDate(d.getUTCDate() + 7);
-    scoringStartYmd = d.toISOString().slice(0, 10);
-  } else {
-    const nextEvent = await getNextWweEventDateOnOrAfter(admin, approvalYmd);
-    if (nextEvent) scoringStartYmd = nextEvent;
-  }
-
-  const update: Record<string, unknown> = {
-    start_date: scoringStartYmd,
-    draft_date: null,
-  };
-  if (draftedTeams >= 3 && draftedTeams <= 16) update.max_teams = draftedTeams;
-
-  await admin.from("leagues").update(update).eq("id", leagueId);
-}
-
 export async function adminApproveDraftReviewAction(formData: FormData): Promise<void> {
   await requireSiteAdmin();
   const admin = getAdminClient();
@@ -276,11 +158,13 @@ export async function adminApproveDraftReviewAction(formData: FormData): Promise
     .from("leagues")
     .update({
       draft_status: "completed",
+      is_inactive: false,
+      inactivated_at: null,
       // Safe even when column doesn't exist (fallback below).
       ...(note ? ({ draft_review_notes: note } as Record<string, unknown>) : {}),
     })
     .eq("id", leagueId);
-  if (approveRes.error && /draft_review_notes/i.test(approveRes.error.message ?? "")) {
+  if (approveRes.error && /draft_review_notes|is_inactive|inactivated_at/i.test(approveRes.error.message ?? "")) {
     approveRes = await admin.from("leagues").update({ draft_status: "completed" }).eq("id", leagueId);
   }
   if (approveRes.error) {
@@ -293,7 +177,45 @@ export async function adminApproveDraftReviewAction(formData: FormData): Promise
   }
   revalidatePath(`/internal-admin/leagues/${encodeURIComponent(leagueSlug)}`);
   revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}`);
+  revalidatePath("/internal-admin/leagues");
   redirect(`${adminPath}?review=approved`);
+}
+
+/** Site admin: finalize an offline draft (auto-complete if rosters validate; else ready_for_review). */
+export async function adminMarkOfflineDraftReadyForReviewAction(formData: FormData): Promise<void> {
+  await requireSiteAdmin();
+  const admin = getAdminClient();
+  const leagueId = String(formData.get("leagueId") ?? "").trim();
+  const leagueSlug = String(formData.get("leagueSlug") ?? "").trim();
+  if (!admin || !leagueId || !leagueSlug) return;
+
+  const { data: league } = await admin
+    .from("leagues")
+    .select("draft_type, draft_status")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const draftType = String((league as { draft_type?: string | null } | null)?.draft_type ?? "").toLowerCase();
+  const draftStatus = String((league as { draft_status?: string | null } | null)?.draft_status ?? "not_started");
+  if (draftType !== "offline") {
+    return leagueRedirect(leagueSlug, undefined, "Only offline drafts can be finalized this way.");
+  }
+  if (draftStatus === "completed") {
+    return leagueRedirect(leagueSlug, undefined, "Draft is already completed.");
+  }
+
+  const result = await finalizeDraftWithRosterValidation(leagueId, { client: admin });
+  if (result.error) return leagueRedirect(leagueSlug, undefined, result.error);
+
+  revalidatePath("/internal-admin/leagues");
+  revalidatePath(`/internal-admin/leagues/${encodeURIComponent(leagueSlug)}`);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}`);
+  if (result.status === "completed") {
+    return leagueRedirect(leagueSlug, "Offline draft auto-approved — rosters passed validation.");
+  }
+  return leagueRedirect(
+    leagueSlug,
+    `Offline draft needs admin review (${result.failureCount} roster issue(s)).`
+  );
 }
 
 export async function adminAddRosterEntryAction(formData: FormData): Promise<void> {
@@ -414,12 +336,49 @@ export async function adminUnarchiveLeagueAction(formData: FormData): Promise<vo
       archived_at: null,
       archived_by: null,
       archive_reason: null,
+      is_inactive: false,
+      inactivated_at: null,
+    })
+    .eq("id", leagueId);
+  if (res.error) {
+    // Migration may not be applied yet — retry without inactive columns.
+    if (/is_inactive|inactivated_at/i.test(res.error.message ?? "")) {
+      const retry = await admin
+        .from("leagues")
+        .update({
+          is_archived: false,
+          archived_at: null,
+          archived_by: null,
+          archive_reason: null,
+        })
+        .eq("id", leagueId);
+      if (retry.error) return leagueRedirect(leagueSlug, undefined, retry.error.message);
+    } else {
+      return leagueRedirect(leagueSlug, undefined, res.error.message);
+    }
+  }
+  revalidatePath("/internal-admin/leagues");
+  revalidatePath(`/internal-admin/leagues/${encodeURIComponent(leagueSlug)}`);
+  return leagueRedirect(leagueSlug, "League unarchived.");
+}
+
+export async function adminClearInactiveLeagueAction(formData: FormData): Promise<void> {
+  await requireSiteAdmin();
+  const admin = getAdminClient();
+  const leagueId = String(formData.get("leagueId") ?? "").trim();
+  const leagueSlug = String(formData.get("leagueSlug") ?? "").trim();
+  if (!admin || !leagueId || !leagueSlug) return;
+  const res = await admin
+    .from("leagues")
+    .update({
+      is_inactive: false,
+      inactivated_at: null,
     })
     .eq("id", leagueId);
   if (res.error) return leagueRedirect(leagueSlug, undefined, res.error.message);
   revalidatePath("/internal-admin/leagues");
   revalidatePath(`/internal-admin/leagues/${encodeURIComponent(leagueSlug)}`);
-  return leagueRedirect(leagueSlug, "League unarchived.");
+  return leagueRedirect(leagueSlug, "League marked active again.");
 }
 
 export async function adminAddUserToLeagueAction(formData: FormData): Promise<void> {

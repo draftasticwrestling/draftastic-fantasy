@@ -185,14 +185,14 @@ export default function PointsPage() {
             title="Survivor Series War Games"
             logoUrl={EVENT_LOGO_URLS["survivor-series"]}
             rows={[
-              ["Winning the Main Event", 15],
-              ["Winning War Games", 14],
-              ["Main Eventing", 12],
-              ["Winning Your Match", 10],
-              ["Wrestler Who Makes the Pin", 10],
-              ["Being on a War Games Team", 8],
-              ["Being on the Non-ME Card", 5],
-              ["Point bonus for entry order (1st = 5 pts, 5th = 1 pt)", "1–5"],
+              ["Winning the Main Event", 30],
+              ["Main Eventing", 30],
+              ["Winning War Games", 30],
+              ["Winning Your Match", 20],
+              ["Wrestler Who Makes the Pin", 20],
+              ["Being on a War Games Team", 15],
+              ["Being on the Non-ME Card", 10],
+              ["Point bonus for entry order (1st = 10 pts, 5th = 2 pts)", "10,8,6,4,2"],
             ]}
           />
           <EventTable
@@ -255,12 +255,12 @@ export default function PointsPage() {
             title="Money in the Bank"
             logoUrl={EVENT_LOGO_URLS["money-in-the-bank"]}
             rows={[
-              ["Money in the Bank Winner", 25],
-              ["Winning the Main Event", 15],
-              ["Earning a Spot in the Ladder Match", 12],
-              ["Main Eventing", 9],
-              ["Winning Your Match", 8],
-              ["Being on the Match Card (non-main event)", 4],
+              ["Money in the Bank Winner", 30],
+              ["Winning the Main Event", 16],
+              ["Earning a Spot in the Ladder Match", 15],
+              ["Main Eventing", 12],
+              ["Winning Your Match", 10],
+              ["Being on the Match Card (non-main event)", 5],
             ]}
           />
           <EventTable

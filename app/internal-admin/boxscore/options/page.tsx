@@ -1,10 +1,9 @@
-import Link from "next/link";
 import styles from "@/app/internal-admin/internal-admin.module.css";
 import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
 import type { BoxscoreUiOptionCategory } from "@/lib/boxscoreAdmin/boxscoreUiOptionsCore";
 import { BoxscoreOptionsManager } from "./BoxscoreOptionsManager";
 
-export const metadata = { title: "Boxscore dropdown options — Site admin" };
+export const metadata = { title: "Dropdown options — Site admin" };
 
 export default async function BoxscoreOptionsPage() {
   const admin = getServiceRoleClient();
@@ -23,11 +22,6 @@ export default async function BoxscoreOptionsPage() {
 
   return (
     <div>
-      <p style={{ marginBottom: 16 }}>
-        <Link href="/internal-admin/boxscore" className="app-link">
-          ← Boxscore admin
-        </Link>
-      </p>
       <h1 className={styles.pageTitle}>Boxscore dropdown options</h1>
       <p className={styles.intro} style={{ maxWidth: 720, marginBottom: 24 }}>
         Add labels for <strong>Event type</strong>, <strong>Stipulations</strong>, and <strong>Special match winner</strong> without

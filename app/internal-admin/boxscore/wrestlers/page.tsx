@@ -1,10 +1,9 @@
-import Link from "next/link";
 import styles from "../../internal-admin.module.css";
 import { requireSiteAdmin } from "@/lib/auth/siteAdmin";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { WrestlersManager } from "./WrestlersManager";
 
-export const metadata = { title: "Wrestlers (Boxscore) — Site admin" };
+export const metadata = { title: "Wrestlers — Site admin" };
 
 export default async function BoxscoreWrestlersAdminPage() {
   await requireSiteAdmin();
@@ -98,11 +97,6 @@ export default async function BoxscoreWrestlersAdminPage() {
 
   return (
     <div>
-      <p style={{ marginBottom: 16 }}>
-        <Link href="/internal-admin/boxscore" className="app-link">
-          ← Boxscore admin
-        </Link>
-      </p>
       <h1 className={styles.pageTitle}>Wrestlers</h1>
       <p className={styles.intro}>
         Manage wrestler records used by results pages and fantasy scoring. This ports the PWBS add/edit workflow into the

@@ -35,9 +35,21 @@ const NAV = [
   },
   {
     href: "/internal-admin/boxscore",
-    label: "Boxscore",
+    label: "Wrestlers",
     match: (p: string) =>
-      p.startsWith("/internal-admin/boxscore") && !p.startsWith("/internal-admin/boxscore/events"),
+      p === "/internal-admin/boxscore" ||
+      p.startsWith("/internal-admin/boxscore/wrestlers") ||
+      p.startsWith("/internal-admin/boxscore/tag-teams-stables"),
+  },
+  {
+    href: "/internal-admin/boxscore/championships",
+    label: "Championships",
+    match: (p: string) => p.startsWith("/internal-admin/boxscore/championships"),
+  },
+  {
+    href: "/internal-admin/boxscore/options",
+    label: "Options",
+    match: (p: string) => p.startsWith("/internal-admin/boxscore/options"),
   },
   {
     href: "/internal-admin/stat-corrections",

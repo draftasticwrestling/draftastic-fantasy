@@ -133,7 +133,8 @@ export function HowItWorksMainRosterEventScoring({ intro }: Props) {
                 </div>
               ))}
               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 8 }}>
-                (Firsts get 5pts, fifths get 1pt)
+                Men&apos;s War Games is expected to main-event; War Games scoring does not stack additional main-event
+                points (Winning War Games = Winning the Main Event). Entry order within each team: 10 / 8 / 6 / 4 / 2.
               </p>
             </div>
             <div className={styles.eventCard}>

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import styles from "../internal-admin.module.css";
 
 export function PlaceholderSection({
@@ -10,11 +9,6 @@ export function PlaceholderSection({
 }) {
   return (
     <div>
-      <p style={{ marginBottom: 16 }}>
-        <Link href="/internal-admin/boxscore" className="app-link">
-          ← Boxscore admin
-        </Link>
-      </p>
       <h1 className={styles.pageTitle}>{title}</h1>
       <p style={{ color: "var(--color-text-muted)", maxWidth: 640, lineHeight: 1.55 }}>{summary}</p>
       <p

@@ -490,3 +490,78 @@ export async function deleteLeagueFormAction(
   if (result?.error) return result;
   return null;
 }
+
+/**
+ * Commissioner: after entering all offline draft rosters, finalize the draft.
+ * Auto-approves when rosters pass size/gender checks; otherwise ready_for_review for admin.
+ */
+export async function submitOfflineDraftForReviewAction(formData: FormData): Promise<void> {
+  const leagueSlug = String(formData.get("leagueSlug") ?? "").trim();
+  if (!leagueSlug) return;
+  const { user } = await getServerAuth();
+  if (!user) redirect(`/login?next=${encodeURIComponent(`/leagues/${leagueSlug}/manage-rosters`)}`);
+
+  const league = await getLeagueBySlug(leagueSlug);
+  if (!league) redirect("/leagues");
+  const isSiteAdmin = await getIsSiteAdmin();
+  if (league.role !== "commissioner" && !isSiteAdmin) {
+    redirect(`/leagues/${encodeURIComponent(leagueSlug)}/manage-rosters?err=${encodeURIComponent("Only the GM can finalize the offline draft.")}`);
+  }
+
+  const draftType = String(league.draft_type ?? "").toLowerCase();
+  if (draftType !== "offline") {
+    redirect(
+      `/leagues/${encodeURIComponent(leagueSlug)}/manage-rosters?err=${encodeURIComponent("This league is not set to offline draft.")}`
+    );
+  }
+
+  const draftStatus = String(league.draft_status ?? "not_started");
+  if (draftStatus === "completed") {
+    redirect(`/leagues/${encodeURIComponent(leagueSlug)}/manage-rosters?ok=${encodeURIComponent("Draft is already approved.")}`);
+  }
+  if (draftStatus === "ready_for_review") {
+    redirect(
+      `/leagues/${encodeURIComponent(leagueSlug)}/manage-rosters?ok=${encodeURIComponent(
+        "Draft is awaiting admin review because automatic roster validation found issues."
+      )}`
+    );
+  }
+
+  const { getMinimumTeamsForLeagueType } = await import("@/lib/leagueStructure");
+  const { getLeagueMembers } = await import("@/lib/leagues");
+  const members = await getLeagueMembers(league.id);
+  const minTeams = getMinimumTeamsForLeagueType(league.league_type);
+  if (members.length < minTeams) {
+    redirect(
+      `/leagues/${encodeURIComponent(leagueSlug)}/manage-rosters?err=${encodeURIComponent(
+        `Need at least ${minTeams} factions before finalizing the draft.`
+      )}`
+    );
+  }
+
+  const { finalizeDraftWithRosterValidation } = await import("@/lib/leagueDraftFinalize");
+  const result = await finalizeDraftWithRosterValidation(league.id);
+  if (result.error) {
+    redirect(
+      `/leagues/${encodeURIComponent(leagueSlug)}/manage-rosters?err=${encodeURIComponent(result.error)}`
+    );
+  }
+
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}`);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}/manage-rosters`);
+  revalidatePath(`/leagues/${encodeURIComponent(leagueSlug)}/draft`);
+  revalidatePath("/internal-admin/leagues");
+
+  if (result.status === "completed") {
+    redirect(
+      `/leagues/${encodeURIComponent(leagueSlug)}?ok=${encodeURIComponent(
+        "Offline draft finalized — rosters passed validation and the draft is approved."
+      )}`
+    );
+  }
+  redirect(
+    `/leagues/${encodeURIComponent(leagueSlug)}?ok=${encodeURIComponent(
+      `Offline draft submitted for admin review (${result.failureCount} roster issue(s) need attention).`
+    )}`
+  );
+}

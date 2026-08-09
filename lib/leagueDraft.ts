@@ -20,6 +20,7 @@ import {
 } from "@/lib/leagueStructure";
 import { isBlocklistedSlug } from "@/lib/draftBlocklist";
 import { addWrestlerToRoster } from "@/lib/leagues";
+import { finalizeDraftWithRosterValidation } from "@/lib/leagueDraftFinalize";
 import { timestamptzForAcquiredAtDate } from "@/lib/rosterTimestamps";
 import { aggregateWrestlerPoints, getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
@@ -626,7 +627,8 @@ async function getMaxOverallPickForLeagueOrder(
 }
 
 /**
- * If the league cursor is past the last slot in the draft order, mark the draft ready for review.
+ * If the league cursor is past the last slot in the draft order, finalize the draft
+ * (auto-complete when rosters validate; otherwise ready_for_review).
  * Heals stuck `in_progress` leagues after a bad `total_picks` / order mismatch.
  */
 async function finalizeDraftIfCursorPastOrderEnd(admin: AdminClient, leagueId: string): Promise<boolean> {
@@ -643,15 +645,8 @@ async function finalizeDraftIfCursorPastOrderEnd(admin: AdminClient, leagueId: s
   const maxOverall = await getMaxOverallPickForLeagueOrder(admin, leagueId, runId);
   if (maxOverall == null) return false;
   if (cursor <= maxOverall) return false;
-  const { error } = await admin
-    .from("leagues")
-    .update({
-      draft_current_pick: null,
-      draft_status: "ready_for_review",
-      draft_current_pick_started_at: null,
-    })
-    .eq("id", leagueId);
-  return !error;
+  const result = await finalizeDraftWithRosterValidation(leagueId, { client: admin, clearCursor: true });
+  return !result.error;
 }
 
 /** Active draft run for order/pick queries; null = legacy leagues before `current_draft_run_id`. */
@@ -1351,19 +1346,20 @@ export async function makeDraftPick(
 
   await afterManualPickResetState(admin, leagueId, current.user_id, draftRunId);
 
-  const updates: {
-    draft_current_pick: number | null;
-    draft_status: string;
-    draft_current_pick_started_at?: string;
-  } =
-    nextPick > totalPicks
-      ? { draft_current_pick: null, draft_status: "ready_for_review" }
-      : {
-          draft_current_pick: nextPick,
-          draft_status: "in_progress",
-          draft_current_pick_started_at: new Date().toISOString(),
-        };
-  const { error: updateError } = await admin.from("leagues").update(updates).eq("id", leagueId);
+  if (nextPick > totalPicks) {
+    const finalized = await finalizeDraftWithRosterValidation(leagueId, { client: admin, clearCursor: true });
+    if (finalized.error) return { error: finalized.error };
+    return {};
+  }
+
+  const { error: updateError } = await admin
+    .from("leagues")
+    .update({
+      draft_current_pick: nextPick,
+      draft_status: "in_progress",
+      draft_current_pick_started_at: new Date().toISOString(),
+    })
+    .eq("id", leagueId);
   if (updateError) return { error: updateError.message };
   return {};
 }
@@ -2035,19 +2031,18 @@ async function healOneStaleDraftCursorStep(admin: AdminClient, leagueId: string)
 
   const maxOverall = await getMaxOverallPickForLeagueOrder(admin, leagueId, runId);
   const nextPick = pickNum + 1;
-  const updates: {
-    draft_current_pick: number | null;
-    draft_status: string;
-    draft_current_pick_started_at?: string | null;
-  } =
-    maxOverall != null && nextPick > maxOverall
-      ? { draft_current_pick: null, draft_status: "ready_for_review", draft_current_pick_started_at: null }
-      : {
-          draft_current_pick: nextPick,
-          draft_status: "in_progress",
-          draft_current_pick_started_at: new Date().toISOString(),
-        };
-  const { error } = await admin.from("leagues").update(updates).eq("id", leagueId);
+  if (maxOverall != null && nextPick > maxOverall) {
+    const finalized = await finalizeDraftWithRosterValidation(leagueId, { client: admin, clearCursor: true });
+    return !finalized.error;
+  }
+  const { error } = await admin
+    .from("leagues")
+    .update({
+      draft_current_pick: nextPick,
+      draft_status: "in_progress",
+      draft_current_pick_started_at: new Date().toISOString(),
+    })
+    .eq("id", leagueId);
   return !error;
 }
 
@@ -2580,20 +2575,20 @@ async function performOneAutoPick(
 
   await afterAutoPickIncrementState(admin, leagueId, current.user_id, draftRunId);
 
-  const updates: {
-    draft_current_pick: number | null;
-    draft_status: string;
-    draft_current_pick_started_at?: string;
-  } =
-    maxOverall != null && nextPick > maxOverall
-      ? { draft_current_pick: null, draft_status: "ready_for_review" }
-      : {
-          draft_current_pick: nextPick,
-          draft_status: "in_progress",
-          draft_current_pick_started_at: new Date().toISOString(),
-        };
+  if (maxOverall != null && nextPick > maxOverall) {
+    const finalized = await finalizeDraftWithRosterValidation(leagueId, { client: admin, clearCursor: true });
+    if (finalized.error) return { error: finalized.error };
+    return { nextPick, totalPicks: maxOverall ?? totalPicks };
+  }
 
-  const { error: updateError } = await admin.from("leagues").update(updates).eq("id", leagueId);
+  const { error: updateError } = await admin
+    .from("leagues")
+    .update({
+      draft_current_pick: nextPick,
+      draft_status: "in_progress",
+      draft_current_pick_started_at: new Date().toISOString(),
+    })
+    .eq("id", leagueId);
   if (updateError) return { error: updateError.message };
   return { nextPick, totalPicks: maxOverall ?? totalPicks };
 }
