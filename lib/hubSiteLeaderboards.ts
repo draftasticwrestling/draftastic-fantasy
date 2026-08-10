@@ -5,7 +5,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   getMondayOfWeek,
-  getPointsByOwnerForLeagueWeekFromMatchups,
   getPointsByOwnerForLeagueWithBonuses,
 } from "@/lib/leagueMatchups";
 import { getCurrentWeekStartMondayPst, shiftWeekStartMonday } from "@/lib/weeklyLeaderboards";
@@ -54,6 +53,36 @@ function mapToTop10Positive(totals: Map<string, number>): { userId: string; poin
     .slice(0, 10);
 }
 
+function emptyPayload(
+  available: boolean,
+  extras?: Partial<HubSiteLeaderboardsPayload>
+): HubSiteLeaderboardsPayload {
+  return {
+    weekStart: null,
+    currentWeekStartMondayPst: null,
+    weeklyPrevWeekStart: null,
+    weeklyNextWeekStart: null,
+    weeklyTop10: [],
+    seasonTop10: [],
+    hubLeaderboardsAvailable: available,
+    ...extras,
+  };
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function loadActiveCompletedLeagueIds(admin: NonNullable<ReturnType<typeof getAdminClient>>): Promise<string[]> {
   const { data, error } = await admin
     .from("leagues")
@@ -100,6 +129,8 @@ function toDisplayRows(
 }
 
 const HUB_LEADERBOARD_CONCURRENCY = 4;
+/** Keep season live scoring under Netlify SSR budgets; weekly uses snapshots. */
+const HUB_SEASON_LIVE_BUDGET_MS = 3500;
 
 /**
  * Hub “Most points this season”: per user, their **highest** season-to-date total in any one league (never summed
@@ -108,35 +139,48 @@ const HUB_LEADERBOARD_CONCURRENCY = 4;
 async function aggregateLiveSeasonByUser(admin: SupabaseClient, leagueIds: string[]): Promise<Map<string, number>> {
   const userMax = new Map<string, number>();
   await mapConcurrent(leagueIds, HUB_LEADERBOARD_CONCURRENCY, async (leagueId) => {
-    const byOwner = await getPointsByOwnerForLeagueWithBonuses(leagueId, admin);
-    for (const [uid, pts] of Object.entries(byOwner)) {
-      const p = Number(pts ?? 0);
-      const prev = userMax.get(uid) ?? 0;
-      if (p > prev) userMax.set(uid, p);
+    try {
+      const byOwner = await getPointsByOwnerForLeagueWithBonuses(leagueId, admin);
+      for (const [uid, pts] of Object.entries(byOwner)) {
+        const p = Number(pts ?? 0);
+        const prev = userMax.get(uid) ?? 0;
+        if (p > prev) userMax.set(uid, p);
+      }
+    } catch {
+      // Skip league on scoring failure so one bad league cannot take down hub SSR.
     }
   });
   return userMax;
 }
 
 /**
- * Hub “Most points this week”: per user, their **highest** Mon–Sun week total in any one league (never summed across
- * leagues). Uses matchup-week scoring — event points, title-hold belt in that week, and weekly win / Draftastic belt
- * bonuses when the league format applies them (`getPointsByOwnerForLeagueWeekFromMatchups`).
+ * Hub “Most points this week” from `league_weekly_points_snapshot` (cron-refreshed).
+ * Per user: max points in any one league for the week — never summed across leagues.
  */
-async function aggregateLiveWeeklyByUser(
+async function aggregateWeeklyFromSnapshot(
   admin: SupabaseClient,
   leagueIds: string[],
   weekStartMonday: string
 ): Promise<Map<string, number>> {
   const userMax = new Map<string, number>();
-  await mapConcurrent(leagueIds, HUB_LEADERBOARD_CONCURRENCY, async (leagueId) => {
-    const byOwner = await getPointsByOwnerForLeagueWeekFromMatchups(leagueId, weekStartMonday, admin);
-    for (const [uid, pts] of Object.entries(byOwner)) {
-      const p = Number(pts ?? 0);
+  if (leagueIds.length === 0) return userMax;
+
+  for (const chunk of chunkIds(leagueIds, 100)) {
+    const { data, error } = await admin
+      .from("league_weekly_points_snapshot")
+      .select("user_id, points")
+      .eq("week_start", weekStartMonday)
+      .in("league_id", chunk);
+    if (error || !data) continue;
+    for (const row of data as Array<{ user_id?: string; points?: number | null }>) {
+      const uid = String(row.user_id ?? "");
+      if (!uid) continue;
+      const p = Number(row.points ?? 0);
+      if (!Number.isFinite(p)) continue;
       const prev = userMax.get(uid) ?? 0;
       if (p > prev) userMax.set(uid, p);
     }
-  });
+  }
   return userMax;
 }
 
@@ -161,21 +205,13 @@ export function normalizeHubLeaderboardWeekStart(
 }
 
 /**
- * Heavy path: all leagues × scoring; cached per `selectedWeekStart` (args are part of the cache key).
- * Set `HUB_LEADERBOARD_MAX_LEAGUES` (integer) locally to cap work if you have many test leagues.
+ * Heavy path kept SSR-safe: weekly from snapshots; season live with a hard time budget.
+ * Set `HUB_LEADERBOARD_MAX_LEAGUES` (integer) to cap work if you have many test leagues.
  */
 async function computeHubSiteLeaderboardsForWeek(selectedWeekStart: string): Promise<HubSiteLeaderboardsPayload> {
   const admin = getAdminClient();
   if (!admin) {
-    return {
-      weekStart: null,
-      currentWeekStartMondayPst: null,
-      weeklyPrevWeekStart: null,
-      weeklyNextWeekStart: null,
-      weeklyTop10: [],
-      seasonTop10: [],
-      hubLeaderboardsAvailable: false,
-    };
+    return emptyPayload(false);
   }
 
   const currentMondayPst = getCurrentWeekStartMondayPst();
@@ -191,20 +227,22 @@ async function computeHubSiteLeaderboardsForWeek(selectedWeekStart: string): Pro
     leagueIds = leagueIds.slice(0, maxLeagues);
   }
   if (leagueIds.length === 0) {
-    return {
+    return emptyPayload(true, {
       weekStart: selectedWeekStart,
       currentWeekStartMondayPst: currentMondayPst,
       weeklyPrevWeekStart,
       weeklyNextWeekStart,
-      weeklyTop10: [],
-      seasonTop10: [],
-      hubLeaderboardsAvailable: true,
-    };
+    });
   }
 
-  const [seasonTotals, weeklyTotals] = await Promise.all([
-    aggregateLiveSeasonByUser(admin, leagueIds),
-    aggregateLiveWeeklyByUser(admin, leagueIds, selectedWeekStart),
+  // Weekly must stay fast on every cold cache (Netlify SSR ~10s). Season is best-effort.
+  const [weeklyTotals, seasonTotals] = await Promise.all([
+    aggregateWeeklyFromSnapshot(admin, leagueIds, selectedWeekStart),
+    withTimeout(
+      aggregateLiveSeasonByUser(admin, leagueIds),
+      HUB_SEASON_LIVE_BUDGET_MS,
+      new Map<string, number>()
+    ),
   ]);
 
   const weeklyTop = mapToTop10Positive(weeklyTotals);
@@ -226,7 +264,7 @@ async function computeHubSiteLeaderboardsForWeek(selectedWeekStart: string): Pro
 
 const getHubSiteLeaderboardsCached = unstable_cache(
   async (selectedWeekStart: string) => computeHubSiteLeaderboardsForWeek(selectedWeekStart),
-  ["hub-site-leaderboards-by-week"],
+  ["hub-site-leaderboards-by-week-v2"],
   { revalidate: 180 }
 );
 
@@ -234,28 +272,42 @@ const getHubSiteLeaderboardsCached = unstable_cache(
  * Site-wide hub leaderboards (non-archived leagues, completed draft).
  *
  * - Season: max over leagues of that user’s season-to-date points in the league (never sum across leagues).
- * - Weekly: max over leagues of that user’s points for the selected Mon–Sun week (PT), all categories the matchup
- *   chart includes for that week (including weekly belt where applicable).
+ * - Weekly: max over leagues of that user’s points for the selected Mon–Sun week (PT), from weekly snapshots.
  */
 export async function getHubSiteLeaderboards(opts?: {
   leaderboardWeek?: string | null;
 }): Promise<HubSiteLeaderboardsPayload> {
   const admin = getAdminClient();
   if (!admin) {
-    return {
-      weekStart: null,
-      currentWeekStartMondayPst: null,
-      weeklyPrevWeekStart: null,
-      weeklyNextWeekStart: null,
-      weeklyTop10: [],
-      seasonTop10: [],
-      hubLeaderboardsAvailable: false,
-    };
+    return emptyPayload(false);
   }
 
   const currentMondayPst = getCurrentWeekStartMondayPst();
   const selectedWeekStart = normalizeHubLeaderboardWeekStart(opts?.leaderboardWeek ?? null, currentMondayPst);
 
-  return getHubSiteLeaderboardsCached(selectedWeekStart);
+  try {
+    // Outer budget so a stuck cache populate cannot take down hub SSR.
+    return await withTimeout(
+      getHubSiteLeaderboardsCached(selectedWeekStart),
+      6000,
+      emptyPayload(true, {
+        weekStart: selectedWeekStart,
+        currentWeekStartMondayPst: currentMondayPst,
+        weeklyPrevWeekStart: (() => {
+          const oldest = shiftWeekStartMonday(currentMondayPst, -HUB_LEADERBOARD_WEEK_LOOKBACK);
+          const prev = shiftWeekStartMonday(selectedWeekStart, -1);
+          return prev >= oldest ? prev : null;
+        })(),
+        weeklyNextWeekStart: (() => {
+          const next = shiftWeekStartMonday(selectedWeekStart, 1);
+          return next <= currentMondayPst ? next : null;
+        })(),
+      })
+    );
+  } catch {
+    return emptyPayload(true, {
+      weekStart: selectedWeekStart,
+      currentWeekStartMondayPst: currentMondayPst,
+    });
+  }
 }
-

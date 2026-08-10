@@ -1,7 +1,6 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
-import { getPointsByOwnerForLeagueWeekFromMatchups } from "@/lib/leagueMatchups";
 import { getCurrentWeekStartMondayPst } from "@/lib/weeklyLeaderboards";
 import { getAdminClient } from "@/lib/supabase/admin";
 
@@ -86,7 +85,7 @@ function normalizeSiteActivityPulse(raw: Partial<SiteActivityPulse> & Record<str
 
 /**
  * Sum fantasy points for the current Pacific week from the weekly snapshot table.
- * Prefer this path on hub SSR (fast). Kept fresh by refresh-weekly-points-pulse cron.
+ * Hub SSR uses this path only (no live matchup scoring). Kept fresh by refresh-weekly-points-pulse cron.
  */
 async function sumWeeklyPointsFromSnapshot(
   admin: NonNullable<ReturnType<typeof getAdminClient>>,
@@ -112,34 +111,8 @@ async function sumWeeklyPointsFromSnapshot(
   return Math.round(total);
 }
 
-/** Live fallback when current-week snapshots are empty (cron lag / first week day). */
-async function sumWeeklyPointsLive(
-  admin: NonNullable<ReturnType<typeof getAdminClient>>,
-  weekStart: string,
-  leagueIds: string[]
-): Promise<number> {
-  if (leagueIds.length === 0) return 0;
-  let total = 0;
-  const concurrency = 3;
-  for (let i = 0; i < leagueIds.length; i += concurrency) {
-    const chunk = leagueIds.slice(i, i + concurrency);
-    const results = await Promise.all(
-      chunk.map(async (leagueId) => {
-        try {
-          return await getPointsByOwnerForLeagueWeekFromMatchups(leagueId, weekStart, admin);
-        } catch {
-          return {} as Record<string, number>;
-        }
-      })
-    );
-    for (const byOwner of results) {
-      for (const pts of Object.values(byOwner)) {
-        total += Number(pts ?? 0);
-      }
-    }
-  }
-  return Math.round(total);
-}
+/** Cap events pulled for match counting so hub SSR cannot stall on large match JSON payloads. */
+const PULSE_COMPLETED_EVENTS_LIMIT = 120;
 
 async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
   const admin = getAdminClient();
@@ -168,10 +141,17 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
     }
   }
 
-  const [snapshotPoints, seasonEventsRes, championsRes, tradesRes, faRes] = await Promise.all([
+  // Never live-score leagues on hub SSR (that path previously timed out Netlify edge).
+  // Weekly points come from cron-refreshed snapshots only.
+  const [weeklyPointsScored, seasonEventsRes, championsRes, tradesRes, faRes] = await Promise.all([
     sumWeeklyPointsFromSnapshot(admin, weekStart, leagueIds),
     (() => {
-      let q = admin.from("events").select("matches").eq("status", "completed");
+      let q = admin
+        .from("events")
+        .select("matches")
+        .eq("status", "completed")
+        .order("date", { ascending: false })
+        .limit(PULSE_COMPLETED_EVENTS_LIMIT);
       if (seasonStartDate) q = q.gte("date", seasonStartDate);
       if (seasonEndDate) q = q.lte("date", seasonEndDate);
       return q;
@@ -195,13 +175,6 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
       : Promise.resolve({ count: 0, error: null }),
   ]);
 
-  // Snapshot is preferred (fast). If empty, compute live once so FOMO is not stuck at 0
-  // before the first mid-week refresh cron runs.
-  const weeklyPointsScored =
-    snapshotPoints > 0 || leagueIds.length === 0
-      ? snapshotPoints
-      : await sumWeeklyPointsLive(admin, weekStart, leagueIds);
-
   const seasonMatchesScored = countScoredMatchesInEvents(
     (seasonEventsRes.data ?? []) as Array<{ matches?: unknown }>
   );
@@ -218,7 +191,7 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
 
 const getCachedSiteActivityPulse = unstable_cache(
   computeSiteActivityPulse,
-  ["site-activity-pulse-v11"],
+  ["site-activity-pulse-v12"],
   { revalidate: 900 }
 );
 

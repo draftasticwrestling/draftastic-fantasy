@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { FantasyHomeLink } from "@/app/components/FantasyHomeLink";
 import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
@@ -67,9 +68,15 @@ export default async function HubHomePage({
       <div className="hub-shell-wrap">
         <div className="hub-shell">
           <div className="hub-col hub-left-rail">
-            <HubSiteActivityPulse />
-            <HubRtssChampions />
-            <HubSiteLeaderboards leaderboardWeek={sp.leaderboard_week ?? null} />
+            <Suspense fallback={null}>
+              <HubSiteActivityPulse />
+            </Suspense>
+            <Suspense fallback={null}>
+              <HubRtssChampions />
+            </Suspense>
+            <Suspense fallback={null}>
+              <HubSiteLeaderboards leaderboardWeek={sp.leaderboard_week ?? null} />
+            </Suspense>
             <aside className="hub-col-side hub-quick-links-card" aria-label="Quick links">
               <h2 className="hub-col-title">Quick links</h2>
               <nav className="hub-quick-nav">
@@ -82,7 +89,9 @@ export default async function HubHomePage({
             </aside>
           </div>
 
-          <HubLatestHeadlinesSection headlineVariant="hub" />
+          <Suspense fallback={null}>
+            <HubLatestHeadlinesSection headlineVariant="hub" />
+          </Suspense>
         </div>
       </div>
 
