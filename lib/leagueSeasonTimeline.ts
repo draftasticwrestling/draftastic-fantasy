@@ -311,7 +311,9 @@ export function buildLeagueSeasonTimeline(params: {
 
   /** Match belt strip to the arc shown in the title (May–Jul = Road to SummerSlam), not only DB `season_slug`. */
   const useWeeklyBeltTimeline =
-    leagueUsesWeeklyPstBeltHold(seasonSlug ?? null) || seasonPhase.id === "road-to-summerslam";
+    leagueUsesWeeklyPstBeltHold(seasonSlug ?? null) ||
+    seasonPhase.id === "road-to-summerslam" ||
+    seasonPhase.id === "public-salary-cap";
   const weeklyBeltByIndex = weeklyBeltLockMarkersByTrackIndex(
     mainTrackRows,
     todayYmd,

@@ -108,8 +108,12 @@ export function getLeagueSeasonBelt(league: LeagueSeasonBeltInput | null | undef
 
 /** Weekly PST title-hold belt (Mon–Sun week; credits once all PWBS events in that week are completed). */
 export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefined): boolean {
+  const s = (seasonSlug ?? "").trim();
   return (
-    seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG || isRoadToWarGamesSeasonSlug(seasonSlug)
+    s === ROAD_TO_SUMMERSLAM_SEASON_SLUG ||
+    isRoadToWarGamesSeasonSlug(s) ||
+    // Public salary-cap leagues use the same weekly hold rules as How it Works /points (not calendar month-ends).
+    s === PUBLIC_SALARY_CAP_SEASON_SLUG
   );
 }
 
