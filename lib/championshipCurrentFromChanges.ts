@@ -13,6 +13,7 @@ import {
   getTagTeamMemberSlugs,
   parseTagTeamChampionToMemberSlugs,
 } from "@/lib/scoring/tagTeamMembers.js";
+import { isChampionshipRetiredAsOf } from "@/lib/retiredChampionships.js";
 
 /** Supabase table for title changes (synced from Boxscore). Used for UI + inferring reigns for scoring. */
 export const CHAMPIONSHIP_CHANGES_TABLE_NAME =
@@ -93,6 +94,7 @@ export async function getCurrentChampionsFromChanges(
     const title =
       CHAMPIONSHIP_TYPE_TO_TITLE[typeKey] ??
       typeKey.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    if (isChampionshipRetiredAsOf(typeKey) || isChampionshipRetiredAsOf(title)) continue;
     const slugKey = champion_slug ? normalizeWrestlerName(champion_slug) : normalizeWrestlerName(champion);
     if (!slugKey) continue;
     const entry: CurrentChampionFromChanges = { title, wonDate: date };

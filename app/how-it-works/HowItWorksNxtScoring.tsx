@@ -8,14 +8,14 @@ import styles from "./HowItWorks.module.css";
 const NXT_TITLE_POINTS_MENS: Array<{ name: string; points: number; beltKey?: BeltKey }> = [
   { name: "NXT Championship", points: 3, beltKey: "nxt-mens" },
   { name: "NXT North American Championship", points: 2, beltKey: "nxt-na-mens" },
-  { name: "NXT Men's Speed Championship", points: 1, beltKey: "nxt-speed-mens" },
+  { name: "NXT Men's Speed Championship (retired Sept 1, 2026)", points: 1, beltKey: "nxt-speed-mens" },
   { name: "NXT Tag Team Championship (per member)", points: 1, beltKey: "nxt-tag-team" },
 ];
 
 const NXT_TITLE_POINTS_WOMENS: Array<{ name: string; points: number; beltKey?: BeltKey }> = [
   { name: "NXT Women's Championship", points: 3, beltKey: "nxt-womens" },
   { name: "NXT Women's North American Championship", points: 2, beltKey: "nxt-na-womens" },
-  { name: "NXT Women's Speed Championship", points: 1, beltKey: "nxt-speed-womens" },
+  { name: "NXT Women's Speed Championship (retired Sept 1, 2026)", points: 1, beltKey: "nxt-speed-womens" },
 ];
 
 const NXT_STAND_AND_DELIVER_POINTS: Array<[string, number]> = [
@@ -105,7 +105,8 @@ export function HowItWorksNxtScoring({ sectionContext, beltContext }: Props) {
               {beltContext}{" "}
             </>
           ) : null}
-          {BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER}
+          {BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER} The NXT Men&apos;s and Women&apos;s Speed Championships were
+          retired on Sept 1, 2026 — past hold and match points remain; no new Speed title points after that date.
         </p>
         <HowItWorksBeltPointsTable mensRows={NXT_TITLE_POINTS_MENS} womensRows={NXT_TITLE_POINTS_WOMENS} />
       </section>

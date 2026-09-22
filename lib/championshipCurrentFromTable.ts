@@ -13,6 +13,7 @@ import {
   getTagTeamMemberSlugs,
   parseTagTeamChampionToMemberSlugs,
 } from "@/lib/scoring/tagTeamMembers.js";
+import { isChampionshipRetiredAsOf } from "@/lib/retiredChampionships.js";
 
 const TABLE_NAME = "championships";
 
@@ -61,6 +62,7 @@ export async function getCurrentChampionsFromChampionshipsTable(
   for (const r of rows as Row[]) {
     const id = (r.id ?? "").toString().trim().toLowerCase();
     const title = (r.title_name ?? "").toString().trim() || id.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    if (isChampionshipRetiredAsOf(id) || isChampionshipRetiredAsOf(title)) continue;
     const champion = (r.current_champion ?? "").toString().trim();
     const championSlug = (r.current_champion_slug ?? "").toString().trim() || null;
     const slugKey = championSlug ? normalizeWrestlerName(championSlug) : normalizeWrestlerName(champion);
