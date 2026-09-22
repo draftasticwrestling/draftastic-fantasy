@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
 import { comparePwbsChampionshipSlugs } from "@/lib/pwbsChampionshipSlug.js";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
+import { isChampionshipRetiredAsOf } from "@/lib/retiredChampionships.js";
 import styles from "./ChampionshipPages.module.css";
 
 export const revalidate = 60;
@@ -17,6 +18,10 @@ export default async function ChampionshipsIndexPage() {
   const data = await getChampionshipHistoryDataset();
   const cards = [...data.titleHistoryBySlug.entries()]
     .map(([slug, bucket]) => ({ slug, displayTitle: bucket.displayTitle }))
+    .filter(
+      ({ slug, displayTitle }) =>
+        !isChampionshipRetiredAsOf(slug) && !isChampionshipRetiredAsOf(displayTitle)
+    )
     .sort((a, b) => comparePwbsChampionshipSlugs(a.slug, b.slug));
 
   return (

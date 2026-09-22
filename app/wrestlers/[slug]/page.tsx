@@ -53,6 +53,7 @@ import {
   normalizeReignKind,
   stripChampionshipTitleHolderSuffix,
 } from "@/lib/championshipReignKind";
+import { isChampionshipRetiredAsOf } from "@/lib/retiredChampionships.js";
 import { factionDisplayName } from "@/lib/factionName";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import {
@@ -409,25 +410,31 @@ export default async function WrestlerProfilePage({
   // Keys in currentChampionsBySlug are canonical (normalizeWrestlerName); use same normalization for lookup
   const idKey = normalizeWrestlerName(String(wrestler.id));
   const slugKey = slug ? normalizeWrestlerName(slug) : "";
-  const currentTitles =
+  const currentTitles = (
     currentChampionsBySlug[idKey] ??
     currentChampionsBySlug[wrestler.id] ??
     (slugKey ? currentChampionsBySlug[slugKey] : null) ??
     (slug ? currentChampionsBySlug[slug] : null) ??
     (nameKey ? currentChampionsBySlug[nameKey] : null) ??
-    [];
+    []
+  ).filter((t) => t && !isChampionshipRetiredAsOf(t));
 
-  const fromTable =
+  const fromTableRaw =
     currentFromTable[idKey] ?? currentFromTable[slugKey] ?? (nameKey ? currentFromTable[nameKey] : null);
-  const fromChanges =
+  const fromChangesRaw =
     currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
+  const fromTable =
+    fromTableRaw && !isChampionshipRetiredAsOf(fromTableRaw.title) ? fromTableRaw : null;
+  const fromChanges =
+    fromChangesRaw && !isChampionshipRetiredAsOf(fromChangesRaw.title) ? fromChangesRaw : null;
 
   const rawPrimaryCurrentTitle = (fromTable ?? fromChanges)
     ? (fromTable ?? fromChanges)!.title
     : (currentTitles[0] ?? null);
-  const primaryTitleBase = rawPrimaryCurrentTitle
-    ? stripChampionshipTitleHolderSuffix(rawPrimaryCurrentTitle)
-    : null;
+  const primaryTitleBase =
+    rawPrimaryCurrentTitle && !isChampionshipRetiredAsOf(rawPrimaryCurrentTitle)
+      ? stripChampionshipTitleHolderSuffix(rawPrimaryCurrentTitle)
+      : null;
 
   const today = new Date().toISOString().slice(0, 10);
   const matchesProfileKeys = (key: string) =>

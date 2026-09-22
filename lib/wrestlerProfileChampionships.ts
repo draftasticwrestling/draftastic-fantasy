@@ -1,4 +1,4 @@
-import { titleToChampionshipSlug } from "@/lib/championshipPathSlug";
+import { getChampionshipRetirementYmd } from "@/lib/retiredChampionships.js";
 import type { ChampionshipReignRow } from "@/lib/championshipTitleHistory";
 import { displayChampionshipDate, reignDetailsFromRow } from "@/lib/championshipTitleHistory";
 import { formatChampionshipTitleForHolder, normalizeReignKind } from "@/lib/championshipReignKind";
@@ -8,6 +8,7 @@ import {
   getFantasyBeltScoringDatesForReignPublicDisplay,
   getFantasyBeltWeekEndsForReign,
 } from "@/lib/scoring/endOfMonthBeltPoints.js";
+import { titleToChampionshipSlug } from "@/lib/championshipPathSlug";
 
 export type WrestlerProfileReignLine = {
   displayTitle: string;
@@ -181,7 +182,15 @@ export function buildWrestlerProfileReignLines(
     const won = (r.won_date ?? r.start_date ?? "").slice(0, 10);
     if (!won) continue;
     const lostRaw = r.lost_date ?? r.end_date ?? null;
-    const lostYmd = lostRaw != null && String(lostRaw).trim() !== "" ? String(lostRaw).slice(0, 10) : null;
+    let lostYmd = lostRaw != null && String(lostRaw).trim() !== "" ? String(lostRaw).slice(0, 10) : null;
+    // Open reigns on retired belts end at retirement for display (no "Present" as current champ).
+    if (!lostYmd) {
+      const retiredAt =
+        getChampionshipRetirementYmd(r.championship_id) ??
+        getChampionshipRetirementYmd(r.title ?? r.title_name);
+      if (retiredAt && won < retiredAt) lostYmd = retiredAt;
+      else if (retiredAt && won >= retiredAt) continue;
+    }
     const d = reignDetailsFromRow(r as Record<string, unknown>);
     const o = r as Record<string, unknown>;
     const rowKey =

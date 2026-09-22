@@ -32,6 +32,7 @@ import {
   isTagTeamTitle,
   parseTagTeamChampionToMemberSlugs,
 } from "@/lib/scoring/tagTeamMembers.js";
+import { isChampionshipRetiredAsOf, filterOutRetiredChampionshipTitles } from "@/lib/retiredChampionships.js";
 
 /** Allow cached response for 60s to improve repeat visit speed. */
 export const revalidate = 60;
@@ -111,7 +112,7 @@ export default async function WrestlersPage() {
     const directChamp =
       currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[idKey] ?? null;
     const aliasChamp = mergeCurrentChampionTitleStrings(currentChampionsBySlug, slugKey, nameKey);
-    const titles: string[] = (() => {
+    const titles = filterOutRetiredChampionshipTitles((() => {
       const seen = new Set<string>();
       const out: string[] = [];
       for (const list of [directChamp, aliasChamp]) {
@@ -124,7 +125,7 @@ export default async function WrestlersPage() {
         }
       }
       return out;
-    })();
+    })());
     const raw = w as Record<string, unknown>;
     return {
       id: w.id,
@@ -181,15 +182,11 @@ export default async function WrestlersPage() {
   const currentChampionCards = historyCards
     .map((h) => {
       if (!h.items[0]) return null;
+      if (isChampionshipRetiredAsOf(h.slug) || isChampionshipRetiredAsOf(h.title)) return null;
+      // Vacated / fully closed lineages are not current champions (no fallback to last reign).
       const openItems = h.items.filter((x) => x.lostDate == null || String(x.lostDate).trim() === "");
-      const sourceItems =
-        openItems.length > 0
-          ? openItems
-          : (() => {
-              const latestWon = h.items[0]!.wonDate;
-              return h.items.filter((x) => x.wonDate === latestWon);
-            })();
-      const itemsForDisplay = expandTagChampRows(dedupeChampionRows(sourceItems), h.title);
+      if (openItems.length === 0) return null;
+      const itemsForDisplay = expandTagChampRows(dedupeChampionRows(openItems), h.title);
       const display = buildCurrentChampionDisplay(h.title, itemsForDisplay, {
         wrestlerBySlug,
         wrestlerByNameKey,
@@ -249,10 +246,12 @@ export default async function WrestlersPage() {
     current_champion?: string | null;
     current_champion_slug?: string | null;
   }[]) {
+    const rowId = (row.id ?? "").trim();
     const title =
       (row.title_name ?? "").trim() ||
-      (row.id ?? "").trim().replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      rowId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     if (!title) continue;
+    if (isChampionshipRetiredAsOf(rowId) || isChampionshipRetiredAsOf(title)) continue;
     if (existingTitles.has(title.toLowerCase())) continue;
 
     const rawChampion = (row.current_champion ?? "").trim();

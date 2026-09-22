@@ -6,6 +6,7 @@ import { titleToChampionshipSlug } from "@/lib/championshipPathSlug";
 import { getPwbsDisplayTitleForSlug } from "@/lib/pwbsChampionshipSlug.js";
 import { displayChampionshipDate, reignLengthDays } from "@/lib/championshipTitleHistory";
 import { getBeltImageUrlForTitle } from "@/lib/championshipBeltOverlay";
+import { isChampionshipRetiredAsOf, getChampionshipRetirementYmd } from "@/lib/retiredChampionships.js";
 import { buildCurrentChampionDisplay } from "@/lib/championshipCurrentReigns";
 import { reignKindLabel } from "@/lib/championshipReignKind";
 import styles from "../ChampionshipPages.module.css";
@@ -41,14 +42,35 @@ export default async function ChampionshipDetailPage({ params }: Props) {
   if (!bucket?.items.length) notFound();
 
   const title = bucket.displayTitle;
-  const items = [...bucket.items].sort((a, b) => b.wonDate.localeCompare(a.wonDate));
+  const retired = isChampionshipRetiredAsOf(slug) || isChampionshipRetiredAsOf(title);
+  const retiredAtYmd = getChampionshipRetirementYmd(slug) ?? getChampionshipRetirementYmd(title);
+  const items = [...bucket.items]
+    .map((h) => {
+      if (h.lostDate != null && String(h.lostDate).trim() !== "") return h;
+      if (!retiredAtYmd) return h;
+      if (h.wonDate >= retiredAtYmd) return h;
+      return { ...h, lostDate: retiredAtYmd };
+    })
+    .sort((a, b) => b.wonDate.localeCompare(a.wonDate));
   if (items.length === 0) notFound();
 
-  const display = buildCurrentChampionDisplay(title, items, {
-    wrestlerBySlug: data.wrestlerBySlug,
-    wrestlerByNameKey: data.wrestlerByNameKey,
-    tagTeamMonikerByMemberKey: data.tagTeamMonikerByMemberKey,
-  });
+  const openItems = items.filter((h) => h.lostDate == null || String(h.lostDate).trim() === "");
+  const display = retired
+    ? {
+        primary: [] as ReturnType<typeof buildCurrentChampionDisplay>["primary"],
+        secondary: [] as ReturnType<typeof buildCurrentChampionDisplay>["secondary"],
+        primaryLabel: "Retired",
+        secondaryLabel: null as string | null,
+        tagTeamName: null as string | null,
+        hasTeamNameRow: false,
+        hasInterim: false,
+        primaryMetaItem: null as ReturnType<typeof buildCurrentChampionDisplay>["primaryMetaItem"],
+      }
+    : buildCurrentChampionDisplay(title, openItems.length > 0 ? openItems : items, {
+        wrestlerBySlug: data.wrestlerBySlug,
+        wrestlerByNameKey: data.wrestlerByNameKey,
+        tagTeamMonikerByMemberKey: data.tagTeamMonikerByMemberKey,
+      });
   const currentChamps = display.primary;
   const inactiveChamps = display.secondary;
   const { tagTeamName, hasTeamNameRow } = display;
@@ -56,11 +78,17 @@ export default async function ChampionshipDetailPage({ params }: Props) {
   const beltImageUrl = getBeltImageUrlForTitle(title);
   const boxscoreUrl = `${BOXSORE_CHAMPIONSHIP_BASE}/${encodeURIComponent(slug)}`;
 
-  const metaItem = display.primaryMetaItem ?? items[0];
-  const wonSubtitle =
-    metaItem.eventWon != null && String(metaItem.eventWon).trim() !== ""
-      ? `Won ${displayChampionshipDate(metaItem.wonDate)} at ${metaItem.eventWon}`
-      : `Won ${displayChampionshipDate(metaItem.wonDate)}`;
+  const metaItem = display.primaryMetaItem ?? (retired ? null : openItems[0] ?? null);
+  const retiredLabel = retiredAtYmd
+    ? `Title retired ${displayChampionshipDate(retiredAtYmd)} — history below is preserved.`
+    : "Title retired — history below is preserved.";
+  const wonSubtitle = retired
+    ? retiredLabel
+    : metaItem == null
+      ? "Vacant"
+      : metaItem.eventWon != null && String(metaItem.eventWon).trim() !== ""
+        ? `Won ${displayChampionshipDate(metaItem.wonDate)} at ${metaItem.eventWon}`
+        : `Won ${displayChampionshipDate(metaItem.wonDate)}`;
 
   const rowsNewestFirst = items.map((h) => ({
     ...h,
@@ -91,6 +119,13 @@ export default async function ChampionshipDetailPage({ params }: Props) {
         )}
         <div className={styles.currentBlock}>
           <p className={styles.currentLabel}>{display.primaryLabel}</p>
+          {retired || currentChamps.length === 0 ? (
+            <>
+              <p className={styles.championNames}>{retired ? "—" : "Vacant"}</p>
+              <p className={styles.currentWonMeta}>{wonSubtitle}</p>
+            </>
+          ) : (
+            <>
           <div className={styles.avatarRow}>
             {currentChamps.map((c) => (
               <div key={`${c.championSlug}-${c.champion}`}>
@@ -153,6 +188,8 @@ export default async function ChampionshipDetailPage({ params }: Props) {
               <p className={styles.inactiveNames}>{inactiveChamps.map((c) => c.champion).join(" & ")}</p>
             </div>
           ) : null}
+            </>
+          )}
         </div>
       </article>
 

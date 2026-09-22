@@ -13,6 +13,7 @@ import {
   mergeGetCurrentChampionFromMap,
 } from "@/lib/scoring/draftAliasListMerge";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { filterOutRetiredChampionshipTitles } from "@/lib/retiredChampionships.js";
 
 export type WrestlerCurrentChampionshipInfo = {
   titles: string[];
@@ -127,7 +128,9 @@ export function resolveWrestlerChampionshipTitles(
 
   const holderSlugsByTitle = currentHolderSlugsByTitleKey(currentChampionsBySlug);
   const supplemental = snapshotSupplementalTitles(w, currentFromTable, currentFromChanges, holderSlugsByTitle);
-  return dedupeChampionshipTitlesForDisplay([...titlesFromHistory, ...supplemental]);
+  return filterOutRetiredChampionshipTitles(
+    dedupeChampionshipTitlesForDisplay([...titlesFromHistory, ...supplemental])
+  );
 }
 
 function resolveTitlesForWrestler(

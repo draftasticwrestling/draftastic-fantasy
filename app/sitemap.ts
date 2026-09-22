@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { listPublishedArticles } from "@/lib/articles";
 import { getChampionshipHistoryDataset } from "@/lib/championshipData";
+import { isChampionshipRetiredAsOf } from "@/lib/retiredChampionships.js";
 import { buildEventResultsSlug } from "@/lib/event-results/eventResultsRoute";
 import { absoluteUrl } from "@/lib/sitePublicOrigin";
 import { supabase } from "@/lib/supabase";
@@ -73,7 +74,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     }
 
-    for (const slug of champs.titleHistoryBySlug.keys()) {
+    for (const [slug, bucket] of champs.titleHistoryBySlug.entries()) {
+      if (isChampionshipRetiredAsOf(slug) || isChampionshipRetiredAsOf(bucket.displayTitle)) continue;
       entries.push({
         url: absoluteUrl(`/championship/${encodeURIComponent(slug)}`),
         lastModified: now,

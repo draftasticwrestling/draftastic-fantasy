@@ -9,6 +9,7 @@ import { getPwbsChampionshipPage } from "@/lib/pwbsChampionshipSlug.js";
 import { getCurrentChampionsBySlug } from "@/lib/scoring/endOfMonthBeltPoints.js";
 import { mergeCurrentChampionTitleStrings } from "@/lib/scoring/draftAliasListMerge";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
+import { filterOutRetiredChampionshipTitles } from "@/lib/retiredChampionships.js";
 
 function sortTitleNames(titles: string[]): string[] {
   return [...titles].sort((a, b) =>
@@ -77,7 +78,9 @@ export const getMatchupWrestlerChampionTitleLineBySlug = cache(
         }
       }
 
-      const ordered = sortTitleNames(dedupeChampionshipTitlesForDisplay(titles));
+      const ordered = sortTitleNames(
+        filterOutRetiredChampionshipTitles(dedupeChampionshipTitlesForDisplay(titles))
+      );
       out[slugKey] = ordered.length > 0 ? ordered.join(", ") : null;
     }
 

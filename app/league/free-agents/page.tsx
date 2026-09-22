@@ -20,6 +20,7 @@ import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { getListPersonaFootnote, isHiddenCanonicalListSlug } from "@/lib/scoring/personaResolution.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
+import { filterOutRetiredChampionshipTitles } from "@/lib/retiredChampionships.js";
 
 const LEAGUE_START_DATE = "2025-05-02";
 
@@ -117,7 +118,7 @@ export default async function LeagueFreeAgentsPage() {
     const directChamp =
       currentChampionsBySlug[canonicalKey] ?? currentChampionsBySlug[idKey] ?? null;
     const aliasChamp = mergeCurrentChampionTitleStrings(currentChampionsBySlug, slugKey, nameKey);
-    const titles: string[] = (() => {
+    const titles = filterOutRetiredChampionshipTitles((() => {
       const seen = new Set<string>();
       const out: string[] = [];
       for (const list of [directChamp, aliasChamp]) {
@@ -130,7 +131,7 @@ export default async function LeagueFreeAgentsPage() {
         }
       }
       return out;
-    })();
+    })());
     return {
       id: w.id,
       name: w.name ?? null,

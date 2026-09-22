@@ -91,13 +91,24 @@ function toDateInputValue(ymd: string | null | undefined): string {
 
 export function ChampionshipsManager({
   championships,
+  retiredChampionships = [],
   history,
 }: {
   championships: ChampionshipRow[];
+  /** Retired belts hidden from the active sidebar; expandable for history edits only. */
+  retiredChampionships?: ChampionshipRow[];
   history: HistoryRow[];
 }) {
   const [selectedId, setSelectedId] = useState(championships[0]?.id ?? "");
-  const selected = championships.find((c) => c.id === selectedId) ?? null;
+  const [showRetired, setShowRetired] = useState(false);
+  const allChampionships = useMemo(
+    () => [...championships, ...retiredChampionships],
+    [championships, retiredChampionships]
+  );
+  const selected = allChampionships.find((c) => c.id === selectedId) ?? null;
+  const selectedIsRetired = Boolean(
+    selected && retiredChampionships.some((c) => c.id === selected.id)
+  );
   const selectedHistory = useMemo(
     () =>
       history
@@ -281,6 +292,56 @@ export function ChampionshipsManager({
             </div>
           </button>
         ))}
+        {retiredChampionships.length > 0 ? (
+          <div style={{ borderTop: "1px solid var(--color-border)", marginTop: 4 }}>
+            <button
+              type="button"
+              onClick={() => setShowRetired((v) => !v)}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                border: "none",
+                padding: "10px 12px",
+                background: "transparent",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--color-text-muted)",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+              }}
+            >
+              {showRetired ? "▾" : "▸"} Retired ({retiredChampionships.length})
+            </button>
+            {showRetired
+              ? retiredChampionships.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(c.id);
+                      cancelReignForm();
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      border: "none",
+                      borderBottom: "1px solid var(--color-border)",
+                      padding: "10px 12px",
+                      background: selectedId === c.id ? "var(--color-bg-elevated)" : "transparent",
+                      cursor: "pointer",
+                      opacity: 0.85,
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>{c.title_name ?? c.id}</div>
+                    <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+                      {c.brand ?? "Unassigned"} · Retired
+                    </div>
+                  </button>
+                ))
+              : null}
+          </div>
+        ) : null}
       </aside>
 
       <section style={{ display: "grid", gap: 16 }}>
@@ -288,9 +349,15 @@ export function ChampionshipsManager({
           <>
             <div style={cardStyle}>
               <h2 style={{ ...h2Style, marginBottom: 4 }}>{selected.title_name ?? selected.id}</h2>
-              <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
-                Post event results first, then record title changes here (not from match saves).
-              </p>
+              {selectedIsRetired ? (
+                <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
+                  Retired — no longer a current championship. History below is preserved for past fantasy points.
+                </p>
+              ) : (
+                <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
+                  Post event results first, then record title changes here (not from match saves).
+                </p>
+              )}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 14 }}>
                 <Link href={`/championship/${encodeURIComponent(selected.id)}`} className="app-link" target="_blank">
                   View public title page →

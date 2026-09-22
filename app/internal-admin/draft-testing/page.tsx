@@ -12,6 +12,7 @@ import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.j
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { isDraftableWrestler, isDraftableWrestlerForDraftTesting, normalizeWrestlerRowFromApi } from "@/lib/leagueDraft";
+import { filterOutRetiredChampionshipTitles } from "@/lib/retiredChampionships.js";
 import { TestDraft } from "./TestDraft";
 
 export const metadata = {
@@ -203,8 +204,9 @@ export default async function DraftTestingPage() {
     const statusVal = readStatus(row);
     const slugKey = String(row.id ?? "");
     const nameKey = row.name != null ? normalizeWrestlerName(String(row.name)) : "";
-    const titles =
-      currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? [];
+    const titles = filterOutRetiredChampionshipTitles(
+      currentChampionsBySlug[slugKey] ?? (nameKey ? currentChampionsBySlug[nameKey] : null) ?? []
+    );
     return {
       id: slugKey,
       name: row.name != null ? String(row.name) : null,
