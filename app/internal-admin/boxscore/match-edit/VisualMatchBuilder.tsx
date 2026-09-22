@@ -687,7 +687,15 @@ export default function VisualMatchBuilder({
       } else if (hasTeamsInStructure && participantsPerSide > 2 && numSides === 2) {
         matchType = '6-person Tag Team';
       } else if (!hasTeamsInStructure) {
-        matchType = `${numSides}-way Match`;
+        // Keep MITB ladder match types instead of collapsing to generic "6-way Match".
+        if (
+          typeof selectedMatchType === 'string' &&
+          selectedMatchType.includes('Money in the Bank Ladder Match')
+        ) {
+          matchType = selectedMatchType;
+        } else {
+          matchType = `${numSides}-way Match`;
+        }
       }
     } else if (numSides === 2) {
       const hasTeamsInStructure = structure.some(side => side.type === 'team');

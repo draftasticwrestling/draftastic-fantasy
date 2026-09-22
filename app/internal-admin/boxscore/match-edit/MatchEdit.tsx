@@ -1147,6 +1147,10 @@ export default function MatchEdit({
         ];
       case '6-way Match':
         return Array.from({ length: 6 }, () => ({ type: 'individual', participants: [''] }));
+      case "Men's Money in the Bank Ladder Match":
+      case "Women's Money in the Bank Ladder Match":
+        // Marquee MITB briefcase matches are six-person ladder matches.
+        return Array.from({ length: 6 }, () => ({ type: 'individual', participants: [''] }));
       case '7-way Match':
         return Array.from({ length: 7 }, () => ({ type: 'individual', participants: [''] }));
       case '8-way Match':
@@ -1325,7 +1329,25 @@ export default function MatchEdit({
         <select
           style={inputStyle}
           value={match.matchType}
-          onChange={e => setMatch({ ...match, matchType: e.target.value })}
+          onChange={e => {
+            const nextType = e.target.value;
+            const structure = getMatchStructureFromMatchType(nextType);
+            const next = { ...match, matchType: nextType };
+            // Reset participants when the type has a fixed builder layout (e.g. MITB 6-way).
+            if (structure) {
+              next.participants = '';
+            }
+            if (nextType === "Men's Money in the Bank Ladder Match") {
+              next.stipulation = 'Ladder Match';
+              next.specialWinnerType = "Men's Money in the Bank winner";
+              next.method = next.method && next.method !== 'Pinfall' ? next.method : 'Unhook the prize';
+            } else if (nextType === "Women's Money in the Bank Ladder Match") {
+              next.stipulation = 'Ladder Match';
+              next.specialWinnerType = "Women's Money in the Bank winner";
+              next.method = next.method && next.method !== 'Pinfall' ? next.method : 'Unhook the prize';
+            }
+            setMatch(next);
+          }}
         >
           {MATCH_TYPE_OPTIONS.map(opt => (
             <option key={opt} value={opt}>{opt}</option>
@@ -2439,6 +2461,7 @@ export default function MatchEdit({
                 />
               ) : (
                 <VisualMatchBuilder
+                  key={`vmb-${match.matchType}`}
                   wrestlers={safeWrestlers}
                   initialTagTeamData={initialTagTeamData ?? null}
                   matchType={match.matchType}

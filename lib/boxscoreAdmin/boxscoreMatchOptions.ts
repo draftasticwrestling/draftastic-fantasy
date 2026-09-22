@@ -24,6 +24,8 @@ export const MATCH_TYPE_OPTIONS = [
   "8-way Match",
   "9-way Match",
   "10-way Match",
+  "Men's Money in the Bank Ladder Match",
+  "Women's Money in the Bank Ladder Match",
   "Gauntlet Match",
   "Tag Team Gauntlet Match",
   "2 out of 3 Falls",
