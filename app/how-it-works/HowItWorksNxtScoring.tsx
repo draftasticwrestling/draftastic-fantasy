@@ -1,4 +1,5 @@
 import type { BeltKey, EventLogoKey } from "@/lib/howItWorksImages";
+import { NXT_SPECIAL_MATCH_BATTLE_ROYAL_POINTS } from "@/lib/howItWorksPoints";
 import { HowItWorksBeltPointsTable } from "./HowItWorksBeltPointsTable";
 import { HowItWorksEventLogo } from "./HowItWorksEventLogo";
 import { BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER } from "./HowItWorksTitlePoints";
@@ -223,7 +224,33 @@ export function HowItWorksNxtScoring({ sectionContext, beltContext }: Props) {
       </section>
 
       <section style={{ marginBottom: 32 }}>
-        <h2 className={styles.sectionTitle}>NXT specialty match bonus</h2>
+        <h2 className={styles.sectionTitle}>Special matches</h2>
+        <p className={styles.sectionSubtitle} style={{ maxWidth: 780, marginLeft: "auto", marginRight: "auto" }}>
+          For battle royals, only these points apply for that match (entry, eliminations, winner). Usual NXT “on the card”
+          and “winning your match” points do not stack on top.
+        </p>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 8, fontWeight: 700, textAlign: "center" }}>
+          Battle Royal
+        </h3>
+        <p
+          className={styles.sectionSubtitle}
+          style={{ maxWidth: 720, marginLeft: "auto", marginRight: "auto", marginBottom: 16 }}
+        >
+          Battle royals on Tuesday NXT or NXT PLEs / specials. Does not apply to the Royal Rumble premium live event.
+        </p>
+        <div className={styles.darkBox} style={{ maxWidth: 680, margin: "0 auto 28px" }}>
+          {NXT_SPECIAL_MATCH_BATTLE_ROYAL_POINTS.map(([action, pts]) => (
+            <div key={action} className={styles.pointRow}>
+              <span>{action}</span>
+              <span className={styles.pointRowPoints}>{pts}</span>
+            </div>
+          ))}
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 8, fontWeight: 700, textAlign: "center" }}>
+          Multi-person match bonus
+        </h3>
         <p className={styles.sectionSubtitle} style={{ maxWidth: 780, marginLeft: "auto", marginRight: "auto" }}>
           For multi-person matches (Triple Threat, Fatal Four-Way, Five Way, Six Pack, etc.), add this bonus per participant
           or per pinfall, depending on match result formatting.

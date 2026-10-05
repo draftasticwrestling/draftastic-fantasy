@@ -64,6 +64,16 @@ export const SPECIAL_MATCH_BATTLE_ROYAL_POINTS: [string, number][] = [
   ["Entering the Battle Royal (appearance)", 1],
 ];
 
+/**
+ * Battle royals on NXT weekly TV or NXT PLEs / specials (same as scoring engine).
+ * +0.5 appearance, +1 per elimination, +4 win.
+ */
+export const NXT_SPECIAL_MATCH_BATTLE_ROYAL_POINTS: [string, number][] = [
+  ["Winning the Battle Royal", 4],
+  ["Each elimination (per opponent removed)", 1],
+  ["Entering the Battle Royal (appearance)", 0.5],
+];
+
 export const SPECIAL_MATCH_VICTORY_BONUS_BY_EVENT_TIER: [string, number][] = [
   ["Raw / SmackDown", 1],
   ["Minor / Medium PLE", 2],
