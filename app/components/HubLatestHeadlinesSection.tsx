@@ -13,10 +13,14 @@ import {
   getCivilYmdInEt,
   hubLatestCompletedResultsShouldPinTop,
   hubLatestIsInShowcasePinWindow,
+  isHubFeedFreshArticle,
 } from "@/lib/home/hubLatestSchedule";
 import { listPublishedArticles, type ArticleRow } from "@/lib/articles";
 
-/** Hub “The latest”: up to four article cards; event vs article order uses `hubLatestSchedule` (8am PT + 12h windows). */
+/**
+ * Hub “The latest”: up to four article cards; event vs article order uses `hubLatestSchedule`
+ * (8am PT + 12h windows). Articles older than two weeks stay in the feed but below results / upcoming.
+ */
 const LATEST_SECTION_ARTICLES = 4;
 const HEADLINES_ARTICLE_POOL = 10;
 /** Articles + static links (+ optional empty-state row); must not cut off trailing static CTAs */
@@ -154,10 +158,13 @@ export default async function HubLatestHeadlinesSection({
     const completedRows = await fetchHubRecentCompleted(supabase, 1, todayPrimary?.id ?? null);
     articles = art;
     const wrestlerRows = (wrestlersData ?? []) as { id: string; name: string | null; image_url: string | null }[];
-    const latestArticles = articles.slice(0, LATEST_SECTION_ARTICLES);
     const completedEvent = completedRows[0];
     const nowMs = Date.now();
     const etToday = getCivilYmdInEt(nowMs);
+    const latestArticles = articles.slice(0, LATEST_SECTION_ARTICLES);
+    // Newest article within 2 weeks may lead; older articles still show but below events.
+    const articlesMayLeadFeed =
+      latestArticles[0] != null && isHubFeedFreshArticle(latestArticles[0].published_at, nowMs);
 
     const live =
       todayPrimary != null && (todayPrimary.status || "").toLowerCase().trim() === "live";
@@ -225,13 +232,21 @@ export default async function HubLatestHeadlinesSection({
     const upcomingNotInPrimary = Boolean(upcomingCard) && !upcomingInWindow;
     const completedNotInPrimary = Boolean(completedCard) && !completedPin;
 
-    if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
-    if (todayNotInPrimary && todayEventCard) fullFeedNodes.push(todayEventCard);
-    if (upcomingNotInPrimary && upcomingCard) fullFeedNodes.push(upcomingCard);
-    if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
-    if (completedNotInPrimary) fullFeedNodes.push(completedCard!);
-    if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
-    if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
+    if (articlesMayLeadFeed) {
+      if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
+      if (todayNotInPrimary && todayEventCard) fullFeedNodes.push(todayEventCard);
+      if (upcomingNotInPrimary && upcomingCard) fullFeedNodes.push(upcomingCard);
+      if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
+      if (completedNotInPrimary) fullFeedNodes.push(completedCard!);
+      if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
+      if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
+    } else {
+      // Stale articles: keep them in the feed, but put results / upcoming above so they aren't top-two.
+      if (todayNotInPrimary && todayEventCard) fullFeedNodes.push(todayEventCard);
+      if (upcomingNotInPrimary && upcomingCard) fullFeedNodes.push(upcomingCard);
+      if (completedNotInPrimary) fullFeedNodes.push(completedCard!);
+      for (const a of latestArticles) fullFeedNodes.push(hubArticleCardEl(a));
+    }
     feedNodes = wrapHubFeedItemsForMobileOrder(fullFeedNodes);
 
     if (hasCompleted === false && hasUpcoming && upcoming && !hasArticles && !todayPrimary && !live && !completedPin) {

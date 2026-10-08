@@ -76,3 +76,19 @@ export function hubLatestCompletedResultsShouldPinTop(e: HubPreviewEventRow, now
   if (until == null) return false;
   return nowMs < until;
 }
+
+/** How long a published article may occupy the top hub “The latest” slots before events take priority. */
+export const HUB_FEED_ARTICLE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * True when `publishedAtIso` is within the last two weeks.
+ * Fresh articles may lead the hub feed; older ones still appear, but below recent results / upcoming.
+ */
+export function isHubFeedFreshArticle(publishedAtIso: string | null | undefined, nowMs: number): boolean {
+  const iso = String(publishedAtIso ?? "").trim();
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return false;
+  const age = nowMs - t;
+  return age >= 0 && age <= HUB_FEED_ARTICLE_MAX_AGE_MS;
+}
