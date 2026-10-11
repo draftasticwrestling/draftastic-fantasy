@@ -66,7 +66,8 @@ export function HowItWorksSpecialMatches({ variant }: Props) {
         singles match has one opponent, so no bonus). <strong>2 out of 3 Falls</strong> awards this same tier per fall
         won. <strong>Gauntlet</strong> matches award <strong>one tier point per round you personally win</strong> (not
         only to the final winner), on top of normal appearance points; the overall winner also gets the usual match-win
-        (or main-event win) points.
+        (or main-event win) points. Does not apply to battle royals, the Royal Rumble match, or Money in the Bank ladder
+        matches — those use their own special scoring instead.
       </p>
       <div className={styles.darkBox}>
         <div className={styles.specialMatchesInner}>
