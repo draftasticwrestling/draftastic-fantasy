@@ -125,6 +125,7 @@ export default async function LeagueDraftPage({ params }: Props) {
 
     const skipHeavyDraftPool =
       isAutopickInProgress || draftStatusEarly === "completed" || draftStatusEarly === "ready_for_review";
+    const draftSeasonSlug = league.season_slug;
 
     const emptyWrestlerDiagnostic = {
       source: "none" as const,
@@ -246,7 +247,7 @@ export default async function LeagueDraftPage({ params }: Props) {
               (brandRes.data ?? []) as { id: string; brand: string | null }[]
             );
             const sinceStartEvents = cast(sinceStart.data ?? []).filter((e) =>
-              eventCountsForLeagueMatchPoints(e, league.season_slug)
+              eventCountsForLeagueMatchPoints(e, draftSeasonSlug)
             );
             return {
               pointsBySlug: aggregateWrestlerPoints(sinceStartEvents, brandBySlugDraft),
