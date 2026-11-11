@@ -40,8 +40,8 @@ export function HowItWorksPublicLeague() {
             Scoring begins that Monday RAW and runs for <strong>{PUBLIC_SALARY_CAP_SEASON_WEEKS} Monday–Sunday weeks</strong>.
           </li>
           <li>
-            Wrestler prices are <strong>locked when your league is created</strong>; later global price updates apply only
-            to new leagues.
+            Wrestler prices are <strong>locked when your league is created</strong>. Global prices refresh on the 1st of
+            each month (Pacific time) and apply only to leagues created after that refresh.
           </li>
           <li>
             When a public league closes for scoring, the next manager to join starts a <strong>new public league</strong>.
@@ -55,9 +55,18 @@ export function HowItWorksPublicLeague() {
         <h3 style={{ fontSize: "1.15rem", marginBottom: 8, marginTop: 0 }}>Building your roster</h3>
         <p style={{ marginBottom: 16, lineHeight: 1.65, color: "#333" }}>
           Each faction has a <strong>${SALARY_CAP_BUDGET_DEFAULT}</strong> season budget. Wrestlers cost $
-          {SALARY_CAP_COST_TIERS.join(", $")} based on their tier. You may roster up to{" "}
-          <strong>{SALARY_CAP_MAX_ROSTER_SIZE}</strong> wrestlers. NXT is included in the pool. Wrestlers are{" "}
-          <strong>not exclusive</strong> — multiple factions can roster the same wrestler.
+          {SALARY_CAP_COST_TIERS.join(", $")}. You may roster up to <strong>{SALARY_CAP_MAX_ROSTER_SIZE}</strong>{" "}
+          wrestlers. NXT is included in the pool. Wrestlers are <strong>not exclusive</strong> — multiple factions can
+          roster the same wrestler.
+        </p>
+        <p style={{ marginBottom: 16, lineHeight: 1.65, color: "#333" }}>
+          On the 1st, main-roster prices are set from the card. Major champions (Undisputed WWE, World Heavyweight, WWE
+          Women&apos;s, and Women&apos;s World) are $25. Men&apos;s and women&apos;s US and Intercontinental champions are
+          $15. Tag team champions are $10. Over the previous 90 days, a non-champion who held a major title, or wrestled
+          in two or more major title matches, is $20. One major title match is $10, and a US or Intercontinental title
+          match is $10. Everyone else starts at $5. A non-champion then gets $5 for at least 4 Raw or SmackDown main
+          events, or 2 premium live events, in those 90 days, and another $5 for at least 8 of those main events or 4
+          premium live events. That boost stops at $20. Every NXT-roster wrestler is $5, including NXT champions.
         </p>
 
         <h3 style={{ fontSize: "1.15rem", marginBottom: 8, marginTop: 0 }}>In-season adds and drops</h3>

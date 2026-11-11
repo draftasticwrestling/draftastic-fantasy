@@ -21,6 +21,8 @@
 # GET /api/cron/close-public-leagues with header x-cron-secret.
 # Abandoned signup nudge: `netlify/functions/abandoned-signup-nudge.ts` runs daily and calls
 # GET /api/cron/abandoned-signup-nudge with header x-cron-secret.
+# Salary cap prices: `netlify/functions/refresh-salary-cap-prices.ts` runs on the 1st (~00:15 PT)
+# and calls GET /api/cron/refresh-salary-cap-prices with header x-cron-secret.
 # League champion placements: `netlify/functions/finalize-league-placements.ts` runs daily (~00:15 PT)
 # and calls GET /api/cron/finalize-league-placements with header x-cron-secret.
 # FOMO weekly points: `netlify/functions/refresh-weekly-points-pulse.ts` runs every 3h and calls

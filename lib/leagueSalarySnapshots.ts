@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { isValidSalaryCapCost } from "@/lib/salaryCap";
 import {
-  buildSalaryCapCostsFromSeed,
+  buildSalaryCapCostsForLeagueCreation,
   type SalaryCapWrestlerSeedRow,
 } from "@/lib/salaryCapSeedPricing";
 
@@ -27,10 +27,15 @@ export async function snapshotLeagueSalaryCosts(leagueId: string): Promise<{ ok:
   const createdAt = (league as { created_at?: string } | null)?.created_at;
   if (!createdAt) return { ok: false, error: "League not found." };
 
-  const { data: wrestlers, error: wErr } = await admin.from("wrestlers").select("id, name, brand");
+  const { data: wrestlers, error: wErr } = await admin
+    .from("wrestlers")
+    .select("id, name, brand, salary_cap_cost");
   if (wErr) return { ok: false, error: wErr.message };
 
-  const costById = buildSalaryCapCostsFromSeed((wrestlers ?? []) as SalaryCapWrestlerSeedRow[], createdAt);
+  const costById = buildSalaryCapCostsForLeagueCreation(
+    (wrestlers ?? []) as SalaryCapWrestlerSeedRow[],
+    createdAt
+  );
   const rows = Object.entries(costById).map(([wrestler_id, salary_cap_cost]) => ({
     league_id: leagueId,
     wrestler_id,

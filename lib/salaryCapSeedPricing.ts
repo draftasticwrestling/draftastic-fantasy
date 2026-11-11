@@ -5,6 +5,7 @@ import path from "path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isValidSalaryCapCost } from "@/lib/salaryCap";
 import { getLeagueSnapshotSalaryCostsMap } from "@/lib/leagueSalarySnapshots";
+import { SALARY_CAP_MONTHLY_PRICING_START } from "@/lib/salaryCapMonthlyPricing";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 
 export const SALARY_CAP_NXT_COST = 5;
@@ -104,6 +105,7 @@ export type SalaryCapWrestlerSeedRow = {
   id: string;
   name: string | null;
   brand?: string | null;
+  salary_cap_cost?: number | null;
 };
 
 /** Build per-wrestler costs from official seed files. NXT is always $5. */
@@ -144,7 +146,41 @@ export function resolveSalaryCapCostFromSeedMap(params: {
   return typeof cost === "number" && isValidSalaryCapCost(cost) ? cost : null;
 }
 
-/** Frozen league pool + roster prices. Snapshots when present; else seed at league creation. */
+/**
+ * Costs locked at league creation.
+ * Leagues created before the monthly price book use the seasonal seed files.
+ * Later leagues copy `wrestlers.salary_cap_cost`, with the seed as a fallback when a row has no tier yet.
+ */
+export function buildSalaryCapCostsForLeagueCreation(
+  wrestlers: SalaryCapWrestlerSeedRow[],
+  leagueCreatedAt: string
+): Record<string, number> {
+  const created = String(leagueCreatedAt ?? "").slice(0, 10);
+  if (!created || created < SALARY_CAP_MONTHLY_PRICING_START) {
+    return buildSalaryCapCostsFromSeed(wrestlers, leagueCreatedAt);
+  }
+  const seed = seedMapForLeagueCreatedAt(leagueCreatedAt);
+  const out: Record<string, number> = {};
+  for (const wrestler of wrestlers) {
+    const id = String(wrestler.id ?? "").trim();
+    if (!id) continue;
+    if (isNxtSalaryCapWrestler(wrestler.brand)) {
+      out[id] = SALARY_CAP_NXT_COST;
+      continue;
+    }
+    const column = wrestler.salary_cap_cost;
+    if (typeof column === "number" && isValidSalaryCapCost(column)) {
+      out[id] = column;
+      continue;
+    }
+    const name = (wrestler.name ?? "").toLowerCase();
+    const seeded = seed[id] ?? seed[name] ?? seed[slugifyName(wrestler.name ?? "")];
+    if (typeof seeded === "number" && isValidSalaryCapCost(seeded)) out[id] = seeded;
+  }
+  return out;
+}
+
+/** Frozen league pool + roster prices. Snapshots when present; else the book from league creation. */
 export async function getLeagueFrozenSalaryCosts(
   supabase: Pick<SupabaseClient, "from">,
   leagueId: string
@@ -160,6 +196,6 @@ export async function getLeagueFrozenSalaryCosts(
   const createdAt = (league as { created_at?: string } | null)?.created_at ?? "";
   if (!createdAt) return {};
 
-  const { data: wrestlers } = await supabase.from("wrestlers").select("id, name, brand");
-  return buildSalaryCapCostsFromSeed((wrestlers ?? []) as SalaryCapWrestlerSeedRow[], createdAt);
+  const { data: wrestlers } = await supabase.from("wrestlers").select("id, name, brand, salary_cap_cost");
+  return buildSalaryCapCostsForLeagueCreation((wrestlers ?? []) as SalaryCapWrestlerSeedRow[], createdAt);
 }
