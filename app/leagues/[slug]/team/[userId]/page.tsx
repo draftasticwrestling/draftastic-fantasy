@@ -22,6 +22,7 @@ import {
   leagueUsesWeeklyPstBeltHold,
   SALARY_CAP_MAX_ROSTER_SIZE,
 } from "@/lib/leagueStructure";
+import { eventCountsForLeagueMatchPoints } from "@/lib/leagueEventScoring";
 import {
   getSalaryCapLeagueMeta,
   getSalaryCapSpentForUser,
@@ -359,9 +360,12 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       ) as Parameters<typeof inferReignsFromEvents>[0]
     );
     const reigns = mergeReigns(tableReigns, [...inferredReigns, ...changesReigns]) as ChampionshipReign[];
-    const pointsBySlugSinceStart = aggregateWrestlerPoints(eventsSinceStart ?? [], brandBySlugTeamPage);
+    const eventsSinceStartForLeague = (eventsSinceStart ?? []).filter((e) =>
+      eventCountsForLeagueMatchPoints(e, league.season_slug)
+    );
+    const pointsBySlugSinceStart = aggregateWrestlerPoints(eventsSinceStartForLeague, brandBySlugTeamPage);
     const pointsBySlugAllTime = aggregateWrestlerPoints(eventsAll ?? [], brandBySlugTeamPage);
-    const matchStatsBySlugSinceStart = aggregateWrestlerMatchStats(eventsSinceStart ?? []);
+    const matchStatsBySlugSinceStart = aggregateWrestlerMatchStats(eventsSinceStartForLeague);
     const matchStatsBySlugAllTime = aggregateWrestlerMatchStats(eventsAll ?? []);
     const todayYmd = new Date().toISOString().slice(0, 10);
     const beltLastMonthEnd = beltScoringLastMonthEndInclusive(league.end_date);
@@ -515,6 +519,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
       .limit(36);
 
     const upcomingCandidatesSimple = ((upcomingEventsRowsSimple ?? []) as LeagueEventDayRow[]).filter((e) => {
+      if (!eventCountsForLeagueMatchPoints(e, league.season_slug)) return false;
       const s = String(e.status ?? "").toLowerCase().trim();
       const d = String(e.date ?? "").trim().slice(0, 10);
       if (d === todayYmdEtSimple && s === "completed") return true;
@@ -625,6 +630,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
   // Keep non-completed (upcoming / live) plus **today’s completed** shows so boxes + scores stay for the full ET
   // calendar day after the event finishes; they drop off once the date rolls to tomorrow.
   const upcomingCandidates = ((upcomingEventsRows ?? []) as LeagueEventDayRow[]).filter((e) => {
+    if (!eventCountsForLeagueMatchPoints(e, league.season_slug)) return false;
     const s = String(e.status ?? "").toLowerCase().trim();
     const d = String(e.date ?? "").trim().slice(0, 10);
     if (d === todayYmdEt && s === "completed") return true;

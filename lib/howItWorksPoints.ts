@@ -75,9 +75,21 @@ export const NXT_SPECIAL_MATCH_BATTLE_ROYAL_POINTS: [string, number][] = [
 ];
 
 export const SPECIAL_MATCH_VICTORY_BONUS_BY_EVENT_TIER: [string, number][] = [
+  ["WWE Main Event", 0.5],
   ["Raw / SmackDown", 1],
   ["Minor / Medium PLE", 2],
   ["Major PLE", 3],
+];
+
+/** Weekly WWE Main Event television. Same match scale as Tuesday NXT, counted as main-roster R/S points. */
+export const MAIN_EVENT_WEEKLY_POINTS: [string, number][] = [
+  ["Winning the main event", 2],
+  ["Main eventing (appearance)", 1.5],
+  ["Winning your match (non–main event)", 1],
+  ["Being on the match card (non–main event)", 0.5],
+  ["Initial title win", 2],
+  ["Successful title defense", 1],
+  ["Title defense via DQ", 0.5],
 ];
 
 /** Raw and SmackDown base match-card scoring (Road to SummerSlam 2026 and Legacy). */

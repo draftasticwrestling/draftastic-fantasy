@@ -22,8 +22,8 @@ export function WrestlerMatchStatsDisclaimer({
         ...style,
       }}
     >
-      Wrestler match statistics are currently based on 2025 and 2026 televised events. House shows and Main Event are not
-      included.
+      Wrestler match statistics are currently based on 2025 and 2026 televised events, including WWE Main Event. House
+      shows are not included.
     </p>
   );
 }

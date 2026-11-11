@@ -94,6 +94,9 @@ function applyShowTypeSqlFilter(qb: any, show: EventShowFilter) {
   if (show === "nxt") {
     return qb.or("name.ilike.NXT,name.ilike.NXT %,name.ilike.WWE NXT%,name.ilike.nxt %");
   }
+  if (show === "main-event") {
+    return qb.ilike("name", "%main event%").not("name", "ilike", "%saturday%");
+  }
   return qb;
 }
 
@@ -164,7 +167,7 @@ export async function siteAdminSearchEvents(
 
     const statusOr = buildAdminEventStatusOrFilter(status);
     if (statusOr) qb = qb.or(statusOr);
-    if (show === "raw" || show === "smackdown" || show === "nxt") {
+    if (show === "raw" || show === "smackdown" || show === "nxt" || show === "main-event") {
       qb = applyShowTypeSqlFilter(qb, show);
     }
 
@@ -186,7 +189,8 @@ export async function siteAdminSearchEvents(
 
   const q = opts.q?.trim();
   const plePostFilter = show === "ple";
-  const sqlShow = show === "raw" || show === "smackdown" || show === "nxt" ? show : null;
+  const sqlShow =
+    show === "raw" || show === "smackdown" || show === "nxt" || show === "main-event" ? show : null;
   const fetchLimit = plePostFilter || sqlShow ? Math.min(Math.max(limit * 6, limit + 25), 600) : limit;
 
   let qb = admin

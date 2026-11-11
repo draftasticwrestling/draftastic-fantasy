@@ -10,7 +10,12 @@ import {
   isPLE,
 } from "@/lib/scoring/parsers/eventClassifier.js";
 import { isRoadToSummerSlam2026WithSummerslamFinale } from "@/lib/beltRts2026JulyDeferral";
-import { isRoadToWarGamesSeasonSlug, leagueUsesWeeklyPstBeltHold, SALARY_CAP_CHAMPIONSHIP_PATHWAY_TITLE } from "@/lib/leagueStructure";
+import {
+  isRoadToWarGamesSeasonSlug,
+  leagueScoresWweMainEvent,
+  leagueUsesWeeklyPstBeltHold,
+  SALARY_CAP_CHAMPIONSHIP_PATHWAY_TITLE,
+} from "@/lib/leagueStructure";
 import { PUBLIC_SALARY_CAP_SEASON_SLUG } from "@/lib/publicLeagueSchedule";
 import {
   championshipPathwayWeekNumberForDate,
@@ -28,7 +33,11 @@ export type SeasonPhaseInfo = {
   title: string;
 };
 
-const WEEKLY_TIMELINE_TYPES = new Set<string>([EVENT_TYPES.RAW, EVENT_TYPES.SMACKDOWN]);
+const WEEKLY_TIMELINE_TYPES = new Set<string>([
+  EVENT_TYPES.RAW,
+  EVENT_TYPES.SMACKDOWN,
+  EVENT_TYPES.MAIN_EVENT,
+]);
 
 /** Season-capping shows — bold in the UI. */
 const FINALE_EVENT_TYPES = new Set<string>([
@@ -294,6 +303,7 @@ export function buildLeagueSeasonTimeline(params: {
   for (const row of sorted) {
     const t = classifyEventType(row.name ?? "", row.id);
     if (t === EVENT_TYPES.UNKNOWN) continue;
+    if (t === EVENT_TYPES.MAIN_EVENT && !leagueScoresWweMainEvent(seasonSlug)) continue;
     if (!includeNxt && isNxtBrandEventType(t)) continue;
     if (WEEKLY_TIMELINE_TYPES.has(t)) {
       mainTrackRows.push({ row, kind: "weekly", isFinale: false });

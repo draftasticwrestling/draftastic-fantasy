@@ -2,7 +2,8 @@ import { getEventBroadcastStartMs } from "@/lib/eventBroadcastStart";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveLeagueStartDate, getRosterStintsForLeague, type LeagueRosterStint } from "@/lib/leagues";
 import { scoreEvent } from "@/lib/scoring/scoreEvent.js";
-import { EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
+import { EVENT_TYPES, isWeeklyShowEventType } from "@/lib/scoring/parsers/eventClassifier.js";
+import { eventCountsForLeagueMatchPoints } from "@/lib/leagueEventScoring";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
 import { resolvePersonaToCanonical } from "@/lib/scoring/personaResolution.js";
 import { rosterStintMatchesContribSlug, sumMonthlyBeltPointsForStint } from "@/lib/scoring/rosterStintEventPoints";
@@ -235,6 +236,9 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
   const stintPoints = new Map<string, TeamWrestlerPoints>();
 
   for (const event of sortedEvents) {
+    if (!eventCountsForLeagueMatchPoints(event, (league as { season_slug?: string | null }).season_slug)) {
+      continue;
+    }
     const eventDate = String(event.date ?? "").slice(0, 10);
     const eventEndOfDayMs = Date.parse(`${eventDate}T23:59:59.999Z`);
     const eventStartMs = getEventBroadcastStartMs(event);
@@ -243,10 +247,7 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     const broadcastStartMs = useBroadcastStart ? eventStartMs! : undefined;
     const scored = scoreEvent(event as { id?: string; name?: string; date?: string; matches?: unknown[] }) as ScoredEvent;
     const eventType = scored.eventType;
-    const isRS =
-      eventType === EVENT_TYPES.RAW ||
-      eventType === EVENT_TYPES.SMACKDOWN ||
-      eventType === EVENT_TYPES.NXT;
+    const isRS = isWeeklyShowEventType(eventType);
 
     const contribBySlug: Record<string, EventContribution> = {};
 

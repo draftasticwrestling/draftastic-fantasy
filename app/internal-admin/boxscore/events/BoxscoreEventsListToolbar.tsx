@@ -52,6 +52,7 @@ const SHOW_OPTIONS: { value: SiteAdminEventShowFilter; label: string }[] = [
   { value: "raw", label: "RAW" },
   { value: "smackdown", label: "SmackDown" },
   { value: "nxt", label: "NXT" },
+  { value: "main-event", label: "Main Event" },
   { value: "ple", label: "PLEs" },
 ];
 

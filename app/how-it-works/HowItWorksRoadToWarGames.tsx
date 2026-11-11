@@ -76,7 +76,8 @@ export function HowItWorksRoadToWarGames() {
         <h2 className={styles.sectionTitle}>Roster rules</h2>
         <p style={{ marginBottom: 16, lineHeight: 1.65, color: "#333" }}>
           <strong>NXT is always included</strong> for Road to War Games — the draft pool, weekly events, and title
-          points cover Raw, SmackDown, NXT, and PLEs. See NXT scoring below.
+          points cover Raw, SmackDown, NXT, and PLEs. WWE Main Event does not score in this season. See NXT scoring
+          below.
         </p>
 
         <h3 style={{ fontSize: "1.15rem", marginBottom: 8, marginTop: 0 }}>Drafting</h3>

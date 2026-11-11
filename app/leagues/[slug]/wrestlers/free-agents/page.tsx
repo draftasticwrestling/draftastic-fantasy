@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { WrestlerMatchStatsDisclaimer } from "@/app/components/WrestlerMatchStatsDisclaimer";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
+import { eventCountsForLeagueMatchPoints } from "@/lib/leagueEventScoring";
 import WrestlerList from "@/app/wrestlers/WrestlerList";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { aggregateWrestlerMatchStats } from "@/lib/scoring/aggregateWrestlerMatchStats.js";
@@ -178,7 +179,9 @@ export default async function WrestlersFreeAgentsPage({
       .limit(SCORING_EVENTS_FETCH_LIMIT),
   ]);
   const eventsAll = (allEventsData ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
-  const eventsSinceStart = eventsAll.filter((e) => (e.date ?? "") >= startDate);
+  const eventsSinceStart = eventsAll.filter(
+    (e) => (e.date ?? "") >= startDate && eventCountsForLeagueMatchPoints(e, league.season_slug)
+  );
   const events2025 = eventsAll.filter((e) => (e.date ?? "") >= "2025-01-01" && (e.date ?? "") <= "2025-12-31");
   const events2026 = eventsAll.filter((e) => (e.date ?? "") >= "2026-01-01" && (e.date ?? "") <= "2026-12-31");
 

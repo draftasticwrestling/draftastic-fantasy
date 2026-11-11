@@ -8,7 +8,7 @@ import {
 } from "@/lib/scoring/parsers/eventClassifier.js";
 import { getEventLogoUrl } from "@/lib/howItWorksImages";
 
-export type EventShowFilter = "raw" | "smackdown" | "nxt" | "ple";
+export type EventShowFilter = "raw" | "smackdown" | "nxt" | "main-event" | "ple";
 
 /** Classify event for show filter: raw | smackdown | nxt weekly | ple (NXT PLEs and main-roster PLEs). */
 export function getEventShowType(
@@ -19,6 +19,7 @@ export function getEventShowType(
   if (typed === EVENT_TYPES.RAW) return "raw";
   if (typed === EVENT_TYPES.SMACKDOWN) return "smackdown";
   if (typed === EVENT_TYPES.NXT) return "nxt";
+  if (typed === EVENT_TYPES.MAIN_EVENT) return "main-event";
   return "ple";
 }
 
@@ -142,7 +143,9 @@ export function buildTitleShow(event: { name?: string | null }): string {
         ? "SmackDown"
         : showType === "nxt"
           ? "NXT"
-          : null;
+          : showType === "main-event"
+            ? "Main Event"
+            : null;
   return showLabel ? `WWE ${showLabel}` : `WWE ${(event.name || "").trim() || "Event"}`;
 }
 
@@ -155,7 +158,9 @@ export function buildBrandPrefix(event: { name?: string | null }): string {
         ? "SmackDown"
         : showType === "nxt"
           ? "NXT"
-          : null;
+          : showType === "main-event"
+            ? "Main Event"
+            : null;
   return showLabel || (event.name || "").split(" ")[0] || "WWE";
 }
 
@@ -165,6 +170,7 @@ export function getEventResultsCardTitle(event: { name?: string | null }): strin
   if (showType === "raw") return "RAW";
   if (showType === "smackdown") return "SmackDown";
   if (showType === "nxt") return "NXT";
+  if (showType === "main-event") return "Main Event";
   const n = (event.name || "").trim();
   return n || "WWE Event";
 }
@@ -193,7 +199,9 @@ export function buildEventHeaderMetaDescription(event: {
         ? "SmackDown"
         : showType === "nxt"
           ? "NXT"
-          : null;
+          : showType === "main-event"
+            ? "Main Event"
+            : null;
   const loc = event.location?.trim();
   const locSuffix = loc ? ` in ${loc}` : "";
 

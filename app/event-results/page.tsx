@@ -26,6 +26,8 @@ export const metadata = {
 function filterLabel(f: EventShowFilter): string {
   if (f === "raw") return "Raw";
   if (f === "smackdown") return "SmackDown";
+  if (f === "nxt") return "NXT";
+  if (f === "main-event") return "Main Event";
   return "PLEs";
 }
 
@@ -43,7 +45,9 @@ export default async function EventResultsPage({ searchParams }: { searchParams:
   const sp = await searchParams;
   const showParam = sp?.show;
   const filter: EventShowFilter | null =
-    showParam === "raw" || showParam === "smackdown" || showParam === "ple" ? showParam : null;
+    showParam === "raw" || showParam === "smackdown" || showParam === "ple" || showParam === "main-event"
+      ? showParam
+      : null;
   const tab: "completed" | "upcoming" = sp?.tab === "upcoming" ? "upcoming" : "completed";
 
   let completedInitial: EventListingRow[] = [];
@@ -91,6 +95,10 @@ export default async function EventResultsPage({ searchParams }: { searchParams:
             <span className={styles.heroNavSep} aria-hidden>
               ·
             </span>
+            <Link href={buildListingHref(tab, "main-event")}>Main Event results</Link>
+            <span className={styles.heroNavSep} aria-hidden>
+              ·
+            </span>
             <Link href={buildListingHref(tab, "ple")}>PLE results</Link>
           </nav>
         </header>
@@ -117,7 +125,7 @@ export default async function EventResultsPage({ searchParams }: { searchParams:
           >
             All
           </Link>
-          {(["raw", "smackdown", "ple"] as const).map((key) => (
+          {(["raw", "smackdown", "main-event", "ple"] as const).map((key) => (
             <Link
               key={key}
               href={buildListingHref(tab, key)}

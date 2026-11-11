@@ -112,6 +112,9 @@ export function EventPageHeader({
           <Link href="/event-results?show=smackdown" className="event-page-header__jumpLink">
             SmackDown results
           </Link>
+          <Link href="/event-results?show=main-event" className="event-page-header__jumpLink">
+            Main Event results
+          </Link>
           <Link href="/event-results?show=ple" className="event-page-header__jumpLink">
             PLE results
           </Link>

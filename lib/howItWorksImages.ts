@@ -44,6 +44,7 @@ export type EventLogoKey =
   | "crown-jewel"
   | "king-queen"
   | "saturday-nights-main-event"
+  | "main-event"
   | "backlash"
   | "evolution"
   | "clash-in-italy"
@@ -62,6 +63,7 @@ export type EventLogoKey =
   | "nxt-roadblock"
   | "nxt-showdown"
   | "nxt-stand-and-deliver"
+  | "nxt-tlc"
   | "nxt-vengeance-day";
 
 /** Same-origin belt art under `public/images/belts/` (no Supabase Storage egress). */
@@ -110,6 +112,7 @@ export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
   "crown-jewel": `${EVENT_LOGOS_BASE}/Crown-Jewel.png`,
   "king-queen": `${EVENT_LOGOS_BASE}/King-And-Queen-Of-The-Ring.png`,
   "saturday-nights-main-event": `${EVENT_LOGOS_BASE}/Saturday-Nights-Main-Event.png`,
+  "main-event": `${EVENT_LOGOS_BASE}/Main-Event.png`,
   backlash: `${EVENT_LOGOS_BASE}/Backlash.png`,
   evolution: `${EVENT_LOGOS_BASE}/Evolution.png`,
   "clash-in-italy": `${EVENT_LOGOS_BASE}/Clash-In-Italy.png`,
@@ -128,6 +131,7 @@ export const EVENT_LOGO_URLS: Partial<Record<EventLogoKey, string>> = {
   "nxt-roadblock": `${EVENT_LOGOS_BASE}/nxt-roadblock.png`,
   "nxt-showdown": `${EVENT_LOGOS_BASE}/nxt-showdown.png`,
   "nxt-stand-and-deliver": `${EVENT_LOGOS_BASE}/nxt-stand-and-deliver.png`,
+  "nxt-tlc": `${EVENT_LOGOS_BASE}/nxt-tlc.png`,
   "nxt-vengeance-day": `${EVENT_LOGOS_BASE}/nxt-vengeance-day.png`,
 };
 
@@ -149,6 +153,7 @@ export function eventTypeToLogoKey(eventType: string): EventLogoKey | null {
   if (t === "king-queen-of-the-ring") return "king-queen";
   if (t === "money-in-the-bank") return "money-in-the-bank";
   if (t === "saturday-nights-main-event") return "saturday-nights-main-event";
+  if (t === "main-event") return "main-event";
   if (t === "backlash") return "backlash";
   if (t === "evolution") return "evolution";
   if (t === "clash-in-italy") return "clash-in-italy";
@@ -167,6 +172,7 @@ export function eventTypeToLogoKey(eventType: string): EventLogoKey | null {
   if (t === "nxt-roadblock") return "nxt-roadblock";
   if (t === "nxt-showdown") return "nxt-showdown";
   if (t === "nxt-stand-and-deliver") return "nxt-stand-and-deliver";
+  if (t === "nxt-tlc") return "nxt-tlc";
   if (t === "nxt-vengeance-day") return "nxt-vengeance-day";
   if (t === "crown-jewel") return "crown-jewel";
   return null;

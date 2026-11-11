@@ -115,5 +115,7 @@ export function CompletedEventResultsList({ initialEvents, initialHasMore, showF
 function filterLabel(f: EventShowFilter): string {
   if (f === "raw") return "Raw";
   if (f === "smackdown") return "SmackDown";
+  if (f === "nxt") return "NXT";
+  if (f === "main-event") return "Main Event";
   return "PLEs";
 }

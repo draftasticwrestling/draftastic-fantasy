@@ -38,6 +38,7 @@ import {
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
 } from "@/lib/leagueStructure";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
+import { eventCountsForLeagueMatchPoints } from "@/lib/leagueEventScoring";
 import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getCurrentChampionsMonthlyBeltBySlug } from "@/lib/scoring/currentChampionsBeltSnapshot";
 import {
@@ -126,6 +127,7 @@ function accumulateOwnerEventPointsForCalendarWeek(
   let kotrCarryOver: Record<string, number> = {};
 
   for (const event of allInRangeSorted) {
+    if (!eventCountsForLeagueMatchPoints(event, seasonSlug)) continue;
     const eventDate = (event.date ?? "").toString().slice(0, 10);
     const eventType = classifyEventType(event.name ?? "", event.id ?? "");
     const { pointsBySlug: eventPoints, callUpBySlug, updatedCarryOver } = getPointsForSingleEvent(

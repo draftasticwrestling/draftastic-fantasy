@@ -81,8 +81,9 @@ export function HowItWorksPublicLeague() {
               Event scoring
             </h2>
             <p style={{ marginBottom: 12 }}>
-              Wrestler event scoring matches Total Season Points leagues. Raw, SmackDown, NXT, and PLE appearance and win
-              bonuses apply for events in your league window. Only events on or after your league start date count.
+              Wrestler event scoring matches Total Season Points leagues. Raw, SmackDown, WWE Main Event, NXT, and PLE
+              appearance and win bonuses apply for events in your league window. Only events on or after your league start
+              date count.
             </p>
             <p style={{ marginBottom: 0 }}>
               Your {PUBLIC_SALARY_CAP_SEASON_WEEKS}-week window may include any combination of minor, medium, and major PLEs

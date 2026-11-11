@@ -54,6 +54,7 @@ import {
   stripChampionshipTitleHolderSuffix,
 } from "@/lib/championshipReignKind";
 import { isChampionshipRetiredAsOf } from "@/lib/retiredChampionships.js";
+import { resolveWrestlerChampionshipTitles } from "@/lib/wrestlerCurrentChampionships";
 import { factionDisplayName } from "@/lib/factionName";
 import { getCurrentChampionsFromChampionshipsTable } from "@/lib/championshipCurrentFromTable";
 import {
@@ -410,27 +411,16 @@ export default async function WrestlerProfilePage({
   // Keys in currentChampionsBySlug are canonical (normalizeWrestlerName); use same normalization for lookup
   const idKey = normalizeWrestlerName(String(wrestler.id));
   const slugKey = slug ? normalizeWrestlerName(slug) : "";
-  const currentTitles = (
-    currentChampionsBySlug[idKey] ??
-    currentChampionsBySlug[wrestler.id] ??
-    (slugKey ? currentChampionsBySlug[slugKey] : null) ??
-    (slug ? currentChampionsBySlug[slug] : null) ??
-    (nameKey ? currentChampionsBySlug[nameKey] : null) ??
-    []
-  ).filter((t) => t && !isChampionshipRetiredAsOf(t));
-
-  const fromTableRaw =
-    currentFromTable[idKey] ?? currentFromTable[slugKey] ?? (nameKey ? currentFromTable[nameKey] : null);
-  const fromChangesRaw =
-    currentFromChanges[idKey] ?? currentFromChanges[slugKey] ?? (nameKey ? currentFromChanges[nameKey] : null);
-  const fromTable =
-    fromTableRaw && !isChampionshipRetiredAsOf(fromTableRaw.title) ? fromTableRaw : null;
-  const fromChanges =
-    fromChangesRaw && !isChampionshipRetiredAsOf(fromChangesRaw.title) ? fromChangesRaw : null;
-
-  const rawPrimaryCurrentTitle = (fromTable ?? fromChanges)
-    ? (fromTable ?? fromChanges)!.title
-    : (currentTitles[0] ?? null);
+  // History names the current holder. The championships snapshot is only a fallback when
+  // history has no open reign for that belt, so a stale current_champion cannot keep a former
+  // champion's belt on the profile.
+  const resolvedCurrentTitles = resolveWrestlerChampionshipTitles(
+    { id: String(wrestler.id), name: wrestler.name ?? "" },
+    currentChampionsBySlug,
+    currentFromTable,
+    currentFromChanges
+  );
+  const rawPrimaryCurrentTitle = resolvedCurrentTitles[0] ?? null;
   const primaryTitleBase =
     rawPrimaryCurrentTitle && !isChampionshipRetiredAsOf(rawPrimaryCurrentTitle)
       ? stripChampionshipTitleHolderSuffix(rawPrimaryCurrentTitle)
@@ -444,10 +434,6 @@ export default async function WrestlerProfilePage({
   let primaryReignKind = normalizeReignKind(
     / \(Interim\)$/i.test(rawPrimaryCurrentTitle ?? "") ? "interim" : null
   );
-  const fromSource = fromTable ?? fromChanges;
-  if (fromSource?.wonDate) {
-    reignWonDate = fromSource.wonDate.slice(0, 10);
-  }
 
   const currentReign =
     primaryTitleBase && reigns?.length

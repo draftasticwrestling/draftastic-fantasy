@@ -4,6 +4,7 @@ import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getLeagueBySlug, getLeagueMembers, getRostersForLeague, getEffectiveLeagueStartDate } from "@/lib/leagues";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
+import { eventCountsForLeagueMatchPoints } from "@/lib/leagueEventScoring";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import {
   getDraftOrder,
@@ -244,8 +245,11 @@ export default async function LeagueDraftPage({ params }: Props) {
             const brandBySlugDraft = brandByWrestlerSlugFromRows(
               (brandRes.data ?? []) as { id: string; brand: string | null }[]
             );
+            const sinceStartEvents = cast(sinceStart.data ?? []).filter((e) =>
+              eventCountsForLeagueMatchPoints(e, league.season_slug)
+            );
             return {
-              pointsBySlug: aggregateWrestlerPoints(cast(sinceStart.data ?? []), brandBySlugDraft),
+              pointsBySlug: aggregateWrestlerPoints(sinceStartEvents, brandBySlugDraft),
               points2025BySlug: aggregateWrestlerPoints(cast(events2025.data ?? []), brandBySlugDraft),
               points2026BySlug: aggregateWrestlerPoints(cast(events2026.data ?? []), brandBySlugDraft),
               pointsAllTimeBySlug: aggregateWrestlerPoints(cast(eventsAll.data ?? []), brandBySlugDraft),

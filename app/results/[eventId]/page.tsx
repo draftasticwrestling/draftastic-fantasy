@@ -37,6 +37,8 @@ function formatEventType(type: string): string {
     "night-of-champions": "Night of Champions",
     "money-in-the-bank": "Money in the Bank",
     "saturday-nights-main-event": "Saturday Night's Main Event",
+    "main-event": "Main Event",
+    "nxt-tlc": "NXT TLC",
     backlash: "Backlash",
     evolution: "Evolution",
     "clash-in-paris": "Clash at the Castle",

@@ -17,6 +17,7 @@ import {
 } from "@/lib/leagueStructure";
 import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getDefaultStartEndForSeason, PUBLIC_SALARY_CAP_SEASON_SLUG, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
+import { eventCountsForLeagueMatchPoints } from "@/lib/leagueEventScoring";
 import {
   computePublicLeagueRegistrationSchedule,
   extendPublicLeagueRegistrationOneWeek,
@@ -1826,7 +1827,7 @@ export async function getLeagueScoring(
     const d = (e.date ?? "").toString().slice(0, 10);
     if (start && d < start) return false;
     if (end && d > end) return false;
-    return true;
+    return eventCountsForLeagueMatchPoints(e, league.season_slug);
   });
 
   const { data: wrestlerBrandRows } = await supabase.from("wrestlers").select("id, brand");

@@ -41,7 +41,7 @@ export function parseSiteAdminEventStatusFilter(raw: string | undefined): SiteAd
 
 export function parseSiteAdminEventShowFilter(raw: string | undefined): SiteAdminEventShowFilter {
   const v = (raw ?? "all").trim().toLowerCase();
-  if (v === "raw" || v === "smackdown" || v === "nxt" || v === "ple") return v;
+  if (v === "raw" || v === "smackdown" || v === "nxt" || v === "main-event" || v === "ple") return v;
   return "all";
 }
 

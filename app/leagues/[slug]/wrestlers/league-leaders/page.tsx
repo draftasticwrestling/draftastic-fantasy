@@ -13,6 +13,7 @@ import {
 import WrestlerList, { type WrestlerRow } from "@/app/wrestlers/WrestlerList";
 import { getLeagueSalaryCapCostContext, resolveSalaryCapCostForLeague } from "@/lib/salaryCap";
 import { leagueIncludesNxt, leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import { eventCountsForLeagueMatchPoints } from "@/lib/leagueEventScoring";
 import { aggregateWrestlerPoints } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import {
   aggregateWrestlerMatchStats,
@@ -261,7 +262,9 @@ export default async function LeagueLeadersPage({
         .order("date", { ascending: true })
         .limit(SCORING_EVENTS_FETCH_LIMIT),
     ]);
-    eventsSinceStart = (evSince.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[];
+    eventsSinceStart = ((evSince.data ?? []) as { id: string; name: string; date: string; matches?: object[] }[]).filter(
+      (e) => eventCountsForLeagueMatchPoints(e, league.season_slug)
+    );
     beltInferenceEvents = filterEventsForBeltReignInference(
       (evBelt.data ?? []) as Parameters<typeof inferReignsFromEvents>[0],
       league.end_date

@@ -67,6 +67,7 @@ const NXT_PLE_KEYS: EventLogoKey[] = [
   "nxt-halloween-havoc",
   "nxt-vengeance-day",
   "nxt-deadline",
+  "nxt-tlc",
 ];
 
 const NXT_SPECIAL_EPISODE_KEYS: EventLogoKey[] = [

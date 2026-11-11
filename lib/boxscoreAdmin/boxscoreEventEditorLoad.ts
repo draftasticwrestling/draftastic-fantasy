@@ -33,7 +33,7 @@ async function tryLoadByPwbsCompositeId(
   admin: SupabaseClient,
   decoded: string
 ): Promise<BoxscoreEventEditorRow | null> {
-  const m = decoded.match(/^(raw|smackdown|ple)-(\d{4})(\d{2})(\d{2})-(\d+)$/i);
+  const m = decoded.match(/^(raw|smackdown|ple|nxt|main-event)-(\d{4})(\d{2})(\d{2})-(\d+)$/i);
   if (!m) return null;
   const show = m[1].toLowerCase() as EventShowFilter;
   const date = `${m[2]}-${m[3]}-${m[4]}`;

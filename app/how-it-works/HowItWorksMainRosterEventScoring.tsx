@@ -1,6 +1,7 @@
 import {
   CROWN_JEWEL_POINTS,
   ELIMINATION_CHAMBER_POINTS,
+  MAIN_EVENT_WEEKLY_POINTS,
   EVOLUTION_EXTRA_POINTS,
   GENERAL_RULES,
   KING_QUEEN_POINTS,
@@ -66,6 +67,33 @@ export function HowItWorksMainRosterEventScoring({ intro }: Props) {
             <div className={`${styles.rawSmackdownCol} ${styles.rawSmackdownColSecond}`}>
               {RAWSMACKDOWN_POINTS.map(([action, pts], i) => (
                 <div key={`sd-${i}`} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>WWE Main Event</h2>
+        <p className={styles.sectionSubtitle} style={{ maxWidth: 780, marginLeft: "auto", marginRight: "auto" }}>
+          The weekly Main Event television show. This is not Saturday Night&apos;s Main Event. Match, title, and
+          multi-person bonuses use the same scale as Tuesday NXT, and the points count as Raw/SmackDown (R/S) points for
+          whoever is in the match. Public leagues count these points. Road to War Games does not. Road to WrestleMania
+          will.
+        </p>
+        <div className={styles.darkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="main-event"
+                placeholderText="Main Event logo"
+                className={styles.eventCardLogo}
+              />
+              {MAIN_EVENT_WEEKLY_POINTS.map(([action, pts]) => (
+                <div key={action} className={styles.pointRow}>
                   <span>{action}</span>
                   <span className={styles.pointRowPoints}>{pts}</span>
                 </div>

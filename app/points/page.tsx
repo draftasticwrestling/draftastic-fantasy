@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BELT_DEFENSE_NEW_CHAMPION_POINTS } from "@/lib/howItWorksPoints";
+import { BELT_DEFENSE_NEW_CHAMPION_POINTS, MAIN_EVENT_WEEKLY_POINTS } from "@/lib/howItWorksPoints";
 import { EVENT_LOGO_URLS } from "@/lib/howItWorksImages";
 
 export const metadata = {
@@ -111,6 +111,16 @@ export default function PointsPage() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>WWE Main Event</h2>
+        <p style={{ marginBottom: 8 }}>
+          Weekly Main Event television, not Saturday Night&apos;s Main Event. Same match scale as Tuesday NXT. Points
+          count as R/S points in public leagues and Road to WrestleMania. They do not count in Road to War Games.
+          Battle royals on this show use the NXT battle royal scale (0.5 to enter, 1 per elimination, 4 to win).
+        </p>
+        <EventTable title="Main Event" logoUrl={EVENT_LOGO_URLS["main-event"]} rows={MAIN_EVENT_WEEKLY_POINTS} />
       </section>
 
       {/* Belt points — weekly hold + defense / new champion */}

@@ -55,6 +55,15 @@ export function isRoadToWarGamesSeasonSlug(seasonSlug: string | null | undefined
   return s === ROAD_TO_WAR_GAMES_SEASON_SLUG || s === LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG;
 }
 
+/**
+ * WWE Main Event match points count in public leagues and Road to WrestleMania.
+ * They do not count in Road to War Games (including the legacy Survivor Series slug).
+ * A later War Games season that should include Main Event needs its own slug or an update here.
+ */
+export function leagueScoresWweMainEvent(seasonSlug: string | null | undefined): boolean {
+  return !isRoadToWarGamesSeasonSlug(seasonSlug);
+}
+
 /** Admin testing: Total Season Points scoring with budget roster build (non-exclusive wrestlers). */
 export const SALARY_CAP_LEAGUE_TYPE = "salary_cap";
 
