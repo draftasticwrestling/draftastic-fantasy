@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 /** Supabase client created with env read at request time (avoids module-load singleton issues). */
 function getSupabase() {
@@ -143,6 +143,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  if (slug === "nakkita-lyons") redirect("/wrestlers/nikkita-lyons");
   const db = getSupabase();
   const { data: wrestler } = await db.from("wrestlers").select("name").eq("id", slug).single();
   const name =
@@ -169,6 +170,7 @@ export default async function WrestlerProfilePage({
   searchParams?: Promise<{ period?: string; league?: string; from?: string }>;
 }) {
   const { slug } = await params;
+  if (slug === "nakkita-lyons") redirect("/wrestlers/nikkita-lyons");
   const searchParams = searchParamsPromise ? await searchParamsPromise : {};
   const periodParam = (searchParams.period ?? "").trim() as PointsPeriod | "";
   const leagueSlugFromQuery = (searchParams.league ?? "").trim() || null;
