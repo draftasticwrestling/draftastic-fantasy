@@ -59,6 +59,7 @@ const ADMIN_MENU_SECTIONS: readonly {
   {
     title: "Tools",
     links: [
+      { href: "/mock-draft", label: "Mock draft" },
       { href: "/internal-admin/draft-testing", label: "Draft testing" },
     ],
   },

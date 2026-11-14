@@ -7,7 +7,7 @@ import styles from "./PageLayout.module.css";
 export default function PageLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (pathname === "/coming-soon" || pathname === "/" || pathname === "/about-us") {
+  if (pathname === "/coming-soon" || pathname === "/" || pathname === "/about-us" || pathname === "/mock-draft") {
     return <>{children}</>;
   }
 
