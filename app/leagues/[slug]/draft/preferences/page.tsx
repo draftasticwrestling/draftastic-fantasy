@@ -5,7 +5,7 @@ import { getLeagueBySlug } from "@/lib/leagues";
 import {
   getLeagueDraftState,
   getDraftPreferences,
-  isDraftableWrestler,
+  isDraftableWrestlerForDraftTesting,
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
 import { getAdminClient } from "@/lib/supabase/admin";
@@ -134,7 +134,7 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
         return Number.isFinite(parsed) ? parsed : null;
       };
       let draftable = rows
-        .filter((w) => isDraftableWrestler(w))
+        .filter((w) => isDraftableWrestlerForDraftTesting(w))
         .map((w) => {
           const raw = w as unknown as Record<string, unknown>;
           return {
@@ -320,7 +320,7 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
               Autopick: everyone defaults to the site{" "}
               <strong>
                 {availableBigBoardIds.includes("default")
-                  ? "Default Big Board"
+                  ? "All-time Big Board"
                   : availableBigBoardIds[0]
                     ? bigBoardLabel(availableBigBoardIds[0])
                     : "provided Big Board"}
@@ -336,7 +336,7 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
               Autopick: everyone defaults to the site{" "}
               <strong>
                 {availableBigBoardIds.includes("default")
-                  ? "Default Big Board"
+                  ? "All-time Big Board"
                   : availableBigBoardIds[0]
                     ? bigBoardLabel(availableBigBoardIds[0])
                     : "provided Big Board"}
@@ -344,14 +344,14 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
               until they deliberately choose another <strong>provided Big Board</strong> or <strong>My own list</strong>{" "}
               below and save (for My own list: at least {autopickRequiredPriorityCount} wrestlers, including at least{" "}
               {AUTOPICK_REQUIRED_FEMALE_COUNT} female). Set preferences before the GM begins the draft on draft day; if
-              you have not saved prefs by then, the Default Big Board is used.{" "}
+              you have not saved prefs by then, the All-time Big Board is used.{" "}
               <strong>Tie-break after your list runs out</strong> (same for everyone): {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
             </>
           )
         ) : league.draft_type === "live" ? (
           <>
-            If the draft clock runs out, your pick comes from your priority list, then the Default Big Board. A short
-            list is fine. If you have not saved one, the Default Big Board is used.
+            If the draft clock runs out, your pick comes from your priority list, then the All-time Big Board. A short
+            list is fine. If you have not saved one, the All-time Big Board is used.
           </>
         ) : (
           <>

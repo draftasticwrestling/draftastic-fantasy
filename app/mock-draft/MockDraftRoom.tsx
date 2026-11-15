@@ -564,7 +564,7 @@ export function MockDraftRoom({ pool, draft, onChange, onClose }: Props) {
             {tab === "queue" ? (
               <>
                 <p className={styles.hint}>
-                  Your priority list. Auto-pick and the clock take the next wrestler still available here. When this list runs out, they use the Default Big Board.
+                  Your priority list. Auto-pick and the clock take the next wrestler still available here. When this list runs out, they use the All-time Big Board.
                 </p>
                 {draft.queue.length === 0 ? <p className={styles.emptyNote}>Your queue is empty.</p> : null}
                 {draft.queue.map((id, queueIndex) => {

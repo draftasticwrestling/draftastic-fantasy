@@ -1,11 +1,14 @@
 /**
- * Build Default Big Board from wrestler_stats_cache season_key=2026.
+ * Build Default Big Board from wrestler_stats_cache season_key=all_time.
+ * Injured wrestlers stay on the list. Auto-pick skips them at pick time.
+ * Inactive, retired, and non-wrestlers stay off.
  * Run: npx tsx scripts/build-default-big-board-2026.ts
  */
 import { config } from "dotenv";
 config({ path: ".env" });
 import { createClient } from "@supabase/supabase-js";
 import {
+  isDraftableWrestler,
   isDraftableWrestlerForDraftTesting,
   normalizeWrestlerRowFromApi,
 } from "../lib/leagueDraft";
@@ -18,7 +21,7 @@ async function main() {
     admin
       .from("wrestler_stats_cache")
       .select("wrestler_id, total_points, updated_at")
-      .eq("season_key", "2026")
+      .eq("season_key", "all_time")
       .order("total_points", { ascending: false }),
     admin.from("wrestlers").select('id, name, gender, brand, "Status", classification'),
   ]);
@@ -45,22 +48,30 @@ async function main() {
   console.log("cache updated_at sample:", updatedAt);
   console.log("cache rows:", cache?.length ?? 0);
 
-  const ranked: Array<{ id: string; name: string; points: number; gender: string | null; brand: string | null }> = [];
+  const ranked: Array<{
+    id: string;
+    name: string;
+    points: number;
+    gender: string | null;
+    brand: string | null;
+    injured: boolean;
+  }> = [];
   for (const row of cache ?? []) {
     const id = String(row.wrestler_id ?? "");
     if (!id) continue;
     const w = byId.get(id);
     if (!w) continue;
-    // Match autopick pool: injured OK, inactive/alumni/etc. excluded.
-    if (!isDraftableWrestlerForDraftTesting(w)) continue;
     const points = Number(row.total_points ?? 0);
     if (!Number.isFinite(points)) continue;
+    // Injured stay on the board. Inactive, retired, and non-wrestlers stay off.
+    if (!isDraftableWrestlerForDraftTesting(w)) continue;
     ranked.push({
       id,
       name: String(w.name ?? id),
       points,
       gender: w.gender ?? null,
       brand: w.brand ?? null,
+      injured: isDraftableWrestlerForDraftTesting(w) && !isDraftableWrestler(w),
     });
   }
 
@@ -70,7 +81,14 @@ async function main() {
   });
 
   const top = ranked.slice(0, 100);
-  console.log(`draftable with 2026 points rows: ${ranked.length}; taking top ${top.length}`);
+  const injuredOnBoard = top.filter((w) => w.injured);
+  console.log(
+    `draftable with all-time points: ${ranked.length}; taking top ${top.length}; injured on the board: ${injuredOnBoard.length}`
+  );
+  if (injuredOnBoard.length) {
+    console.log("injured kept on the board:");
+    for (const w of injuredOnBoard) console.log(`  ${w.name} (${w.id}) ${w.points}`);
+  }
 
   let female = 0;
   for (const w of top) {

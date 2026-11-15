@@ -114,7 +114,7 @@ export function MockDraftApp({ pool }: Props) {
       <p className={styles.kicker}>Practice</p>
       <h1>Mock draft</h1>
       <p className={styles.lede}>
-        Rank a priority list before you start. Auto-pick uses that queue first, then the Default Big Board when the
+        Rank a priority list before you start. Auto-pick uses that queue first, then the All-time Big Board when the
         list runs out. Other seats pick in this browser, and your picks stay on this device.
       </p>
 
@@ -219,7 +219,7 @@ export function MockDraftApp({ pool }: Props) {
             <h2>Your queue</h2>
             <p className={styles.hint}>
               Start from a Big Board, or build your own list. Auto-pick and the clock use this order first, then the
-              Default Big Board when it runs out. Change the order and it becomes your list.
+              All-time Big Board when it runs out. Change the order and it becomes your list.
             </p>
           </div>
           <button type="button" className={styles.primary} onClick={start} disabled={!rules || pool.length === 0}>

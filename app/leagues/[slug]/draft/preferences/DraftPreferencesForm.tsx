@@ -380,12 +380,12 @@ export function DraftPreferencesForm({
             Priority list source
             <span style={{ color: "var(--color-success, #0d7d0d)", fontSize: 14, fontWeight: 500 }}>
               {" "}
-              (updated 7/27/26)
+              (updated 11/15/26)
             </span>
           </h2>
           <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 12 }}>
             Everyone defaults to the site{" "}
-            <strong>{primaryBoardId ? DRAFT_BIG_BOARDS[primaryBoardId].label : "Default Big Board"}</strong> until you
+            <strong>{primaryBoardId ? DRAFT_BIG_BOARDS[primaryBoardId].label : "All-time Big Board"}</strong> until you
             deliberately choose another provided Big Board or <strong>My own list</strong> and save. If you reorder, add,
             or remove anyone after choosing a board, your source becomes <strong>My own list</strong> with your edits.{" "}
             <strong>Tie-break after your list runs out</strong> (same for everyone): {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}

@@ -196,7 +196,7 @@ const SECTIONS: FaqSection[] = [
       },
       {
         q: "How do draft settings work?",
-        a: "Private leagues: the GM sets a draft date, sets draft order on the Draft tab, and clicks Begin Draft on or after draft day (the draft does not auto-start). Members should set auto-draft preferences beforehand; anyone without prefs uses the Default Big Board. Public leagues follow the site schedule. Once a draft is active or completed, some settings lock to preserve integrity.",
+        a: "Private leagues: the GM sets a draft date, sets draft order on the Draft tab, and clicks Begin Draft on or after draft day (the draft does not auto-start). Members should set auto-draft preferences beforehand; anyone without prefs uses the All-time Big Board. Public leagues follow the site schedule. Once a draft is active or completed, some settings lock to preserve integrity.",
       },
       {
         q: "What do draft statuses mean?",

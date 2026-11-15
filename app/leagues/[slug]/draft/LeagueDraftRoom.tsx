@@ -579,7 +579,7 @@ export function LeagueDraftRoom({
             )}
             {liveSync && (
               <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-                If the clock runs out, the pick comes from that manager&apos;s priority list, then the Default Big Board.
+                If the clock runs out, the pick comes from that manager&apos;s priority list, then the All-time Big Board.
               </span>
             )}
             {clockError && (

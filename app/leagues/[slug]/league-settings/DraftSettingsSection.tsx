@@ -16,7 +16,7 @@ const DRAFT_TYPE_OPTIONS: { value: "offline" | "autopick" | "live"; label: strin
     value: "autopick",
     label: "Autopick",
     description:
-      "Each manager sets auto-draft preferences (everyone defaults to the site Default Big Board until they choose another Big Board or My own list). On draft day, the GM starts the draft from the Draft tab.",
+      "Each manager sets auto-draft preferences (everyone defaults to the site All-time Big Board until they choose another Big Board or My own list). On draft day, the GM starts the draft from the Draft tab.",
   },
   {
     value: "live",

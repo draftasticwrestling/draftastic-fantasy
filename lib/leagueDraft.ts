@@ -51,6 +51,7 @@ import {
   getDefaultBigBoardIdForLeague,
   hasAdequateAutopickDraftPreferences,
   isBigBoardId,
+  DRAFT_BIG_BOARDS,
   type BigBoardId,
 } from "@/lib/draftBigBoards";
 import { isInBetaAutopickRunWindow } from "@/lib/betaAutopickSchedule";
@@ -365,8 +366,9 @@ export async function getDraftPreferencesForAllMembers(
       summary = `Not set. ${siteDefaultBoardLabel} will be used at draft time. ${DEFAULT_AUTOPICK_DESCRIPTION}`;
     } else if (!isCustom) {
       hasPreferencesDisplay = true;
+      const savedBoardId = listSrc && isBigBoardId(String(listSrc)) ? (listSrc as BigBoardId) : null;
       const boardId: BigBoardId =
-        listSrc && isBigBoardId(String(listSrc)) ? (listSrc as BigBoardId) : siteDefaultBoardId;
+        savedBoardId && !DRAFT_BIG_BOARDS[savedBoardId].unavailable ? savedBoardId : siteDefaultBoardId;
       summary =
         boardId === siteDefaultBoardId
           ? `${siteDefaultBoardLabel} · ${DEFAULT_AUTOPICK_DESCRIPTION}`
@@ -446,7 +448,7 @@ export async function getDraftPreferences(
 
 /**
  * Ensure the league can run autopick. Managers without saved prefs (or with an incomplete custom
- * list) use the site Default Big Board at pick time — that counts as coverage.
+ * list) use the site All-time Big Board at pick time — that counts as coverage.
  */
 async function validateAutopickPriorityCoverage(
   admin: AdminClient,
@@ -467,7 +469,7 @@ async function validateAutopickPriorityCoverage(
   if (defaultBoard.length < requiredPriorityCount) {
     return {
       ok: false,
-      error: `Site Default Big Board is too short for this league (${defaultBoard.length}/${requiredPriorityCount}).`,
+      error: `Site All-time Big Board is too short for this league (${defaultBoard.length}/${requiredPriorityCount}).`,
     };
   }
   return { ok: true };
@@ -1503,11 +1505,11 @@ export function isDraftableWrestlerForDraftTesting(row: DraftPoolRow): boolean {
 }
 
 /**
- * Pool for `draft_type === "autopick"` simplified picks. Same as Draft Testing: **injured talent counts**.
- * Strict `isDraftableWrestler` often empties the pool (many active stars are marked injured) and blocks the whole draft.
+ * Pool for automatic picks. Injured wrestlers stay off this pool so a clock or autopick
+ * takes the next healthy wrestler. The emergency fallback can still finish a draft if nobody healthy remains.
  */
 function isAutopickDraftableWrestler(row: DraftPoolRow): boolean {
-  return isDraftableWrestlerForDraftTesting(row);
+  return isDraftableWrestler(row);
 }
 
 type PointsFallbackOptions = {
@@ -1691,7 +1693,7 @@ export async function getTopAvailableWrestlerForUser(
     const fallbackList = getBigBoardPriorityList(fallbackBoardId) ?? [];
     if (src === "custom") {
       const own = prefs?.priority_list ?? [];
-      // Incomplete custom lists fall back to the Default Big Board (same as "not set").
+      // Incomplete custom lists fall back to the All-time Big Board (same as "not set").
       priorityWalkList = hasAdequateAutopickDraftPreferences({
         includeNxt: poolOptionsForUser.includeNxt,
         priorityList: own,
@@ -1699,14 +1701,16 @@ export async function getTopAvailableWrestlerForUser(
       })
         ? own
         : fallbackList;
-    } else if (src && isBigBoardId(src)) {
+    } else if (src && isBigBoardId(src) && !DRAFT_BIG_BOARDS[src].unavailable) {
       priorityWalkList = getBigBoardPriorityList(src) ?? fallbackList;
     } else {
-      // No prefs saved yet — use the site Default Big Board.
+      // No prefs saved yet — use the site All-time Big Board.
       priorityWalkList = fallbackList;
     }
   } else if (prefs?.priority_list?.length) {
-    priorityWalkList = prefs.priority_list;
+    const src = (prefs.strategy_options as { priorityListSource?: string } | undefined)?.priorityListSource?.trim();
+    const pendingBoard = Boolean(src && isBigBoardId(src) && DRAFT_BIG_BOARDS[src].unavailable);
+    if (!pendingBoard) priorityWalkList = prefs.priority_list;
   }
 
   if (priorityWalkList.length) {
@@ -1714,20 +1718,28 @@ export async function getTopAvailableWrestlerForUser(
     if (undraftedPriorityIds.length > 0) {
       const { data: priG } = await supabase
         .from("wrestlers")
-        .select("id,gender,brand")
+        .select('id,gender,brand,"Status","Classification"')
         .in("id", undraftedPriorityIds);
       const genderById = new Map<string, "F" | "M" | null>();
       const brandById = new Map<string, string | null>();
-      for (const row of (priG ?? []) as { id: string; gender?: string | null; brand?: string | null }[]) {
-        const ng = normalizeGender(row.gender);
-        const id = String(row.id);
+      const draftableById = new Map<string, boolean>();
+      for (const row of (priG ?? []) as Record<string, unknown>[]) {
+        const normalized = normalizeWrestlerRowFromApi(row);
+        const id = normalized.id ?? "";
+        if (!id) continue;
+        const ng = normalizeGender(row.gender as string | null | undefined);
         genderById.set(id, ng);
         genderById.set(id.toLowerCase(), ng);
-        brandById.set(id, row.brand ?? null);
-        brandById.set(id.toLowerCase(), row.brand ?? null);
+        brandById.set(id, normalized.brand ?? null);
+        brandById.set(id.toLowerCase(), normalized.brand ?? null);
+        const draftable = isDraftableWrestler(normalized);
+        draftableById.set(id, draftable);
+        draftableById.set(id.toLowerCase(), draftable);
       }
       for (const wid of priorityWalkList) {
         if (!wid || draftedIds.has(wid)) continue;
+        const draftable = draftableById.get(wid) ?? draftableById.get(String(wid).toLowerCase());
+        if (!draftable) continue;
         const g = genderById.get(wid) ?? genderById.get(String(wid).toLowerCase()) ?? null;
         if (requiredGender && g !== requiredGender) continue;
         const brand =
@@ -2171,7 +2183,7 @@ async function findFirstUndraftedAutopickRawSdWrestlerId(
 
 /**
  * Autopick leagues (`draft_type === "autopick"`): no priority lists or strategy prefs.
- * - Pool: autopick-eligible wrestlers (injured allowed; see `isAutopickDraftableWrestler`) whose **Roster** is Raw or SmackDown (`wrestlers.brand` via `wrestlerRosterFromBrand`).
+ * - Pool: autopick-eligible wrestlers (currently injured skipped) whose **Roster** is Raw or SmackDown (`wrestlers.brand` via `wrestlerRosterFromBrand`).
  * - Order: while any current champion remains undrafted in that pool, pick best **event-derived** total (RS+PLE+belt) among them; else best overall in pool.
  * - Gender: `requiredGenderFromRules` from roster mins; if no match, relax gender.
  * - If that pool is exhausted, `performOneAutoPick` falls back to best score among all draftable wrestlers, then any draftable (so large drafts can finish).
@@ -2325,7 +2337,7 @@ async function getAnyUndraftedDraftableWrestlerId(
   return null;
 }
 
-/** Autopick last resort: any autopick-eligible wrestler (injured OK), stable id order. */
+/** Autopick last resort: any healthy autopick-eligible wrestler, stable id order. */
 async function getAnyUndraftedAutopickWrestlerId(
   admin: AdminClient,
   draftedIds: Set<string>
@@ -2365,7 +2377,7 @@ async function getAnyUndraftedNonBlocklistedForAutopickEmergency(
   return null;
 }
 
-type LiveClockWrestlerMeta = { gender: "F" | "M" | null; brand: string | null };
+type LiveClockWrestlerMeta = { gender: "F" | "M" | null; brand: string | null; draftable: boolean };
 
 async function loadLiveClockWrestlerMeta(
   admin: AdminClient,
@@ -2375,10 +2387,19 @@ async function loadLiveClockWrestlerMeta(
   const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
   for (let i = 0; i < unique.length; i += 100) {
     const slice = unique.slice(i, i + 100);
-    const { data } = await admin.from("wrestlers").select("id,gender,brand").in("id", slice);
-    for (const row of (data ?? []) as { id: string; gender?: string | null; brand?: string | null }[]) {
-      const id = String(row.id);
-      const entry = { gender: normalizeGender(row.gender), brand: row.brand ?? null };
+    const { data } = await admin
+      .from("wrestlers")
+      .select('id,gender,brand,"Status","Classification"')
+      .in("id", slice);
+    for (const row of (data ?? []) as Record<string, unknown>[]) {
+      const normalized = normalizeWrestlerRowFromApi(row);
+      const id = normalized.id ?? "";
+      if (!id) continue;
+      const entry = {
+        gender: normalizeGender(row.gender as string | null | undefined),
+        brand: normalized.brand ?? null,
+        draftable: isDraftableWrestler(normalized),
+      };
       meta.set(id, entry);
       meta.set(id.toLowerCase(), entry);
     }
@@ -2397,6 +2418,7 @@ function firstListedLiveClockWrestler(
     if (!wid || isInDraftedSet(draftedIds, wid)) continue;
     const row = meta.get(wid) ?? meta.get(wid.toLowerCase());
     if (!row) continue;
+    if (!row.draftable) continue;
     if (requiredGender && row.gender !== requiredGender) continue;
     if (!isMainBrandWrestlerRosterForLeague(row.brand, poolOptions)) continue;
     return wid;
@@ -2406,7 +2428,7 @@ function firstListedLiveClockWrestler(
 
 /**
  * Live-draft clock expiry: the on-the-clock manager's saved priority list, then the
- * Default Big Board. Gender floors and brand rules still apply. Does not load scoring events.
+ * All-time Big Board. Currently injured wrestlers are skipped. Gender floors and brand rules still apply. Does not load scoring events.
  */
 async function chooseLiveClockWrestler(
   admin: AdminClient,
@@ -2420,7 +2442,9 @@ async function chooseLiveClockWrestler(
     includeNxt: leagueIncludesNxt(leagueRow as { include_nxt?: boolean | null } | null),
   };
   const prefs = await getDraftPreferences(leagueId, userId, admin);
-  const queue = prefs?.priority_list ?? [];
+  const savedSource = (prefs?.strategy_options as { priorityListSource?: string } | null | undefined)?.priorityListSource?.trim();
+  const savedBoardPending = Boolean(savedSource && isBigBoardId(savedSource) && DRAFT_BIG_BOARDS[savedSource].unavailable);
+  const queue = savedBoardPending ? [] : (prefs?.priority_list ?? []);
   const boardId = getDefaultBigBoardIdForLeague({ includeNxt: poolOptions.includeNxt }) ?? "default";
   const board = getBigBoardPriorityList(boardId) ?? [];
   const meta = await loadLiveClockWrestlerMeta(admin, [...queue, ...board]);
@@ -2694,7 +2718,7 @@ export type LiveClockExpiryResult = {
 
 /**
  * One live-draft pick when the server clock for the current turn has run out.
- * The on-the-clock manager's priority list is used first, then the Default Big Board.
+ * The on-the-clock manager's priority list is used first, then the All-time Big Board.
  * A compare-and-swap on the turn timestamp keeps a full room from each writing a pick.
  */
 export async function runLiveDraftClockIfExpired(leagueId: string): Promise<LiveClockExpiryResult> {

@@ -479,13 +479,13 @@ export default async function LeagueDraftPage({ params }: Props) {
         <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
           {leagueDraftType === "autopick" ? (
             <>
-              Autopick uses your saved priority order (or the site Default Big Board until you deliberately choose another
+              Autopick uses your saved priority order (or the site All-time Big Board until you deliberately choose another
               provided Big Board or <strong>My own list</strong> via the link below).{" "}
               <strong>Tie-break after your list runs out</strong> (same for everyone): {DEFAULT_AUTOPICK_DESCRIPTION}
             </>
           ) : leagueDraftType === "live" ? (
             <>
-              If the pick clock runs out, your pick comes from your priority list, then the Default Big Board.
+              If the pick clock runs out, your pick comes from your priority list, then the All-time Big Board.
             </>
           ) : (
             <>
@@ -528,7 +528,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           </h2>
           <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 12 }}>
             {canSeeAllDraftReadiness
-              ? "Before the GM begins the draft, confirm each manager has set preferences. If not set, the Default Big Board is used."
+              ? "Before the GM begins the draft, confirm each manager has set preferences. If not set, the All-time Big Board is used."
               : "Your readiness is shown below. Only the GM and site admins can view other managers' draft-preference readiness."}
             {" "}
             <strong style={{ color: "var(--color-text)" }}>
@@ -567,7 +567,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           </ul>
           <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 12, marginBottom: 0 }}>
             <strong>Tie-break after your list runs out</strong> (same for everyone): {DEFAULT_AUTOPICK_DESCRIPTION} Everyone defaults to the
-            site Default Big Board until they deliberately choose another provided Big Board or &quot;My own list&quot; under &quot;Set your
+            site All-time Big Board until they deliberately choose another provided Big Board or &quot;My own list&quot; under &quot;Set your
             auto-draft preferences&quot; above.
           </p>
         </section>
@@ -634,7 +634,7 @@ export default async function LeagueDraftPage({ params }: Props) {
           {!isCommissioner && !isSiteAdmin && league.draft_type === "autopick" && (
             <p style={{ marginBottom: 24, fontSize: 14, color: "#666" }}>
               The GM will begin the draft on draft day. You can still set preferences until then; if you have not saved
-              prefs, the Default Big Board is used.
+              prefs, the All-time Big Board is used.
             </p>
           )}
           <section style={{ marginBottom: 24 }}>

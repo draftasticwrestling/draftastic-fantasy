@@ -243,7 +243,7 @@ export async function notifyLeagueDraftDateSet(args: {
     const body = `
       <p style="font-size:16px;line-height:1.5;">Hi,</p>
       <p style="font-size:16px;line-height:1.5;">The GM set the draft date for <strong>${escapeHtml(args.leagueName)}</strong> to <strong>${escapeHtml(dateLabel)}</strong>.</p>
-      <p style="font-size:16px;line-height:1.5;">Set your auto-draft preferences before draft day. If you have not saved preferences when the GM begins the draft, the Default Big Board will be used for your picks.</p>
+      <p style="font-size:16px;line-height:1.5;">Set your auto-draft preferences before draft day. If you have not saved preferences when the GM begins the draft, the All-time Big Board will be used for your picks.</p>
       ${emailButton(draftUrl, "Set draft preferences")}
       ${emailMutedLink(draftUrl)}`;
 

@@ -106,8 +106,9 @@ function firstListed(ids: readonly string[] | undefined, candidates: readonly Mo
 
 /**
  * Next wrestler for a seat. The user's queue is consulted only when `useQueue` is set.
- * If nobody on that queue is still available, `fallbackQueue` (the Default Big Board) is next.
+ * If nobody on that queue is still available, `fallbackQueue` (the All-time Big Board) is next.
  * A required gender is honored when anyone of that gender is still available.
+ * Currently injured wrestlers are skipped while a healthy option remains.
  */
 export function chooseWrestler(opts: {
   pool: MockDraftWrestler[];
@@ -123,7 +124,9 @@ export function chooseWrestler(opts: {
   if (available.length === 0) return null;
   const need = genderNeeded(opts.rules, opts.roster);
   const legal = need ? available.filter((w) => w.gender === need) : available;
-  const candidates = legal.length > 0 ? legal : available;
+  const genderOk = legal.length > 0 ? legal : available;
+  const healthy = genderOk.filter((w) => !w.injured);
+  const candidates = healthy.length > 0 ? healthy : genderOk;
 
   if (opts.useQueue) {
     const fromQueue = firstListed(opts.queue, candidates);
