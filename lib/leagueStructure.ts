@@ -55,6 +55,13 @@ export function isRoadToWarGamesSeasonSlug(seasonSlug: string | null | undefined
   return s === ROAD_TO_WAR_GAMES_SEASON_SLUG || s === LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG;
 }
 
+/** Road to WrestleMania private leagues (2026–27 window and later seasons on this slug). */
+export const ROAD_TO_WRESTLEMANIA_SEASON_SLUG = "road-to-wrestlemania";
+
+export function isRoadToWrestleManiaSeasonSlug(seasonSlug: string | null | undefined): boolean {
+  return (seasonSlug ?? "").trim() === ROAD_TO_WRESTLEMANIA_SEASON_SLUG;
+}
+
 /**
  * WWE Main Event match points count in public leagues and Road to WrestleMania.
  * They do not count in Road to War Games (including the legacy Survivor Series slug).
@@ -280,14 +287,14 @@ export function getRosterRulesForLeague(
     // Gate the NXT ladder by season, not the include_nxt flag: pre-R2WG H2H
     // leagues (e.g. the RTSS H2H test league) run with NXT enabled but must
     // keep their original roster sizes for the rest of their season.
-    if (isRoadToWarGamesSeasonSlug(seasonSlug)) {
+    if (isRoadToWarGamesSeasonSlug(seasonSlug) || isRoadToWrestleManiaSeasonSlug(seasonSlug)) {
       return HEAD_TO_HEAD_NXT_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
     }
     return HEAD_TO_HEAD_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
   }
-  // Road to War Games Total Season Points leagues share the H2H (NXT-included)
-  // roster ladder (NXT is always included for R2WG).
-  if (isRoadToWarGamesSeasonSlug(seasonSlug)) {
+  // Road to War Games and Road to WrestleMania Total Season Points leagues share the
+  // H2H (NXT-included) roster ladder. NXT is always included for those seasons.
+  if (isRoadToWarGamesSeasonSlug(seasonSlug) || isRoadToWrestleManiaSeasonSlug(seasonSlug)) {
     return HEAD_TO_HEAD_NXT_ROSTER_RULES_BY_TEAMS[teamCount] ?? null;
   }
   if (includeNxt) {

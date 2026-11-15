@@ -3,7 +3,13 @@
  * GMs can choose one of these when creating a league (or set custom dates).
  */
 
-import { LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG, ROAD_TO_WAR_GAMES_SEASON_SLUG } from "@/lib/leagueStructure";
+import { getMondayOfWeek } from "@/lib/fantasyWeekBounds";
+import {
+  LEGACY_ROAD_TO_SURVIVOR_SERIES_SEASON_SLUG,
+  ROAD_TO_WAR_GAMES_SEASON_SLUG,
+  ROAD_TO_WRESTLEMANIA_SEASON_SLUG,
+} from "@/lib/leagueStructure";
+import { getCivilYmdInPst } from "@/lib/pstCivilTime";
 import { computePublicLeagueRegistrationSchedule } from "@/lib/publicLeagueRegistration";
 
 export type SeasonOption = {
@@ -21,7 +27,7 @@ export type SeasonOption = {
 };
 
 /** Standard (non-admin) private-league creation season. */
-export const STANDARD_USER_CREATE_SEASON_SLUG = ROAD_TO_WAR_GAMES_SEASON_SLUG;
+export const STANDARD_USER_CREATE_SEASON_SLUG = ROAD_TO_WRESTLEMANIA_SEASON_SLUG;
 
 /**
  * Road to War Games 2026 window and league-creation cutoff.
@@ -40,6 +46,70 @@ export function roadToWarGamesCreateOpen(
   todayYmd: string = new Date().toISOString().slice(0, 10)
 ): boolean {
   return todayYmd <= ROAD_TO_WAR_GAMES_2026.last_create_start_ymd;
+}
+
+/**
+ * Road to WrestleMania 2026–27.
+ * Creation opens November 21, 2026. Scoring can begin with the Raw on November 30
+ * (the Raw after Survivor Series: War Games). WrestleMania is expected April 17–18, 2027
+ * and is not announced; change those dates and the last start Monday follows.
+ * The last start is the Monday of WrestleMania week, minus five weeks, so the league
+ * still has six Monday weeks through WrestleMania week.
+ */
+export const ROAD_TO_WRESTLEMANIA_2026 = {
+  create_open_ymd: "2026-11-21",
+  season_start_ymd: "2026-11-30",
+  wrestlemania_night_1_ymd: "2027-04-17",
+  wrestlemania_night_2_ymd: "2027-04-18",
+} as const;
+
+function addDaysYmd(ymd: string, days: number): string {
+  const date = new Date(`${ymd}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Last Monday a new Road to WrestleMania league may be created. */
+export function lastRoadToWrestleManiaStartYmd(
+  wrestlemaniaYmd: string = ROAD_TO_WRESTLEMANIA_2026.wrestlemania_night_1_ymd
+): string {
+  return addDaysYmd(getMondayOfWeek(wrestlemaniaYmd), -35);
+}
+
+export type RoadToWrestleManiaCreateStatus = "before_open" | "open" | "closed";
+
+/** Pacific civil date. Creation is closed before November 21 and after the last start Monday. */
+export function roadToWrestleManiaCreateStatus(
+  todayYmd: string = getCivilYmdInPst(Date.now())
+): RoadToWrestleManiaCreateStatus {
+  if (todayYmd < ROAD_TO_WRESTLEMANIA_2026.create_open_ymd) return "before_open";
+  if (todayYmd > lastRoadToWrestleManiaStartYmd()) return "closed";
+  return "open";
+}
+
+export function roadToWrestleManiaCreateOpen(todayYmd?: string): boolean {
+  return roadToWrestleManiaCreateStatus(todayYmd) === "open";
+}
+
+function formatUtcLongDate(ymd: string): string {
+  const [year, month, day] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Why a standard user cannot create a league right now, or null when creation is open. */
+export function roadToWrestleManiaCreateBlockMessage(todayYmd?: string): string | null {
+  const status = roadToWrestleManiaCreateStatus(todayYmd);
+  if (status === "open") return null;
+  if (status === "before_open") {
+    return "Road to WrestleMania league creation opens November 21, 2026. The first scored show is the Raw on November 30.";
+  }
+  return `Road to WrestleMania league creation is closed. New leagues had to start by ${formatUtcLongDate(lastRoadToWrestleManiaStartYmd())}, six weeks before WrestleMania.`;
 }
 
 export { PUBLIC_SALARY_CAP_SEASON_SLUG, PUBLIC_SALARY_CAP_SEASON_WEEKS } from "@/lib/publicLeagueSchedule";
@@ -66,8 +136,8 @@ export const SEASON_OPTIONS: SeasonOption[] = [
   {
     id: "road-to-wrestlemania",
     name: "Road to WrestleMania",
-    slug: "road-to-wrestlemania",
-    windowDescription: "First Raw in December through WrestleMania Night 2",
+    slug: ROAD_TO_WRESTLEMANIA_SEASON_SLUG,
+    windowDescription: "Raw on November 30, 2026 through WrestleMania (expected April 17–18, 2027)",
     startMonth: 12,
     endMonth: 4,
     crossesCalendarYear: true,
@@ -145,6 +215,16 @@ export function getDefaultStartEndForSeason(
     year === 2026
   ) {
     return { start_date: ROAD_TO_WAR_GAMES_2026.season_start_ymd, end_date: ROAD_TO_WAR_GAMES_2026.season_end_ymd };
+  }
+
+  if (
+    seasonSlug === ROAD_TO_WRESTLEMANIA_SEASON_SLUG &&
+    (year === 2026 || year === 2027)
+  ) {
+    return {
+      start_date: ROAD_TO_WRESTLEMANIA_2026.season_start_ymd,
+      end_date: ROAD_TO_WRESTLEMANIA_2026.wrestlemania_night_2_ymd,
+    };
   }
 
   if (seasonSlug === "public-salary-cap") {

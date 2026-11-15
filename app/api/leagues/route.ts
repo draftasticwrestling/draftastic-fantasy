@@ -5,7 +5,7 @@ import { SALARY_CAP_LEAGUE_TYPE } from "@/lib/leagueStructure";
 import {
   PUBLIC_SALARY_CAP_SEASON_SLUG,
   STANDARD_USER_CREATE_SEASON_SLUG,
-  roadToWarGamesCreateOpen,
+  roadToWrestleManiaCreateBlockMessage,
 } from "@/lib/leagueSeasons";
 
 /** Road to War Games private-league formats and team-count limits (matches create form). */
@@ -80,18 +80,13 @@ export async function POST(request: Request) {
       }
     } else if (!isSiteAdmin) {
       // Standard private create: Road to War Games, no access code.
-      if (!roadToWarGamesCreateOpen()) {
-        return NextResponse.json(
-          {
-            error:
-              "Road to War Games league creation is closed for this season (new leagues must start at least six weeks before Survivor Series: War Games).",
-          },
-          { status: 403 }
-        );
+      const createBlock = roadToWrestleManiaCreateBlockMessage();
+      if (createBlock) {
+        return NextResponse.json({ error: createBlock }, { status: 403 });
       }
       if (season_slug && season_slug !== STANDARD_USER_CREATE_SEASON_SLUG) {
         return NextResponse.json(
-          { error: "New private leagues use the Road to War Games season." },
+          { error: "New private leagues use the Road to WrestleMania season." },
           { status: 400 }
         );
       }

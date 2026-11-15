@@ -348,6 +348,11 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
               <strong>Tie-break after your list runs out</strong> (same for everyone): {AUTOPICK_LIST_EXHAUSTED_TIE_BREAK}
             </>
           )
+        ) : league.draft_type === "live" ? (
+          <>
+            If the draft clock runs out, your pick comes from your priority list, then the Default Big Board. A short
+            list is fine. If you have not saved one, the Default Big Board is used.
+          </>
         ) : (
           <>
             If the draft clock runs out, your pick is made automatically. Optionally set a ranked list of 10 or more

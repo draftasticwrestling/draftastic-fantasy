@@ -179,12 +179,14 @@ export async function updateDraftSettingsAction(
     payload.draft_order_method = "manual_by_gm" satisfies DraftOrderMethod;
   }
 
-  if (draft_type_ui === "offline" && isPublicLeague) {
+  if ((draft_type_ui === "offline" || draft_type_ui === "live") && isPublicLeague) {
     return { error: "Public leagues must use Autopick draft type." };
   }
 
   if (draft_type_ui === "offline") {
     payload.draft_type = "offline";
+  } else if (draft_type_ui === "live") {
+    payload.draft_type = "live";
   } else {
     payload.draft_type = "autopick";
   }
@@ -196,7 +198,15 @@ export async function updateDraftSettingsAction(
     .eq("id", league.id)
     .select("id");
 
-  if (error) return { error: error.message };
+  if (error) {
+    if (draft_type_ui === "live" && /draft_type|check constraint/i.test(error.message ?? "")) {
+      return {
+        error:
+          "Live draft is not enabled in the database yet. Run supabase/league_draft_lobby.sql in the Supabase SQL editor, then save again.",
+      };
+    }
+    return { error: error.message };
+  }
   if (!updatedRows?.length) {
     return { error: "Update did not apply. You may not have permission to change this league." };
   }

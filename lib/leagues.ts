@@ -14,6 +14,7 @@ import {
   SALARY_CAP_LEAGUE_TYPE,
   SALARY_CAP_MAX_ROSTER_SIZE,
   isRoadToWarGamesSeasonSlug,
+  isRoadToWrestleManiaSeasonSlug,
 } from "@/lib/leagueStructure";
 import { isMainBrandWrestlerRosterForLeague, wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
 import { getDefaultStartEndForSeason, PUBLIC_SALARY_CAP_SEASON_SLUG, STANDARD_USER_CREATE_SEASON_SLUG } from "@/lib/leagueSeasons";
@@ -96,7 +97,7 @@ import {
   shouldSkipJulyMonthEndBeltForRts2026,
 } from "@/lib/beltRts2026JulyDeferral";
 
-export type DraftType = "offline" | "linear" | "snake" | "autopick";
+export type DraftType = "offline" | "linear" | "snake" | "autopick" | "live";
 export type DraftOrderMethod = "random_one_hour_before" | "manual_by_gm";
 
 export type League = {
@@ -212,6 +213,8 @@ export async function createLeague(params: {
   include_nxt?: boolean | null;
   max_teams?: number | null;
   visibility_type?: "private" | "public" | null;
+  /** Site admins may choose live, autopick, or offline. Ignored for everyone else. */
+  draft_type?: string | null;
 }): Promise<{ league?: League; error?: string }> {
   const { supabase, user } = await getServerAuth();
   if (!user) return { error: "Not authenticated" };
@@ -254,11 +257,12 @@ export async function createLeague(params: {
     end_date = window.end_date;
   }
 
-  const isRoadToWarGames = isRoadToWarGamesSeasonSlug(seasonSlug);
+  const isStandardPrivateSeason =
+    isRoadToWarGamesSeasonSlug(seasonSlug) || isRoadToWrestleManiaSeasonSlug(seasonSlug);
   const requestedLeagueTypeForCap = params.league_type?.trim() || null;
-  // Non-admin caps: Road to War Games Head-to-Head allows up to 8 factions; everything else 6.
+  // Non-admin caps: Head-to-Head allows up to 8 factions; everything else 6.
   const nonAdminMaxTeams =
-    isRoadToWarGames && requestedLeagueTypeForCap === "head_to_head" ? 8 : 6;
+    isStandardPrivateSeason && requestedLeagueTypeForCap === "head_to_head" ? 8 : 6;
   const maxTeamsCapForUser = isSiteAdmin ? 16 : nonAdminMaxTeams;
   const maxTeamsRequested =
     params.max_teams != null && Number.isFinite(Number(params.max_teams))
@@ -282,6 +286,13 @@ export async function createLeague(params: {
   const { data: existing } = await admin.from("leagues").select("slug");
   const existingSlugs = new Set((existing ?? []).map((r) => r.slug));
 
+  const requestedDraftType = params.draft_type?.trim() || "";
+  const adminDraftType =
+    isSiteAdmin &&
+    !isPublicSalaryCapCreate &&
+    (requestedDraftType === "live" || requestedDraftType === "offline" || requestedDraftType === "autopick")
+      ? requestedDraftType
+      : null;
   const draft_date = null;
   let league_type = params.league_type?.trim() || null;
   if (isPublicSalaryCapCreate) {
@@ -328,7 +339,7 @@ export async function createLeague(params: {
         season_slug: seasonSlug,
         draft_date,
         draft_time: null,
-        draft_type: isSalaryCapLeague ? "salary_cap" : "autopick",
+        draft_type: isSalaryCapLeague ? "salary_cap" : (adminDraftType ?? "autopick"),
         draft_style: "snake",
         draft_order_method: isSalaryCapLeague || visibilityType !== "public" ? "manual_by_gm" : "random_one_hour_before",
         draft_status: isSalaryCapLeague ? "in_progress" : "not_started",
@@ -354,6 +365,10 @@ export async function createLeague(params: {
       continue;
     }
     createError = msg || "Failed to create league";
+    if (/draft_type|leagues_draft_type_check/i.test(createError)) {
+      createError =
+        "Live draft is not enabled in the database yet. Run supabase/league_draft_lobby.sql in the Supabase SQL editor, then create the league again.";
+    }
     break;
   }
 

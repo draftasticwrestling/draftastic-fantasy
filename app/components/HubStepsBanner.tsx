@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { HubStepIconDraft, HubStepIconSignup, HubStepIconTrophy } from "@/app/components/HubStepIcons";
-import { PLAY_PATH } from "@/lib/playFunnel";
 
 const AUTO_MS = 6500;
 
@@ -20,8 +19,8 @@ type PromoSlide = {
 
 const SLIDES: PromoSlide[] = [
   { id: "public", ariaLabel: "Public leagues" },
-  { id: "war-games", ariaLabel: "Road to War Games private leagues" },
-  { id: "head-to-head", ariaLabel: "Head-to-Head leagues" },
+  { id: "mania", ariaLabel: "Road to WrestleMania private leagues" },
+  { id: "live-draft", ariaLabel: "Live drafts" },
 ];
 
 function PublicLeagueSlide() {
@@ -48,22 +47,22 @@ function PublicLeagueSlide() {
   );
 }
 
-function WarGamesSlide() {
+function ManiaSlide() {
   return (
-    <div className="hub-steps-slide-inner hub-steps-slide-inner--promo hub-steps-slide-inner--war-games">
+    <div className="hub-steps-slide-inner hub-steps-slide-inner--promo hub-steps-slide-inner--mania">
       <p className="hub-steps-promo-kicker">Private leagues</p>
-      <p className="hub-steps-promo-title">Road to War Games</p>
+      <p className="hub-steps-promo-title">Road to WrestleMania</p>
       <p className="hub-steps-promo-body">
         Create a league for friends — Total Season Points or Head-to-Head. NXT included. No access code.
       </p>
-      <div className="hub-steps-cta-strip hub-steps-cta-strip--war-games">
-        <p className="hub-steps-cta-text">Aug 3 – Survivor Series: War Games</p>
+      <div className="hub-steps-cta-strip hub-steps-cta-strip--mania">
+        <p className="hub-steps-cta-text">Nov 30–WrestleMania 43</p>
       </div>
       <div className="hub-steps-promo-links">
         <Link href="/leagues/new" className="hub-steps-promo-link">
           Create a League
         </Link>
-        <Link href="/how-it-works?tab=road-to-war-games" className="hub-steps-promo-link hub-steps-promo-link--muted">
+        <Link href="/how-it-works?tab=road-to-wrestlemania" className="hub-steps-promo-link hub-steps-promo-link--muted">
           How it Works
         </Link>
       </div>
@@ -71,23 +70,26 @@ function WarGamesSlide() {
   );
 }
 
-function HeadToHeadSlide() {
+function LiveDraftSlide() {
   return (
-    <div className="hub-steps-slide-inner hub-steps-slide-inner--promo hub-steps-slide-inner--war-games">
+    <div className="hub-steps-slide-inner hub-steps-slide-inner--promo hub-steps-slide-inner--mania">
       <p className="hub-steps-promo-kicker">New this season</p>
-      <p className="hub-steps-promo-title">Head-to-Head Matchups</p>
+      <p className="hub-steps-promo-title">Live Drafts</p>
       <p className="hub-steps-promo-body">
-        Weekly opponents, win–loss records, and a playoff bracket that crowns a champion at War Games.
+        Meet in the lobby, mark ready, and pick in turn when the GM starts the draft.
       </p>
-      <div className="hub-steps-cta-strip hub-steps-cta-strip--war-games">
-        <p className="hub-steps-cta-text">4–8 factions · playoffs included</p>
+      <div className="hub-steps-cta-strip hub-steps-cta-strip--mania">
+        <p className="hub-steps-cta-text">Two minutes on the clock</p>
       </div>
       <div className="hub-steps-promo-links">
-        <Link href={PLAY_PATH} className="hub-steps-promo-link">
-          Play Now
+        <Link href="/leagues/new" className="hub-steps-promo-link">
+          Create a League
         </Link>
-        <Link href="/leagues/new" className="hub-steps-promo-link hub-steps-promo-link--muted">
-          Create H2H League
+        <Link href="/mock-draft" className="hub-steps-promo-link">
+          Mock Draft
+        </Link>
+        <Link href="/how-it-works?tab=road-to-wrestlemania" className="hub-steps-promo-link hub-steps-promo-link--muted">
+          How it Works
         </Link>
       </div>
     </div>
@@ -96,10 +98,10 @@ function HeadToHeadSlide() {
 
 function slideContent(id: string) {
   switch (id) {
-    case "war-games":
-      return <WarGamesSlide />;
-    case "head-to-head":
-      return <HeadToHeadSlide />;
+    case "mania":
+      return <ManiaSlide />;
+    case "live-draft":
+      return <LiveDraftSlide />;
     default:
       return <PublicLeagueSlide />;
   }

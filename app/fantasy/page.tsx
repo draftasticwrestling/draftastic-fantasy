@@ -54,6 +54,8 @@ export default async function FantasyHomePage() {
               <p className="home-hero-signin">
                 <Link href="#how-it-works" style={{ color: "rgba(255,255,255,0.95)", textDecoration: "underline", fontWeight: 600 }}>See how it works</Link>
                 {" · "}
+                <Link href="/mock-draft" style={{ color: "rgba(255,255,255,0.95)", textDecoration: "underline", fontWeight: 600 }}>Practice a mock draft</Link>
+                {" · "}
                 Already have an account? <Link href="/auth/sign-in" style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>Sign in</Link>
               </p>
               <p className="home-hero-signin" style={{ marginTop: 12 }}>
@@ -229,6 +231,7 @@ export default async function FantasyHomePage() {
               <li><Link href={hubHomeHref}>Site home</Link> — event results and headlines</li>
               <li><Link href="/event-results">Event Results</Link> — fantasy scoring for completed events</li>
               <li><Link href="/how-it-works">How it works</Link> — scoring rules and event types</li>
+              <li><Link href="/mock-draft">Mock draft</Link> — practice a snake draft before you start a league</li>
               <li><Link href="/about-us">About Us</Link> · <Link href="/contact-us">Contact Us</Link></li>
               <li>
                 Examples: <Link href="/league/teams">Legacy League</Link>, <Link href="/mvl">MVL Example</Link>

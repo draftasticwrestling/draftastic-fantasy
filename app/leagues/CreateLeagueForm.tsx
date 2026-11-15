@@ -7,6 +7,7 @@ import {
   STANDARD_USER_CREATE_SEASON_SLUG,
   PUBLIC_SALARY_CAP_SEASON_WEEKS,
   getSeasonBySlug,
+  type RoadToWrestleManiaCreateStatus,
 } from "@/lib/leagueSeasons";
 
 const STANDARD_CREATE_SEASON = getSeasonBySlug(STANDARD_USER_CREATE_SEASON_SLUG);
@@ -39,13 +40,13 @@ const LEAGUE_TYPES: Array<{
     id: "season_overall",
     title: "Total Season Points",
     description:
-      "Compete against your whole league all season (3–6 factions). The faction with the most overall points wins the Road to War Games championship.",
+      "Compete against your whole league all season (3–6 factions). The faction with the most overall points wins the Road to WrestleMania championship.",
   },
   {
     id: "head_to_head",
     title: "Head-to-Head",
     description:
-      "Weekly matchups and a playoff bracket with win-loss records (4–8 factions). The final is Survivor Series: War Games week.",
+      "Weekly matchups and a playoff bracket with win-loss records (4–8 factions). The final is WrestleMania week.",
   },
   {
     id: "combo",
@@ -73,11 +74,11 @@ const LEAGUE_TYPES: Array<{
 type FormProps = {
   /** Site admin: full options; can toggle to match standard user flow. */
   isSiteAdmin?: boolean;
-  /** Road to War Games league creation is still open (before the Oct 19 cutoff). */
-  createOpen?: boolean;
+  /** Road to WrestleMania creation: closed until November 21, 2026, and after the last start Monday. */
+  createStatus?: RoadToWrestleManiaCreateStatus;
 };
 
-export function CreateLeagueForm({ isSiteAdmin = false, createOpen = true }: FormProps) {
+export function CreateLeagueForm({ isSiteAdmin = false, createStatus = "open" }: FormProps) {
   const [state, formAction] = useActionState(createLeagueAction, null);
   const [teamCount, setTeamCount] = useState<number>(4);
   const [leagueType, setLeagueType] = useState<string>("season_overall");
@@ -136,12 +137,22 @@ export function CreateLeagueForm({ isSiteAdmin = false, createOpen = true }: For
     [useStandardRules]
   );
 
-  if (useStandardRules && !createOpen) {
+  if (!isSiteAdmin && useStandardRules && createStatus !== "open") {
     return (
       <div className="form-group">
         <p className="form-note" style={{ lineHeight: 1.6 }}>
-          <strong>Road to War Games league creation is closed.</strong> New leagues can be created up to six
-          weeks before Survivor Series: War Games. The season returns after WrestleMania 2027.
+          {createStatus === "before_open" ? (
+            <>
+              <strong>Road to WrestleMania league creation opens November 21, 2026.</strong> The first
+              scored show is the Raw on November 30. New leagues can start through Monday, March 8, 2027,
+              six weeks before the expected WrestleMania weekend of April 17–18.
+            </>
+          ) : (
+            <>
+              <strong>Road to WrestleMania league creation is closed.</strong> New leagues had to start by
+              Monday, March 8, 2027, six weeks before WrestleMania.
+            </>
+          )}
         </p>
       </div>
     );
@@ -149,6 +160,12 @@ export function CreateLeagueForm({ isSiteAdmin = false, createOpen = true }: For
 
   return (
     <form action={formAction} className="create-league-form">
+      {isSiteAdmin && createStatus !== "open" ? (
+        <p className="form-note" style={{ lineHeight: 1.6 }}>
+          <strong>Site admin:</strong> you can create a Road to WrestleMania league now and test a live draft.
+          Everyone else can create one starting November 21, 2026.
+        </p>
+      ) : null}
       {isSiteAdmin ? (
         <div className="form-group create-league-admin-preview-toggle">
           <label className="create-league-toggle-label">
@@ -158,7 +175,7 @@ export function CreateLeagueForm({ isSiteAdmin = false, createOpen = true }: For
               onChange={(e) => handleStandardPreviewChange(e.target.checked)}
             />
             <span>
-              <strong>Standard user view</strong> — Road to War Games season, Total Season Points (3–6) or
+              <strong>Standard user view</strong> — Road to WrestleMania season, Total Season Points (3–6) or
               Head-to-Head (4–8), NXT included. Turn off for full admin options.
             </span>
           </label>
@@ -339,6 +356,21 @@ export function CreateLeagueForm({ isSiteAdmin = false, createOpen = true }: For
             ) : null}
             <input type="hidden" name="team_count" value={teamCount} />
           </div>
+
+          {isSiteAdmin ? (
+            <div className="form-group">
+              <label htmlFor="league-draft-type">Draft</label>
+              <select id="league-draft-type" name="draft_type" defaultValue="live">
+                <option value="live">Live — lobby, ready check, and a shared pick board</option>
+                <option value="autopick">Autopick</option>
+                <option value="offline">Offline</option>
+              </select>
+              <p className="form-note" style={{ marginTop: 8 }}>
+                Live is ready for admin testing. You can begin the draft before November 21. Set a draft order, then
+                use Begin Draft in the lobby.
+              </p>
+            </div>
+          ) : null}
         </>
       )}
 

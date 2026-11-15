@@ -37,6 +37,7 @@ import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
 import { BeginDraftForm } from "./BeginDraftForm";
+import { LiveDraftLobby } from "./LiveDraftLobby";
 import { LeagueDraftRoom } from "./LeagueDraftRoom";
 import { AutopickClientRunner } from "./AutopickClientRunner";
 import { AutopickDraftBoardView } from "./AutopickDraftBoardView";
@@ -104,6 +105,7 @@ export default async function LeagueDraftPage({ params }: Props) {
     const autopickDisabled = process.env.DISABLE_AUTOPICK_DRAFT === "1" || process.env.DISABLE_AUTOPICK_DRAFT === "true";
     // Only run when a draft is live — avoids admin round-trips on every poll/refresh for not_started/completed.
     const draftStatusEarly = league.draft_status ?? "not_started";
+    const isLiveDraft = league.draft_type === "live";
     const isAutopickInProgress =
       !autopickDisabled && draftStatusEarly === "in_progress" && league.draft_type === "autopick";
 
@@ -114,7 +116,7 @@ export default async function LeagueDraftPage({ params }: Props) {
     }
 
     const autoResult =
-      autopickDisabled || draftStatusEarly !== "in_progress"
+      autopickDisabled || draftStatusEarly !== "in_progress" || isLiveDraft
         ? { didAutoPick: false as const }
         : isAutopickInProgress
           ? { didAutoPick: false as const }
@@ -124,7 +126,10 @@ export default async function LeagueDraftPage({ params }: Props) {
     // Do not auto-start autopick on page load. Private leagues: GM clicks Begin Draft. Public/cron may still advance in-progress drafts.
 
     const skipHeavyDraftPool =
-      isAutopickInProgress || draftStatusEarly === "completed" || draftStatusEarly === "ready_for_review";
+      isAutopickInProgress ||
+      draftStatusEarly === "completed" ||
+      draftStatusEarly === "ready_for_review" ||
+      (isLiveDraft && draftStatusEarly === "not_started");
     const draftSeasonSlug = league.season_slug;
 
     const emptyWrestlerDiagnostic = {
@@ -303,7 +308,11 @@ export default async function LeagueDraftPage({ params }: Props) {
     const picksBySlot = Object.fromEntries(picksHistory.map((p) => [p.overall_pick, p]));
 
     const leagueDraftType =
-      league.draft_type === "offline" ? "offline" : league.draft_type === "autopick" ? "autopick" : "autopick";
+      league.draft_type === "offline"
+        ? "offline"
+        : league.draft_type === "live"
+          ? "live"
+          : "autopick";
 
     const prefSrc = userDraftPrefs?.strategy_options as { priorityListSource?: string } | undefined;
     const hasAdequateAutopickPrefs = hasAdequateAutopickDraftPreferences({
@@ -396,12 +405,12 @@ export default async function LeagueDraftPage({ params }: Props) {
           <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 14, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
             <li>
               <strong style={{ color: "var(--color-text)" }}>Draft type:</strong>{" "}
-              {leagueDraftType === "offline" ? "Offline" : "Autopick"}
+              {leagueDraftType === "offline" ? "Offline" : leagueDraftType === "live" ? "Live" : "Autopick"}
             </li>
             <li>
               <strong style={{ color: "var(--color-text)" }}>Pick order:</strong> Snake (same pattern for any on-site autopick run).
             </li>
-            {leagueDraftType === "autopick" && (
+            {(leagueDraftType === "autopick" || leagueDraftType === "live") && (
               <li>
                 <strong style={{ color: "var(--color-text)" }}>Schedule:</strong>{" "}
                 {league.draft_date
@@ -429,6 +438,26 @@ export default async function LeagueDraftPage({ params }: Props) {
           )}
         </section>
 
+      {draftStatus === "not_started" && league.draft_type === "live" && String(league.visibility_type ?? "") !== "public" ? (
+        <LiveDraftLobby
+          leagueId={league.id}
+          leagueSlug={slug}
+          currentUserId={user?.id ?? null}
+          members={members.map((member) => ({
+            userId: member.user_id,
+            name: member.display_name?.trim() || member.team_name?.trim() || "Manager",
+            isGm: member.user_id === league?.commissioner_id,
+          }))}
+          canStart={(isCommissioner || isSiteAdmin) && order.length > 0}
+          orderReady={order.length > 0}
+          draftDateYmd={league.draft_date ? String(league.draft_date).slice(0, 10) : null}
+          showDateHint={isCommissioner && !isSiteAdmin}
+          memberCount={members.length}
+          maxTeams={typeof league.max_teams === "number" && league.max_teams > 0 ? league.max_teams : null}
+          minTeams={getMinimumTeamsForLeagueType(league.league_type)}
+        />
+      ) : null}
+
       <section
         aria-labelledby="auto-draft-settings-heading"
         style={{
@@ -453,6 +482,10 @@ export default async function LeagueDraftPage({ params }: Props) {
               Autopick uses your saved priority order (or the site Default Big Board until you deliberately choose another
               provided Big Board or <strong>My own list</strong> via the link below).{" "}
               <strong>Tie-break after your list runs out</strong> (same for everyone): {DEFAULT_AUTOPICK_DESCRIPTION}
+            </>
+          ) : leagueDraftType === "live" ? (
+            <>
+              If the pick clock runs out, your pick comes from your priority list, then the Default Big Board.
             </>
           ) : (
             <>
@@ -634,7 +667,7 @@ export default async function LeagueDraftPage({ params }: Props) {
 
       {(draftStatus === "in_progress" || draftStatus === "completed" || isReviewPending) && order.length > 0 && (
         <>
-          {draftStatus === "in_progress" && !autopickDisabled && (
+          {draftStatus === "in_progress" && !autopickDisabled && league.draft_type !== "live" && (
             <DraftPolling
               isAutopick={league.draft_type === "autopick"}
               intervalMs={isAutopickRunning ? 3500 : undefined}
@@ -686,6 +719,10 @@ export default async function LeagueDraftPage({ params }: Props) {
               currentPickerUserId={currentPick?.user_id ?? null}
               isCurrentPicker={isCurrentPicker}
               leagueSlug={slug}
+              liveSync={league.draft_type === "live" && draftStatus === "in_progress"}
+              leagueId={league.id}
+              viewerUserId={user?.id ?? null}
+              viewerIsCommissioner={isCommissioner}
               draftCurrentPickStartedAt={state?.draft_current_pick_started_at ?? null}
               timePerPickSeconds={
                 league.draft_type === "autopick"

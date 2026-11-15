@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useMemo, useActionState } from "react";
+import { useEffect, useState, useMemo, useActionState, useRef } from "react";
 import WrestlerHeadshotImage from "@/app/components/WrestlerHeadshotImage";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
-import { makeDraftPickWithStateAction } from "./actions";
+import { expireLiveDraftClockAction, makeDraftPickWithStateAction } from "./actions";
 import { DraftTimer } from "./DraftTimer";
 import { passesGenderFilter } from "@/lib/wrestlerGenderFilter";
 import { factionDisplayName } from "@/lib/factionName";
+import { createClient } from "@/lib/supabase/client";
 
 const RATING_WEIGHT = 1.5;
 const BRAND_STYLES: Record<string, { showBg: string; label: string }> = {
@@ -143,6 +144,11 @@ type Props = {
   showTimerForAll?: boolean;
   /** Leagues with `include_nxt`: start with Raw, SmackDown, and NXT in the Include roster filters. */
   defaultIncludeNxtInPool?: boolean;
+  /** Private live drafts: apply new picks from the database without reloading the page. */
+  liveSync?: boolean;
+  leagueId?: string;
+  viewerUserId?: string | null;
+  viewerIsCommissioner?: boolean;
 };
 
 export function LeagueDraftRoom({
@@ -169,6 +175,10 @@ export function LeagueDraftRoom({
   timePerPickSeconds = 120,
   showTimerForAll = false,
   defaultIncludeNxtInPool = false,
+  liveSync = false,
+  leagueId,
+  viewerUserId = null,
+  viewerIsCommissioner = false,
 }: Props) {
   const [state, formAction] = useActionState(makeDraftPickWithStateAction, { error: undefined });
   const [tableSort, setTableSort] = useState<"rank" | "name" | "total">("rank");
@@ -182,19 +192,165 @@ export function LeagueDraftRoom({
   const [includeMale, setIncludeMale] = useState(true);
   const [includeFemale, setIncludeFemale] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [syncedPicks, setSyncedPicks] = useState(picksHistory);
+  const [syncedDraftedIds, setSyncedDraftedIds] = useState(draftedIds);
+  const [syncedSlot, setSyncedSlot] = useState(currentPickSlot);
+  const [syncedPickerId, setSyncedPickerId] = useState(currentPickerUserId);
+  const [syncedStartedAt, setSyncedStartedAt] = useState(draftCurrentPickStartedAt);
+  const [syncedStatus, setSyncedStatus] = useState(draftStatus);
+
+  const serverPickKey = picksHistory.map((pick) => `${pick.overall_pick}:${pick.wrestler_id}`).join("|");
+  useEffect(() => {
+    setSyncedPicks(picksHistory);
+    setSyncedDraftedIds(draftedIds);
+    setSyncedSlot(currentPickSlot);
+    setSyncedPickerId(currentPickerUserId);
+    setSyncedStartedAt(draftCurrentPickStartedAt);
+    setSyncedStatus(draftStatus);
+  }, [serverPickKey, currentPickSlot, currentPickerUserId, draftCurrentPickStartedAt, draftStatus, picksHistory, draftedIds]);
+
+  useEffect(() => {
+    if (!liveSync || !leagueId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`league-draft-picks-${leagueId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "league_draft_picks", filter: `league_id=eq.${leagueId}` },
+        (payload) => {
+          const row = payload.new as {
+            overall_pick?: number;
+            user_id?: string;
+            wrestler_id?: string;
+            picked_at?: string;
+          };
+          if (row.overall_pick == null || !row.user_id || !row.wrestler_id) return;
+          const wrestlerId = row.wrestler_id;
+          const overallPick = row.overall_pick;
+          const userId = row.user_id;
+          setSyncedPicks((current) => {
+            if (current.some((pick) => pick.overall_pick === overallPick)) return current;
+            const name = wrestlers.find((wrestler) => wrestler.id === wrestlerId)?.name ?? null;
+            return [
+              ...current,
+              { overall_pick: overallPick, user_id: userId, wrestler_id: wrestlerId, wrestler_name: name },
+            ].sort((a, b) => a.overall_pick - b.overall_pick);
+          });
+          setSyncedDraftedIds((current) => (current.includes(wrestlerId) ? current : [...current, wrestlerId]));
+          const nextSlot = overallPick + 1;
+          const next = order.find((seat) => seat.overall_pick === nextSlot);
+          if (!next || nextSlot > totalPicks) {
+            setSyncedStatus("completed");
+            setSyncedSlot(null);
+            setSyncedPickerId(null);
+            return;
+          }
+          setSyncedSlot(nextSlot);
+          setSyncedPickerId(next.user_id);
+          setSyncedStartedAt(row.picked_at ?? new Date().toISOString());
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [leagueId, liveSync, order, totalPicks, wrestlers]);
+
+  const boardPicks = liveSync ? syncedPicks : picksHistory;
+  const boardDraftedIds = liveSync ? syncedDraftedIds : draftedIds;
+  const boardSlot = liveSync ? syncedSlot : currentPickSlot;
+  const boardPickerId = liveSync ? syncedPickerId : currentPickerUserId;
+  const boardStartedAt = liveSync ? syncedStartedAt : draftCurrentPickStartedAt;
+  const boardStatus = liveSync ? syncedStatus : draftStatus;
+  const boardIsCurrentPicker = liveSync
+    ? Boolean(viewerUserId && boardPickerId && (boardPickerId === viewerUserId || viewerIsCommissioner))
+    : isCurrentPicker;
+
+  const [clockError, setClockError] = useState<string | null>(null);
+  const expireLock = useRef(false);
+  const liveClockRef = useRef({
+    liveSync,
+    leagueSlug,
+    viewerUserId,
+    pickerId: boardPickerId,
+    seconds: timePerPickSeconds,
+  });
+  liveClockRef.current = {
+    liveSync,
+    leagueSlug,
+    viewerUserId,
+    pickerId: boardPickerId,
+    seconds: timePerPickSeconds,
+  };
+
+  const expireLiveClock = (attempt: number) => {
+    const ctx = liveClockRef.current;
+    if (!ctx.liveSync || expireLock.current) return;
+    expireLock.current = true;
+    const mine = ctx.viewerUserId != null && ctx.viewerUserId === ctx.pickerId;
+    if (attempt === 0 && !mine) {
+      expireLock.current = false;
+      window.setTimeout(() => expireLiveClock(1), 1200);
+      return;
+    }
+    void expireLiveDraftClockAction(ctx.leagueSlug).then((result) => {
+      const remaining = result.secondsRemaining ?? 0;
+      if (!result.didAutoPick && remaining > 0) {
+        const elapsed = Math.max(0, liveClockRef.current.seconds - remaining);
+        setSyncedStartedAt(new Date(Date.now() - elapsed * 1000).toISOString());
+        setClockError(null);
+        expireLock.current = false;
+        return;
+      }
+      if (result.didAutoPick && result.pick) {
+        const wrestlerId = result.pick.wrestler_id;
+        const overallPick = result.pick.overall_pick;
+        const userId = result.pick.user_id;
+        setSyncedPicks((current) => {
+          if (current.some((pick) => pick.overall_pick === overallPick)) return current;
+          const name = wrestlers.find((wrestler) => wrestler.id === wrestlerId)?.name ?? null;
+          return [
+            ...current,
+            { overall_pick: overallPick, user_id: userId, wrestler_id: wrestlerId, wrestler_name: name },
+          ].sort((a, b) => a.overall_pick - b.overall_pick);
+        });
+        setSyncedDraftedIds((current) => (current.includes(wrestlerId) ? current : [...current, wrestlerId]));
+        if (result.draftStatus === "completed" || result.draftStatus === "ready_for_review" || result.nextSlot == null) {
+          setSyncedStatus("completed");
+          setSyncedSlot(null);
+          setSyncedPickerId(null);
+        } else {
+          const next = order.find((seat) => seat.overall_pick === result.nextSlot);
+          setSyncedSlot(result.nextSlot);
+          setSyncedPickerId(next?.user_id ?? null);
+          if (result.nextStartedAt) setSyncedStartedAt(result.nextStartedAt);
+        }
+        setClockError(null);
+        expireLock.current = false;
+        return;
+      }
+      if (result.retry && attempt < 3) {
+        expireLock.current = false;
+        window.setTimeout(() => expireLiveClock(attempt + 1), 2000);
+        return;
+      }
+      setClockError(result.error ?? null);
+      expireLock.current = false;
+    });
+  };
 
   const memberByUserId = useMemo(
     () => Object.fromEntries(members.map((m) => [m.user_id, m])),
     [members]
   );
   const currentManagerName =
-    currentPickerUserId != null
-      ? factionDisplayName(memberByUserId[currentPickerUserId], "Unknown")
+    boardPickerId != null
+      ? factionDisplayName(memberByUserId[boardPickerId], "Unknown")
       : null;
 
   const available = useMemo(
-    () => wrestlers.filter((w) => !draftedIds.includes(w.id)),
-    [wrestlers, draftedIds]
+    () => wrestlers.filter((w) => !boardDraftedIds.includes(w.id)),
+    [wrestlers, boardDraftedIds]
   );
 
   const pointsMapForPeriod = useMemo(() => {
@@ -274,9 +430,9 @@ export function LeagueDraftRoom({
   const rosterByUserId = useMemo(() => {
     // Prefer picksHistory for the roster panel so all teams show their drafted wrestlers
     // (league_rosters via rosterEntriesByUser may be RLS-limited to current user only).
-    if (picksHistory.length > 0) {
+    if (boardPicks.length > 0) {
       const byUser: Record<string, { wrestler_id: string; wrestler_name: string | null; overall_pick?: number }[]> = {};
-      for (const p of picksHistory) {
+      for (const p of boardPicks) {
         if (!byUser[p.user_id]) byUser[p.user_id] = [];
         byUser[p.user_id].push({
           wrestler_id: p.wrestler_id,
@@ -300,7 +456,7 @@ export function LeagueDraftRoom({
       return byUser;
     }
     return {};
-  }, [picksHistory, rosterEntriesByUser, wrestlerIdToName]);
+  }, [boardPicks, rosterEntriesByUser, wrestlerIdToName]);
 
   const uniqueOrderUserIds = useMemo(() => {
     const seen = new Set<string>();
@@ -311,7 +467,7 @@ export function LeagueDraftRoom({
     }).map((o) => o.user_id);
   }, [order]);
 
-  const isComplete = draftStatus === "completed";
+  const isComplete = boardStatus === "completed";
 
   const rostersPanel = (
     <div>
@@ -321,7 +477,7 @@ export function LeagueDraftRoom({
           const member = memberByUserId[userId];
           const name = factionDisplayName(member, "Unknown");
           const picks = rosterByUserId[userId] ?? [];
-          const isCurrent = currentPickerUserId === userId && !isComplete;
+          const isCurrent = boardPickerId === userId && !isComplete;
           return (
             <div
               key={userId}
@@ -395,7 +551,7 @@ export function LeagueDraftRoom({
           </p>
         </section>
       )}
-      {!isComplete && currentPickSlot != null && (
+      {!isComplete && boardSlot != null && (
         <section
           style={{
             padding: 16,
@@ -410,15 +566,24 @@ export function LeagueDraftRoom({
           }}
         >
           <p style={{ margin: 0, fontWeight: 600, color: "var(--color-text)" }}>
-            Pick {currentPickSlot} of {totalPicks} — <strong>{currentManagerName ?? "Unknown"}</strong> is on the clock
+            Pick {boardSlot} of {totalPicks} — <strong>{currentManagerName ?? "Unknown"}</strong> is on the clock
           </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            {draftCurrentPickStartedAt && (isCurrentPicker || showTimerForAll) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            {boardStartedAt && (liveSync || boardIsCurrentPicker || showTimerForAll) && (
               <DraftTimer
-                startedAt={draftCurrentPickStartedAt}
+                startedAt={boardStartedAt}
                 leagueSlug={leagueSlug}
                 secondsPerPick={timePerPickSeconds}
+                onExpire={liveSync ? () => expireLiveClock(0) : undefined}
               />
+            )}
+            {liveSync && (
+              <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
+                If the clock runs out, the pick comes from that manager&apos;s priority list, then the Default Big Board.
+              </span>
+            )}
+            {clockError && (
+              <span style={{ fontSize: 13, color: "var(--color-red)" }}>{clockError}</span>
             )}
           </div>
         </section>
@@ -686,7 +851,7 @@ export function LeagueDraftRoom({
                         <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{belt}</td>
                         <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{total}</td>
                         <td style={{ padding: "6px" }}>
-                          {isCurrentPicker && !isComplete ? (
+                          {boardIsCurrentPicker && !isComplete ? (
                             <form action={formAction} style={{ display: "inline" }}>
                               <input type="hidden" name="league_slug" value={leagueSlug} />
                               <input type="hidden" name="wrestler_id" value={w.id} />

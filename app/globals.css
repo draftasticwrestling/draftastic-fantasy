@@ -5536,95 +5536,99 @@ body > .site-footer {
   min-height: 148px;
   justify-content: center;
 }
-/* Survivor Series: War Games — black / yellow / white */
-.hub-steps-slide-inner--war-games {
+/* WrestleMania 43 — emerald night, gold, and white */
+.hub-steps-slide-inner--mania {
   position: relative;
   margin: 0 2px;
   padding: 14px 16px 10px;
   border-radius: 4px;
   border: 4px solid transparent;
   background:
-    linear-gradient(105deg, rgba(0, 0, 0, 0.35) 0%, transparent 42%, rgba(0, 0, 0, 0.55) 100%),
-    radial-gradient(ellipse 80% 90% at 18% 50%, rgba(250, 204, 21, 0.18) 0%, transparent 55%),
-    #0a0a0a;
+    linear-gradient(105deg, rgba(0, 0, 0, 0.45) 0%, transparent 46%, rgba(0, 0, 0, 0.55) 100%),
+    radial-gradient(circle at 12% 18%, rgba(34, 197, 94, 0.45) 0%, transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(250, 204, 21, 0.28) 0%, transparent 26%),
+    radial-gradient(circle at 78% 78%, rgba(22, 163, 74, 0.35) 0%, transparent 32%),
+    radial-gradient(ellipse 70% 80% at 50% 40%, rgba(6, 78, 59, 0.55) 0%, transparent 70%),
+    #04110c;
   background-clip: padding-box;
   box-shadow:
-    0 0 0 3px #9ca3af,
-    0 0 0 5px #4b5563,
-    0 0 0 6px #d1d5db,
-    0 0 0 8px #6b7280,
-    inset 0 0 0 1px rgba(229, 231, 235, 0.35),
-    0 8px 24px rgba(0, 0, 0, 0.45);
+    0 0 0 3px #e8c547,
+    0 0 0 5px #14532d,
+    0 0 0 6px #f6e7a8,
+    0 0 0 8px #a16207,
+    inset 0 0 0 1px rgba(246, 231, 168, 0.35),
+    0 8px 24px rgba(0, 0, 0, 0.5);
   overflow: hidden;
   isolation: isolate;
 }
-.hub-steps-slide-inner--war-games::before {
+.hub-steps-slide-inner--mania::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.22;
+  opacity: 0.35;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(226, 232, 240, 0.55) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(226, 232, 240, 0.55) 1px, transparent 1px);
-  background-size: 14px 14px;
-  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.35) 55%, transparent 100%);
+    radial-gradient(circle at 8% 30%, rgba(187, 247, 208, 0.9) 0 1px, transparent 2px),
+    radial-gradient(circle at 18% 62%, rgba(250, 204, 21, 0.8) 0 1px, transparent 2px),
+    radial-gradient(circle at 92% 28%, rgba(134, 239, 172, 0.85) 0 1px, transparent 2px),
+    radial-gradient(circle at 70% 16%, rgba(255, 255, 255, 0.7) 0 1px, transparent 2px);
+  background-size: 100% 100%;
 }
-.hub-steps-slide-inner--war-games > * {
+.hub-steps-slide-inner--mania > * {
   position: relative;
   z-index: 1;
 }
-.hub-steps-slide-inner--war-games .hub-steps-promo-kicker {
-  color: #facc15;
+.hub-steps-slide-inner--mania .hub-steps-promo-kicker {
+  color: #f6e27a;
   letter-spacing: 0.16em;
 }
-.hub-steps-slide-inner--war-games .hub-steps-promo-title {
+.hub-steps-slide-inner--mania .hub-steps-promo-title {
   color: #ffffff;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   text-shadow:
     0 1px 0 rgba(0, 0, 0, 0.9),
-    0 0 24px rgba(250, 204, 21, 0.25);
+    0 0 22px rgba(34, 197, 94, 0.45);
 }
-.hub-steps-slide-inner--war-games .hub-steps-promo-body {
-  color: #e5e7eb;
+.hub-steps-slide-inner--mania .hub-steps-promo-body {
+  color: #ecfdf5;
 }
-.hub-steps-cta-strip--war-games {
+.hub-steps-cta-strip--mania {
   width: min(100%, 34rem);
 }
-.hub-steps-cta-strip--war-games::before {
+.hub-steps-slide-inner--mania .hub-steps-cta-strip--mania::before {
   background: linear-gradient(
     95deg,
     transparent 0%,
-    #111111 8%,
-    #1a1a1a 50%,
-    #111111 92%,
+    #052e1c 8%,
+    #064e3b 50%,
+    #052e1c 92%,
     transparent 100%
   );
   box-shadow:
-    0 0 0 1px rgba(250, 204, 21, 0.55),
+    0 0 0 1px rgba(232, 197, 71, 0.7),
     0 6px 20px rgba(0, 0, 0, 0.55);
   border-radius: 2px;
   transform: translateY(-50%);
   height: 70%;
 }
-.hub-steps-cta-strip--war-games .hub-steps-cta-text {
-  color: #facc15;
+.hub-steps-cta-strip--mania .hub-steps-cta-text {
+  color: #f6e27a;
   font-style: normal;
   letter-spacing: 0.08em;
   text-shadow:
     0 1px 0 rgba(0, 0, 0, 0.95),
     0 2px 8px rgba(0, 0, 0, 0.7);
 }
-.hub-steps-slide-inner--war-games .hub-steps-promo-link {
+.hub-steps-slide-inner--mania .hub-steps-promo-link {
   color: #ffffff;
 }
-.hub-steps-slide-inner--war-games .hub-steps-promo-link:hover {
-  color: #facc15;
+.hub-steps-slide-inner--mania .hub-steps-promo-link:hover {
+  color: #f6e27a;
 }
-.hub-steps-slide-inner--war-games .hub-steps-promo-link--muted {
-  color: #facc15;
+.hub-steps-slide-inner--mania .hub-steps-promo-link--muted {
+  color: #f6e27a;
 }
 .hub-steps-promo-kicker {
   margin: 0;
@@ -7621,17 +7625,17 @@ button.hub-leaderboard-week-nav-btn:disabled {
     padding: 2px 22px 0;
     gap: 2px;
   }
-  .hub-steps-slide-inner--war-games {
+  .hub-steps-slide-inner--mania {
     margin: 0;
     padding: 6px 22px 4px;
     border-radius: 3px;
     box-shadow:
-      0 0 0 2px #9ca3af,
-      0 0 0 3px #4b5563,
-      0 0 0 4px #d1d5db,
-      0 0 0 5px #6b7280,
-      inset 0 0 0 1px rgba(229, 231, 235, 0.3),
-      0 4px 14px rgba(0, 0, 0, 0.4);
+      0 0 0 2px #e8c547,
+      0 0 0 3px #14532d,
+      0 0 0 4px #f6e7a8,
+      0 0 0 5px #a16207,
+      inset 0 0 0 1px rgba(246, 231, 168, 0.3),
+      0 4px 14px rgba(0, 0, 0, 0.45);
   }
   .hub-steps-promo-kicker {
     font-size: 0.55rem;
@@ -7652,10 +7656,10 @@ button.hub-leaderboard-week-nav-btn:disabled {
   .hub-steps-promo-link {
     font-size: 0.72rem;
   }
-  .hub-steps-cta-strip--war-games {
+  .hub-steps-cta-strip--mania {
     width: 100%;
   }
-  .hub-steps-cta-strip--war-games::before {
+  .hub-steps-slide-inner--mania .hub-steps-cta-strip--mania::before {
     height: 78%;
   }
   .hub-steps-grid {

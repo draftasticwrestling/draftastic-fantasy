@@ -14,6 +14,7 @@ import {
   setDraftPreferences,
   clearDraftOrder,
   runAutoPickIfExpired,
+  runLiveDraftClockIfExpired,
   MAX_AUTOPICK_PICKS_DRAFT_PAGE,
   DEFAULT_DRAFT_STRATEGY_OPTIONS,
 } from "@/lib/leagueDraft";
@@ -387,4 +388,38 @@ export async function saveDraftPreferencesFormAction(
   }
 
   return null;
+}
+
+/** One live-draft autopick after the server clock for this turn hits zero. Does not reload the draft page. */
+export async function expireLiveDraftClockAction(leagueSlug: string): Promise<{
+  didAutoPick: boolean;
+  error?: string;
+  startedAt?: string;
+  secondsRemaining?: number;
+  retry?: boolean;
+  pick?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string };
+  nextStartedAt?: string | null;
+  nextSlot?: number | null;
+  draftStatus?: string;
+}> {
+  const slug = leagueSlug.trim();
+  if (!slug) return { didAutoPick: false };
+  const { supabase, user } = await getServerAuth();
+  if (!user) return { didAutoPick: false, error: "Not authenticated" };
+
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(slug);
+  if (!league || league.draft_type !== "live") return { didAutoPick: false };
+
+  const { data: member } = await supabase
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", league.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!member && !(await getIsSiteAdmin())) {
+    return { didAutoPick: false, error: "Not a league member." };
+  }
+
+  return runLiveDraftClockIfExpired(league.id);
 }

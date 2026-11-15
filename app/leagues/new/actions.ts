@@ -7,7 +7,7 @@ import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import {
   STANDARD_USER_CREATE_SEASON_SLUG,
   PUBLIC_SALARY_CAP_SEASON_SLUG,
-  roadToWarGamesCreateOpen,
+  roadToWrestleManiaCreateBlockMessage,
 } from "@/lib/leagueSeasons";
 import { SALARY_CAP_LEAGUE_TYPE } from "@/lib/leagueStructure";
 import { leaguePostJoinPath } from "@/lib/leagueOnboarding";
@@ -37,7 +37,7 @@ export async function createLeagueAction(
   formData: FormData
 ): Promise<CreateLeagueState> {
   const isSiteAdmin = await getIsSiteAdmin();
-  /** Standard rules: Road to War Games season, Total Season Points (3–6) or Head-to-Head (4–8), NXT included, no access code. */
+  /** Standard rules: Road to WrestleMania season, Total Season Points (3–6) or Head-to-Head (4–8), NXT included, no access code. */
   const enforceStandardRules =
     !isSiteAdmin ||
     (isSiteAdmin && formData.get("enforce_standard_create_rules") === "1");
@@ -54,16 +54,12 @@ export async function createLeagueAction(
         error: "Public leagues can't be created here. Join an open public league from Play Now instead.",
       };
     }
-    if (!roadToWarGamesCreateOpen()) {
-      return {
-        error:
-          "Road to War Games league creation is closed for this season (new leagues must start at least six weeks before Survivor Series: War Games).",
-      };
-    }
+    const createBlock = !isSiteAdmin ? roadToWrestleManiaCreateBlockMessage() : null;
+    if (createBlock) return { error: createBlock };
     if (season_slug !== STANDARD_USER_CREATE_SEASON_SLUG) {
       return {
         error:
-          "New private leagues use the Road to War Games season. Other seasons are available with full admin options.",
+          "New private leagues use the Road to WrestleMania season. Other seasons are available with full admin options.",
       };
     }
     const range = R2WG_TEAM_RANGE[league_type];
@@ -113,6 +109,12 @@ export async function createLeagueAction(
   // NXT is always included — roster sizes assume the full pool.
   const effectiveIncludeNxt = true;
 
+  const draft_type_raw = (formData.get("draft_type") as string)?.trim() ?? "";
+  const adminDraftType =
+    isSiteAdmin && (draft_type_raw === "live" || draft_type_raw === "offline" || draft_type_raw === "autopick")
+      ? draft_type_raw
+      : null;
+
   const { league, error } = await createLeague({
     name: effectiveVisibility === "public" ? "Public League" : name,
     season_slug: effectiveSeasonSlug,
@@ -120,6 +122,7 @@ export async function createLeagueAction(
     league_type: effectiveLeagueType,
     include_nxt: effectiveIncludeNxt,
     visibility_type: effectiveVisibility,
+    draft_type: effectiveVisibility === "public" ? null : adminDraftType,
   });
   if (error) return { error };
   if (!league) return { error: "Failed to create league." };

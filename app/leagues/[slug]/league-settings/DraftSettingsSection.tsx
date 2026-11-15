@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useState, useActionState, useEffect } from "react";
 import { updateDraftSettingsFormAction } from "../actions";
 
-/** Offline and Autopick (stored as draft_type). */
-const DRAFT_TYPE_OPTIONS: { value: "offline" | "autopick"; label: string; description: string }[] = [
+/** Offline, Autopick, and Live (stored as draft_type). Live is private leagues only. */
+const DRAFT_TYPE_OPTIONS: { value: "offline" | "autopick" | "live"; label: string; description: string }[] = [
   {
     value: "offline",
     label: "Offline",
@@ -17,6 +17,12 @@ const DRAFT_TYPE_OPTIONS: { value: "offline" | "autopick"; label: string; descri
     label: "Autopick",
     description:
       "Each manager sets auto-draft preferences (everyone defaults to the site Default Big Board until they choose another Big Board or My own list). On draft day, the GM starts the draft from the Draft tab.",
+  },
+  {
+    value: "live",
+    label: "Live",
+    description:
+      "Private leagues only. Managers meet in the draft lobby, mark ready, and the GM starts the draft. Everyone picks in turn on draft day.",
   },
 ];
 
@@ -33,8 +39,9 @@ type Props = {
   draftNotStarted: boolean;
 };
 
-function toUiDraftType(stored: string | null | undefined): "offline" | "autopick" {
+function toUiDraftType(stored: string | null | undefined): "offline" | "autopick" | "live" {
   if (stored === "offline") return "offline";
+  if (stored === "live") return "live";
   if (stored === "autopick") return "autopick";
   return "autopick";
 }
@@ -60,15 +67,15 @@ export function DraftSettingsSection({
   draftNotStarted,
 }: Props) {
   const storedUi = toUiDraftType(draftType);
-  const initialType: "offline" | "autopick" =
-    isPublicLeague && storedUi === "offline" ? "autopick" : storedUi;
-  const [selectedType, setSelectedType] = useState<"offline" | "autopick">(initialType);
+  const initialType: "offline" | "autopick" | "live" =
+    isPublicLeague && storedUi !== "autopick" ? "autopick" : storedUi;
+  const [selectedType, setSelectedType] = useState<"offline" | "autopick" | "live">(initialType);
   const [dateValue, setDateValue] = useState(normalizeDateInput(draftDate));
   const [timeValue, setTimeValue] = useState(normalizeTimeInput(draftTime));
 
   useEffect(() => {
     const next = toUiDraftType(draftType);
-    setSelectedType(isPublicLeague && next === "offline" ? "autopick" : next);
+    setSelectedType(isPublicLeague && next !== "autopick" ? "autopick" : next);
   }, [draftType, isPublicLeague]);
 
   useEffect(() => {
@@ -90,8 +97,9 @@ export function DraftSettingsSection({
           </>
         ) : (
           <>
-            Choose <strong>Offline</strong> or <strong>Autopick</strong>, then set a <strong>draft date</strong>. Members
-            are emailed when you save a date and should set their draft preferences. Before draft day, open the{" "}
+            Choose <strong>Offline</strong>, <strong>Autopick</strong>, or <strong>Live</strong>, then set a{" "}
+            <strong>draft date</strong>. Members are emailed when you save a date and should set their draft
+            preferences. Before draft day, open the{" "}
             <Link href={`/leagues/${leagueSlug}/draft`} className="app-link">
               Draft
             </Link>{" "}
@@ -149,7 +157,7 @@ export function DraftSettingsSection({
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
             {DRAFT_TYPE_OPTIONS.map((opt) => {
-              const disabled = isPublicLeague && opt.value === "offline";
+              const disabled = isPublicLeague && opt.value !== "autopick";
               return (
                 <li key={opt.value} style={{ marginBottom: 16 }}>
                   <label
@@ -185,7 +193,7 @@ export function DraftSettingsSection({
           </ul>
         </div>
 
-        {!isPublicLeague && selectedType === "autopick" ? (
+        {!isPublicLeague && (selectedType === "autopick" || selectedType === "live") ? (
           <div style={{ marginBottom: 28, maxWidth: 420 }}>
             <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 12 }}>Draft date</h3>
             <p style={{ color: "var(--color-text-muted)", fontSize: 14, marginBottom: 12, lineHeight: 1.5 }}>
@@ -217,7 +225,8 @@ export function DraftSettingsSection({
             </label>
             <p style={{ color: "var(--color-text-muted)", fontSize: 13, marginBottom: 8, lineHeight: 1.5 }}>
               Display only for your group. The draft does not start automatically — the GM clicks{" "}
-              <strong>Begin Draft</strong> on or after draft day.
+              <strong>Begin Draft</strong> on or after draft day
+              {selectedType === "live" ? " from the live draft lobby" : ""}.
             </p>
             <input
               id="draft_time"

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { leagueUsesSalaryCap, isRoadToWarGamesSeasonSlug } from "@/lib/leagueStructure";
+import { leagueUsesSalaryCap, isRoadToWarGamesSeasonSlug, isRoadToWrestleManiaSeasonSlug } from "@/lib/leagueStructure";
 import { getDraftPreferences } from "@/lib/leagueDraft";
 
 export type LeagueOnboardingContext = {
@@ -14,7 +14,7 @@ export function leagueUsesMemberOnboarding(league: {
   league_type?: string | null;
 }): boolean {
   if (leagueUsesSalaryCap(league.league_type)) return true;
-  if (isRoadToWarGamesSeasonSlug(league.season_slug)) return true;
+  if (isRoadToWarGamesSeasonSlug(league.season_slug) || isRoadToWrestleManiaSeasonSlug(league.season_slug)) return true;
   return false;
 }
 

@@ -2365,6 +2365,71 @@ async function getAnyUndraftedNonBlocklistedForAutopickEmergency(
   return null;
 }
 
+type LiveClockWrestlerMeta = { gender: "F" | "M" | null; brand: string | null };
+
+async function loadLiveClockWrestlerMeta(
+  admin: AdminClient,
+  ids: readonly string[]
+): Promise<Map<string, LiveClockWrestlerMeta>> {
+  const meta = new Map<string, LiveClockWrestlerMeta>();
+  const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 100) {
+    const slice = unique.slice(i, i + 100);
+    const { data } = await admin.from("wrestlers").select("id,gender,brand").in("id", slice);
+    for (const row of (data ?? []) as { id: string; gender?: string | null; brand?: string | null }[]) {
+      const id = String(row.id);
+      const entry = { gender: normalizeGender(row.gender), brand: row.brand ?? null };
+      meta.set(id, entry);
+      meta.set(id.toLowerCase(), entry);
+    }
+  }
+  return meta;
+}
+
+function firstListedLiveClockWrestler(
+  orderedIds: readonly string[],
+  meta: Map<string, LiveClockWrestlerMeta>,
+  draftedIds: Set<string>,
+  requiredGender: "F" | "M" | null,
+  poolOptions: { includeNxt: boolean }
+): string | null {
+  for (const wid of orderedIds) {
+    if (!wid || isInDraftedSet(draftedIds, wid)) continue;
+    const row = meta.get(wid) ?? meta.get(wid.toLowerCase());
+    if (!row) continue;
+    if (requiredGender && row.gender !== requiredGender) continue;
+    if (!isMainBrandWrestlerRosterForLeague(row.brand, poolOptions)) continue;
+    return wid;
+  }
+  return null;
+}
+
+/**
+ * Live-draft clock expiry: the on-the-clock manager's saved priority list, then the
+ * Default Big Board. Gender floors and brand rules still apply. Does not load scoring events.
+ */
+async function chooseLiveClockWrestler(
+  admin: AdminClient,
+  leagueId: string,
+  userId: string,
+  draftedIds: Set<string>,
+  requiredGender: "F" | "M" | null
+): Promise<string | null> {
+  const { data: leagueRow } = await admin.from("leagues").select("include_nxt").eq("id", leagueId).maybeSingle();
+  const poolOptions = {
+    includeNxt: leagueIncludesNxt(leagueRow as { include_nxt?: boolean | null } | null),
+  };
+  const prefs = await getDraftPreferences(leagueId, userId, admin);
+  const queue = prefs?.priority_list ?? [];
+  const boardId = getDefaultBigBoardIdForLeague({ includeNxt: poolOptions.includeNxt }) ?? "default";
+  const board = getBigBoardPriorityList(boardId) ?? [];
+  const meta = await loadLiveClockWrestlerMeta(admin, [...queue, ...board]);
+  return (
+    firstListedLiveClockWrestler(queue, meta, draftedIds, requiredGender, poolOptions) ??
+    firstListedLiveClockWrestler(board, meta, draftedIds, requiredGender, poolOptions)
+  );
+}
+
 async function performOneAutoPick(
   admin: AdminClient,
   leagueId: string,
@@ -2469,6 +2534,17 @@ async function performOneAutoPick(
     }
     if (!wrestlerId) {
       wrestlerId = await getAnyUndraftedNonBlocklistedForAutopickEmergency(admin, draftedIds);
+    }
+  } else if (draftTypeForFallback === "live") {
+    wrestlerId = await chooseLiveClockWrestler(
+      admin,
+      leagueId,
+      current.user_id,
+      draftedIds,
+      requiredGender
+    );
+    if (!wrestlerId) {
+      wrestlerId = await getAnyUndraftedDraftableWrestlerId(admin, draftedIds);
     }
   } else {
     wrestlerId = await getTopAvailableWrestlerForUser(leagueId, current.user_id, {
@@ -2601,6 +2677,114 @@ export type RunAutoPickOptions = {
   /** Max successful picks in this invocation; default MAX_AUTOPICK_PICKS_PER_REQUEST. Draft page uses a lower cap. */
   maxPicksPerInvocation?: number;
 };
+
+export type LiveClockExpiryResult = {
+  didAutoPick: boolean;
+  error?: string;
+  /** Server timestamp for the current turn when the deadline has not passed yet. */
+  startedAt?: string;
+  secondsRemaining?: number;
+  /** Another request is already making this pick. */
+  retry?: boolean;
+  pick?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string };
+  nextStartedAt?: string | null;
+  nextSlot?: number | null;
+  draftStatus?: string;
+};
+
+/**
+ * One live-draft pick when the server clock for the current turn has run out.
+ * The on-the-clock manager's priority list is used first, then the Default Big Board.
+ * A compare-and-swap on the turn timestamp keeps a full room from each writing a pick.
+ */
+export async function runLiveDraftClockIfExpired(leagueId: string): Promise<LiveClockExpiryResult> {
+  const admin = getAdminClient();
+  if (!admin) return { didAutoPick: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+
+  const state = await getLeagueDraftStateUsingAdmin(admin, leagueId);
+  if (!state || state.draft_status !== "in_progress" || state.draft_current_pick == null) {
+    return { didAutoPick: false };
+  }
+  if (state.draft_type !== "live") return { didAutoPick: false };
+
+  const { data: leagueRow } = await admin
+    .from("leagues")
+    .select("time_per_pick_seconds")
+    .eq("id", leagueId)
+    .maybeSingle();
+  const rawSec = (leagueRow as { time_per_pick_seconds?: number } | null)?.time_per_pick_seconds;
+  const timePerPickSeconds =
+    rawSec != null && [30, 60, 90, 120, 150, 180].includes(rawSec) ? rawSec : DEFAULT_TIME_PER_PICK_SECONDS;
+  const startedAt = state.draft_current_pick_started_at;
+  if (!startedAt) return { didAutoPick: false };
+  const deadline = new Date(startedAt).getTime() + timePerPickSeconds * 1000;
+  const secondsRemaining = Math.ceil((deadline - Date.now()) / 1000);
+  if (secondsRemaining > 0) {
+    return { didAutoPick: false, startedAt, secondsRemaining };
+  }
+
+  const current = await getCurrentPickUsingAdmin(admin, leagueId);
+  if (!current) {
+    await finalizeDraftIfCursorPastOrderEnd(admin, leagueId);
+    return { didAutoPick: false };
+  }
+
+  const claimedAt = new Date().toISOString();
+  const { data: claimed, error: claimError } = await admin
+    .from("leagues")
+    .update({ draft_current_pick_started_at: claimedAt })
+    .eq("id", leagueId)
+    .eq("draft_status", "in_progress")
+    .eq("draft_current_pick", state.draft_current_pick)
+    .eq("draft_current_pick_started_at", startedAt)
+    .select("id");
+  if (claimError) return { didAutoPick: false, error: claimError.message };
+  if (!claimed?.length) return { didAutoPick: false, retry: true };
+
+  const result = await performOneAutoPick(
+    admin,
+    leagueId,
+    current,
+    { draft_current_pick: state.draft_current_pick, total_picks: state.total_picks },
+    "live",
+    false
+  );
+  if (result.skippedDueToRace || result.error) {
+    await admin
+      .from("leagues")
+      .update({ draft_current_pick_started_at: startedAt })
+      .eq("id", leagueId)
+      .eq("draft_current_pick", state.draft_current_pick)
+      .eq("draft_current_pick_started_at", claimedAt);
+    return { didAutoPick: false, error: result.error, retry: result.skippedDueToRace === true };
+  }
+  const [{ data: pickRow }, { data: leagueAfter }] = await Promise.all([
+    admin
+      .from("league_draft_picks")
+      .select("overall_pick, user_id, wrestler_id, picked_at")
+      .eq("league_id", leagueId)
+      .eq("overall_pick", current.overall_pick)
+      .maybeSingle(),
+    admin
+      .from("leagues")
+      .select("draft_current_pick, draft_current_pick_started_at, draft_status")
+      .eq("id", leagueId)
+      .maybeSingle(),
+  ]);
+  const pick = pickRow as { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string } | null;
+  const after = leagueAfter as {
+    draft_current_pick?: number | null;
+    draft_current_pick_started_at?: string | null;
+    draft_status?: string;
+  } | null;
+  return {
+    didAutoPick: true,
+    pick: pick ?? undefined,
+    nextStartedAt: after?.draft_current_pick_started_at ?? null,
+    nextSlot: after?.draft_current_pick ?? null,
+    draftStatus: after?.draft_status,
+  };
+}
 
 /**
  * If the current pick has exceeded the allotted time (or user is in "takeover" after 3 missed picks), perform auto-pick(s).

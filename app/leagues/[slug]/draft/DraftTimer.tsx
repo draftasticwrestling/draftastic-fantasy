@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function secondsLeft(startedAt: string, deadlineSeconds: number): number {
   const start = new Date(startedAt).getTime();
@@ -19,24 +19,32 @@ export function DraftTimer({
   startedAt,
   leagueSlug,
   secondsPerPick = 120,
+  onExpire,
 }: {
   startedAt: string;
   leagueSlug: string;
   /** For autopick use 5; for live use league time_per_pick_seconds. */
   secondsPerPick?: number;
+  /** Live drafts make one pick from here. Autopick still reloads the page. */
+  onExpire?: () => void;
 }) {
   const router = useRouter();
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
   const [left, setLeft] = useState(() => secondsLeft(startedAt, secondsPerPick));
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    let fired = false;
+    const tick = () => {
       const next = secondsLeft(startedAt, secondsPerPick);
       setLeft(next);
-      if (next <= 0) {
-        clearInterval(interval);
-        router.refresh();
-      }
-    }, 1000);
+      if (next > 0 || fired) return;
+      fired = true;
+      if (onExpireRef.current) onExpireRef.current();
+      else router.refresh();
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [startedAt, secondsPerPick, router]);
 

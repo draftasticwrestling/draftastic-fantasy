@@ -182,6 +182,9 @@ export function FantasyOnboardingDashboard({
             <Link href="/how-it-works">How it works</Link> — scoring rules and public leagues
           </li>
           <li>
+            <Link href="/mock-draft">Mock draft</Link> — practice a snake draft before draft night
+          </li>
+          <li>
             <Link href="/event-results">Event results</Link> — fantasy scoring for completed events
           </li>
           <li>

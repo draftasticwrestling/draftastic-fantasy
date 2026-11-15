@@ -475,6 +475,9 @@ export default function Nav() {
                 <Link href="/how-it-works" className="nav-top-link">
                   How It Works
                 </Link>
+                <Link href="/mock-draft" className="nav-top-link">
+                  Mock Draft
+                </Link>
                 {isSiteAdmin ? (
                   <div className="nav-dropdown-wrap" ref={adminRef}>
                     <button
@@ -542,6 +545,7 @@ export default function Nav() {
               <Link href="/" className="nav-header-link">Home</Link>
               <Link href={fantasyHref} className="nav-fantasy-pill">Fantasy</Link>
               <Link href="/how-it-works" className="nav-top-link">How It Works</Link>
+              <Link href="/mock-draft" className="nav-top-link">Mock Draft</Link>
               <Link href="/auth/sign-in" className="nav-header-link">Sign in</Link>
               <Link href={PLAY_PATH} className="nav-header-cta">Play Now</Link>
             </>
@@ -587,6 +591,9 @@ export default function Nav() {
             </Link>
             <Link href="/how-it-works" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
               How It Works
+            </Link>
+            <Link href="/mock-draft" className="nav-mobile-panel-link" onClick={closeMobileMenu}>
+              Mock Draft
             </Link>
             <Link
               href={PLAY_PATH}

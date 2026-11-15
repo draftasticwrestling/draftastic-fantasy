@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
-import { roadToWarGamesCreateOpen } from "@/lib/leagueSeasons";
+import { roadToWrestleManiaCreateStatus } from "@/lib/leagueSeasons";
 import { CreateLeagueForm } from "../CreateLeagueForm";
 
 export const metadata = {
@@ -17,7 +17,7 @@ export default async function NewLeaguePage() {
   }
 
   const isSiteAdmin = await getIsSiteAdmin();
-  const createOpen = roadToWarGamesCreateOpen();
+  const createStatus = roadToWrestleManiaCreateStatus();
 
   return (
     <main className="create-league-page">
@@ -27,9 +27,10 @@ export default async function NewLeaguePage() {
         </Link>
         <h1>Create a League</h1>
         <p style={{ margin: "0 0 24px", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
-          Create a private <strong>Road to War Games</strong> league for friends. Managers join with your league code
+          Create a private <strong>Road to WrestleMania</strong> league for friends. Managers join with your league code
           or invite link — no access code needed. Choose Total Season Points (3–6 factions) or Head-to-Head (4–8
-          factions); NXT is included.
+          factions); NXT is included. The first scored show is the Raw on November 30, 2026, and new leagues can
+          start through Monday, March 8, 2027.
           {!isSiteAdmin ? (
             <>
               {" "}
@@ -38,12 +39,12 @@ export default async function NewLeaguePage() {
           ) : (
             <>
               {" "}
-              <strong>Site admin:</strong> full create options by default. Use the toggle on the form to preview the
-              standard user flow.
+              <strong>Site admin:</strong> you can create this league now and choose Live draft. Everyone else waits
+              until November 21. Full create options stay available when Standard user view is off.
             </>
           )}
         </p>
-        <CreateLeagueForm isSiteAdmin={isSiteAdmin} createOpen={createOpen} />
+        <CreateLeagueForm isSiteAdmin={isSiteAdmin} createStatus={createStatus} />
       </div>
     </main>
   );
