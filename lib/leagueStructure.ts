@@ -123,7 +123,12 @@ export function getLeagueSeasonBelt(league: LeagueSeasonBeltInput | null | undef
 }
 
 /** Weekly PST title-hold belt (Mon–Sun week; credits once all PWBS events in that week are completed). */
-export function leagueUsesWeeklyPstBeltHold(seasonSlug: string | null | undefined): boolean {
+export function leagueUsesWeeklyPstBeltHold(
+  seasonSlug: string | null | undefined,
+  leagueType?: string | null
+): boolean {
+  // Salary cap keeps weekly title holds even when the season is Road to WrestleMania.
+  if (leagueUsesSalaryCap(leagueType)) return true;
   const s = (seasonSlug ?? "").trim();
   return (
     s === ROAD_TO_SUMMERSLAM_SEASON_SLUG ||

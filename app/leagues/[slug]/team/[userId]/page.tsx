@@ -369,7 +369,7 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     const matchStatsBySlugAllTime = aggregateWrestlerMatchStats(eventsAll ?? []);
     const todayYmd = new Date().toISOString().slice(0, 10);
     const beltLastMonthEnd = beltScoringLastMonthEndInclusive(league.end_date);
-    const isRtsWeekly = leagueUsesWeeklyPstBeltHold(league.season_slug);
+    const isRtsWeekly = leagueUsesWeeklyPstBeltHold(league.season_slug, league.league_type);
     let endOfMonthBeltPoints: Record<string, number>;
     if (isRtsWeekly) {
       const firstW = firstEligibleWeekEndSundayForLeagueStart(startDate);

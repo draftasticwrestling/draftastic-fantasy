@@ -8,8 +8,38 @@ import {
   SALARY_CAP_NXT_COST,
 } from "@/lib/salaryCapSeedPricing";
 
-/** Max salary value (adds or drops) per faction per Pacific week in salary-cap leagues. */
+/** Max salary value (adds or drops) per faction per Pacific week in a standard salary-cap league. */
 export const FA_SALARY_CAP_WEEKLY_BUDGET = 25;
+
+/** Private Road to WrestleMania salary-cap league. $40 adds and $40 drops each week. */
+export const FOUNDERS_LEAGUE_SLUG = "the-founders-league";
+export const FOUNDERS_LEAGUE_WEEKLY_MOVE_BUDGET = 40;
+
+function weeklyBudgetFromRow(row: { slug?: string | null; salary_cap_weekly_budget?: number | null } | null): number {
+  const stored = row?.salary_cap_weekly_budget;
+  if (typeof stored === "number" && stored > 0) return stored;
+  if (row?.slug === FOUNDERS_LEAGUE_SLUG) return FOUNDERS_LEAGUE_WEEKLY_MOVE_BUDGET;
+  return FA_SALARY_CAP_WEEKLY_BUDGET;
+}
+
+/** Per-league add budget and drop budget for the current Pacific week. */
+export async function getSalaryCapWeeklyMoveBudget(
+  supabase: Pick<SupabaseClient, "from">,
+  leagueId: string
+): Promise<number> {
+  const withColumn = await supabase
+    .from("leagues")
+    .select("slug, salary_cap_weekly_budget")
+    .eq("id", leagueId)
+    .maybeSingle();
+  if (!withColumn.error) {
+    return weeklyBudgetFromRow(
+      withColumn.data as { slug?: string | null; salary_cap_weekly_budget?: number | null } | null
+    );
+  }
+  const slugOnly = await supabase.from("leagues").select("slug").eq("id", leagueId).maybeSingle();
+  return weeklyBudgetFromRow(slugOnly.data as { slug?: string | null } | null);
+}
 
 export type SalaryCapWeeklyFaSpend = {
   addSpent: number;
@@ -116,7 +146,7 @@ export async function getSalaryCapWeeklyFaBudgetStatus(
 ): Promise<SalaryCapWeeklyFaBudgetStatus | null> {
   const spend = await getSalaryCapWeeklyFaSpend(supabase, leagueId, userId, refNowMs);
   if (!spend) return null;
-  const budget = FA_SALARY_CAP_WEEKLY_BUDGET;
+  const budget = await getSalaryCapWeeklyMoveBudget(supabase, leagueId);
   return {
     ...spend,
     budget,
@@ -141,7 +171,7 @@ export async function assertSalaryCapWeeklyFaMoveAllowed(
     return { error: "Could not verify weekly free agent budget. Try again." };
   }
 
-  const budget = FA_SALARY_CAP_WEEKLY_BUDGET;
+  const budget = await getSalaryCapWeeklyMoveBudget(supabase, leagueId);
   const weekNote = "Monday–Sunday, Pacific Time";
 
   if (move.addWrestlerId) {

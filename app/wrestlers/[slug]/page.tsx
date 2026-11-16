@@ -330,7 +330,9 @@ export default async function WrestlerProfilePage({
     (events ?? []) as { id: string; name: string; date: string; matches?: object[] }[]
   );
   const useWeeklyLeagueBelt =
-    currentPeriod === "sinceStart" && league != null && leagueUsesWeeklyPstBeltHold(league.season_slug);
+    currentPeriod === "sinceStart" &&
+    league != null &&
+    leagueUsesWeeklyPstBeltHold(league.season_slug, league.league_type);
   const endOfMonthBySlug =
     currentPeriod === "allTime"
       ? computeHybridPublicBeltHoldBySlug(reigns)

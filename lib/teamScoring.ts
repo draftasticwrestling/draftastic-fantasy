@@ -416,7 +416,10 @@ export async function getTeamScoringAudit(leagueId: string, userId: string): Pro
     const changesReigns = inferReignsFromChampionshipChanges(changesRows);
     const reigns = mergeReigns(tableReignsForBelt, [...inferredReigns, ...changesReigns]);
     const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
-    const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug);
+    const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(
+      seasonSlug,
+      (league as { league_type?: string | null }).league_type
+    );
 
     if (useWeeklyBelt) {
       const beltFirstWeekEnd = firstEligibleWeekEndSundayForLeagueStart(leagueStart);

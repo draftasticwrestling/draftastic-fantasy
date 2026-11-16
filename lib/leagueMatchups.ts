@@ -483,7 +483,7 @@ export async function getLeagueWeeklyMatchups(
   const leagueType = (league as { league_type?: string | null }).league_type ?? null;
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
   const useOwnerMatchupBonuses = leagueUsesOwnerMatchupBonuses(leagueType);
-  const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug);
+  const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug, leagueType);
   /** Title-hold (monthly or weekly RTS) belt points — must run for season_overall too so per-week totals match `getLeagueScoring` / faction scoreboard. Owner matchup bonuses (+15 / Draftastic belt) stay gated by `leagueUsesOwnerMatchupBonuses`. */
   const includeMonthlyBeltInMatchup =
     leagueType === "head_to_head" ||
@@ -883,7 +883,7 @@ export async function getMonthlyBeltBySlugForWeek(
   const start = (league.draft_date || league.start_date) ?? "";
   const end = league.end_date ?? "";
   const seasonSlug = (league as { season_slug?: string | null }).season_slug ?? null;
-  const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug);
+  const useWeeklyBelt = leagueUsesWeeklyPstBeltHold(seasonSlug, leagueType);
   if (!useWeeklyBelt) {
     const monthEndInWeek = getMonthEndInWeek(weekStartMonday, weekEndSunday);
     const seasonEndSnapshot = legacySeasonEndBeltSnapshotYmd(end);

@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getRostersForLeague } from "@/lib/leagues";
 import { leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEFAULT } from "@/lib/leagueStructure";
+import { getSalaryCapLeagueMeta } from "@/lib/salaryCap";
+import { getSalaryCapWeeklyMoveBudget } from "@/lib/salaryCapWeeklyLimits";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 import { purgeUnplacedPublicLeagueMembersIfRegistrationClosed, maybeActivatePlacementForStartedRoster } from "@/lib/leaguePlacement";
 import { buildSalaryCapWrestlerPool } from "@/lib/salaryCapWrestlerPool";
@@ -56,11 +58,10 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
     redirect(leagueOnboardingPath(slug));
   }
 
-  const leagueRow = league as { salary_cap_budget?: number | null; draft_status?: string | null };
-  const budget =
-    typeof leagueRow.salary_cap_budget === "number" && leagueRow.salary_cap_budget > 0
-      ? leagueRow.salary_cap_budget
-      : SALARY_CAP_BUDGET_DEFAULT;
+  const leagueRow = league as { draft_status?: string | null };
+  const capMeta = await getSalaryCapLeagueMeta(supabase, league.id);
+  const budget = capMeta?.budget ?? SALARY_CAP_BUDGET_DEFAULT;
+  const weeklyMoveBudget = await getSalaryCapWeeklyMoveBudget(supabase, league.id);
 
   const poolWithStats = await buildSalaryCapWrestlerPool(supabase, league);
   const poolById = Object.fromEntries(poolWithStats.map((w) => [w.id, w]));
@@ -137,7 +138,7 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
         <p style={{ color: "var(--color-text-muted)", marginBottom: 24, maxWidth: 640 }}>
           Total Season Points scoring with a ${budget} salary cap. Spend your budget on any combination of wrestlers
           ($5–$25 tiers). The same wrestler can be on multiple factions in this league. After the season starts, each
-          faction may add and drop up to $25 in wrestler value per week (resets Monday, Pacific Time).
+          faction may add and drop up to ${weeklyMoveBudget} in wrestler value per week (resets Monday, Pacific Time).
         </p>
       )}
 
