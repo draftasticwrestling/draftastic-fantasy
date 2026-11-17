@@ -11,7 +11,7 @@ import { siteLogoHref } from "@/lib/siteLogo";
 import { computeFantasyHomeHref, getLeagueSlugFromPath } from "@/lib/fantasyHomeHref";
 import { pleDefaultHref, pleHrefForEntry, pleNavEntriesForLeagueWindow, type PleNavEntry } from "@/lib/pleLeagueMenu";
 import { leagueShowsMatchupsInNav } from "@/lib/leagueNavVisibility";
-import { leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import { leagueUsesSalaryCap, ROAD_TO_SUMMERSLAM_SEASON_SLUG } from "@/lib/leagueStructure";
 import { resolveManagerPresetDisplayUrl } from "@/lib/managerAvatarPresets";
 import { getXpLevelInfo } from "@/lib/xp/xpLevels";
 import { PLAY_PATH } from "@/lib/playFunnel";
@@ -132,6 +132,7 @@ export default function Nav() {
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [leaguePanelRect, setLeaguePanelRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [scheduledPle, setScheduledPle] = useState<{ href: string; label: string } | null>(null);
 
   const setHoverPrimaryStable = (value: typeof hoverPrimary) => {
     if (closeTimeoutRef.current) {
@@ -267,6 +268,7 @@ export default function Nav() {
     slugFromPath ?? (lastVisitedSlug && leagues.some((l) => l.slug === lastVisitedSlug) ? lastVisitedSlug : null) ?? leagues[0]?.slug ?? null;
 
   const currentLeague = leagues.find((l) => l.slug === currentLeagueSlug);
+  const isRtsLeague = (currentLeague?.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG;
   const isCommissioner = currentLeague?.role === "commissioner";
   const isSalaryCapLeague = leagueUsesSalaryCap(currentLeague?.league_type);
   const showMatchupsInTopNav = leagueShowsMatchupsInNav(currentLeague?.league_type);
@@ -339,14 +341,37 @@ export default function Nav() {
         currentLeague?.end_date ?? null
       )
     : [];
-  const pleBarHref = currentLeagueSlug
-    ? pleDefaultHref(
-        currentLeagueSlug,
-        currentLeague?.season_slug ?? null,
-        currentLeague?.start_date ?? null,
-        currentLeague?.end_date ?? null
-      )
-    : "#";
+  const pleBarHref = !currentLeagueSlug
+    ? "#"
+    : isRtsLeague
+      ? pleDefaultHref(
+          currentLeagueSlug,
+          currentLeague?.season_slug ?? null,
+          currentLeague?.start_date ?? null,
+          currentLeague?.end_date ?? null
+        )
+      : scheduledPle?.href ?? "/event-results?tab=upcoming&show=ple";
+
+  useEffect(() => {
+    if (!currentLeagueSlug || isRtsLeague) {
+      setScheduledPle(null);
+      return;
+    }
+    let cancelled = false;
+    setScheduledPle(null);
+    fetch(`/api/leagues/${encodeURIComponent(currentLeagueSlug)}/next-ple`)
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((data: { href?: string; label?: string } | null) => {
+        if (cancelled || !data?.href) return;
+        setScheduledPle({ href: data.href, label: data.label?.trim() || "Next PLE" });
+      })
+      .catch(() => {
+        if (!cancelled) setScheduledPle(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentLeagueSlug, isRtsLeague]);
 
   function pleEntryIsActive(entry: PleNavEntry): boolean {
     if (!currentLeagueSlug) return false;
@@ -872,6 +897,7 @@ export default function Nav() {
               )}
               {(hoverPrimary ?? activePrimary) === "ple" &&
                 currentLeagueSlug &&
+                isRtsLeague &&
                 pleNavItems.map((entry) => {
                   const href = pleHrefForEntry(currentLeagueSlug, entry);
                   const active = pleEntryIsActive(entry);
@@ -883,6 +909,16 @@ export default function Nav() {
                     </li>
                   );
                 })}
+              {(hoverPrimary ?? activePrimary) === "ple" && currentLeagueSlug && !isRtsLeague && scheduledPle ? (
+                <li>
+                  <Link
+                    href={scheduledPle.href}
+                    className={`nav-secondary-link ${pathname === scheduledPle.href ? "is-active" : ""}`}
+                  >
+                    {scheduledPle.label}
+                  </Link>
+                </li>
+              ) : null}
               {(hoverPrimary ?? activePrimary) === "wrestlers" &&
                 wrestlersSub.map(({ href, label }) => {
                   const isActive = pathname === href || pathname.startsWith(href + "/");

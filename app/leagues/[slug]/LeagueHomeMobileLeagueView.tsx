@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { LeagueMember } from "@/lib/leagues";
-import { pleDefaultHref } from "@/lib/pleLeagueMenu";
 import { ROAD_TO_SUMMERSLAM_SEASON_SLUG, type LeagueSeasonBelt } from "@/lib/leagueStructure";
 import { LeagueSeasonBeltBanner } from "@/app/components/LeagueSeasonBeltBanner";
 import type { XpDisplay } from "@/lib/xp/getXpDisplayByUserIds";
@@ -20,8 +19,7 @@ type Props = {
   joinCode?: string | null;
   seasonSubtitle: string | null;
   seasonSlug: string | null;
-  leagueStartDate?: string | null;
-  leagueEndDate?: string | null;
+  nextPleHref: string;
   isCommissioner: boolean;
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
@@ -81,8 +79,7 @@ export function LeagueHomeMobileLeagueView({
   joinCode = null,
   seasonSubtitle,
   seasonSlug,
-  leagueStartDate = null,
-  leagueEndDate = null,
+  nextPleHref,
   isCommissioner,
   members,
   pointsByUserId,
@@ -117,7 +114,6 @@ export function LeagueHomeMobileLeagueView({
   showPendingProposals = false,
 }: Props) {
   const base = `/leagues/${encodeURIComponent(leagueSlug)}`;
-  const pleHref = pleDefaultHref(leagueSlug, seasonSlug, leagueStartDate, leagueEndDate);
   const pleLabel = seasonSlug === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE";
 
   const items: { href: string; label: string }[] = [
@@ -133,7 +129,7 @@ export function LeagueHomeMobileLeagueView({
       : []),
     { href: `${base}/faction-actions`, label: isSalaryCapLeague ? "Add / Drop" : "Add / Drop / Trade" },
     { href: `${base}/transactions`, label: "Transactions" },
-    { href: pleHref, label: pleLabel },
+    { href: nextPleHref, label: pleLabel },
     ...(showMatchupsInTopNav && !isSalaryCapLeague ? [{ href: `${base}/draft`, label: "Draft" }] : []),
     { href: `${base}/edit-team-info`, label: "Edit Faction Info" },
     ...(isCommissioner ? [{ href: `${base}/league-settings`, label: "GM Tools" }] : []),

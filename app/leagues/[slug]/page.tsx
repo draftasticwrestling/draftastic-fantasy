@@ -21,7 +21,7 @@ import {
   leagueUsesSalaryCap,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
 } from "@/lib/leagueStructure";
-import { pleDefaultHref } from "@/lib/pleLeagueMenu";
+import { resolveNextPleLink } from "@/lib/nextPleLink";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { getTradeProposalsForLeague, getLeagueRosterActivity, getTradeVoteTotals, getMyTradeVotes, processTradeTimerDeadlines } from "@/lib/leagueOwner";
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
@@ -153,7 +153,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       // invite / draft settings while finishing (or returning to) onboarding.
     }
 
-    const [membersData, rostersData, wrestlersData, pointsByOwner, standingsMembersData] = await Promise.all([
+    const [membersData, rostersData, wrestlersData, pointsByOwner, standingsMembersData, nextPleLink] =
+      await Promise.all([
       getLeagueMembers(league.id),
       getRostersForLeague(league.id),
       (async () => {
@@ -171,6 +172,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       })(),
       getPointsByOwnerForLeagueWithBonuses(league.id),
       getLeagueStandingsMembers(league.id, league),
+      resolveNextPleLink(league),
     ]);
     members = membersData;
     const standingsMembers = standingsMembersData;
@@ -541,8 +543,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         joinCode={league.join_code ?? null}
         seasonSubtitle={seasonSubtitle}
         seasonSlug={league.season_slug ?? null}
-        leagueStartDate={league.start_date ?? null}
-        leagueEndDate={league.end_date ?? null}
+        nextPleHref={nextPleLink.href}
         isCommissioner={isCommissioner}
         members={membersByPoints}
         pointsByUserId={pointsByUserId}
@@ -646,9 +647,9 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
             <ul className="lm-quick-links">
               <li><Link href="/how-it-works"><span className="lm-quick-link-icon">☰</span> Rules</Link></li>
               <li>
-                <Link href={pleDefaultHref(slug, league.season_slug ?? null, league.start_date ?? null, league.end_date ?? null)}>
+                <Link href={nextPleLink.href}>
                   <span className="lm-quick-link-icon">🏟</span>{" "}
-                  {(league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE"}
+                  {nextPleLink.label === "PLEs" ? "PLEs" : "Next PLE"}
                 </Link>
               </li>
               <li>
@@ -680,8 +681,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               <span className="lm-subnav-sep">|</span>
               <Link href={`/leagues/${slug}/standings`}>Standings</Link>
               <span className="lm-subnav-sep">|</span>
-              <Link href={pleDefaultHref(slug, league.season_slug ?? null, league.start_date ?? null, league.end_date ?? null)}>
-                {(league.season_slug ?? null) === ROAD_TO_SUMMERSLAM_SEASON_SLUG ? "PLEs" : "Next PLE"}
+              <Link href={nextPleLink.href}>
+                {nextPleLink.label === "PLEs" ? "PLEs" : "Next PLE"}
               </Link>
               <span className="lm-subnav-sep">|</span>
               <Link href={rosterBuildHref}>
