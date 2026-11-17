@@ -16,7 +16,7 @@ import {
   getLeagueSeasonBelt,
 } from "@/lib/leagueStructure";
 import { isPastEndOfDayPst, getCivilYmdInPst } from "@/lib/pstCivilTime";
-import { applyLeaguePlacementXp, type LeagueTeamCount } from "@/lib/xp/leaguePlacementGrants";
+import { applyLeaguePlacementXp, hasLeaguePlacementXp } from "@/lib/xp/leaguePlacementGrants";
 
 /** Season key for RTSS 2026 placements + XP idempotency. */
 export const RTSS_2026_SEASON_KEY = "road-to-summerslam-2026";
@@ -78,9 +78,10 @@ export type ChampionDisplayRow = {
   seasonSlug: string | null;
 };
 
-function asTeamCount(n: number): LeagueTeamCount | null {
-  if (n === 3 || n === 4 || n === 5 || n === 6) return n;
-  return null;
+/** Any finished league of 3 or more factions can earn win XP. 6+ pays the 6-team amount. */
+function payableWinTeamCount(n: number): number | null {
+  if (!Number.isInteger(n) || n < 3) return null;
+  return n;
 }
 
 function pickPointsChampion(pointsByUserId: Record<string, number>): { userId: string; points: number } | null {
@@ -213,8 +214,9 @@ export async function hasChampionPlacement(
 }
 
 /**
- * Finalize one league: resolve champion, upsert placement, award XP when team count is 3–6.
- * Idempotent when a placement row already exists (still safe to re-upsert + XP).
+ * Finalize one league: resolve champion, upsert placement, award win XP.
+ * Leagues of 6 or more pay the 6-team win amount (950). Idempotent when a placement
+ * row already exists; missing win XP for that champion is granted on the daily pass.
  */
 export async function finalizeLeagueChampionPlacement(
   admin: SupabaseClient,
@@ -259,7 +261,7 @@ export async function finalizeLeagueChampionPlacement(
     return { status: "error", champion, message: error };
   }
 
-  const teamCount = asTeamCount(champion.teamCount);
+  const teamCount = payableWinTeamCount(champion.teamCount);
   if (teamCount) {
     await applyLeaguePlacementXp(admin, {
       userId: champion.userId,
@@ -332,8 +334,55 @@ export async function listLeaguesDueForChampionFinalization(
 }
 
 /**
+ * Grant win XP for champions already stored in league_season_placements.
+ * Covers archived leagues the daily due-list no longer visits, and leagues whose
+ * champion was saved before a 7+ team win paid anything. Idempotent per league and user.
+ */
+export async function awardMissingChampionWinXp(
+  admin: SupabaseClient,
+  opts?: { dryRun?: boolean }
+): Promise<{ checked: number; awarded: number }> {
+  const { data, error } = await admin
+    .from("league_season_placements")
+    .select("league_id, season_key, user_id")
+    .eq("placement", 1);
+  if (error || !data?.length) return { checked: 0, awarded: 0 };
+
+  const leagueIds = [...new Set(data.map((row) => row.league_id))];
+  const { data: members } = await admin.from("league_members").select("league_id").in("league_id", leagueIds);
+  const teamCountByLeague = new Map<string, number>();
+  for (const member of members ?? []) {
+    const leagueId = String((member as { league_id: string }).league_id);
+    teamCountByLeague.set(leagueId, (teamCountByLeague.get(leagueId) ?? 0) + 1);
+  }
+
+  let awarded = 0;
+  for (const row of data) {
+    const teamCount = payableWinTeamCount(teamCountByLeague.get(row.league_id) ?? 0);
+    if (!teamCount) continue;
+    const alreadyPaid = await hasLeaguePlacementXp(admin, {
+      userId: row.user_id,
+      leagueId: row.league_id,
+      placement: 1,
+    });
+    if (alreadyPaid) continue;
+    awarded += 1;
+    if (opts?.dryRun) continue;
+    await applyLeaguePlacementXp(admin, {
+      userId: row.user_id,
+      leagueId: row.league_id,
+      seasonKey: row.season_key,
+      placement: 1,
+      teamCount,
+    });
+  }
+  return { checked: data.length, awarded };
+}
+
+/**
  * Idempotent batch finalize for any due league. Skips leagues that already have a champion
  * placement for their season key; leaves H2H finals as pending until the bracket is decided.
+ * Then grants any recorded win that never received XP, including archived leagues.
  */
 export async function finalizeDueLeagueChampions(
   admin: SupabaseClient,
@@ -344,6 +393,7 @@ export async function finalizeDueLeagueChampions(
   skipped: number;
   pending: number;
   error: number;
+  winXpAwarded: number;
   results: Array<{ leagueId: string; status: string; message: string }>;
 }> {
   const leagues = await listLeaguesDueForChampionFinalization(admin);
@@ -362,9 +412,12 @@ export async function finalizeDueLeagueChampions(
     if (result.status in counts) counts[result.status as keyof typeof counts] += 1;
   }
 
+  const missingWins = await awardMissingChampionWinXp(admin, { dryRun: opts?.dryRun });
+
   return {
     leagues: slice.length,
     ...counts,
+    winXpAwarded: missingWins.awarded,
     results,
   };
 }

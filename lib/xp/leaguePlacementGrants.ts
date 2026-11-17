@@ -4,6 +4,13 @@ import { XP_AMOUNTS } from "@/lib/xp/xpReasons";
 
 export type LeagueTeamCount = 3 | 4 | 5 | 6;
 
+/** 3–5 use their own amounts. A win in a league of 6 or more pays the 6-team amount (950). */
+export function leaguePlacementXpTier(teamCount: number): LeagueTeamCount | null {
+  if (!Number.isInteger(teamCount) || teamCount < 3) return null;
+  if (teamCount >= 6) return 6;
+  return teamCount as LeagueTeamCount;
+}
+
 function placementToken(placement: 1 | 2): "1st" | "2nd" {
   return placement === 1 ? "1st" : "2nd";
 }
@@ -37,10 +44,15 @@ export async function applyLeaguePlacementXp(
     leagueId: string;
     seasonKey: string;
     placement: 1 | 2;
-    teamCount: LeagueTeamCount;
+    /** Factions in the league. 6 or more pays the 6-team amount. */
+    teamCount: number;
   }
 ): Promise<void> {
   const { userId, leagueId, seasonKey, placement, teamCount } = args;
+  const tier = leaguePlacementXpTier(teamCount);
+  if (!tier) return;
+  // Runner-up XP stays on the published 3–6 ladder. Wins of 6+ all use the 6-team amount.
+  if (placement === 2 && teamCount > 6) return;
 
   if (await hasLeaguePlacementXp(admin, { userId, leagueId, placement })) {
     return;
@@ -49,19 +61,19 @@ export async function applyLeaguePlacementXp(
   const idBase = `league_place:${leagueId}:${seasonKey}:${userId}`;
   if (placement === 2) {
     const key =
-      teamCount === 3
+      tier === 3
         ? "league_second_3"
-        : teamCount === 4
+        : tier === 4
           ? "league_second_4"
-          : teamCount === 5
+          : tier === 5
             ? "league_second_5"
             : "league_second_6";
     const amt =
-      teamCount === 3
+      tier === 3
         ? XP_AMOUNTS.league_second_3
-        : teamCount === 4
+        : tier === 4
           ? XP_AMOUNTS.league_second_4
-          : teamCount === 5
+          : tier === 5
             ? XP_AMOUNTS.league_second_5
             : XP_AMOUNTS.league_second_6;
     await applyXpGrant(admin, {
@@ -69,18 +81,17 @@ export async function applyLeaguePlacementXp(
       delta: amt,
       reason: key,
       idempotencyKey: `${idBase}:2nd:${teamCount}`,
-      metadata: { leagueId, teamCount },
+      metadata: { leagueId, teamCount, xpTier: tier },
     });
     return;
   }
-  const key =
-    teamCount === 3 ? "league_win_3" : teamCount === 4 ? "league_win_4" : teamCount === 5 ? "league_win_5" : "league_win_6";
+  const key = tier === 3 ? "league_win_3" : tier === 4 ? "league_win_4" : tier === 5 ? "league_win_5" : "league_win_6";
   const amt =
-    teamCount === 3
+    tier === 3
       ? XP_AMOUNTS.league_win_3
-      : teamCount === 4
+      : tier === 4
         ? XP_AMOUNTS.league_win_4
-        : teamCount === 5
+        : tier === 5
           ? XP_AMOUNTS.league_win_5
           : XP_AMOUNTS.league_win_6;
   await applyXpGrant(admin, {
@@ -88,6 +99,6 @@ export async function applyLeaguePlacementXp(
     delta: amt,
     reason: key,
     idempotencyKey: `${idBase}:1st:${teamCount}`,
-    metadata: { leagueId, teamCount },
+    metadata: { leagueId, teamCount, xpTier: tier },
   });
 }

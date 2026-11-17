@@ -15,7 +15,8 @@ export async function awardLeaguePlacementXp(args: {
   leagueId: string;
   seasonKey: string;
   placement: 1 | 2;
-  teamCount: LeagueTeamCount;
+  /** Factions in the league. 6 or more pays the 6-team win amount. */
+  teamCount: number;
 }): Promise<void> {
   const admin = getAdminClient();
   if (!admin) return;

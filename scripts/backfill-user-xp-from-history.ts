@@ -28,7 +28,7 @@ import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 import { applyXpGrant } from "../lib/xp/applyXpGrant";
-import { applyLeaguePlacementXp, type LeagueTeamCount } from "../lib/xp/leaguePlacementGrants";
+import { applyLeaguePlacementXp } from "../lib/xp/leaguePlacementGrants";
 import { XP_AMOUNTS } from "../lib/xp/xpReasons";
 import { getPointsByOwnerForLeagueWithBonuses } from "../lib/leagueMatchups";
 import { backfillEngagementDailyXp } from "../lib/xp/backfillEngagementDailyXp";
@@ -267,8 +267,8 @@ async function main() {
     };
     const rows = parsed.placements ?? [];
     for (const p of rows) {
-      const teamCount = p.teamCount as LeagueTeamCount;
-      if (![3, 4, 5, 6].includes(teamCount)) {
+      const teamCount = p.teamCount;
+      if (!Number.isInteger(teamCount) || teamCount < 3) {
         console.error(`Invalid teamCount for user ${p.userId}: ${p.teamCount}`);
         process.exit(1);
       }
@@ -307,8 +307,8 @@ async function main() {
       if (!seasonKey || !endDate || endDate >= today) continue;
 
       const { data: members } = await admin.from("league_members").select("user_id").eq("league_id", l.id);
-      const teamCount = (members ?? []).length as LeagueTeamCount;
-      if (![3, 4, 5, 6].includes(teamCount)) continue;
+      const teamCount = (members ?? []).length;
+      if (!Number.isInteger(teamCount) || teamCount < 3) continue;
 
       const pointsByUserId = await getPointsByOwnerForLeagueWithBonuses(l.id, admin);
       const ranked = Object.entries(pointsByUserId).sort((a, b) => b[1] - a[1]);

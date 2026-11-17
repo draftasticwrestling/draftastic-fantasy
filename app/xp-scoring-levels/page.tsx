@@ -28,7 +28,7 @@ const XP_GRANT_ROWS: Array<{ key: keyof typeof XP_AMOUNTS; label: string; notes?
   { key: "league_win_3", label: "League winner (3-team league)" },
   { key: "league_win_4", label: "League winner (4-team league)" },
   { key: "league_win_5", label: "League winner (5-team league)" },
-  { key: "league_win_6", label: "League winner (6-team league)" },
+  { key: "league_win_6", label: "League winner (6 or more teams)" },
 ];
 
 export const metadata = {

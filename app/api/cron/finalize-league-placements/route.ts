@@ -7,7 +7,9 @@ import { finalizeDueLeagueChampions } from "@/lib/leagueSeasonPlacements";
  * GET /api/cron/finalize-league-placements
  *
  * After a league's end_date passes end-of-day Pacific, record the champion in
- * `league_season_placements` (and award placement XP once). Idempotent; H2H leagues
+ * `league_season_placements` and award win XP once. Leagues of 6 or more pay the
+ * 6-team win amount. Already-recorded champions, including archived leagues, are
+ * checked for a missing win grant. Idempotent; H2H leagues
  * stay pending until the playoff final is decided, then succeed on a later run.
  *
  * Secured by x-cron-secret. Optional: `dryRun=1`, `limit=N`, `force=1`.
