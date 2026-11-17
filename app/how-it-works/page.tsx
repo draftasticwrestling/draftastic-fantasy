@@ -4,7 +4,7 @@ import { HowItWorksEngagementTrack } from "@/app/components/HowItWorksEngagement
 import { HowItWorksPublicLeague } from "./HowItWorksPublicLeague";
 import { HowItWorksRoadToWarGames } from "./HowItWorksRoadToWarGames";
 import { HowItWorksRoadToSummerSlam } from "./HowItWorksRoadToSummerSlam";
-import { HowItWorksSeasonPlaceholder } from "./HowItWorksSeasonPlaceholder";
+import { HowItWorksRoadToWrestleMania } from "./HowItWorksRoadToWrestleMania";
 import { HowItWorksTabs } from "./HowItWorksTabs";
 import { parseHowItWorksTabParam } from "./howItWorksTabConfig";
 import styles from "./HowItWorks.module.css";
@@ -50,12 +50,7 @@ export default async function HowItWorksPage({
           publicLeague={<HowItWorksPublicLeague />}
           roadToSummerSlam={<HowItWorksRoadToSummerSlam />}
           roadToWarGames={<HowItWorksRoadToWarGames />}
-          roadToWrestleMania={
-            <HowItWorksSeasonPlaceholder
-              seasonName="Road to WrestleMania"
-              windowHint="winter–spring season (typically December through WrestleMania Night 2)"
-            />
-          }
+          roadToWrestleMania={<HowItWorksRoadToWrestleMania />}
         />
       </Suspense>
     </main>
