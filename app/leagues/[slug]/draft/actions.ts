@@ -80,12 +80,12 @@ export async function generateDraftOrderFromFormAction(formData: FormData): Prom
 export async function generateDraftOrderWithStateAction(
   _prevState: { error?: string } | null,
   formData: FormData
-): Promise<{ error?: string } | null> {
+): Promise<{ error?: string; ok?: boolean; at?: number } | null> {
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return { error: "League slug is required." };
   const result = await generateDraftOrderAction(leagueSlug, formData);
   if (result.error) return { error: result.error };
-  return {};
+  return { ok: true, at: Date.now() };
 }
 
 /** Site admin only: set draft order from round 1 order (when draft_order_method is manual_by_gm). */
@@ -182,12 +182,14 @@ export async function makeDraftPickFromFormAction(formData: FormData): Promise<v
 
 /** For useActionState: returns error so the make-pick form can display it. */
 export async function makeDraftPickWithStateAction(
-  _prev: { error?: string },
+  _prev: { error?: string; ok?: boolean; at?: number },
   formData: FormData
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; ok?: boolean; at?: number }> {
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return { error: "Missing league." };
-  return makeDraftPickAction(leagueSlug, formData);
+  const result = await makeDraftPickAction(leagueSlug, formData);
+  if (result.error) return result;
+  return { ok: true, at: Date.now() };
 }
 
 /** Site admin only: clear draft order so a new order can be generated. */
@@ -335,18 +337,18 @@ export async function saveDraftPreferencesFormAction(
   });
   const autopickRequiredPriorityCount = getAutopickRequiredPriorityCount(leagueIncludesNxt(league));
 
+  const usesBigBoardPicker = league.draft_type === "autopick" || league.draft_type === "live";
   const rawListSource = (formData.get("list_source") as string)?.trim();
-  const listSource =
-    league.draft_type === "autopick"
-      ? rawListSource === "custom" || isAvailableBigBoardId(rawListSource, availableBigBoardIds)
-        ? rawListSource
-        : availableBigBoardIds.includes("default")
-          ? "default"
-          : availableBigBoardIds[0] ?? "custom"
-      : rawListSource || "custom";
+  const listSource = usesBigBoardPicker
+    ? rawListSource === "custom" || isAvailableBigBoardId(rawListSource, availableBigBoardIds)
+      ? rawListSource
+      : availableBigBoardIds.includes("default")
+        ? "default"
+        : availableBigBoardIds[0] ?? "custom"
+    : rawListSource || "custom";
   let priority_list: string[] = [];
 
-  if (league.draft_type === "autopick" && isAvailableBigBoardId(listSource, availableBigBoardIds)) {
+  if (usesBigBoardPicker && isAvailableBigBoardId(listSource, availableBigBoardIds)) {
     const boardList = getBigBoardPriorityList(listSource);
     if (!boardList) {
       return {
@@ -383,8 +385,10 @@ export async function saveDraftPreferencesFormAction(
   if (result.error) return { error: result.error };
 
   if (formData.get("from_onboarding") === "1") {
-    revalidatePath(`/leagues/${leagueSlug}/onboarding`);
-    return { redirectTo: `/leagues/${leagueSlug}/onboarding?step=draft` };
+    const { completeLeagueOnboardingAction } = await import("../onboarding/actions");
+    const done = await completeLeagueOnboardingAction(leagueSlug);
+    if (done.error) return { error: done.error };
+    return { redirectTo: done.redirectTo ?? `/leagues/${leagueSlug}` };
   }
 
   return null;

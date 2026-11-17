@@ -1,12 +1,30 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { generateDraftOrderWithStateAction } from "./actions";
 
-export function GenerateDraftOrderForm({ leagueSlug }: { leagueSlug: string }) {
-  const [state, formAction] = useActionState(generateDraftOrderWithStateAction, null as { error?: string } | null);
+export function GenerateDraftOrderForm({
+  leagueSlug,
+  replaceExisting = false,
+}: {
+  leagueSlug: string;
+  /** Live drafts can replace the order until the GM begins the draft. */
+  replaceExisting?: boolean;
+}) {
+  const [state, formAction] = useActionState(
+    generateDraftOrderWithStateAction,
+    null as { error?: string; ok?: boolean; at?: number } | null
+  );
+  const router = useRouter();
+  const refreshedAt = useRef<number | null>(null);
   const hasError = Boolean(state?.error);
   const hasSuccess = state != null && !state?.error;
+  useEffect(() => {
+    if (!state?.ok || state.at == null || refreshedAt.current === state.at) return;
+    refreshedAt.current = state.at;
+    router.refresh();
+  }, [state, router]);
 
   return (
     <form action={formAction} style={{ marginBottom: 24 }}>
@@ -24,7 +42,7 @@ export function GenerateDraftOrderForm({ leagueSlug }: { leagueSlug: string }) {
           cursor: "pointer",
         }}
       >
-        Set draft order (one time only)
+        {replaceExisting ? "Replace draft order" : "Set draft order"}
       </button>
       {hasError && (
         <p style={{ marginTop: 8, fontSize: 13, color: "#b91c1c" }}>{state?.error}</p>

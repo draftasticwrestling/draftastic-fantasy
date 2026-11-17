@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useActionState, useEffect } from "react";
 import { updateDraftSettingsFormAction } from "../actions";
+import { PROFILE_TIMEZONE_OPTIONS } from "@/lib/profileTimezone";
 
 /** Offline, Autopick, and Live (stored as draft_type). Live is private leagues only. */
 const DRAFT_TYPE_OPTIONS: { value: "offline" | "autopick" | "live"; label: string; description: string }[] = [
@@ -35,6 +36,10 @@ type Props = {
   draftType: string | null | undefined;
   draftDate: string | null | undefined;
   draftTime: string | null | undefined;
+  /** Saved IANA timezone, or the GM profile timezone when none is stored yet. */
+  draftTimezone: string;
+  /** True when this league already has a timezone saved with the draft time. */
+  timezoneSaved: boolean;
   isPublicLeague: boolean;
   draftNotStarted: boolean;
 };
@@ -63,6 +68,8 @@ export function DraftSettingsSection({
   draftType,
   draftDate,
   draftTime,
+  draftTimezone,
+  timezoneSaved,
   isPublicLeague,
   draftNotStarted,
 }: Props) {
@@ -72,6 +79,7 @@ export function DraftSettingsSection({
   const [selectedType, setSelectedType] = useState<"offline" | "autopick" | "live">(initialType);
   const [dateValue, setDateValue] = useState(normalizeDateInput(draftDate));
   const [timeValue, setTimeValue] = useState(normalizeTimeInput(draftTime));
+  const [timezoneValue, setTimezoneValue] = useState(draftTimezone);
 
   useEffect(() => {
     const next = toUiDraftType(draftType);
@@ -221,12 +229,12 @@ export function DraftSettingsSection({
               }}
             />
             <label htmlFor="draft_time" style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6 }}>
-              Optional meeting time
+              Time
             </label>
             <p style={{ color: "var(--color-text-muted)", fontSize: 13, marginBottom: 8, lineHeight: 1.5 }}>
-              Display only for your group. The draft does not start automatically — the GM clicks{" "}
-              <strong>Begin Draft</strong> on or after draft day
-              {selectedType === "live" ? " from the live draft lobby" : ""}.
+              The GM clicks <strong>Begin Draft</strong> on or after this date
+              {selectedType === "live" ? " from the live draft lobby" : ""}. Everyone sees this time in the timezone
+              you choose. A manager whose account timezone is different also sees their own local time.
             </p>
             <input
               id="draft_time"
@@ -240,10 +248,48 @@ export function DraftSettingsSection({
                 width: "100%",
                 maxWidth: 240,
                 padding: "8px 10px",
+                marginBottom: 12,
                 border: "1px solid var(--color-border)",
                 borderRadius: "var(--radius-sm)",
               }}
             />
+            <label htmlFor="draft_timezone" style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6 }}>
+              Timezone
+            </label>
+            {timeValue && !timezoneSaved ? (
+              <p style={{ color: "var(--color-text)", fontSize: 13, marginBottom: 8, lineHeight: 1.5 }}>
+                This time does not have a timezone yet. Choose one and save so the league shares the same moment.
+              </p>
+            ) : (
+              <p style={{ color: "var(--color-text-muted)", fontSize: 13, marginBottom: 8, lineHeight: 1.5 }}>
+                Required when you set a time. Defaults to your account timezone.
+              </p>
+            )}
+            <select
+              id="draft_timezone"
+              name="draft_timezone"
+              value={timezoneValue}
+              onChange={(e) => setTimezoneValue(e.target.value)}
+              disabled={!draftNotStarted}
+              required={Boolean(timeValue)}
+              style={{
+                display: "block",
+                width: "100%",
+                maxWidth: 320,
+                padding: "8px 10px",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--color-bg)",
+                color: "var(--color-text)",
+              }}
+            >
+              <option value="">Select a timezone</option>
+              {PROFILE_TIMEZONE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
         ) : null}
 

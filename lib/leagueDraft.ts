@@ -33,6 +33,7 @@ import {
 import { normalizeChampionshipHistoryRow } from "@/lib/championshipHistoryNormalize";
 import type { ChampionshipReignRow } from "@/lib/championshipTitleHistory";
 import { factionDisplayName } from "@/lib/factionName";
+import { getDraftDayYmd, getDraftStartMs, storedDraftTimezone } from "@/lib/draftSchedule";
 import { EVENT_STATUSES_FOR_SCORING } from "@/lib/eventsScoring";
 import { isMainBrandWrestlerRosterForLeague } from "@/lib/wrestlerRosterFromBrand";
 import {
@@ -899,7 +900,7 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
   const { data: league } = await supabase
     .from("leagues")
     .select(
-      "id, commissioner_id, draft_style, draft_type, current_draft_run_id, season_slug, include_nxt, start_date, draft_date, created_at, visibility_type"
+      "id, commissioner_id, draft_style, draft_type, draft_status, current_draft_run_id, season_slug, include_nxt, league_type, start_date, draft_date, created_at, visibility_type"
     )
     .eq("id", leagueId)
     .single();
@@ -920,6 +921,12 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
   }
   if (draftType === "offline") {
     return { error: "Offline leagues do not use an on-site draft order. Add rosters from each team page when your draft is done." };
+  }
+  if (draftType === "live") {
+    const status = (league as { draft_status?: string | null }).draft_status ?? "not_started";
+    if (status !== "not_started") {
+      return { error: "Draft order cannot be changed after the draft starts." };
+    }
   }
 
   const members = await getLeagueMembers(leagueId);
@@ -1155,13 +1162,20 @@ export async function startDraft(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { data: league } = await supabase
-    .from("leagues")
-    .select(
-      "id, commissioner_id, draft_current_pick, visibility_type, current_draft_run_id, draft_date, draft_status, league_type, max_teams"
-    )
-    .eq("id", leagueId)
-    .single();
+  const draftStartSelect =
+    "id, commissioner_id, draft_current_pick, visibility_type, current_draft_run_id, draft_date, draft_time, draft_timezone, draft_status, league_type, max_teams";
+  let leagueResult = await supabase.from("leagues").select(draftStartSelect).eq("id", leagueId).single();
+  if (leagueResult.error && /draft_timezone/i.test(leagueResult.error.message ?? "")) {
+    leagueResult = await supabase
+      .from("leagues")
+      .select(draftStartSelect.replace("draft_time, draft_timezone,", "draft_time,"))
+      .eq("id", leagueId)
+      .single();
+    if (leagueResult.data) {
+      (leagueResult.data as { draft_timezone?: string | null }).draft_timezone = null;
+    }
+  }
+  const league = leagueResult.data;
   if (!league) {
     return { error: "League not found." };
   }
@@ -1184,8 +1198,7 @@ export async function startDraft(
     if (!draftDateYmd) {
       return { error: "Set a draft date in League Settings before beginning the draft." };
     }
-    const { getCivilYmdInPst } = await import("@/lib/pstCivilTime");
-    const todayYmd = getCivilYmdInPst(Date.now());
+    const todayYmd = getDraftDayYmd(Date.now(), storedDraftTimezone(league));
     if (todayYmd < draftDateYmd) {
       return { error: `Draft day is ${draftDateYmd}. You can begin the draft on or after that date.` };
     }
@@ -2996,16 +3009,9 @@ export async function runAutoPickIfExpired(
 export function getScheduledDraftTimeMs(league: {
   draft_date?: string | null;
   draft_time?: string | null;
+  draft_timezone?: string | null;
 }): number | null {
-  const raw = league.draft_date ? String(league.draft_date) : null;
-  if (!raw) return null;
-  const datePart = raw.slice(0, 10);
-  const timePart =
-    (league.draft_time && String(league.draft_time).trim()) ||
-    (raw.length > 10 ? raw.slice(11, 16) : null);
-  const timeForDate = timePart && /^\d{1,2}:\d{2}/.test(timePart) ? timePart.slice(0, 5) : "00:00";
-  const candidate = new Date(`${datePart}T${timeForDate}:00`);
-  return Number.isNaN(candidate.getTime()) ? null : candidate.getTime();
+  return getDraftStartMs(league);
 }
 
 /**
@@ -3022,11 +3028,17 @@ export async function runFullAutopickDraftAtScheduledTime(
 
   const admin = getAdminClient();
   if (!admin) return { didRun: false, error: "SUPABASE_SERVICE_ROLE_KEY not set." };
-  const { data: league } = await admin
-    .from("leagues")
-    .select("id, draft_date, draft_time, draft_type, draft_status, visibility_type, draft_order_method, max_teams")
-    .eq("id", leagueId)
-    .single();
+  const autopickSelect =
+    "id, draft_date, draft_time, draft_timezone, draft_type, draft_status, visibility_type, draft_order_method, max_teams";
+  let leagueResult = await admin.from("leagues").select(autopickSelect).eq("id", leagueId).single();
+  if (leagueResult.error && /draft_timezone/i.test(leagueResult.error.message ?? "")) {
+    leagueResult = await admin
+      .from("leagues")
+      .select(autopickSelect.replace("draft_time, draft_timezone,", "draft_time,"))
+      .eq("id", leagueId)
+      .single();
+  }
+  const league = leagueResult.data;
   if (!league) return { didRun: false, error: "League not found." };
 
   const draftType = (league as { draft_type?: string }).draft_type ?? null;

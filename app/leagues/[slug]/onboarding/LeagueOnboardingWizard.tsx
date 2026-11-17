@@ -1,9 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { ManagerAvatarPresetPicker } from "@/app/components/ManagerAvatarPresetPicker";
 import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import { isAllowedManagerPresetUrl } from "@/lib/managerAvatarPresets";
@@ -13,7 +12,6 @@ import {
   validateManagerCatchphraseForSave,
 } from "@/lib/managerCatchphrase";
 import { updateFactionInfoAction, updateLeagueCatchphraseAction, updateLeagueManagerAvatarAction } from "../team/actions";
-import { checkOnboardingDraftPrefsAction, completeLeagueOnboardingAction } from "./actions";
 
 type Step = "faction" | "avatar" | "catchphrase" | "confirm" | "draft";
 
@@ -38,8 +36,6 @@ export function LeagueOnboardingWizard({
   leagueSlug,
   leagueName,
   isSalaryCap,
-  draftType,
-  includeNxt,
   initialTeamName,
   initialCatchphrase,
   initialLeagueAvatarUrl,
@@ -92,8 +88,15 @@ export function LeagueOnboardingWizard({
     if (step === "faction") setStep("avatar");
     else if (step === "avatar") setStep("catchphrase");
     else if (step === "catchphrase") setStep("confirm");
-    else if (step === "confirm" && !isSalaryCap) setStep("draft");
+    else if (step === "confirm" && !isSalaryCap) {
+      router.push(`/leagues/${leagueSlug}/draft/preferences?from=onboarding`);
+    }
   }
+
+  useEffect(() => {
+    if (isSalaryCap || step !== "draft") return;
+    router.replace(`/leagues/${leagueSlug}/draft/preferences?from=onboarding`);
+  }, [isSalaryCap, step, leagueSlug, router]);
 
   function goBack() {
     setMessage(null);
@@ -140,23 +143,6 @@ export function LeagueOnboardingWizard({
   function finishSalaryCap() {
     setMessage(null);
     router.push(`/leagues/${leagueSlug}/salary-cap`);
-  }
-
-  function verifyPrefsAndFinish() {
-    startTransition(async () => {
-      const check = await checkOnboardingDraftPrefsAction(leagueSlug);
-      if (!check.ok) {
-        setMessage({ type: "err", text: check.error ?? "Save your draft preferences first." });
-        return;
-      }
-      const result = await completeLeagueOnboardingAction(leagueSlug);
-      if (result.error) {
-        setMessage({ type: "err", text: result.error });
-        return;
-      }
-      router.push(result.redirectTo ?? `/leagues/${leagueSlug}`);
-      router.refresh();
-    });
   }
 
   return (
@@ -324,31 +310,7 @@ export function LeagueOnboardingWizard({
       {step === "draft" && !isSalaryCap ? (
         <section className="league-onboarding-step">
           <h2>Set your auto-draft preferences</h2>
-          <p>
-            This is one of the most important steps. If the draft clock runs out, picks use your saved list
-            {draftType === "autopick" ? " (or Big Board)" : ""}.
-          </p>
-          <div className="league-onboarding-callout">
-            <p style={{ margin: 0 }}>
-              Open the preferences page, build your list, and <strong>save</strong>. You&apos;ll return here to finish
-              setup.
-            </p>
-          </div>
-          <Link
-            href={`/leagues/${leagueSlug}/draft/preferences?from=onboarding`}
-            className="app-button"
-            style={{ display: "inline-block", textAlign: "center", textDecoration: "none" }}
-          >
-            Set draft preferences now →
-          </Link>
-          <div className="league-onboarding-actions" style={{ marginTop: 20 }}>
-            <button type="button" className="app-button app-button--secondary" onClick={goBack}>
-              Back
-            </button>
-            <button type="button" className="app-button" disabled={pending} onClick={verifyPrefsAndFinish}>
-              {pending ? "Checking…" : "I've saved my preferences — finish setup"}
-            </button>
-          </div>
+          <p>Opening your Big Board and list editor…</p>
         </section>
       ) : null}
 

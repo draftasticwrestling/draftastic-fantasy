@@ -268,9 +268,10 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
   const isAvailableBoardId = (id: string | null | undefined): id is BigBoardId =>
     Boolean(id) && isBigBoardId(id) && availableBigBoardIds.includes(id as BigBoardId);
 
+  const usesBigBoardPicker = league.draft_type === "autopick" || league.draft_type === "live";
   let initialListSource: "custom" | BigBoardId = "custom";
   let autopickInitialList = initialPriorityList;
-  if (league.draft_type === "autopick") {
+  if (usesBigBoardPicker) {
     const so = prefs?.strategy_options as { priorityListSource?: string } | null | undefined;
     const raw = so?.priorityListSource?.trim();
     if (raw === "custom") {
@@ -296,7 +297,7 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
     <main className="app-page" style={{ maxWidth: 640, margin: "0 auto", padding: "2rem 1rem", fontSize: 16, lineHeight: 1.5 }}>
       <p style={{ marginBottom: 24 }}>
         <Link
-          href={fromOnboarding ? `/leagues/${slug}/onboarding?step=draft` : `/leagues/${slug}/draft`}
+          href={fromOnboarding ? `/leagues/${slug}/onboarding?step=confirm` : `/leagues/${slug}/draft`}
           className="app-link"
         >
           {fromOnboarding ? "← Back to league setup" : "← Back to draft"}
@@ -305,7 +306,7 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
       {fromOnboarding ? (
         <div className="league-onboarding-callout" style={{ marginBottom: 24 }}>
           <p style={{ margin: 0 }}>
-            <strong>League setup:</strong> Save your auto-draft list below and you&apos;ll return to finish joining{" "}
+            <strong>League setup:</strong> Choose a Big Board or build your own list, then save to finish joining{" "}
             <strong>{league.name}</strong>.
           </p>
         </div>
@@ -350,8 +351,9 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
           )
         ) : league.draft_type === "live" ? (
           <>
-            If the draft clock runs out, your pick comes from your priority list, then the All-time Big Board. A short
-            list is fine. If you have not saved one, the All-time Big Board is used.
+            Choose a provided <strong>Big Board</strong>, or <strong>My own list</strong>. If the draft clock runs out,
+            your pick comes from that list, then the All-time Big Board. A short list is fine. If you have not saved
+            one, the All-time Big Board is used.
           </>
         ) : (
           <>
@@ -371,9 +373,10 @@ export default async function DraftPreferencesPage({ params, searchParams }: Pro
         key={JSON.stringify({ priorityList: autopickInitialList, listSource: initialListSource })}
         leagueSlug={slug}
         wrestlerOptions={wrestlerOptions}
-        initialPriorityList={league.draft_type === "autopick" ? autopickInitialList : initialPriorityList}
+        initialPriorityList={usesBigBoardPicker ? autopickInitialList : initialPriorityList}
         initialListSource={initialListSource}
         isAutopickLeague={league.draft_type === "autopick"}
+        showBigBoardPicker={league.draft_type === "live"}
         autopickRequiredPriorityCount={autopickRequiredPriorityCount}
         availableBigBoardIds={availableBigBoardIds}
         disabled={!canEdit}

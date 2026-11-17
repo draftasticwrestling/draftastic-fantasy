@@ -42,6 +42,11 @@ import { LeagueDraftRoom } from "./LeagueDraftRoom";
 import { AutopickClientRunner } from "./AutopickClientRunner";
 import { AutopickDraftBoardView } from "./AutopickDraftBoardView";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
+import { draftScheduleTimeLine, formatDraftSchedule } from "@/lib/draftSchedule";
+import { getProfile } from "@/lib/profiles";
+import { getCivilYmdInPst } from "@/lib/pstCivilTime";
+import { addDaysYmd } from "@/lib/salaryCapMonthlyPricing";
+import { ROAD_TO_WAR_GAMES_2026 } from "@/lib/leagueSeasons";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -81,6 +86,8 @@ export default async function LeagueDraftPage({ params }: Props) {
   let points2025BySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
   let points2026BySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
   let pointsAllTimeBySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
+  let pointsNinetyDayBySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
+  let pointsLastSeasonBySlug: Record<string, { rsPoints: number; plePoints: number; beltPoints: number }> = {};
   /** Set when wrestler pool is loaded; used to show why pool is empty (RLS, filter, missing service role). */
   let wrestlerPoolDiagnostic: {
     source: "user" | "admin" | "none";
@@ -235,6 +242,8 @@ export default async function LeagueDraftPage({ params }: Props) {
             points2025BySlug: {},
             points2026BySlug: {},
             pointsAllTimeBySlug: {},
+            pointsNinetyDayBySlug: {},
+            pointsLastSeasonBySlug: {},
           })
         : (async () => {
             const start = getEffectiveLeagueStartDate(league);
@@ -254,11 +263,24 @@ export default async function LeagueDraftPage({ params }: Props) {
             const sinceStartEvents = cast(sinceStart.data ?? []).filter((e) =>
               eventCountsForLeagueMatchPoints(e, draftSeasonSlug)
             );
+            const calendarEvents = [...cast(events2025.data ?? []), ...cast(events2026.data ?? [])];
+            const todayYmd = getCivilYmdInPst(Date.now());
+            const ninetyFrom = addDaysYmd(todayYmd, -90);
+            const inWindow = (fromYmd: string, toYmd: string) =>
+              calendarEvents.filter((event) => {
+                const ymd = String(event.date).slice(0, 10);
+                return ymd >= fromYmd && ymd <= toYmd;
+              });
             return {
               pointsBySlug: aggregateWrestlerPoints(sinceStartEvents, brandBySlugDraft),
               points2025BySlug: aggregateWrestlerPoints(cast(events2025.data ?? []), brandBySlugDraft),
               points2026BySlug: aggregateWrestlerPoints(cast(events2026.data ?? []), brandBySlugDraft),
               pointsAllTimeBySlug: aggregateWrestlerPoints(cast(eventsAll.data ?? []), brandBySlugDraft),
+              pointsNinetyDayBySlug: aggregateWrestlerPoints(inWindow(ninetyFrom, todayYmd), brandBySlugDraft),
+              pointsLastSeasonBySlug: aggregateWrestlerPoints(
+                inWindow(ROAD_TO_WAR_GAMES_2026.season_start_ymd, ROAD_TO_WAR_GAMES_2026.season_end_ymd),
+                brandBySlugDraft
+              ),
             };
           })(),
     ]);
@@ -269,6 +291,8 @@ export default async function LeagueDraftPage({ params }: Props) {
     points2025BySlug = pointsData.points2025BySlug;
     points2026BySlug = pointsData.points2026BySlug;
     pointsAllTimeBySlug = pointsData.pointsAllTimeBySlug;
+    pointsNinetyDayBySlug = pointsData.pointsNinetyDayBySlug;
+    pointsLastSeasonBySlug = pointsData.pointsLastSeasonBySlug;
     state = stateData;
     currentPick = currentPickData;
     rosters = rostersData;
@@ -294,6 +318,8 @@ export default async function LeagueDraftPage({ params }: Props) {
       .map((w) => ({ id: w.id, name: w.name }));
 
     const { user } = await getServerAuth();
+    const viewerProfile = user ? await getProfile(user.id) : null;
+    const draftScheduleLabels = formatDraftSchedule(league, viewerProfile?.timezone);
     userDraftPrefs = user ? await getDraftPreferences(league.id, user.id) : null;
     isCommissioner = league.role === "commissioner";
     isSiteAdmin = user ? await getIsSiteAdmin() : false;
@@ -414,9 +440,9 @@ export default async function LeagueDraftPage({ params }: Props) {
               <li>
                 <strong style={{ color: "var(--color-text)" }}>Schedule:</strong>{" "}
                 {league.draft_date
-                  ? `Draft day ${String(league.draft_date).slice(0, 10)}${
-                      league.draft_time
-                        ? ` (target time ${String(league.draft_time).slice(0, 5)} — display only)`
+                  ? `Draft day ${draftScheduleLabels.dateLabel ?? String(league.draft_date).slice(0, 10)}${
+                      draftScheduleTimeLine(draftScheduleLabels)
+                        ? ` at ${draftScheduleTimeLine(draftScheduleLabels)}`
                         : ""
                     }. The GM sets order before draft day, then clicks Begin Draft.`
                   : "GM sets a draft date in League Settings, sets draft order, then clicks Begin Draft on draft day."}
@@ -451,6 +477,11 @@ export default async function LeagueDraftPage({ params }: Props) {
           canStart={(isCommissioner || isSiteAdmin) && order.length > 0}
           orderReady={order.length > 0}
           draftDateYmd={league.draft_date ? String(league.draft_date).slice(0, 10) : null}
+          scheduleLabel={
+            draftScheduleLabels.dateLabel
+              ? [draftScheduleLabels.dateLabel, draftScheduleTimeLine(draftScheduleLabels)].filter(Boolean).join(" · ")
+              : null
+          }
           showDateHint={isCommissioner && !isSiteAdmin}
           memberCount={members.length}
           maxTeams={typeof league.max_teams === "number" && league.max_teams > 0 ? league.max_teams : null}
@@ -602,9 +633,21 @@ export default async function LeagueDraftPage({ params }: Props) {
           ) : (
             <>
               <p style={{ marginBottom: 16 }}>
-                No pick order yet. The GM should click <strong>Set draft order</strong> once to randomize the full snake
-                order for all managers. This cannot be undone. After the order is set, managers can see their slot and
-                refine preferences. On draft day, the GM clicks <strong>Begin Draft</strong>.
+                {league.draft_type === "live" ? (
+                  <>
+                    Wait until every manager has joined ({members.length}
+                    {typeof league.max_teams === "number" && league.max_teams > 0 ? ` of ${league.max_teams}` : ""}).
+                    Then set the draft order. You can replace that order until you click <strong>Begin Draft</strong>.
+                    Each pick has a 2-minute clock. If it runs out, the pick comes from that manager&apos;s Big Board,
+                    then the All-time Big Board.
+                  </>
+                ) : (
+                  <>
+                    No pick order yet. The GM should click <strong>Set draft order</strong> once to randomize the full snake
+                    order for all managers. This cannot be undone. After the order is set, managers can see their slot and
+                    refine preferences. On draft day, the GM clicks <strong>Begin Draft</strong>.
+                  </>
+                )}
               </p>
               {isCommissioner && <GenerateDraftOrderForm leagueSlug={slug} />}
             </>
@@ -617,8 +660,13 @@ export default async function LeagueDraftPage({ params }: Props) {
           <p style={{ marginBottom: 8, color: "#555" }}>
             {league.draft_type === "autopick"
               ? "Pick order is locked in (snake). On draft day, the GM begins the draft from this page."
-              : "Draft order is listed below for reference."}
+              : league.draft_type === "live"
+                ? "Draft order is set. You can replace it until you begin the draft. Do that if another manager joins."
+                : "Draft order is listed below for reference."}
           </p>
+          {league.draft_type === "live" && isCommissioner ? (
+            <GenerateDraftOrderForm leagueSlug={slug} replaceExisting />
+          ) : null}
           {league.draft_type === "autopick" && (isCommissioner || isSiteAdmin) && (
             <BeginDraftForm
               leagueSlug={slug}
@@ -711,6 +759,8 @@ export default async function LeagueDraftPage({ params }: Props) {
               points2025BySlug={points2025BySlug}
               points2026BySlug={points2026BySlug}
               pointsAllTimeBySlug={pointsAllTimeBySlug}
+              pointsNinetyDayBySlug={pointsNinetyDayBySlug}
+              pointsLastSeasonBySlug={pointsLastSeasonBySlug}
               draftedIds={Array.from(draftedIds)}
               rosterEntriesByUser={rosters}
               currentPickSlot={draftCurrentPick}

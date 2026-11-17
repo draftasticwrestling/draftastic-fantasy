@@ -110,6 +110,8 @@ export type League = {
   season_slug?: string | null;
   draft_date?: string | null;
   draft_time?: string | null;
+  /** IANA zone for draft_time. Null on rows saved before timezones were stored. */
+  draft_timezone?: string | null;
   league_type?: string | null;
   /** Admin/beta: include NXT in draft pool and weekly scoring. */
   include_nxt?: boolean | null;
@@ -400,11 +402,18 @@ export const getLeagueBySlug = cacheFn(
     const { supabase, user } = await getServerAuth();
     if (!user) return null;
 
-    const fullSelect =
+    const fullSelectBase =
       "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
-    const fullSelectNoIncludeNxt =
-      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
+    const fullSelect = fullSelectBase.replace("draft_time,", "draft_time, draft_timezone,");
+    const fullSelectNoIncludeNxt = fullSelect
+      .replace(", include_nxt", "");
     let result = await supabase.from("leagues").select(fullSelect).eq("slug", slug).maybeSingle();
+    if (result.error?.code === "42703" && /draft_timezone/i.test(result.error.message ?? "")) {
+      result = await supabase.from("leagues").select(fullSelectBase).eq("slug", slug).maybeSingle();
+      if (result.data) {
+        result = { ...result, data: { ...result.data, draft_timezone: null } };
+      }
+    }
     if (
       result.error?.code === "42703" &&
       /include_nxt/i.test(result.error.message ?? "")
@@ -432,6 +441,7 @@ export const getLeagueBySlug = cacheFn(
         league = {
           ...minimalResult.data,
           draft_time: null,
+          draft_timezone: null,
           draft_style: "snake",
           draft_type: "autopick",
           time_per_pick_seconds: 120,
@@ -454,6 +464,16 @@ export const getLeagueBySlug = cacheFn(
       if (!admin) return null;
       let adminResult = await admin.from("leagues").select(fullSelect).eq("slug", slug).maybeSingle();
       league = adminResult.data as typeof league;
+      if (
+        !league &&
+        adminResult.error?.code === "42703" &&
+        /draft_timezone/i.test(adminResult.error.message ?? "")
+      ) {
+        adminResult = await admin.from("leagues").select(fullSelectBase).eq("slug", slug).maybeSingle();
+        if (adminResult.data) {
+          league = { ...adminResult.data, draft_timezone: null } as unknown as typeof league;
+        }
+      }
       if (
         !league &&
         adminResult.error?.code === "42703" &&

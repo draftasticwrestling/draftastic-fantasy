@@ -28,6 +28,7 @@ type Props = {
   canStart: boolean;
   orderReady: boolean;
   draftDateYmd: string | null;
+  scheduleLabel: string | null;
   showDateHint: boolean;
   memberCount: number;
   maxTeams: number | null;
@@ -42,6 +43,7 @@ export function LiveDraftLobby({
   canStart,
   orderReady,
   draftDateYmd,
+  scheduleLabel,
   showDateHint,
   memberCount,
   maxTeams,
@@ -177,6 +179,11 @@ export function LiveDraftLobby({
       <h2 id="live-draft-lobby-heading" style={{ fontSize: "1.1rem", margin: "0 0 8px" }}>
         Live draft lobby
       </h2>
+      {scheduleLabel ? (
+        <p style={{ margin: "0 0 8px", fontSize: 14 }}>
+          <strong>Draft time:</strong> {scheduleLabel}
+        </p>
+      ) : null}
       <p style={{ margin: "0 0 12px", color: "var(--color-text-muted)", fontSize: 14 }}>
         {hereCount} of {members.length} in the lobby · {readyCount} ready. Open this page to show as in the lobby, then
         mark ready. The GM starts the draft when the group is set.

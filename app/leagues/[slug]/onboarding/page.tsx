@@ -23,7 +23,8 @@ export default async function LeagueOnboardingPage({ params, searchParams }: Pro
   const { slug } = await params;
   const search = searchParams ? await searchParams : {};
   const errorParam = search.error;
-  const initialStep = search.step === "draft" ? "draft" : undefined;
+  const initialStep =
+    search.step === "draft" || search.step === "confirm" ? search.step : undefined;
   const { league } = await assertOnboardingRequired(slug);
 
   const { supabase, user } = await getServerAuth();

@@ -34,6 +34,12 @@ export const ROAD_TO_SUMMERSLAM_BANNER_SRC = "/images/season-belts/road-to-summe
  */
 export const ROAD_TO_WAR_GAMES_BANNER_SRC = "/images/season-belts/war-games-belt.png";
 
+/**
+ * League UI header for Road to WrestleMania (desktop season rail, mobile league home).
+ * Single source of truth so asset swaps apply everywhere.
+ */
+export const ROAD_TO_WRESTLEMANIA_BANNER_SRC = "/images/season-belts/mania-belt-27.png";
+
 /** Salary-cap league season championship (public leagues and admin salary-cap leagues). */
 export const PUBLIC_LEAGUE_CHAMPIONSHIP_BANNER_SRC =
   "/images/season-belts/public-league-championship-26.png";
@@ -110,6 +116,10 @@ export function leagueIsSalaryCapFormat(league: LeagueSeasonBeltInput | null | u
 
 /** Season championship belt for the league home rail and mobile pathway header. */
 export function getLeagueSeasonBelt(league: LeagueSeasonBeltInput | null | undefined): LeagueSeasonBelt | null {
+  // Every Road to WrestleMania league, including salary-cap seasons on this slug.
+  if (isRoadToWrestleManiaSeasonSlug(league?.season_slug)) {
+    return { src: ROAD_TO_WRESTLEMANIA_BANNER_SRC, alt: "Road to WrestleMania" };
+  }
   if (leagueIsSalaryCapFormat(league)) {
     return { src: PUBLIC_LEAGUE_CHAMPIONSHIP_BANNER_SRC, alt: "Public League Championship" };
   }

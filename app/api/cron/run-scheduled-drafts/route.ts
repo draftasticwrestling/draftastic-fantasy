@@ -42,11 +42,21 @@ export async function GET(request: Request) {
 
   const now = Date.now();
 
-  const { data: leagues } = await admin
+  const scheduledSelect =
+    "id, draft_date, draft_time, draft_timezone, draft_type, draft_status, draft_order_method, visibility_type, max_teams";
+  let leaguesResult = await admin
     .from("leagues")
-    .select("id, draft_date, draft_time, draft_type, draft_status, draft_order_method, visibility_type, max_teams")
+    .select(scheduledSelect)
     .eq("draft_type", "autopick")
     .eq("draft_status", "not_started");
+  if (leaguesResult.error && /draft_timezone/i.test(leaguesResult.error.message ?? "")) {
+    leaguesResult = await admin
+      .from("leagues")
+      .select(scheduledSelect.replace("draft_time, draft_timezone,", "draft_time,"))
+      .eq("draft_type", "autopick")
+      .eq("draft_status", "not_started");
+  }
+  const leagues = leaguesResult.data;
 
   if (!leagues?.length) {
     return NextResponse.json({ ran: 0, orderGenerated: 0, message: "No autopick drafts" });

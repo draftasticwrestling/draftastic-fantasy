@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { createClient } from "@/lib/supabase/server";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
+import { getProfile } from "@/lib/profiles";
+import { defaultDraftTimezone, storedDraftTimezone } from "@/lib/draftSchedule";
 import { getLeagueTransactionStats } from "@/lib/leagueTransactionStats";
 import { BasicSettingsSection } from "./BasicSettingsSection";
 import { DraftSettingsSection } from "./DraftSettingsSection";
@@ -48,6 +51,11 @@ export default async function LeagueSettingsPage({
   const isPublicLeague = String(league.visibility_type ?? "").toLowerCase() === "public";
   const draftDate = (league.draft_date ?? null) as string | null;
   const draftTime = (league.draft_time ?? null) as string | null;
+  const { user } = await getServerAuth();
+  const gmProfile = user ? await getProfile(user.id) : null;
+  const savedTimezone = storedDraftTimezone(league);
+  const draftTimezone = defaultDraftTimezone(savedTimezone, gmProfile?.timezone);
+  const timezoneSaved = Boolean(savedTimezone);
   const draftNotStarted = (league.draft_status ?? "not_started") === "not_started";
   const draftTypeLabel =
     draftType === "offline"
@@ -102,6 +110,8 @@ export default async function LeagueSettingsPage({
               draftType={draftType}
               draftDate={draftDate}
               draftTime={draftTime}
+              draftTimezone={draftTimezone}
+              timezoneSaved={timezoneSaved}
               isPublicLeague={isPublicLeague}
               draftNotStarted={draftNotStarted}
             />

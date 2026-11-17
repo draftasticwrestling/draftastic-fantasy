@@ -214,6 +214,7 @@ export async function notifyLeagueDraftDateSet(args: {
   leagueName: string;
   leagueSlug: string;
   draftDateYmd: string;
+  timeLabel?: string | null;
 }): Promise<void> {
   if (!isEmailConfigured()) {
     logEmailSkip("RESEND_API_KEY is not set");
@@ -242,7 +243,7 @@ export async function notifyLeagueDraftDateSet(args: {
     const subject = `Draft date set — ${args.leagueName}`;
     const body = `
       <p style="font-size:16px;line-height:1.5;">Hi,</p>
-      <p style="font-size:16px;line-height:1.5;">The GM set the draft date for <strong>${escapeHtml(args.leagueName)}</strong> to <strong>${escapeHtml(dateLabel)}</strong>.</p>
+      <p style="font-size:16px;line-height:1.5;">The GM set the draft for <strong>${escapeHtml(args.leagueName)}</strong> to <strong>${escapeHtml(dateLabel)}</strong>${args.timeLabel ? ` at <strong>${escapeHtml(args.timeLabel)}</strong>` : ""}.</p>
       <p style="font-size:16px;line-height:1.5;">Set your auto-draft preferences before draft day. If you have not saved preferences when the GM begins the draft, the All-time Big Board will be used for your picks.</p>
       ${emailButton(draftUrl, "Set draft preferences")}
       ${emailMutedLink(draftUrl)}`;

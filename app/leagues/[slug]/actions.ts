@@ -10,8 +10,34 @@ import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 import { assertWrestlerNotTradeLocked } from "@/lib/leagueOwner";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { isLeagueTypeChangeAllowed } from "@/lib/leagueSettingsRules";
+import {
+  draftScheduleTimeLine,
+  formatDraftSchedule,
+  normalizeDraftClock,
+  readDraftScheduleFromForm,
+  storedDraftTimezone,
+} from "@/lib/draftSchedule";
 
 export type AddRosterState = { error?: string };
+
+/** Writes the draft clock. If draft_timezone is not a column yet, packs it into draft_time. */
+async function saveDraftSchedule(
+  supabase: Awaited<ReturnType<typeof getServerAuth>>["supabase"],
+  leagueId: string,
+  fields: Record<string, unknown>
+) {
+  const primary = await supabase.from("leagues").update(fields).eq("id", leagueId).select("id");
+  if (!primary.error || !/draft_timezone/i.test(primary.error.message ?? "")) return primary;
+  const clock = typeof fields.draft_time === "string" ? fields.draft_time : null;
+  const zone = typeof fields.draft_timezone === "string" ? fields.draft_timezone : null;
+  const rest = { ...fields };
+  delete rest.draft_timezone;
+  return supabase
+    .from("leagues")
+    .update({ ...rest, draft_time: clock && zone ? `${clock}|${zone}` : clock })
+    .eq("id", leagueId)
+    .select("id");
+}
 
 export async function addRosterEntryAction(
   _prevState: AddRosterState | null,
@@ -88,35 +114,35 @@ export async function updateDraftDateAction(
     return { error: "Draft date can only be changed before the draft starts." };
   }
 
-  const draft_date = (formData.get("draft_date") as string)?.trim() || null;
-  if (draft_date && !/^\d{4}-\d{2}-\d{2}$/.test(draft_date)) {
-    return { error: "Enter a valid draft date." };
-  }
-  const draft_timeRaw = (formData.get("draft_time") as string)?.trim() || null;
-  const draft_time =
-    draft_timeRaw && /^\d{1,2}:\d{2}/.test(draft_timeRaw) ? draft_timeRaw.slice(0, 5) : null;
+  const schedule = readDraftScheduleFromForm(formData);
+  if (!schedule.ok) return { error: schedule.error };
+  const { draft_date, draft_time, draft_timezone } = schedule;
 
   const prevDate = (league.draft_date ?? "").toString().slice(0, 10) || null;
-  const { error } = await supabase
-    .from("leagues")
-    .update({
-      draft_date: draft_date || null,
-      draft_time: draft_date ? draft_time : null,
-      draft_order_method: "manual_by_gm" satisfies DraftOrderMethod,
-    })
-    .eq("id", league.id);
+  const prevTime = normalizeDraftClock(league.draft_time);
+  const prevTimezone = storedDraftTimezone(league);
+  const { error } = await saveDraftSchedule(supabase, league.id, {
+    draft_date,
+    draft_time,
+    draft_timezone,
+    draft_order_method: "manual_by_gm" satisfies DraftOrderMethod,
+  });
 
   if (error) return { error: error.message };
 
-  if (draft_date && draft_date !== prevDate) {
+  const scheduleChanged =
+    draft_date !== prevDate || draft_time !== prevTime || draft_timezone !== prevTimezone;
+  if (draft_date && scheduleChanged) {
     const { scheduleTransactionalEmail } = await import("@/lib/email/scheduleTransactionalEmail");
     const { notifyLeagueDraftDateSet } = await import("@/lib/email/leagueNotifications");
+    const labels = formatDraftSchedule({ draft_date, draft_time, draft_timezone });
     scheduleTransactionalEmail(() =>
       notifyLeagueDraftDateSet({
         leagueId: league.id,
         leagueName: league.name,
         leagueSlug,
         draftDateYmd: draft_date,
+        timeLabel: draftScheduleTimeLine(labels),
       })
     );
   }
@@ -149,13 +175,9 @@ export async function updateDraftSettingsAction(
   const draft_type_ui = (formData.get("draft_type_ui") as string)?.trim();
   const isPublicLeague = String(league.visibility_type ?? "").toLowerCase() === "public";
 
-  const draft_date = (formData.get("draft_date") as string)?.trim() || null;
-  if (draft_date && !/^\d{4}-\d{2}-\d{2}$/.test(draft_date)) {
-    return { error: "Enter a valid draft date." };
-  }
-  const draft_timeRaw = (formData.get("draft_time") as string)?.trim() || null;
-  const draft_time =
-    draft_timeRaw && /^\d{1,2}:\d{2}/.test(draft_timeRaw) ? draft_timeRaw.slice(0, 5) : null;
+  const schedule = readDraftScheduleFromForm(formData);
+  if (!schedule.ok) return { error: schedule.error };
+  const { draft_date, draft_time, draft_timezone } = schedule;
 
   if (!isPublicLeague && (league.draft_status ?? "not_started") !== "not_started" && draft_date) {
     const prev = (league.draft_date ?? "").toString().slice(0, 10) || null;
@@ -172,10 +194,12 @@ export async function updateDraftSettingsAction(
   if (isPublicLeague) {
     payload.draft_date = null;
     payload.draft_time = null;
+    payload.draft_timezone = null;
     payload.draft_order_method = "random_one_hour_before" satisfies DraftOrderMethod;
   } else {
-    payload.draft_date = draft_date || null;
-    payload.draft_time = draft_date ? draft_time : null;
+    payload.draft_date = draft_date;
+    payload.draft_time = draft_time;
+    payload.draft_timezone = draft_timezone;
     payload.draft_order_method = "manual_by_gm" satisfies DraftOrderMethod;
   }
 
@@ -192,11 +216,9 @@ export async function updateDraftSettingsAction(
   }
 
   const prevDate = (league.draft_date ?? "").toString().slice(0, 10) || null;
-  const { data: updatedRows, error } = await supabase
-    .from("leagues")
-    .update(payload)
-    .eq("id", league.id)
-    .select("id");
+  const prevTime = normalizeDraftClock(league.draft_time);
+  const prevTimezone = storedDraftTimezone(league);
+  const { data: updatedRows, error } = await saveDraftSchedule(supabase, league.id, payload);
 
   if (error) {
     if (draft_type_ui === "live" && /draft_type|check constraint/i.test(error.message ?? "")) {
@@ -211,15 +233,21 @@ export async function updateDraftSettingsAction(
     return { error: "Update did not apply. You may not have permission to change this league." };
   }
 
-  if (!isPublicLeague && draft_date && draft_date !== prevDate) {
+  const scheduleChanged =
+    !isPublicLeague &&
+    Boolean(draft_date) &&
+    (draft_date !== prevDate || draft_time !== prevTime || draft_timezone !== prevTimezone);
+  if (scheduleChanged && draft_date) {
     const { scheduleTransactionalEmail } = await import("@/lib/email/scheduleTransactionalEmail");
     const { notifyLeagueDraftDateSet } = await import("@/lib/email/leagueNotifications");
+    const labels = formatDraftSchedule({ draft_date, draft_time, draft_timezone });
     scheduleTransactionalEmail(() =>
       notifyLeagueDraftDateSet({
         leagueId: league.id,
         leagueName: league.name,
         leagueSlug,
         draftDateYmd: draft_date,
+        timeLabel: draftScheduleTimeLine(labels),
       })
     );
   }

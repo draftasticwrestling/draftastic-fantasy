@@ -22,6 +22,8 @@ import {
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
 } from "@/lib/leagueStructure";
 import { resolveNextPleLink } from "@/lib/nextPleLink";
+import { draftScheduleTimeLine, formatDraftSchedule } from "@/lib/draftSchedule";
+import { getProfile } from "@/lib/profiles";
 import { getSeasonBySlug } from "@/lib/leagueSeasons";
 import { getTradeProposalsForLeague, getLeagueRosterActivity, getTradeVoteTotals, getMyTradeVotes, processTradeTimerDeadlines } from "@/lib/leagueOwner";
 import { formatRecipientRosterCutsLine } from "@/lib/tradeDisplay";
@@ -406,26 +408,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       : "Prepare for your draft";
     const onboardingHref = leagueOnboardingPath(slug);
 
-    let draftDayLabel: string | null = null;
-    let draftTargetTimeLabel: string | null = null;
-    if (draftDateYmd && /^\d{4}-\d{2}-\d{2}$/.test(draftDateYmd)) {
-      draftDayLabel = new Date(`${draftDateYmd}T12:00:00`).toLocaleDateString(undefined, {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      });
-      if (league.draft_time) {
-        const t = String(league.draft_time).trim();
-        const [h, m] = t.split(":").map(Number);
-        if (!Number.isNaN(h)) {
-          const hour = h % 12 || 12;
-          const ampm = h < 12 ? "AM" : "PM";
-          const min = Number.isNaN(m) ? 0 : m;
-          draftTargetTimeLabel = `${hour}:${String(min).padStart(2, "0")} ${ampm}`;
-        }
-      }
-    }
+    const viewerProfile = currentUser ? await getProfile(currentUser.id) : null;
+    const draftScheduleLabels = formatDraftSchedule(league, viewerProfile?.timezone);
+    const draftDayLabel = draftScheduleLabels.dateLabel;
+    const draftTargetTimeLabel = draftScheduleTimeLine(draftScheduleLabels);
     const showDraftDayBanner =
       Boolean(draftDayLabel) &&
       isAutopickDraftLeague &&

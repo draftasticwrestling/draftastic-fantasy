@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useActionState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import WrestlerHeadshotImage from "@/app/components/WrestlerHeadshotImage";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { normalizeWrestlerName } from "@/lib/scoring/parsers/participantParser.js";
@@ -69,10 +70,12 @@ export type DraftRoomWrestler = {
 type PointsBySlug = Record<string, { rsPoints: number; plePoints: number; beltPoints: number }>;
 
 /** Points period for ranking/filtering (matches League Leaders). */
-export type PointsPeriod = "sinceStart" | "2025" | "2026" | "allTime";
+export type PointsPeriod = "sinceStart" | "2025" | "2026" | "allTime" | "ninetyDay" | "lastSeason";
 
 const POINTS_PERIOD_OPTIONS: { value: PointsPeriod; label: string }[] = [
   { value: "allTime", label: "All-time points" },
+  { value: "ninetyDay", label: "Last 90 days" },
+  { value: "lastSeason", label: "Last season" },
   { value: "2026", label: "2026 points" },
   { value: "2025", label: "2025 points" },
   { value: "sinceStart", label: "Since league start" },
@@ -128,6 +131,8 @@ type Props = {
   points2025BySlug: PointsBySlug;
   points2026BySlug: PointsBySlug;
   pointsAllTimeBySlug: PointsBySlug;
+  pointsNinetyDayBySlug: PointsBySlug;
+  pointsLastSeasonBySlug: PointsBySlug;
   draftedIds: string[];
   /** Roster entries from league_rosters (same source as draftedIds). When set, used to show who picked which wrestler so display stays in sync. */
   rosterEntriesByUser?: Record<string, { wrestler_id: string }[]>;
@@ -163,6 +168,8 @@ export function LeagueDraftRoom({
   points2025BySlug,
   points2026BySlug,
   pointsAllTimeBySlug,
+  pointsNinetyDayBySlug,
+  pointsLastSeasonBySlug,
   draftedIds,
   rosterEntriesByUser,
   currentPickSlot,
@@ -181,6 +188,13 @@ export function LeagueDraftRoom({
   viewerIsCommissioner = false,
 }: Props) {
   const [state, formAction] = useActionState(makeDraftPickWithStateAction, { error: undefined });
+  const router = useRouter();
+  const refreshedPickAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (!state?.ok || state.at == null || refreshedPickAt.current === state.at) return;
+    refreshedPickAt.current = state.at;
+    router.refresh();
+  }, [state, router]);
   const [tableSort, setTableSort] = useState<"rank" | "name" | "total">("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("allTime");
@@ -357,8 +371,10 @@ export function LeagueDraftRoom({
     if (pointsPeriod === "2025") return points2025BySlug;
     if (pointsPeriod === "2026") return points2026BySlug;
     if (pointsPeriod === "allTime") return pointsAllTimeBySlug;
+    if (pointsPeriod === "ninetyDay") return pointsNinetyDayBySlug;
+    if (pointsPeriod === "lastSeason") return pointsLastSeasonBySlug;
     return pointsBySlug;
-  }, [pointsPeriod, pointsBySlug, points2025BySlug, points2026BySlug, pointsAllTimeBySlug]);
+  }, [pointsPeriod, pointsBySlug, points2025BySlug, points2026BySlug, pointsAllTimeBySlug, pointsNinetyDayBySlug, pointsLastSeasonBySlug]);
 
   const availableWithStats = useMemo(() => {
     const filtered = available

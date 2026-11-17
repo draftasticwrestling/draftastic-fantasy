@@ -114,8 +114,10 @@ type Props = {
   initialPriorityList: string[];
   /** Autopick: which Big Board is selected, or "custom" (including after editing a board). */
   initialListSource?: "custom" | BigBoardId;
-  /** When true, show Big Board shortcuts and require 50+ / 16+ female for a custom list. */
+  /** When true, a custom list must meet the autopick length and female minimums. */
   isAutopickLeague?: boolean;
+  /** Live and autopick drafts: choose a provided Big Board or build your own list. */
+  showBigBoardPicker?: boolean;
   autopickRequiredPriorityCount?: number;
   availableBigBoardIds?: BigBoardId[];
   disabled?: boolean;
@@ -128,11 +130,13 @@ export function DraftPreferencesForm({
   initialPriorityList,
   initialListSource = "custom",
   isAutopickLeague = false,
+  showBigBoardPicker = false,
   autopickRequiredPriorityCount = 50,
   availableBigBoardIds = [...BIG_BOARD_IDS],
   disabled = false,
   fromOnboarding = false,
 }: Props) {
+  const showBoards = isAutopickLeague || showBigBoardPicker;
   const minPreferred = isAutopickLeague ? autopickRequiredPriorityCount : MIN_PRIORITY;
   const availableBoardSet = useMemo(() => new Set<BigBoardId>(availableBigBoardIds), [availableBigBoardIds]);
   const hasProvidedBoards = availableBigBoardIds.length > 0;
@@ -141,7 +145,7 @@ export function DraftPreferencesForm({
     [availableBoardSet]
   );
   const [listSource, setListSource] = useState<"custom" | BigBoardId>(() =>
-    isAutopickLeague && initialListSource !== "custom" && availableBoardSet.has(initialListSource)
+    showBoards && initialListSource !== "custom" && availableBoardSet.has(initialListSource)
       ? initialListSource
       : "custom"
   );
@@ -186,9 +190,7 @@ export function DraftPreferencesForm({
       }
       setMessage({
         type: "success",
-        text: fromOnboarding
-          ? "Preferences saved. Taking you back to league setup…"
-          : "Preferences saved.",
+        text: fromOnboarding ? "Preferences saved. Finishing league setup…" : "Preferences saved.",
       });
       router.refresh();
     } else if (formState?.error) {
@@ -374,7 +376,7 @@ export function DraftPreferencesForm({
       {fromOnboarding ? <input type="hidden" name="from_onboarding" value="1" /> : null}
       <input type="hidden" name="list_source" value={listSource} />
       <input ref={priorityListInputRef} type="hidden" name="priority_list" defaultValue={JSON.stringify(priorityList)} />
-      {isAutopickLeague && hasProvidedBoards && (
+      {showBoards && hasProvidedBoards && (
         <section>
           <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
             Priority list source
@@ -466,8 +468,20 @@ export function DraftPreferencesForm({
                 style={{ width: 18, height: 18, marginTop: 2 }}
               />
               <span>
-                <strong>My own list</strong> — rank at least {autopickRequiredPriorityCount} wrestlers (include at least{" "}
-                {AUTOPICK_REQUIRED_FEMALE_COUNT} female).
+                <strong>My own list</strong>
+                {isAutopickLeague ? (
+                  <>
+                    {" "}
+                    — rank at least {autopickRequiredPriorityCount} wrestlers (include at least{" "}
+                    {AUTOPICK_REQUIRED_FEMALE_COUNT} female).
+                  </>
+                ) : (
+                  <>
+                    {" "}
+                    — rank your own order. Save 10 or more, or leave it empty and the All-time Big Board is used when
+                    the clock runs out.
+                  </>
+                )}
               </span>
             </label>
           </div>
@@ -521,7 +535,7 @@ export function DraftPreferencesForm({
           )}
         </section>
       )}
-      {isAutopickLeague && !hasProvidedBoards && (
+      {showBoards && !hasProvidedBoards && (
         <section>
           <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
             Priority list source
@@ -534,10 +548,14 @@ export function DraftPreferencesForm({
       )}
       <section>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 4, color: "var(--color-text)" }}>
-          Preferred wrestlers {isAutopickLeague ? "(autopick)" : "(optional)"}
+          {showBoards ? "Your list" : `Preferred wrestlers ${isAutopickLeague ? "(autopick)" : "(optional)"}`}
         </h2>
         <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 12 }}>
-          {isAutopickLeague ? (
+          {showBoards && listSource !== "custom" ? (
+            <>
+              This board is what gets saved. Reorder, add, or remove anyone and it becomes <strong>My own list</strong>.
+            </>
+          ) : isAutopickLeague ? (
             <>
               When &quot;My own list&quot; is selected, add <strong>{autopickRequiredPriorityCount}+</strong> wrestlers in
               order (at least{" "}
