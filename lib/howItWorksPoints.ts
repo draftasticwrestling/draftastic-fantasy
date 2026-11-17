@@ -75,10 +75,10 @@ export const NXT_SPECIAL_MATCH_BATTLE_ROYAL_POINTS: [string, number][] = [
 ];
 
 export const SPECIAL_MATCH_VICTORY_BONUS_BY_EVENT_TIER: [string, number][] = [
-  ["WWE Main Event", 0.5],
-  ["Raw / SmackDown", 1],
-  ["Minor / Medium PLE", 2],
   ["Major PLE", 3],
+  ["Minor / Medium PLE", 2],
+  ["Raw / SmackDown", 1],
+  ["WWE Main Event", 0.5],
 ];
 
 /** Weekly WWE Main Event television. Same match scale as Tuesday NXT, counted as main-roster R/S points. */

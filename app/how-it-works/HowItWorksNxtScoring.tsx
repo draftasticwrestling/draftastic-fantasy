@@ -54,9 +54,9 @@ const NXT_IRON_SURVIVOR_POINTS: Array<[string, number]> = [
 ];
 
 const NXT_MULTI_PERSON_BONUS: Array<[string, number]> = [
-  ["Tuesday NXT", 0.5],
-  ["Minor NXT PLE / Special", 1],
   ["Stand & Deliver", 1.5],
+  ["Minor NXT PLE / Special", 1],
+  ["Tuesday NXT", 0.5],
 ];
 
 const NXT_PLE_KEYS: EventLogoKey[] = [

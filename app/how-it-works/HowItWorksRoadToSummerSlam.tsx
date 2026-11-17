@@ -119,6 +119,114 @@ export function HowItWorksRoadToSummerSlam() {
       <HowItWorksTitlePoints />
 
       <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Premium live events in this season</h2>
+        <p style={{ marginBottom: 16, color: "#555" }}>
+          This window includes four <strong>minor PLEs</strong> (Backlash, two Saturday Night&apos;s Main Events, Clash in
+          Italy), one <strong>medium PLE</strong> (Night of Champions (King/ Queen of the Ring)), and{" "}
+          <strong>SummerSlam</strong> (nights 1 and 2). They use the structures below.
+        </p>
+        <div className={styles.rulesBlock}>
+          <p>A standard match victory earns full points. If a victory occurs via disqualification (DQ), it is worth half points.</p>
+          <p>A successful title defense is worth an additional 4 points (2 if via DQ). An initial title win earns an additional 5 points.</p>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 8 }}>Major PLE — SummerSlam (nights 1 &amp; 2)</h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo eventKey="summerslam" placeholderText="SummerSlam logo" className={styles.eventCardLogo} />
+              {SUMMERSLAM_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <p style={{ margin: "24px 0 14px", fontSize: 14, color: "#555" }}>
+          This premium live event includes the Night of Champions card and the King / Queen of the Ring tournament — point
+          tables below.
+        </p>
+        <div className={styles.pleDarkBox}>
+          <h3 className={styles.nocKqorCombinedTitle}>
+            Medium PLE — Night of Champions (King/ Queen of the Ring)
+          </h3>
+          <div className={styles.nocKqorTwoCol}>
+            <div className={styles.mediumPleCard}>
+              <HowItWorksEventLogo
+                eventKey="king-queen"
+                placeholderText="King & Queen of the Ring logo"
+                className={styles.eventCardLogo}
+              />
+              {KING_QUEEN_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+            <div className={styles.mediumPleCard}>
+              <HowItWorksEventLogo
+                eventKey="night-of-champions"
+                placeholderText="Night of Champions logo"
+                className={styles.eventCardLogo}
+              />
+              {NOC_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>
+          Minor PLEs <span style={{ fontWeight: 400, fontSize: "0.95rem" }}>(SNME = Saturday Night&apos;s Main Event)</span>
+        </h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.minorPleGrid}>
+            <div className={styles.minorPleCard}>
+              <HowItWorksEventLogo eventKey="backlash" placeholderText="Backlash" className={styles.eventCardLogo} />
+              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+            <div className={styles.minorPleCard}>
+              <HowItWorksEventLogo
+                eventKey="saturday-nights-main-event"
+                placeholderText="Saturday Night's Main Event"
+                className={styles.eventCardLogo}
+              />
+              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 8 }}>
+                Two Saturday Night&apos;s Main Event cards this season (league nav: SNME 1 / SNME 2) — same point table each.
+              </p>
+            </div>
+            <div className={styles.minorPleCard}>
+              <HowItWorksEventLogo eventKey="clash-in-paris" placeholderText="Clash in Italy" className={styles.eventCardLogo} />
+              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 40 }}>
         <h2 className={styles.sectionTitle}>Raw / SmackDown</h2>
         <div className={styles.rulesBlock}>
           {GENERAL_RULES.slice(0, 4).map((text, i) => (
@@ -161,113 +269,7 @@ export function HowItWorksRoadToSummerSlam() {
 
       <HowItWorksSpecialMatches variant="rts" />
 
-      <section style={{ marginBottom: 40 }}>
-        <h2 className={styles.sectionTitle}>Premium live events in this season</h2>
-        <p style={{ marginBottom: 16, color: "#555" }}>
-          This window includes four <strong>minor PLEs</strong> (Backlash, two Saturday Night&apos;s Main Events, Clash in
-          Italy), one <strong>medium PLE</strong> (Night of Champions (King/ Queen of the Ring)), and{" "}
-          <strong>SummerSlam</strong> (nights 1 and 2). They use the structures below.
-        </p>
-        <div className={styles.rulesBlock}>
-          <p>A standard match victory earns full points. If a victory occurs via disqualification (DQ), it is worth half points.</p>
-          <p>A successful title defense is worth an additional 4 points (2 if via DQ). An initial title win earns an additional 5 points.</p>
-        </div>
-
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 8 }}>
-          Minor PLEs <span style={{ fontWeight: 400, fontSize: "0.95rem" }}>(SNME = Saturday Night&apos;s Main Event)</span>
-        </h3>
-        <div className={styles.pleDarkBox}>
-          <div className={styles.minorPleGrid}>
-            <div className={styles.minorPleCard}>
-              <HowItWorksEventLogo eventKey="backlash" placeholderText="Backlash" className={styles.eventCardLogo} />
-              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-            <div className={styles.minorPleCard}>
-              <HowItWorksEventLogo
-                eventKey="saturday-nights-main-event"
-                placeholderText="Saturday Night's Main Event"
-                className={styles.eventCardLogo}
-              />
-              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 8 }}>
-                Two Saturday Night&apos;s Main Event cards this season (league nav: SNME 1 / SNME 2) — same point table each.
-              </p>
-            </div>
-            <div className={styles.minorPleCard}>
-              <HowItWorksEventLogo eventKey="clash-in-paris" placeholderText="Clash in Italy" className={styles.eventCardLogo} />
-              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <p style={{ margin: "24px 0 14px", fontSize: 14, color: "#555" }}>
-          This premium live event includes the Night of Champions card and the King / Queen of the Ring tournament — point
-          tables below.
-        </p>
-        <div className={styles.pleDarkBox}>
-          <h3 className={styles.nocKqorCombinedTitle}>
-            Medium PLE — Night of Champions (King/ Queen of the Ring)
-          </h3>
-          <div className={styles.nocKqorTwoCol}>
-            <div className={styles.mediumPleCard}>
-              <HowItWorksEventLogo
-                eventKey="night-of-champions"
-                placeholderText="Night of Champions logo"
-                className={styles.eventCardLogo}
-              />
-              {NOC_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-            <div className={styles.mediumPleCard}>
-              <HowItWorksEventLogo
-                eventKey="king-queen"
-                placeholderText="King & Queen of the Ring logo"
-                className={styles.eventCardLogo}
-              />
-              {KING_QUEEN_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>Major PLE — SummerSlam (nights 1 &amp; 2)</h3>
-        <div className={styles.pleDarkBox}>
-          <div className={styles.majorPleSingle}>
-            <div className={styles.eventCard}>
-              <HowItWorksEventLogo eventKey="summerslam" placeholderText="SummerSlam logo" className={styles.eventCardLogo} />
-              {SUMMERSLAM_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Point categories</h2>

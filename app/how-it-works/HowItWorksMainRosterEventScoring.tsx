@@ -19,12 +19,12 @@ import { HowItWorksSpecialMatches } from "./HowItWorksSpecialMatches";
 import styles from "./HowItWorks.module.css";
 
 type Props = {
-  /** Optional note above Raw/SmackDown (e.g. which events count in a league window). */
+  /** Optional note above the event tables (e.g. which events count in a league window). */
   intro?: React.ReactNode;
 };
 
 /**
- * Full main-roster scoring reference: Raw/SmackDown, special matches, and every PLE tier.
+ * Full main-roster scoring reference, highest events first: major PLEs, medium, minor, Raw/SmackDown, Main Event.
  */
 export function HowItWorksMainRosterEventScoring({ intro }: Props) {
   return (
@@ -34,76 +34,6 @@ export function HowItWorksMainRosterEventScoring({ intro }: Props) {
           <div style={{ lineHeight: 1.65, color: "#333" }}>{intro}</div>
         </section>
       ) : null}
-
-      <section style={{ marginBottom: 40 }}>
-        <h2 className={styles.sectionTitle}>Raw/Smackdown Points</h2>
-        <div className={styles.rulesBlock}>
-          {GENERAL_RULES.slice(0, 4).map((text, i) => (
-            <p key={i}>{text}</p>
-          ))}
-        </div>
-        <div className={styles.darkBox}>
-          <div className={styles.rawSmackdownLogoRow}>
-            <HowItWorksEventLogo eventKey="raw" placeholderText="RAW logo" className={styles.eventLogoPlaceholder} />
-            <div className={styles.rawSmackdownAmp} aria-hidden>
-              &
-            </div>
-            <HowItWorksEventLogo
-              eventKey="smackdown"
-              placeholderText="SmackDown logo"
-              className={styles.eventLogoPlaceholder}
-            />
-          </div>
-          <p className={styles.rawSmackdownMobileNote}>Same points apply to RAW and SmackDown.</p>
-          <div className={styles.rawSmackdownFlex}>
-            <div className={styles.rawSmackdownCol}>
-              {RAWSMACKDOWN_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-            <div className={`${styles.rawSmackdownCol} ${styles.rawSmackdownColSecond}`}>
-              {RAWSMACKDOWN_POINTS.map(([action, pts], i) => (
-                <div key={`sd-${i}`} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section style={{ marginBottom: 40 }}>
-        <h2 className={styles.sectionTitle}>WWE Main Event</h2>
-        <p className={styles.sectionSubtitle} style={{ maxWidth: 780, marginLeft: "auto", marginRight: "auto" }}>
-          The weekly Main Event television show. This is not Saturday Night&apos;s Main Event. Match, title, and
-          multi-person bonuses use the same scale as Tuesday NXT, and the points count as Raw/SmackDown (R/S) points for
-          whoever is in the match. Public leagues count these points. Road to War Games does not. Road to WrestleMania
-          will.
-        </p>
-        <div className={styles.darkBox}>
-          <div className={styles.majorPleSingle}>
-            <div className={styles.eventCard}>
-              <HowItWorksEventLogo
-                eventKey="main-event"
-                placeholderText="Main Event logo"
-                className={styles.eventCardLogo}
-              />
-              {MAIN_EVENT_WEEKLY_POINTS.map(([action, pts]) => (
-                <div key={action} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <HowItWorksSpecialMatches variant="legacy" />
 
       <section style={{ marginBottom: 40 }}>
         <h2 className={styles.sectionTitle}>Major Premium Live Event Points — The &quot;Big Four&quot;</h2>
@@ -203,19 +133,6 @@ export function HowItWorksMainRosterEventScoring({ intro }: Props) {
             </div>
             <div className={styles.mediumPleCard}>
               <HowItWorksEventLogo
-                eventKey="night-of-champions"
-                placeholderText="Night of Champions logo"
-                className={styles.eventCardLogo}
-              />
-              {NOC_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-            <div className={styles.mediumPleCard}>
-              <HowItWorksEventLogo
                 eventKey="money-in-the-bank"
                 placeholderText="Money in the Bank logo"
                 className={styles.eventCardLogo}
@@ -243,6 +160,19 @@ export function HowItWorksMainRosterEventScoring({ intro }: Props) {
                 className={styles.eventCardLogo}
               />
               {KING_QUEEN_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+            <div className={styles.mediumPleCard}>
+              <HowItWorksEventLogo
+                eventKey="night-of-champions"
+                placeholderText="Night of Champions logo"
+                className={styles.eventCardLogo}
+              />
+              {NOC_POINTS.map(([action, pts], i) => (
                 <div key={i} className={styles.pointRow}>
                   <span>{action}</span>
                   <span className={styles.pointRowPoints}>{pts}</span>
@@ -324,6 +254,76 @@ export function HowItWorksMainRosterEventScoring({ intro }: Props) {
           </div>
         </div>
       </section>
+
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Raw/Smackdown Points</h2>
+        <div className={styles.rulesBlock}>
+          {GENERAL_RULES.slice(0, 4).map((text, i) => (
+            <p key={i}>{text}</p>
+          ))}
+        </div>
+        <div className={styles.darkBox}>
+          <div className={styles.rawSmackdownLogoRow}>
+            <HowItWorksEventLogo eventKey="raw" placeholderText="RAW logo" className={styles.eventLogoPlaceholder} />
+            <div className={styles.rawSmackdownAmp} aria-hidden>
+              &
+            </div>
+            <HowItWorksEventLogo
+              eventKey="smackdown"
+              placeholderText="SmackDown logo"
+              className={styles.eventLogoPlaceholder}
+            />
+          </div>
+          <p className={styles.rawSmackdownMobileNote}>Same points apply to RAW and SmackDown.</p>
+          <div className={styles.rawSmackdownFlex}>
+            <div className={styles.rawSmackdownCol}>
+              {RAWSMACKDOWN_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+            <div className={`${styles.rawSmackdownCol} ${styles.rawSmackdownColSecond}`}>
+              {RAWSMACKDOWN_POINTS.map(([action, pts], i) => (
+                <div key={`sd-${i}`} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>WWE Main Event</h2>
+        <p className={styles.sectionSubtitle} style={{ maxWidth: 780, marginLeft: "auto", marginRight: "auto" }}>
+          The weekly Main Event television show. This is not Saturday Night&apos;s Main Event. Match, title, and
+          multi-person bonuses use the same scale as Tuesday NXT, and the points count as Raw/SmackDown (R/S) points for
+          whoever is in the match. Public leagues count these points. Road to War Games does not. Road to WrestleMania
+          will.
+        </p>
+        <div className={styles.darkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="main-event"
+                placeholderText="Main Event logo"
+                className={styles.eventCardLogo}
+              />
+              {MAIN_EVENT_WEEKLY_POINTS.map(([action, pts]) => (
+                <div key={action} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <HowItWorksSpecialMatches variant="legacy" />
     </>
   );
 }

@@ -150,6 +150,143 @@ export function HowItWorksRoadToWrestleMania() {
       <HowItWorksTitlePoints />
 
       <section style={{ marginBottom: 40 }}>
+        <h2 className={styles.sectionTitle}>Premium live events in this season</h2>
+        <p style={{ marginBottom: 16, color: "#555" }}>
+          This window includes two <strong>minor PLEs</strong> (Wrestlepalooza on Dec 12, and Saturday Night&apos;s
+          Main Event), one <strong>medium PLE</strong> (Elimination Chamber), and two <strong>major PLEs</strong>{" "}
+          (Royal Rumble on Feb 6, and WrestleMania, expected April 17–18). WrestleMania week is the season championship
+          final for Head-to-Head leagues. Saturday Night&apos;s Main Event and Elimination Chamber do not have announced
+          dates yet. They use the structures below.
+        </p>
+        <div className={styles.rulesBlock}>
+          <p>
+            A standard match victory earns full points. If a victory occurs via disqualification (DQ), it is worth half
+            points.
+          </p>
+          <p>
+            A successful title defense is worth an additional 4 points (2 if via DQ). An initial title win earns an
+            additional 5 points.
+          </p>
+          <p>
+            Additional main event points are awarded only if the match is not the PLE&apos;s featured match. If the
+            Men&apos;s Royal Rumble or an Elimination Chamber match is the main event, that winner does not also receive
+            the separate main-event win.
+          </p>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 8 }}>
+          Major PLE — WrestleMania (expected April 17–18)
+        </h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.wrestlemaniaBlock}>
+            <HowItWorksEventLogo
+              eventKey="wrestlemania"
+              placeholderText="WrestleMania logo"
+              className={styles.wrestlemaniaLogoPlaceholder}
+            />
+            <div className={styles.majorPleTwoCol}>
+              <div>
+                {WRESTLEMANIA_POINTS.slice(0, 3).map(([action, pts], i) => (
+                  <div key={i} className={styles.pointRow}>
+                    <span>{action}</span>
+                    <span className={styles.pointRowPoints}>{String(pts)}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                {WRESTLEMANIA_POINTS.slice(3).map(([action, pts], i) => (
+                  <div key={i} className={styles.pointRow}>
+                    <span>{action}</span>
+                    <span className={styles.pointRowPoints}>{String(pts)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>Major PLE — Royal Rumble (Feb 6)</h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="royal-rumble"
+                placeholderText="Royal Rumble logo"
+                className={styles.eventCardLogo}
+              />
+              {ROYAL_RUMBLE_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{String(pts)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>
+          Medium PLE — Elimination Chamber
+        </h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="elimination-chamber"
+                placeholderText="Elimination Chamber logo"
+                className={styles.eventCardLogo}
+              />
+              {ELIMINATION_CHAMBER_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>Minor PLE — Wrestlepalooza (Dec 12)</h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="wrestlepalooza"
+                placeholderText="Wrestlepalooza"
+                className={styles.eventCardLogoTall}
+              />
+              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>
+          Minor PLE — Saturday Night&apos;s Main Event
+        </h3>
+        <div className={styles.pleDarkBox}>
+          <div className={styles.majorPleSingle}>
+            <div className={styles.eventCard}>
+              <HowItWorksEventLogo
+                eventKey="saturday-nights-main-event"
+                placeholderText="Saturday Night's Main Event"
+                className={styles.eventCardLogo}
+              />
+              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
+                <div key={i} className={styles.pointRow}>
+                  <span>{action}</span>
+                  <span className={styles.pointRowPoints}>{pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 40 }}>
         <h2 className={styles.sectionTitle}>Raw / SmackDown</h2>
         <div className={styles.rulesBlock}>
           {GENERAL_RULES.slice(0, 4).map((text, i) => (
@@ -216,143 +353,6 @@ export function HowItWorksRoadToWrestleMania() {
       </section>
 
       <HowItWorksSpecialMatches variant="legacy" />
-
-      <section style={{ marginBottom: 40 }}>
-        <h2 className={styles.sectionTitle}>Premium live events in this season</h2>
-        <p style={{ marginBottom: 16, color: "#555" }}>
-          This window includes two <strong>minor PLEs</strong> (Wrestlepalooza on Dec 12, and Saturday Night&apos;s
-          Main Event), one <strong>medium PLE</strong> (Elimination Chamber), and two <strong>major PLEs</strong>{" "}
-          (Royal Rumble on Feb 6, and WrestleMania, expected April 17–18). WrestleMania week is the season championship
-          final for Head-to-Head leagues. Saturday Night&apos;s Main Event and Elimination Chamber do not have announced
-          dates yet. They use the structures below.
-        </p>
-        <div className={styles.rulesBlock}>
-          <p>
-            A standard match victory earns full points. If a victory occurs via disqualification (DQ), it is worth half
-            points.
-          </p>
-          <p>
-            A successful title defense is worth an additional 4 points (2 if via DQ). An initial title win earns an
-            additional 5 points.
-          </p>
-          <p>
-            Additional main event points are awarded only if the match is not the PLE&apos;s featured match. If the
-            Men&apos;s Royal Rumble or an Elimination Chamber match is the main event, that winner does not also receive
-            the separate main-event win.
-          </p>
-        </div>
-
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 8 }}>Minor PLE — Wrestlepalooza (Dec 12)</h3>
-        <div className={styles.pleDarkBox}>
-          <div className={styles.majorPleSingle}>
-            <div className={styles.eventCard}>
-              <HowItWorksEventLogo
-                eventKey="wrestlepalooza"
-                placeholderText="Wrestlepalooza"
-                className={styles.eventCardLogoTall}
-              />
-              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>
-          Minor PLE — Saturday Night&apos;s Main Event
-        </h3>
-        <div className={styles.pleDarkBox}>
-          <div className={styles.majorPleSingle}>
-            <div className={styles.eventCard}>
-              <HowItWorksEventLogo
-                eventKey="saturday-nights-main-event"
-                placeholderText="Saturday Night's Main Event"
-                className={styles.eventCardLogo}
-              />
-              {MINOR_PLE_BASE_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>
-          Medium PLE — Elimination Chamber
-        </h3>
-        <div className={styles.pleDarkBox}>
-          <div className={styles.majorPleSingle}>
-            <div className={styles.eventCard}>
-              <HowItWorksEventLogo
-                eventKey="elimination-chamber"
-                placeholderText="Elimination Chamber logo"
-                className={styles.eventCardLogo}
-              />
-              {ELIMINATION_CHAMBER_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{pts}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>Major PLE — Royal Rumble (Feb 6)</h3>
-        <div className={styles.pleDarkBox}>
-          <div className={styles.majorPleSingle}>
-            <div className={styles.eventCard}>
-              <HowItWorksEventLogo
-                eventKey="royal-rumble"
-                placeholderText="Royal Rumble logo"
-                className={styles.eventCardLogo}
-              />
-              {ROYAL_RUMBLE_POINTS.map(([action, pts], i) => (
-                <div key={i} className={styles.pointRow}>
-                  <span>{action}</span>
-                  <span className={styles.pointRowPoints}>{String(pts)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <h3 style={{ fontSize: "1.15rem", marginBottom: 12, marginTop: 24 }}>
-          Major PLE — WrestleMania (expected April 17–18)
-        </h3>
-        <div className={styles.pleDarkBox}>
-          <div className={styles.wrestlemaniaBlock}>
-            <HowItWorksEventLogo
-              eventKey="wrestlemania"
-              placeholderText="WrestleMania logo"
-              className={styles.wrestlemaniaLogoPlaceholder}
-            />
-            <div className={styles.majorPleTwoCol}>
-              <div>
-                {WRESTLEMANIA_POINTS.slice(0, 3).map(([action, pts], i) => (
-                  <div key={i} className={styles.pointRow}>
-                    <span>{action}</span>
-                    <span className={styles.pointRowPoints}>{String(pts)}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                {WRESTLEMANIA_POINTS.slice(3).map(([action, pts], i) => (
-                  <div key={i} className={styles.pointRow}>
-                    <span>{action}</span>
-                    <span className={styles.pointRowPoints}>{String(pts)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Point categories</h2>
