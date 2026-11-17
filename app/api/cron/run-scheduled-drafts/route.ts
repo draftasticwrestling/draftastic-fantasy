@@ -50,11 +50,17 @@ export async function GET(request: Request) {
     .eq("draft_type", "autopick")
     .eq("draft_status", "not_started");
   if (leaguesResult.error && /draft_timezone/i.test(leaguesResult.error.message ?? "")) {
-    leaguesResult = await admin
+    const fallback = await admin
       .from("leagues")
-      .select(scheduledSelect.replace("draft_time, draft_timezone,", "draft_time,"))
+      .select(
+        "id, draft_date, draft_time, draft_type, draft_status, draft_order_method, visibility_type, max_teams"
+      )
       .eq("draft_type", "autopick")
       .eq("draft_status", "not_started");
+    leaguesResult = {
+      ...fallback,
+      data: fallback.data?.map((row) => ({ ...row, draft_timezone: null })) ?? null,
+    } as typeof leaguesResult;
   }
   const leagues = leaguesResult.data;
 

@@ -405,24 +405,33 @@ export const getLeagueBySlug = cacheFn(
 
     const fullSelectBase =
       "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
-    const fullSelect = fullSelectBase.replace("draft_time,", "draft_time, draft_timezone,");
-    const fullSelectNoIncludeNxt = fullSelect
-      .replace(", include_nxt", "");
+    const fullSelect =
+      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, draft_timezone, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
+    const fullSelectNoIncludeNxt =
+      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, draft_timezone, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
     let result = await supabase.from("leagues").select(fullSelect).eq("slug", slug).maybeSingle();
     if (result.error?.code === "42703" && /draft_timezone/i.test(result.error.message ?? "")) {
-      result = await supabase.from("leagues").select(fullSelectBase).eq("slug", slug).maybeSingle();
-      if (result.data) {
-        result = { ...result, data: { ...result.data, draft_timezone: null } };
-      }
+      const fallback = await supabase.from("leagues").select(fullSelectBase).eq("slug", slug).maybeSingle();
+      result = (
+        fallback.data
+          ? { ...fallback, data: { ...fallback.data, draft_timezone: null } }
+          : fallback
+      ) as typeof result;
     }
     if (
       result.error?.code === "42703" &&
       /include_nxt/i.test(result.error.message ?? "")
     ) {
-      result = await supabase.from("leagues").select(fullSelectNoIncludeNxt).eq("slug", slug).maybeSingle();
-      if (result.data) {
-        result = { ...result, data: { ...result.data, include_nxt: false } };
-      }
+      const fallback = await supabase
+        .from("leagues")
+        .select(fullSelectNoIncludeNxt)
+        .eq("slug", slug)
+        .maybeSingle();
+      result = (
+        fallback.data
+          ? { ...fallback, data: { ...fallback.data, include_nxt: false } }
+          : fallback
+      ) as typeof result;
     }
 
     let league = result.data;
@@ -470,20 +479,30 @@ export const getLeagueBySlug = cacheFn(
         adminResult.error?.code === "42703" &&
         /draft_timezone/i.test(adminResult.error.message ?? "")
       ) {
-        adminResult = await admin.from("leagues").select(fullSelectBase).eq("slug", slug).maybeSingle();
-        if (adminResult.data) {
-          league = { ...adminResult.data, draft_timezone: null } as unknown as typeof league;
-        }
+        const fallback = await admin.from("leagues").select(fullSelectBase).eq("slug", slug).maybeSingle();
+        adminResult = (
+          fallback.data
+            ? { ...fallback, data: { ...fallback.data, draft_timezone: null } }
+            : fallback
+        ) as typeof adminResult;
+        league = adminResult.data as typeof league;
       }
       if (
         !league &&
         adminResult.error?.code === "42703" &&
         /include_nxt/i.test(adminResult.error.message ?? "")
       ) {
-        adminResult = await admin.from("leagues").select(fullSelectNoIncludeNxt).eq("slug", slug).maybeSingle();
-        if (adminResult.data) {
-          league = { ...adminResult.data, include_nxt: false } as unknown as typeof league;
-        }
+        const fallback = await admin
+          .from("leagues")
+          .select(fullSelectNoIncludeNxt)
+          .eq("slug", slug)
+          .maybeSingle();
+        adminResult = (
+          fallback.data
+            ? { ...fallback, data: { ...fallback.data, include_nxt: false } }
+            : fallback
+        ) as typeof adminResult;
+        league = adminResult.data as typeof league;
       }
       if (!league) return null;
     }
