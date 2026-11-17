@@ -28,6 +28,7 @@ import {
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 import { snapshotLeagueSalaryCosts } from "@/lib/leagueSalarySnapshots";
 import { getCivilYmdInPst, isPastEndOfDayPst } from "@/lib/pstCivilTime";
+import { leagueInviteOrigin } from "@/lib/sitePublicOrigin";
 import { aggregateWrestlerPoints, getPointsForSingleEvent } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import { brandByWrestlerSlugFromRows } from "@/lib/wrestlerBrandLookup";
 import { classifyEventType, EVENT_TYPES } from "@/lib/scoring/parsers/eventClassifier.js";
@@ -1026,8 +1027,7 @@ export async function createLeagueInvite(
 
   if (error) return { url: "", token: "", error: error.message };
 
-  const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const url = `${base}/leagues/join?token=${token}`;
+  const url = `${leagueInviteOrigin()}/leagues/join?token=${token}`;
   return { url, token, join_code: joinCode };
 }
 
