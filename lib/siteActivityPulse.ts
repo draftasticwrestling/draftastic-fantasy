@@ -8,7 +8,6 @@ export type SiteActivityPulse = {
   weeklyPointsScored: number;
   activeLeagues: number;
   seasonMatchesScored: number;
-  seasonTradesProposed: number;
   seasonFreeAgentsSigned: number;
   /** Fantasy league champions recorded in league_season_placements (placement 1). */
   draftasticChampions: number;
@@ -18,7 +17,6 @@ export const SITE_ACTIVITY_PULSE_ITEMS: Array<{ key: keyof SiteActivityPulse; la
   { key: "weeklyPointsScored", label: "points scored this week" },
   { key: "activeLeagues", label: "active leagues" },
   { key: "seasonMatchesScored", label: "matches scored this season" },
-  { key: "seasonTradesProposed", label: "season trades proposed" },
   { key: "seasonFreeAgentsSigned", label: "season free agents signed" },
   { key: "draftasticChampions", label: "Draftastic Champions" },
 ];
@@ -27,7 +25,6 @@ const EMPTY_PULSE: SiteActivityPulse = {
   weeklyPointsScored: 0,
   activeLeagues: 0,
   seasonMatchesScored: 0,
-  seasonTradesProposed: 0,
   seasonFreeAgentsSigned: 0,
   draftasticChampions: 0,
 };
@@ -77,7 +74,6 @@ function normalizeSiteActivityPulse(raw: Partial<SiteActivityPulse> & Record<str
     weeklyPointsScored: Number(raw.weeklyPointsScored ?? 0),
     activeLeagues: Number(raw.activeLeagues ?? 0),
     seasonMatchesScored: Number(raw.seasonMatchesScored ?? raw.matchesScoredThisWeek ?? 0),
-    seasonTradesProposed: Number(raw.seasonTradesProposed ?? raw.tradesCompletedThisWeek ?? 0),
     seasonFreeAgentsSigned: Number(raw.seasonFreeAgentsSigned ?? raw.freeAgentsSignedThisWeek ?? 0),
     draftasticChampions: Number(raw.draftasticChampions ?? raw.newChampionsCrowned ?? 0),
   };
@@ -143,7 +139,7 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
 
   // Never live-score leagues on hub SSR (that path previously timed out Netlify edge).
   // Weekly points come from cron-refreshed snapshots only.
-  const [weeklyPointsScored, seasonEventsRes, championsRes, tradesRes, faRes] = await Promise.all([
+  const [weeklyPointsScored, seasonEventsRes, championsRes, faRes] = await Promise.all([
     sumWeeklyPointsFromSnapshot(admin, weekStart, leagueIds),
     (() => {
       let q = admin
@@ -162,12 +158,6 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
       .eq("placement", 1),
     leagueIds.length > 0
       ? admin
-          .from("league_trade_proposals")
-          .select("id", { count: "exact", head: true })
-          .in("league_id", leagueIds)
-      : Promise.resolve({ count: 0, error: null }),
-    leagueIds.length > 0
-      ? admin
           .from("league_activity")
           .select("id", { count: "exact", head: true })
           .eq("activity_type", "fa_add")
@@ -183,7 +173,6 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
     weeklyPointsScored,
     activeLeagues: leagueIds.length,
     seasonMatchesScored,
-    seasonTradesProposed: tradesRes.count ?? 0,
     seasonFreeAgentsSigned: faRes.count ?? 0,
     draftasticChampions: championsRes.error ? 0 : (championsRes.count ?? 0),
   });
@@ -191,7 +180,7 @@ async function computeSiteActivityPulse(): Promise<SiteActivityPulse> {
 
 const getCachedSiteActivityPulse = unstable_cache(
   computeSiteActivityPulse,
-  ["site-activity-pulse-v12"],
+  ["site-activity-pulse-v13"],
   { revalidate: 900 }
 );
 

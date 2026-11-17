@@ -259,7 +259,6 @@ export default async function FantasyHomePage() {
     weeklyPointsScored: 0,
     activeLeagues: 0,
     seasonMatchesScored: 0,
-    seasonTradesProposed: 0,
     seasonFreeAgentsSigned: 0,
     draftasticChampions: 0,
   };

@@ -16,7 +16,6 @@ const HUB_RAIL_LABELS: Record<keyof SiteActivityPulse, string> = {
   weeklyPointsScored: "pts this week",
   activeLeagues: "active leagues",
   seasonMatchesScored: "matches scored this season",
-  seasonTradesProposed: "trades proposed",
   seasonFreeAgentsSigned: "free agents signed",
   draftasticChampions: "Draftastic Champions",
 };
