@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, type FormEvent } from "react";
+import { useActionState, useEffect, useRef, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { startDraftWithStateAction } from "./actions";
 
 export function BeginDraftForm({
@@ -18,8 +19,19 @@ export function BeginDraftForm({
   maxTeams: number | null;
   minTeams: number;
 }) {
-  const [state, formAction] = useActionState(startDraftWithStateAction, null as { error?: string } | null);
+  const [state, formAction] = useActionState(
+    startDraftWithStateAction,
+    null as { error?: string; ok?: boolean; at?: number } | null
+  );
+  const router = useRouter();
+  const refreshedAt = useRef<number | null>(null);
   const confirmShortRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!state?.ok || state.at == null || refreshedAt.current === state.at) return;
+    refreshedAt.current = state.at;
+    router.refresh();
+  }, [router, state]);
 
   const belowMin = memberCount < minTeams;
   const waitingOn =

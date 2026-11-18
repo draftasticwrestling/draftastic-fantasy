@@ -122,15 +122,16 @@ export async function startDraftAction(
 }
 
 export async function startDraftWithStateAction(
-  _prevState: { error?: string } | null,
+  _prevState: { error?: string; ok?: boolean; at?: number } | null,
   formData: FormData
-): Promise<{ error?: string } | null> {
+): Promise<{ error?: string; ok?: boolean; at?: number } | null> {
   const leagueSlug = (formData.get("league_slug") as string)?.trim();
   if (!leagueSlug) return { error: "League slug is required." };
   const confirmShortRoster =
     formData.get("confirm_short_roster") === "1" || formData.get("confirm_short_roster") === "true";
   const result = await startDraftAction(leagueSlug, { confirmShortRoster });
-  return result.error ? result : {};
+  if (result.error) return result;
+  return { ok: true, at: Date.now() };
 }
 
 /**
@@ -426,4 +427,35 @@ export async function expireLiveDraftClockAction(leagueSlug: string): Promise<{
   }
 
   return runLiveDraftClockIfExpired(league.id);
+}
+
+/** Keep a live-draft queue in sync with the clock. Any length is allowed, including empty. */
+export async function saveLiveDraftQueueAction(
+  leagueId: string,
+  priorityList: string[]
+): Promise<{ error?: string }> {
+  const { supabase, user } = await getServerAuth();
+  if (!user) return { error: "Not authenticated" };
+  const cleaned = priorityList.map((id) => id.trim()).filter(Boolean);
+  const { data: existing, error: readError } = await supabase
+    .from("league_draft_preferences")
+    .select("strategy, strategy_options")
+    .eq("league_id", leagueId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (readError) return { error: readError.message };
+  const payload: Record<string, unknown> = {
+    league_id: leagueId,
+    user_id: user.id,
+    priority_list: JSON.stringify(cleaned),
+    strategy: (existing as { strategy?: unknown } | null)?.strategy ?? [],
+    updated_at: new Date().toISOString(),
+  };
+  const options = (existing as { strategy_options?: unknown } | null)?.strategy_options;
+  if (options != null) payload.strategy_options = options;
+  const { error } = await supabase
+    .from("league_draft_preferences")
+    .upsert(payload, { onConflict: "league_id,user_id" });
+  if (error) return { error: error.message };
+  return {};
 }

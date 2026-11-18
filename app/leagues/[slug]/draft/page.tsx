@@ -38,6 +38,7 @@ import { draftEquivalentSlugs } from "@/lib/scoring/personaResolution.js";
 import { GenerateDraftOrderForm } from "./GenerateDraftOrderForm";
 import { BeginDraftForm } from "./BeginDraftForm";
 import { LiveDraftLobby } from "./LiveDraftLobby";
+import { LiveMockDraftRoom } from "./LiveMockDraftRoom";
 import { LeagueDraftRoom } from "./LeagueDraftRoom";
 import { AutopickClientRunner } from "./AutopickClientRunner";
 import { AutopickDraftBoardView } from "./AutopickDraftBoardView";
@@ -48,7 +49,7 @@ import { getCivilYmdInPst } from "@/lib/pstCivilTime";
 import { addDaysYmd } from "@/lib/salaryCapMonthlyPricing";
 import { ROAD_TO_WAR_GAMES_2026 } from "@/lib/leagueSeasons";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ room?: string }> };
 
 export async function generateMetadata({ params }: Props) {
   try {
@@ -64,8 +65,10 @@ export async function generateMetadata({ params }: Props) {
   }
 }
 
-export default async function LeagueDraftPage({ params }: Props) {
+export default async function LeagueDraftPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { room } = await searchParams;
+  const enteredLiveRoom = room === "1";
   let league: Awaited<ReturnType<typeof getLeagueBySlug>>;
   let members: Awaited<ReturnType<typeof getLeagueMembers>> = [];
   let order: Awaited<ReturnType<typeof getDraftOrder>> = [];
@@ -409,6 +412,72 @@ export default async function LeagueDraftPage({ params }: Props) {
       league.draft_type !== "offline";
     const isAutopickRunning = league.draft_type === "autopick" && draftStatus === "in_progress";
     const wideDraftLayout = showDraftRoom && !isAutopickRunning;
+    if (league.draft_type === "live" && enteredLiveRoom && showDraftRoom) {
+      return (
+        <LiveMockDraftRoom
+          leagueId={league.id}
+          leagueSlug={slug}
+          order={order}
+          picksHistory={picksHistory}
+          members={members.map((member) => ({
+            user_id: member.user_id,
+            display_name: member.display_name,
+            team_name: member.team_name,
+          }))}
+          wrestlers={wrestlersRows.map((wrestler) => ({
+            id: wrestler.id,
+            name: wrestler.name ?? null,
+            gender: wrestler.gender ?? null,
+            brand: wrestler.brand ?? null,
+            status: wrestler.status ?? null,
+            image_url: wrestler.image_url ?? null,
+            rating_2k26: wrestler["2K26 rating"] ?? null,
+            rating_2k25: wrestler["2K25 rating"] ?? null,
+          }))}
+          pointsAllTimeBySlug={pointsAllTimeBySlug}
+          draftedIds={Array.from(draftedIds)}
+          currentPickSlot={draftStatus === "completed" || isReviewPending ? null : draftCurrentPick}
+          totalPicks={totalPicks}
+          draftStatus={draftStatus}
+          currentPickerUserId={currentPick?.user_id ?? null}
+          draftCurrentPickStartedAt={state?.draft_current_pick_started_at ?? null}
+          timePerPickSeconds={league.time_per_pick_seconds ?? 120}
+          viewerUserId={user?.id ?? null}
+          viewerIsCommissioner={isCommissioner}
+          priorityList={userDraftPrefs?.priority_list ?? []}
+          draftStyle={state?.draft_style === "linear" ? "linear" : "snake"}
+          rosterSize={rosterRules?.rosterSize ?? Math.max(1, Math.round(totalPicks / Math.max(1, members.length)))}
+          minFemale={rosterRules?.minFemale ?? 0}
+          minMale={rosterRules?.minMale ?? 0}
+        />
+      );
+    }
+    if (league.draft_type === "live" && enteredLiveRoom) {
+      return (
+        <LiveDraftLobby
+          leagueId={league.id}
+          leagueSlug={slug}
+          currentUserId={user?.id ?? null}
+          members={members.map((member) => ({
+            userId: member.user_id,
+            name: member.display_name?.trim() || member.team_name?.trim() || "Manager",
+            isGm: member.user_id === league?.commissioner_id,
+          }))}
+          canManage={isCommissioner || isSiteAdmin}
+          order={order}
+          draftDateYmd={league.draft_date ? String(league.draft_date).slice(0, 10) : null}
+          scheduleLabel={
+            draftScheduleLabels.dateLabel
+              ? [draftScheduleLabels.dateLabel, draftScheduleTimeLine(draftScheduleLabels)].filter(Boolean).join(" · ")
+              : null
+          }
+          showDateHint={isCommissioner && !isSiteAdmin}
+          memberCount={members.length}
+          maxTeams={typeof league.max_teams === "number" && league.max_teams > 0 ? league.max_teams : null}
+          minTeams={getMinimumTeamsForLeagueType(league.league_type)}
+        />
+      );
+    }
     return (
     <main className="app-page" style={{ maxWidth: wideDraftLayout ? 1100 : 720, margin: "0 auto", padding: showDraftRoom ? "2rem 1rem" : undefined, fontSize: 16, lineHeight: 1.5 }}>
       <h1 style={{ marginBottom: 8, fontSize: "1.5rem", color: "var(--color-text)" }}>Draft</h1>
@@ -444,8 +513,14 @@ export default async function LeagueDraftPage({ params }: Props) {
                       draftScheduleTimeLine(draftScheduleLabels)
                         ? ` at ${draftScheduleTimeLine(draftScheduleLabels)}`
                         : ""
-                    }. The GM sets order before draft day, then clicks Begin Draft.`
-                  : "GM sets a draft date in League Settings, sets draft order, then clicks Begin Draft on draft day."}
+                    }. ${
+                      leagueDraftType === "live"
+                        ? "Enter the draft room when it is time. The GM sets the order and begins the draft there."
+                        : "The GM sets order before draft day, then clicks Begin Draft."
+                    }`
+                  : leagueDraftType === "live"
+                    ? "GM sets a draft date in League Settings. Enter the draft room on draft day. The GM sets the order and begins the draft there."
+                    : "GM sets a draft date in League Settings, sets draft order, then clicks Begin Draft on draft day."}
               </li>
             )}
             {leagueDraftType === "offline" && (
@@ -464,29 +539,26 @@ export default async function LeagueDraftPage({ params }: Props) {
           )}
         </section>
 
-      {draftStatus === "not_started" && league.draft_type === "live" && String(league.visibility_type ?? "") !== "public" ? (
-        <LiveDraftLobby
-          leagueId={league.id}
-          leagueSlug={slug}
-          currentUserId={user?.id ?? null}
-          members={members.map((member) => ({
-            userId: member.user_id,
-            name: member.display_name?.trim() || member.team_name?.trim() || "Manager",
-            isGm: member.user_id === league?.commissioner_id,
-          }))}
-          canStart={(isCommissioner || isSiteAdmin) && order.length > 0}
-          orderReady={order.length > 0}
-          draftDateYmd={league.draft_date ? String(league.draft_date).slice(0, 10) : null}
-          scheduleLabel={
-            draftScheduleLabels.dateLabel
-              ? [draftScheduleLabels.dateLabel, draftScheduleTimeLine(draftScheduleLabels)].filter(Boolean).join(" · ")
-              : null
-          }
-          showDateHint={isCommissioner && !isSiteAdmin}
-          memberCount={members.length}
-          maxTeams={typeof league.max_teams === "number" && league.max_teams > 0 ? league.max_teams : null}
-          minTeams={getMinimumTeamsForLeagueType(league.league_type)}
-        />
+      {league.draft_type === "live" ? (
+        <p style={{ margin: "0 0 24px" }}>
+          <Link
+            href={`/leagues/${slug}/draft?room=1`}
+            className="app-button"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 46,
+              padding: "0 18px",
+              borderRadius: 999,
+              background: "var(--color-blue)",
+              color: "var(--color-text-inverse)",
+              fontWeight: 700,
+              textDecoration: "none",
+            }}
+          >
+            Enter Draft Room
+          </Link>
+        </p>
       ) : null}
 
       <section
@@ -608,7 +680,7 @@ export default async function LeagueDraftPage({ params }: Props) {
         <p style={{ color: "#0d7d0d", fontWeight: 600, marginBottom: 24 }}>Draft completed.</p>
       ) : null}
 
-      {draftStatus !== "completed" && !isReviewPending && league.draft_type !== "offline" && (
+      {draftStatus !== "completed" && !isReviewPending && league.draft_type !== "offline" && league.draft_type !== "live" && (
         <p style={{ color: "var(--color-text-muted)", marginBottom: 16 }}>
           Snake order · {totalPicks} total picks
         </p>
@@ -620,7 +692,7 @@ export default async function LeagueDraftPage({ params }: Props) {
         </p>
       )}
 
-      {draftStatus === "not_started" && order.length === 0 && (
+      {draftStatus === "not_started" && order.length === 0 && league.draft_type !== "live" && (
         <>
           {league.draft_type === "offline" ? (
             <p style={{ marginBottom: 16, color: "var(--color-text-muted)" }}>
@@ -633,21 +705,9 @@ export default async function LeagueDraftPage({ params }: Props) {
           ) : (
             <>
               <p style={{ marginBottom: 16 }}>
-                {league.draft_type === "live" ? (
-                  <>
-                    Wait until every manager has joined ({members.length}
-                    {typeof league.max_teams === "number" && league.max_teams > 0 ? ` of ${league.max_teams}` : ""}).
-                    Then set the draft order. You can replace that order until you click <strong>Begin Draft</strong>.
-                    Each pick has a 2-minute clock. If it runs out, the pick comes from that manager&apos;s Big Board,
-                    then the All-time Big Board.
-                  </>
-                ) : (
-                  <>
-                    No pick order yet. The GM should click <strong>Set draft order</strong> once to randomize the full snake
-                    order for all managers. This cannot be undone. After the order is set, managers can see their slot and
-                    refine preferences. On draft day, the GM clicks <strong>Begin Draft</strong>.
-                  </>
-                )}
+                No pick order yet. The GM should click <strong>Set draft order</strong> once to randomize the full snake
+                order for all managers. This cannot be undone. After the order is set, managers can see their slot and
+                refine preferences. On draft day, the GM clicks <strong>Begin Draft</strong>.
               </p>
               {isCommissioner && <GenerateDraftOrderForm leagueSlug={slug} />}
             </>
@@ -655,18 +715,13 @@ export default async function LeagueDraftPage({ params }: Props) {
         </>
       )}
 
-      {draftStatus === "not_started" && order.length > 0 && (
+      {draftStatus === "not_started" && order.length > 0 && league.draft_type !== "live" && (
         <>
           <p style={{ marginBottom: 8, color: "#555" }}>
             {league.draft_type === "autopick"
               ? "Pick order is locked in (snake). On draft day, the GM begins the draft from this page."
-              : league.draft_type === "live"
-                ? "Draft order is set. You can replace it until you begin the draft. Do that if another manager joins."
-                : "Draft order is listed below for reference."}
+              : "Draft order is listed below for reference."}
           </p>
-          {league.draft_type === "live" && isCommissioner ? (
-            <GenerateDraftOrderForm leagueSlug={slug} replaceExisting />
-          ) : null}
           {league.draft_type === "autopick" && (isCommissioner || isSiteAdmin) && (
             <BeginDraftForm
               leagueSlug={slug}
@@ -713,9 +768,9 @@ export default async function LeagueDraftPage({ params }: Props) {
         </>
       )}
 
-      {(draftStatus === "in_progress" || draftStatus === "completed" || isReviewPending) && order.length > 0 && (
+      {(draftStatus === "in_progress" || draftStatus === "completed" || isReviewPending) && order.length > 0 && league.draft_type !== "live" && (
         <>
-          {draftStatus === "in_progress" && !autopickDisabled && league.draft_type !== "live" && (
+          {draftStatus === "in_progress" && !autopickDisabled && (
             <DraftPolling
               isAutopick={league.draft_type === "autopick"}
               intervalMs={isAutopickRunning ? 3500 : undefined}
@@ -769,7 +824,7 @@ export default async function LeagueDraftPage({ params }: Props) {
               currentPickerUserId={currentPick?.user_id ?? null}
               isCurrentPicker={isCurrentPicker}
               leagueSlug={slug}
-              liveSync={league.draft_type === "live" && draftStatus === "in_progress"}
+              liveSync={false}
               leagueId={league.id}
               viewerUserId={user?.id ?? null}
               viewerIsCommissioner={isCommissioner}
