@@ -395,6 +395,48 @@ export async function saveDraftPreferencesFormAction(
   return null;
 }
 
+/** Lightweight pick sync so every browser updates without a manual refresh or a websocket. */
+export async function syncLiveDraftRoomAction(leagueSlug: string): Promise<{
+  error?: string;
+  picks: {
+    overall_pick: number;
+    user_id: string;
+    wrestler_id: string;
+    wrestler_name: string | null;
+    picked_at: string;
+  }[];
+  slot: number | null;
+  pickerId: string | null;
+  startedAt: string | null;
+  status: string;
+}> {
+  const empty = { picks: [], slot: null, pickerId: null, startedAt: null, status: "not_started" };
+  const slug = leagueSlug.trim();
+  if (!slug) return { ...empty, error: "Missing league." };
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const { getDraftPicksHistory, getLeagueDraftState, getCurrentPick } = await import("@/lib/leagueDraft");
+  const league = await getLeagueBySlug(slug);
+  if (!league || league.draft_type !== "live") return { ...empty, error: "Not a live draft." };
+  const [picks, state, current] = await Promise.all([
+    getDraftPicksHistory(league.id),
+    getLeagueDraftState(league.id),
+    getCurrentPick(league.id),
+  ]);
+  return {
+    picks: picks.map((pick) => ({
+      overall_pick: pick.overall_pick,
+      user_id: pick.user_id,
+      wrestler_id: pick.wrestler_id,
+      wrestler_name: pick.wrestler_name,
+      picked_at: pick.picked_at,
+    })),
+    slot: state?.draft_status === "in_progress" ? (current?.overall_pick ?? state.draft_current_pick) : null,
+    pickerId: state?.draft_status === "in_progress" ? (current?.user_id ?? null) : null,
+    startedAt: state?.draft_current_pick_started_at ?? null,
+    status: state?.draft_status ?? "not_started",
+  };
+}
+
 /** One live-draft autopick after the server clock for this turn hits zero. Does not reload the draft page. */
 export async function expireLiveDraftClockAction(leagueSlug: string): Promise<{
   didAutoPick: boolean;

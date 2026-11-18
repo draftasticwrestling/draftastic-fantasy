@@ -18,6 +18,7 @@ import {
   MAX_AUTOPICK_PICKS_DRAFT_PAGE,
   repairDraftAutopickCursor,
   isDraftableWrestler,
+  isLiveDraftBoardWrestler,
   normalizeWrestlerRowFromApi,
 } from "@/lib/leagueDraft";
 import { MakePickForm } from "./MakePickForm";
@@ -198,7 +199,7 @@ export default async function LeagueDraftPage({ params, searchParams }: Props) {
         // Same fallback cascade as Draft Testing: try full columns first, then drop
         // Status/Classification (they may not exist in production), then minimal.
         const SELECTS = [
-          'id, name, gender, brand, dob, image_url, "Status", "Classification", "2K26 rating", "2K25 rating"',
+          'id, name, gender, brand, dob, image_url, "Status", classification, "2K26 rating", "2K25 rating"',
           'id, name, gender, brand, dob, image_url, "Status", "2K26 rating", "2K25 rating"',
           'id, name, gender, brand, dob, image_url, "2K26 rating", "2K25 rating"',
           'id, name, gender, brand, dob, image_url',
@@ -233,7 +234,11 @@ export default async function LeagueDraftPage({ params, searchParams }: Props) {
         }
 
         const rows = rawRows.map((r) => ({ ...r, ...normalizeWrestlerRowFromApi(r) })) as Row[];
-        const filtered = rows.filter((w) => isDraftableWrestler(w));
+        const filtered = rows.filter((w) =>
+          isLiveDraft
+            ? isLiveDraftBoardWrestler(w, { includeNxt: leagueIncludesNxt(league) })
+            : isDraftableWrestler(w)
+        );
         diagnostic.filteredCount = filtered.length;
         return { rows: filtered, diagnostic };
       })(),
@@ -435,6 +440,12 @@ export default async function LeagueDraftPage({ params, searchParams }: Props) {
             rating_2k25: wrestler["2K25 rating"] ?? null,
           }))}
           pointsAllTimeBySlug={pointsAllTimeBySlug}
+          pointsNinetyDayBySlug={pointsNinetyDayBySlug}
+          pointsLastSeasonBySlug={pointsLastSeasonBySlug}
+          points2026BySlug={points2026BySlug}
+          points2025BySlug={points2025BySlug}
+          pointsSinceStartBySlug={pointsBySlug}
+          includeNxt={leagueIncludesNxt(league)}
           draftedIds={Array.from(draftedIds)}
           currentPickSlot={draftStatus === "completed" || isReviewPending ? null : draftCurrentPick}
           totalPicks={totalPicks}

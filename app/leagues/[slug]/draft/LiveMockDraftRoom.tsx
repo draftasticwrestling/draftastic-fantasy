@@ -8,7 +8,7 @@ import { formatPickClock, formatPoints, genderNeeded } from "@/lib/mockDraftEngi
 import { createClient } from "@/lib/supabase/client";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import styles from "@/app/mock-draft/mock-draft.module.css";
-import { expireLiveDraftClockAction, makeDraftPickWithStateAction, saveLiveDraftQueueAction } from "./actions";
+import { expireLiveDraftClockAction, makeDraftPickWithStateAction, syncLiveDraftRoomAction } from "./actions";
 
 type Tab = "players" | "queue" | "team" | "room";
 type Brand = "Raw" | "SmackDown" | "NXT" | "Other";
@@ -42,6 +42,12 @@ type Props = {
   members: { user_id: string; display_name?: string | null; team_name?: string | null }[];
   wrestlers: Wrestler[];
   pointsAllTimeBySlug: PointsBySlug;
+  pointsNinetyDayBySlug: PointsBySlug;
+  pointsLastSeasonBySlug: PointsBySlug;
+  points2026BySlug: PointsBySlug;
+  points2025BySlug: PointsBySlug;
+  pointsSinceStartBySlug: PointsBySlug;
+  includeNxt?: boolean;
   draftedIds: string[];
   currentPickSlot: number | null;
   totalPicks: number;
@@ -92,6 +98,27 @@ function injuredOf(status: string | null | undefined): boolean {
   return value === "injured" || value === "inj" || value.includes("injured");
 }
 
+function InjuryMark() {
+  return (
+    <span className={styles.injury} role="img" aria-label="Injured" title="Injured">
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+        <path d="M4 0h2v4h4v2H6v4H4V6H0V4h4z" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}
+
+type PointsPeriod = "allTime" | "ninetyDay" | "lastSeason" | "y2026" | "y2025" | "sinceStart";
+
+const POINTS_PERIODS: { id: PointsPeriod; label: string }[] = [
+  { id: "allTime", label: "All-time points" },
+  { id: "ninetyDay", label: "Last 90 days" },
+  { id: "lastSeason", label: "Last season" },
+  { id: "y2026", label: "2026 points" },
+  { id: "y2025", label: "2025 points" },
+  { id: "sinceStart", label: "Since league start" },
+];
+
 function pointsOf(points: PointsBySlug, id: string): number {
   const row = getPointsForWrestler(points, id, id) as
     | { rsPoints?: number; plePoints?: number; beltPoints?: number }
@@ -107,6 +134,12 @@ export function LiveMockDraftRoom({
   members,
   wrestlers,
   pointsAllTimeBySlug,
+  pointsNinetyDayBySlug,
+  pointsLastSeasonBySlug,
+  points2026BySlug,
+  points2025BySlug,
+  pointsSinceStartBySlug,
+  includeNxt = true,
   draftedIds,
   currentPickSlot,
   totalPicks,
@@ -127,9 +160,13 @@ export function LiveMockDraftRoom({
   const [roomNow, setRoomNow] = useState(() => Date.now());
   const [query, setQuery] = useState("");
   const [gender, setGender] = useState<"all" | "M" | "F">("all");
-  const [brands, setBrands] = useState<Set<Brand>>(() => new Set(["Raw", "SmackDown", "NXT", "Other"]));
-  const [queue, setQueue] = useState(priorityList);
+  const [brands, setBrands] = useState<Set<Brand>>(() =>
+    new Set(includeNxt ? ["Raw", "SmackDown", "NXT"] : ["Raw", "SmackDown"])
+  );
+  const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("allTime");
+  const queue = priorityList;
   const [autopick, setAutopick] = useState(false);
+  const [showAutopickNote, setShowAutopickNote] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(timePerPickSeconds);
@@ -139,11 +176,8 @@ export function LiveMockDraftRoom({
   const [pickerId, setPickerId] = useState(currentPickerUserId);
   const [startedAt, setStartedAt] = useState(draftCurrentPickStartedAt);
   const [status, setStatus] = useState(draftStatus);
-  const skipQueueSave = useRef(true);
   const expireLock = useRef(false);
   const autoAttemptedSlot = useRef<number | null>(null);
-  const queueRef = useRef(queue);
-  queueRef.current = queue;
 
   const serverPickKey = picksHistory.map((pick) => `${pick.overall_pick}:${pick.wrestler_id}`).join("|");
   useEffect(() => {
@@ -159,6 +193,16 @@ export function LiveMockDraftRoom({
     const stored = window.sessionStorage.getItem(`live-draft-autopick:${leagueId}`);
     if (stored === "1") setAutopick(true);
   }, [leagueId]);
+
+  useEffect(() => {
+    if (!autopick) {
+      setShowAutopickNote(false);
+      return;
+    }
+    setShowAutopickNote(true);
+    const hide = window.setTimeout(() => setShowAutopickNote(false), 2800);
+    return () => window.clearTimeout(hide);
+  }, [autopick]);
 
   useEffect(() => {
     if (!viewerUserId) return;
@@ -215,19 +259,6 @@ export function LiveMockDraftRoom({
     };
   }, [leagueId, viewerUserId]);
 
-  useEffect(() => {
-    if (skipQueueSave.current) {
-      skipQueueSave.current = false;
-      return;
-    }
-    const handle = window.setTimeout(() => {
-      void saveLiveDraftQueueAction(leagueId, queueRef.current).then((result) => {
-        if (result.error) setPickError(result.error);
-      });
-    }, 400);
-    return () => window.clearTimeout(handle);
-  }, [leagueId, queue]);
-
   const memberById = useMemo(() => new Map(members.map((member) => [member.user_id, member])), [members]);
   const byId = useMemo(() => new Map(wrestlers.map((wrestler) => [wrestler.id, wrestler])), [wrestlers]);
   const teamCount = useMemo(() => new Set(order.map((seat) => seat.user_id)).size, [order]);
@@ -259,11 +290,29 @@ export function LiveMockDraftRoom({
         ? "You"
         : factionDisplayName(memberById.get(pickerId), "Manager");
 
+  const pointsMap =
+    pointsPeriod === "ninetyDay"
+      ? pointsNinetyDayBySlug
+      : pointsPeriod === "lastSeason"
+        ? pointsLastSeasonBySlug
+        : pointsPeriod === "y2026"
+          ? points2026BySlug
+          : pointsPeriod === "y2025"
+            ? points2025BySlug
+            : pointsPeriod === "sinceStart"
+              ? pointsSinceStartBySlug
+              : pointsAllTimeBySlug;
   const ranked = useMemo(() => {
     return wrestlers
+      .filter((wrestler) => {
+        const brand = brandOf(wrestler.brand);
+        if (brand !== "Raw" && brand !== "SmackDown" && brand !== "NXT") return false;
+        if (brand === "NXT" && !includeNxt) return false;
+        return true;
+      })
       .map((wrestler) => {
         const rating = Number(wrestler.rating_2k26 ?? wrestler.rating_2k25 ?? 0) || 0;
-        const points = pointsOf(pointsAllTimeBySlug, wrestler.id);
+        const points = pointsOf(pointsMap, wrestler.id);
         return { wrestler, points, composite: points + rating * 1.5 };
       })
       .sort(
@@ -272,7 +321,7 @@ export function LiveMockDraftRoom({
           (a.wrestler.name ?? a.wrestler.id).localeCompare(b.wrestler.name ?? b.wrestler.id)
       )
       .map((row, index) => ({ ...row, rank: index + 1 }));
-  }, [pointsAllTimeBySlug, wrestlers]);
+  }, [includeNxt, pointsMap, wrestlers]);
   const rankById = useMemo(() => new Map(ranked.map((row) => [row.wrestler.id, row.rank])), [ranked]);
   const pointsById = useMemo(() => new Map(ranked.map((row) => [row.wrestler.id, row.points])), [ranked]);
 
@@ -355,6 +404,46 @@ export function LiveMockDraftRoom({
     // applyPick closes over the latest order via the render that owns this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byId, leagueId, order, totalPicks]);
+
+  const picksRef = useRef(picks);
+  picksRef.current = picks;
+  useEffect(() => {
+    if (status !== "in_progress") return;
+    let cancelled = false;
+    async function pull() {
+      const snapshot = await syncLiveDraftRoomAction(leagueSlug);
+      if (cancelled || snapshot.error) return;
+      const localMax = picksRef.current.reduce((max, pick) => Math.max(max, pick.overall_pick), 0);
+      const serverMax = snapshot.picks.reduce((max, pick) => Math.max(max, pick.overall_pick), 0);
+      if (serverMax < localMax) return;
+      if (serverMax > localMax || snapshot.picks.length !== picksRef.current.length) {
+        setPicks(snapshot.picks);
+        setTakenIds((current) => {
+          const next = new Set(current);
+          for (const pick of snapshot.picks) next.add(pick.wrestler_id);
+          return [...next];
+        });
+        expireLock.current = false;
+      }
+      setSlot(snapshot.slot);
+      setPickerId(snapshot.pickerId);
+      setStartedAt(snapshot.startedAt);
+      setStatus(snapshot.status);
+    }
+    void pull();
+    const timer = window.setInterval(() => {
+      void pull();
+    }, 2000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void pull();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [leagueSlug, status]);
 
   useEffect(() => {
     if (status !== "in_progress" || !startedAt || slot == null) return;
@@ -450,8 +539,10 @@ export function LiveMockDraftRoom({
     if (autoAttemptedSlot.current === slot) return;
     const nextId = queue.find((id) => {
       if (taken.has(id)) return false;
-      if (need && genderOf(byId.get(id)?.gender) !== need) return false;
-      return byId.has(id);
+      const wrestler = byId.get(id);
+      if (!wrestler || injuredOf(wrestler.status)) return false;
+      if (need && genderOf(wrestler.gender) !== need) return false;
+      return true;
     });
     if (!nextId) return;
     autoAttemptedSlot.current = slot;
@@ -463,24 +554,6 @@ export function LiveMockDraftRoom({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autopick, myTurn, slot, queue, taken, need, pendingId]);
 
-  function toggleQueue(wrestlerId: string) {
-    setQueue((current) =>
-      current.includes(wrestlerId) ? current.filter((id) => id !== wrestlerId) : [...current, wrestlerId]
-    );
-  }
-
-  function moveQueue(wrestlerId: string, dir: -1 | 1) {
-    setQueue((current) => {
-      const at = current.indexOf(wrestlerId);
-      const nextAt = at + dir;
-      if (at < 0 || nextAt < 0 || nextAt >= current.length) return current;
-      const next = current.slice();
-      const [row] = next.splice(at, 1);
-      next.splice(nextAt, 0, row);
-      return next;
-    });
-  }
-
   const q = query.trim().toLowerCase();
   const visible = ranked.filter((row) => {
     if (taken.has(row.wrestler.id)) return false;
@@ -491,7 +564,6 @@ export function LiveMockDraftRoom({
     if (q && !name.includes(q)) return false;
     return true;
   });
-  const queueIds = new Set(queue);
   const drafting = status === "in_progress";
   const showClock = drafting && slot != null;
   const turnLabel =
@@ -542,18 +614,9 @@ export function LiveMockDraftRoom({
         </div>
       </div>
 
-      {autopick && drafting ? (
+      {showAutopickNote && drafting ? (
         <div className={styles.autoBanner}>
-          <span>You are on auto-pick. Your queue is used, then the All-time Big Board when the clock runs out.</span>
-          <button
-            type="button"
-            onClick={() => {
-              setAutopick(false);
-              window.sessionStorage.setItem(`live-draft-autopick:${leagueId}`, "0");
-            }}
-          >
-            Turn off
-          </button>
+          <span>Auto-pick is on. It uses your Big Board and skips injured wrestlers.</span>
         </div>
       ) : null}
 
@@ -628,8 +691,8 @@ export function LiveMockDraftRoom({
           <div className={styles.tabs} role="tablist">
             {(
               [
-                ["players", "Players"],
-                ["queue", "Queue"],
+                ["players", "Wrestlers"],
+                ["queue", "Big Board"],
                 ["team", "Team"],
                 ["room", "Room"],
               ] as const
@@ -643,13 +706,24 @@ export function LiveMockDraftRoom({
                 onClick={() => setTab(id)}
               >
                 {label}
-                {id === "queue" && queue.length > 0 ? ` ${queue.length}` : ""}
               </button>
             ))}
           </div>
           <div className={styles.dockBody} role="tabpanel">
             {tab === "players" ? (
               <>
+                <select
+                  className={styles.search}
+                  value={pointsPeriod}
+                  onChange={(event) => setPointsPeriod(event.target.value as PointsPeriod)}
+                  aria-label="Points period"
+                >
+                  {POINTS_PERIODS.map((period) => (
+                    <option key={period.id} value={period.id}>
+                      {period.label}
+                    </option>
+                  ))}
+                </select>
                 <input
                   className={styles.search}
                   value={query}
@@ -677,7 +751,9 @@ export function LiveMockDraftRoom({
                   >
                     Men {myMen}/{minMale}
                   </button>
-                  {(["Raw", "SmackDown", "NXT"] as const).map((brand) => (
+                  {(["Raw", "SmackDown", "NXT"] as const)
+                    .filter((brand) => brand !== "NXT" || includeNxt)
+                    .map((brand) => (
                     <button
                       key={brand}
                       type="button"
@@ -717,11 +793,7 @@ export function LiveMockDraftRoom({
                         <span className={styles.playerName}>
                           <WrestlerHeadshotImage src={row.wrestler.image_url} alt="" width={32} height={32} />
                           {row.wrestler.name ?? row.wrestler.id}
-                          {injuredOf(row.wrestler.status) ? (
-                            <span className={styles.injury} role="img" aria-label="Injured">
-                              +
-                            </span>
-                          ) : null}
+                          {injuredOf(row.wrestler.status) ? <InjuryMark /> : null}
                         </span>
                         <span className={styles.playerMeta}>
                           {BRAND_SHORT[brandOf(row.wrestler.brand)]} ·{" "}
@@ -729,22 +801,7 @@ export function LiveMockDraftRoom({
                           {formatPoints(row.points)} pts
                         </span>
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                        <span className={styles.rank}>{row.rank}</span>
-                        <button
-                          type="button"
-                          className={styles.queueBtn}
-                          data-on={queueIds.has(row.wrestler.id) ? "true" : "false"}
-                          aria-label={
-                            queueIds.has(row.wrestler.id)
-                              ? `Remove ${row.wrestler.name ?? "wrestler"} from queue`
-                              : `Add ${row.wrestler.name ?? "wrestler"} to queue`
-                          }
-                          onClick={() => toggleQueue(row.wrestler.id)}
-                        >
-                          {queueIds.has(row.wrestler.id) ? "✓" : "+"}
-                        </button>
-                      </div>
+                      <span className={styles.rank}>{row.rank}</span>
                     </div>
                   );
                 })}
@@ -755,29 +812,28 @@ export function LiveMockDraftRoom({
             {tab === "queue" ? (
               <>
                 <p className={styles.hint}>
-                  Your priority list. Auto-pick and the clock take the next wrestler still available here. When this list runs out, they use the All-time Big Board.
+                  Your Big Board. Draft from this list on your turn. Auto-pick uses it and skips anyone who is injured.
                 </p>
-                {queue.length === 0 ? <p className={styles.emptyNote}>Your queue is empty.</p> : null}
-                {queue.map((id, queueIndex) => {
+                {queue.length === 0 ? <p className={styles.emptyNote}>Your Big Board is empty.</p> : null}
+                {queue.map((id) => {
                   const wrestler = byId.get(id);
+                  const takenAlready = taken.has(id);
+                  const blocked = Boolean(need && genderOf(wrestler?.gender) !== need);
                   return (
                     <div key={id} className={styles.queueRow}>
-                      <span className={styles.pickNo}>{queueIndex + 1}</span>
+                      <button
+                        type="button"
+                        className={styles.draftBtn}
+                        disabled={!canDraft || takenAlready || blocked || !wrestler || pendingId != null}
+                        onClick={() => void draftWrestler(id)}
+                      >
+                        {pendingId === id ? "…" : "Draft"}
+                      </button>
                       <strong>
                         {wrestler?.name ?? id}
-                        {taken.has(id) ? " · drafted" : ""}
+                        {injuredOf(wrestler?.status) ? <InjuryMark /> : null}
+                        {takenAlready ? " · drafted" : ""}
                       </strong>
-                      <div className={styles.iconBtns}>
-                        <button type="button" aria-label="Move up" onClick={() => moveQueue(id, -1)}>
-                          ↑
-                        </button>
-                        <button type="button" aria-label="Move down" onClick={() => moveQueue(id, 1)}>
-                          ↓
-                        </button>
-                        <button type="button" aria-label="Remove from queue" onClick={() => toggleQueue(id)}>
-                          ×
-                        </button>
-                      </div>
                     </div>
                   );
                 })}

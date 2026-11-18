@@ -1506,6 +1506,51 @@ export function isDraftableWrestler(row: DraftPoolRow): boolean {
  * Like isDraftableWrestler but allows injured/inj so they appear in Draft Testing table with injury badge.
  * Use only on the admin Draft Testing page.
  */
+/** Live draft list: current Raw, SmackDown, and NXT wrestlers, including injured. */
+export function isLiveDraftBoardWrestler(
+  row: DraftPoolRow,
+  options?: { includeNxt?: boolean }
+): boolean {
+  const classification = row.classification != null ? String(row.classification).trim().toLowerCase() : "";
+  if (
+    classification &&
+    classification !== "active" &&
+    (classification.includes("alumni") ||
+      classification.includes("non-wrestler") ||
+      classification.includes("celebrity") ||
+      classification.includes("retired") ||
+      classification.includes("inactive") ||
+      classification.includes("part-time") ||
+      classification.includes("part time") ||
+      classification.includes("part-timer"))
+  ) {
+    return false;
+  }
+  const status = row.status != null ? String(row.status).trim().toLowerCase() : "";
+  const injured = status === "inj" || status.includes("injur");
+  if (
+    !injured &&
+    status &&
+    (status.includes("retired") ||
+      status.includes("alumni") ||
+      status.includes("inactive") ||
+      status.includes("released") ||
+      status.includes("suspended") ||
+      status.includes("hiatus") ||
+      status.includes("part-time") ||
+      status.includes("part time") ||
+      status.includes("part-timer") ||
+      status.includes("non-wrestler"))
+  ) {
+    return false;
+  }
+  const category = rosterCategory(row.brand);
+  if (category !== "Raw" && category !== "SmackDown" && category !== "NXT") return false;
+  if (category === "NXT" && options?.includeNxt === false) return false;
+  if (isBlocklistedSlug(row.id)) return false;
+  return true;
+}
+
 export function isDraftableWrestlerForDraftTesting(row: DraftPoolRow): boolean {
   const classification = row.classification != null ? String(row.classification).trim().toLowerCase() : "";
   if (classification && NON_DRAFTABLE_CLASSIFICATIONS.includes(classification)) return false;
@@ -2335,7 +2380,7 @@ async function getAnyUndraftedDraftableWrestlerId(
 ): Promise<string | null> {
   const { data } = await admin
     .from("wrestlers")
-    .select('id, "Status", brand, "Classification"')
+    .select('id, "Status", brand, classification')
     .order("id");
   const rows = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
     ...r,
@@ -2402,7 +2447,7 @@ async function loadLiveClockWrestlerMeta(
     const slice = unique.slice(i, i + 100);
     const { data } = await admin
       .from("wrestlers")
-      .select('id,gender,brand,"Status","Classification"')
+      .select('id,gender,brand,"Status",classification')
       .in("id", slice);
     for (const row of (data ?? []) as Record<string, unknown>[]) {
       const normalized = normalizeWrestlerRowFromApi(row);
