@@ -1163,7 +1163,7 @@ export async function startDraft(
   if (!user) return { error: "Not authenticated" };
 
   const draftStartSelect =
-    "id, commissioner_id, draft_current_pick, visibility_type, current_draft_run_id, draft_date, draft_time, draft_timezone, draft_status, league_type, max_teams";
+    "id, commissioner_id, draft_current_pick, visibility_type, current_draft_run_id, draft_date, draft_time, draft_timezone, draft_status, draft_type, league_type, max_teams";
   let leagueResult = await supabase.from("leagues").select(draftStartSelect).eq("id", leagueId).single();
   if (leagueResult.error && /draft_timezone/i.test(leagueResult.error.message ?? "")) {
     leagueResult = await supabase
@@ -1183,7 +1183,11 @@ export async function startDraft(
   const isCommissioner = (league as { commissioner_id?: string }).commissioner_id === user.id;
   const adminGate = await assertSiteAdminForMemberUi(supabase, user.id);
   const isSiteAdmin = !adminGate.error;
-  if (!isCommissioner && !isSiteAdmin) {
+  const isLiveDraft = (league as { draft_type?: string | null }).draft_type === "live";
+  if (isLiveDraft && !isCommissioner) {
+    return { error: "Only the GM can begin the draft." };
+  }
+  if (!isLiveDraft && !isCommissioner && !isSiteAdmin) {
     return { error: "Only the GM or a site admin can begin the draft." };
   }
 

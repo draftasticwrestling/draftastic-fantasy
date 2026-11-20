@@ -146,7 +146,7 @@ export default function SeasonTimelineRail({ leagueSlug }: { leagueSlug: string 
                       {weeklyBeltLock && (
                         <div
                           className={styles.beltSubline}
-                          title="Weekly title-holder points (Road to SummerSlam)"
+                          title="Weekly title-holder points"
                         >
                           <span className={styles.beltSubBadge}>Belt</span>
                           <span className={styles.beltSubText}>

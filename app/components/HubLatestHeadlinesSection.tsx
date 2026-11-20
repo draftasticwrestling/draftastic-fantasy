@@ -18,10 +18,12 @@ import {
 import { listPublishedArticles, type ArticleRow } from "@/lib/articles";
 
 /**
- * Hub “The latest”: up to four article cards; event vs article order uses `hubLatestSchedule`
- * (8am PT + 12h windows). Articles older than two weeks stay in the feed but below results / upcoming.
+ * Hub “The latest”: recent articles plus at least the last three completed events.
+ * Event vs article order uses `hubLatestSchedule` (8am PT + 12h windows).
+ * Articles older than two weeks stay in the feed but below results / upcoming.
  */
-const LATEST_SECTION_ARTICLES = 4;
+const LATEST_SECTION_ARTICLES = 6;
+const LATEST_COMPLETED_EVENTS = 3;
 const HEADLINES_ARTICLE_POOL = 10;
 /** Articles + static links (+ optional empty-state row); must not cut off trailing static CTAs */
 const HEADLINES_LIST_MAX_ITEMS = HEADLINES_ARTICLE_POOL + 4;
@@ -155,7 +157,11 @@ export default async function HubLatestHeadlinesSection({
       listPublishedArticles(articleLimit),
     ]);
     const upcoming = await fetchHubUpcomingSpotlight(supabase, todayPrimary?.id ?? null);
-    const completedRows = await fetchHubRecentCompleted(supabase, 1, todayPrimary?.id ?? null);
+    const completedRows = await fetchHubRecentCompleted(
+      supabase,
+      LATEST_COMPLETED_EVENTS,
+      todayPrimary?.id ?? null
+    );
     articles = art;
     const wrestlerRows = (wrestlersData ?? []) as { id: string; name: string | null; image_url: string | null }[];
     const completedEvent = completedRows[0];
@@ -206,21 +212,23 @@ export default async function HubLatestHeadlinesSection({
       />
     ) : null;
 
-    const completedCard = completedEvent ? (
+    const completedCardFor = (event: (typeof completedRows)[number]) => (
       <HubLatestEventPreview
-        key={completedEvent.id}
-        event={completedEvent}
+        key={event.id}
+        event={event}
         wrestlerRows={wrestlerRows}
         variant="completed"
       />
-    ) : null;
+    );
+    const pinnedCompleted = completedPin && completedEvent ? completedEvent : null;
+    const completedCardsInFeed = (pinnedCompleted ? completedRows.slice(1) : completedRows).map(completedCardFor);
 
     /** “The latest” ordering: 8am PT + 12h windows (see `lib/home/hubLatestSchedule.ts`). */
     const fullFeedNodes: ReactNode[] = [];
     if (live && todayEventCard) {
       fullFeedNodes.push(todayEventCard);
-    } else if (completedPin && completedCard) {
-      fullFeedNodes.push(completedCard);
+    } else if (completedPin && pinnedCompleted) {
+      fullFeedNodes.push(completedCardFor(pinnedCompleted));
     } else if (todayInShowcaseWindow && todayEventCard) {
       fullFeedNodes.push(todayEventCard);
     } else if (upcomingInWindow && upcomingCard) {
@@ -230,21 +238,19 @@ export default async function HubLatestHeadlinesSection({
     const todayNotInPrimary =
       Boolean(todayEventCard) && !(live || todayInShowcaseWindow);
     const upcomingNotInPrimary = Boolean(upcomingCard) && !upcomingInWindow;
-    const completedNotInPrimary = Boolean(completedCard) && !completedPin;
 
     if (articlesMayLeadFeed) {
       if (latestArticles[0]) fullFeedNodes.push(hubArticleCardEl(latestArticles[0]));
       if (todayNotInPrimary && todayEventCard) fullFeedNodes.push(todayEventCard);
       if (upcomingNotInPrimary && upcomingCard) fullFeedNodes.push(upcomingCard);
       if (latestArticles[1]) fullFeedNodes.push(hubArticleCardEl(latestArticles[1]));
-      if (completedNotInPrimary) fullFeedNodes.push(completedCard!);
-      if (latestArticles[2]) fullFeedNodes.push(hubArticleCardEl(latestArticles[2]));
-      if (latestArticles[3]) fullFeedNodes.push(hubArticleCardEl(latestArticles[3]));
+      for (const card of completedCardsInFeed) fullFeedNodes.push(card);
+      for (const article of latestArticles.slice(2)) fullFeedNodes.push(hubArticleCardEl(article));
     } else {
       // Stale articles: keep them in the feed, but put results / upcoming above so they aren't top-two.
       if (todayNotInPrimary && todayEventCard) fullFeedNodes.push(todayEventCard);
       if (upcomingNotInPrimary && upcomingCard) fullFeedNodes.push(upcomingCard);
-      if (completedNotInPrimary) fullFeedNodes.push(completedCard!);
+      for (const card of completedCardsInFeed) fullFeedNodes.push(card);
       for (const a of latestArticles) fullFeedNodes.push(hubArticleCardEl(a));
     }
     feedNodes = wrapHubFeedItemsForMobileOrder(fullFeedNodes);

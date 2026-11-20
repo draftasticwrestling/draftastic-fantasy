@@ -313,11 +313,12 @@ export function LiveMockDraftRoom({
       .map((wrestler) => {
         const rating = Number(wrestler.rating_2k26 ?? wrestler.rating_2k25 ?? 0) || 0;
         const points = pointsOf(pointsMap, wrestler.id);
-        return { wrestler, points, composite: points + rating * 1.5 };
+        return { wrestler, points, rating };
       })
       .sort(
         (a, b) =>
-          b.composite - a.composite ||
+          b.points - a.points ||
+          b.rating - a.rating ||
           (a.wrestler.name ?? a.wrestler.id).localeCompare(b.wrestler.name ?? b.wrestler.id)
       )
       .map((row, index) => ({ ...row, rank: index + 1 }));

@@ -143,6 +143,7 @@ export function leagueUsesWeeklyPstBeltHold(
   return (
     s === ROAD_TO_SUMMERSLAM_SEASON_SLUG ||
     isRoadToWarGamesSeasonSlug(s) ||
+    isRoadToWrestleManiaSeasonSlug(s) ||
     // Public salary-cap leagues use the same weekly hold rules as How it Works /points (not calendar month-ends).
     s === PUBLIC_SALARY_CAP_SEASON_SLUG
   );

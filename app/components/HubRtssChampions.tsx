@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getHubRtssChampions } from "@/lib/hubRtssChampions";
-import { ROAD_TO_SUMMERSLAM_BANNER_SRC } from "@/lib/leagueStructure";
+import { ROAD_TO_SUMMERSLAM_BANNER_SRC, ROAD_TO_WAR_GAMES_BANNER_SRC } from "@/lib/leagueStructure";
 
 function formatPts(n: number): string {
   if (!Number.isFinite(n)) return "—";
@@ -14,14 +14,16 @@ export default async function HubRtssChampions() {
   if (!getAdminClient()) return null;
   const data = await getHubRtssChampions();
   if (!data.available) return null;
+  const warGames = data.season === "rtwg";
+  const title = warGames ? "Road to War Games 2026 Champions" : "Road to SummerSlam 2026 Champions";
 
   return (
-    <section className="hub-col-side hub-rtss-champions-card" aria-label="Road to SummerSlam 2026 Champions">
-      <h2 className="hub-col-title">Road to SummerSlam 2026 Champions</h2>
+    <section className="hub-col-side hub-rtss-champions-card" aria-label={title}>
+      <h2 className="hub-col-title">{title}</h2>
       <div className="hub-rtss-champions-belt">
         <Image
-          src={ROAD_TO_SUMMERSLAM_BANNER_SRC}
-          alt="Road to SummerSlam"
+          src={warGames ? ROAD_TO_WAR_GAMES_BANNER_SRC : ROAD_TO_SUMMERSLAM_BANNER_SRC}
+          alt={warGames ? "Road to War Games" : "Road to SummerSlam"}
           width={560}
           height={120}
           sizes="(max-width: 900px) 100vw, 280px"

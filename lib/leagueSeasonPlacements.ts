@@ -14,12 +14,17 @@ import {
   ROAD_TO_SUMMERSLAM_BANNER_SRC,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
   getLeagueSeasonBelt,
+  isRoadToWarGamesSeasonSlug,
 } from "@/lib/leagueStructure";
+import { ROAD_TO_WAR_GAMES_2026 } from "@/lib/leagueSeasons";
 import { isPastEndOfDayPst, getCivilYmdInPst } from "@/lib/pstCivilTime";
 import { applyLeaguePlacementXp, hasLeaguePlacementXp } from "@/lib/xp/leaguePlacementGrants";
 
 /** Season key for RTSS 2026 placements + XP idempotency. */
 export const RTSS_2026_SEASON_KEY = "road-to-summerslam-2026";
+
+/** Season key for Road to War Games 2026 placements + XP idempotency. */
+export const RTWG_2026_SEASON_KEY = "road-to-war-games-2026";
 
 /** Build a stable season_key from season_slug + end year. */
 export function seasonKeyForLeague(league: {
@@ -29,6 +34,7 @@ export function seasonKeyForLeague(league: {
   const slug = String(league.season_slug ?? "").trim() || "season";
   const year = (league.end_date ?? "").slice(0, 4);
   if (slug === ROAD_TO_SUMMERSLAM_SEASON_SLUG && year === "2026") return RTSS_2026_SEASON_KEY;
+  if (isRoadToWarGamesSeasonSlug(slug) && year === "2026") return RTWG_2026_SEASON_KEY;
   return year ? `${slug}-${year}` : slug;
 }
 
@@ -456,8 +462,24 @@ type PlacementJoinRow = {
     season_slug: string | null;
     league_type: string | null;
     draft_type: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
   } | null;
 };
+
+/**
+ * Any league whose season started during Road to War Games 2026.
+ * The hub only lists leagues that already have a recorded champion, so a league
+ * that is still running is added after it finishes.
+ */
+export function countsForRoadToWarGames2026Hub(league: {
+  start_date?: string | null;
+}): boolean {
+  const start = String(league.start_date ?? "").slice(0, 10);
+  return (
+    start >= ROAD_TO_WAR_GAMES_2026.season_start_ymd && start <= ROAD_TO_WAR_GAMES_2026.season_end_ymd
+  );
+}
 
 function toChampionDisplayRow(
   row: PlacementJoinRow,
@@ -504,6 +526,39 @@ export async function listSeasonChampionsForHub(
   if (error || !data) return [];
 
   const rows = data as unknown as PlacementJoinRow[];
+  const names = await loadDisplayNames(
+    admin,
+    rows.map((r) => r.user_id)
+  );
+  const out: ChampionDisplayRow[] = [];
+  for (const row of rows) {
+    const display = toChampionDisplayRow(row, names.get(row.user_id) ?? "Manager");
+    if (display) out.push(display);
+  }
+  out.sort(
+    (a, b) =>
+      b.points - a.points ||
+      a.displayName.localeCompare(b.displayName) ||
+      a.leagueName.localeCompare(b.leagueName)
+  );
+  return out;
+}
+
+/** Hub after Survivor Series: champions of every league that started during Road to War Games. */
+export async function listRoadToWarGames2026ChampionsForHub(
+  admin: SupabaseClient
+): Promise<ChampionDisplayRow[]> {
+  const { data, error } = await admin
+    .from("league_season_placements")
+    .select(
+      "league_id, season_key, user_id, placement, points, leagues!inner(name, slug, visibility_type, season_slug, league_type, draft_type, start_date, end_date)"
+    )
+    .eq("placement", 1);
+  if (error || !data) return [];
+
+  const rows = (data as unknown as PlacementJoinRow[]).filter((row) =>
+    row.leagues ? countsForRoadToWarGames2026Hub(row.leagues) : false
+  );
   const names = await loadDisplayNames(
     admin,
     rows.map((r) => r.user_id)

@@ -28,7 +28,7 @@ type Props = {
   leagueSlug: string;
   currentUserId: string | null;
   members: Member[];
-  /** GM or site admin. Order and Begin Draft live in this room. */
+  /** League GM only. Order and Begin Draft live in this room. */
   canManage: boolean;
   order: { overall_pick: number; user_id: string }[];
   draftDateYmd: string | null;

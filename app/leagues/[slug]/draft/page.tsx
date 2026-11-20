@@ -474,7 +474,7 @@ export default async function LeagueDraftPage({ params, searchParams }: Props) {
             name: member.display_name?.trim() || member.team_name?.trim() || "Manager",
             isGm: member.user_id === league?.commissioner_id,
           }))}
-          canManage={isCommissioner || isSiteAdmin}
+          canManage={isCommissioner}
           order={order}
           draftDateYmd={league.draft_date ? String(league.draft_date).slice(0, 10) : null}
           scheduleLabel={

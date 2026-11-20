@@ -30,6 +30,11 @@ const headerTitleStyle = {
   margin: 0,
 };
 
+function formatStandingsPoints(n: number): string {
+  const rounded = Math.round(n * 100) / 100;
+  return rounded.toFixed(2).replace(/\.?0+$/, "");
+}
+
 const headerPointsStyle = {
   fontSize: 12,
   textTransform: "uppercase" as const,
@@ -61,7 +66,7 @@ export function LeagueStandingsTable({
     <section style={{ ...sectionStyle, marginTop: 0 }}>
       <header style={headerStyle}>
         <h2 style={headerTitleStyle}>Factions</h2>
-        <span style={headerPointsStyle}>{showRecordOnly ? "Record" : "Total points"}</span>
+        <span style={headerPointsStyle}>{showRecordOnly ? "Record · Pts" : "Total points"}</span>
       </header>
       <ul
         style={{
@@ -254,7 +259,20 @@ export function LeagueStandingsTable({
                     {isPendingSetup ? (
                       "—"
                     ) : showRecordOnly ? (
-                      `${rec.w}-${rec.l}-${rec.t}`
+                      <>
+                        {rec.w}-{rec.l}-{rec.t}
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            marginLeft: 10,
+                            color: "rgba(249,250,251,0.72)",
+                          }}
+                        >
+                          {formatStandingsPoints(pts)}
+                          <span style={{ fontSize: 11, marginLeft: 3, opacity: 0.85 }}>pts</span>
+                        </span>
+                      </>
                     ) : (
                       <>
                         {pts}

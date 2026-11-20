@@ -245,7 +245,7 @@ export default async function InternalAdminLeagueDetailPage({
           </Link>
           .{" "}
           {isHeadToHeadRecordStandings
-            ? "Head-to-Head leagues show W-L-D (Win-Loss-Draw); points in the data layer are still event-based for matchups."
+            ? "Head-to-Head leagues rank by W-L-D (Win-Loss-Draw) and also show season point totals."
             : "Points are season totals (including weekly win / belt bonuses when the league format applies them)."}{" "}
           Pending-setup members appear here for admin visibility but are excluded from the member-facing standings page.
         </p>

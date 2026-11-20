@@ -5,6 +5,11 @@ import type { LeagueMember } from "@/lib/leagues";
 import { resolvedManagerAvatarUrl } from "@/lib/managerAvatarBucket";
 import type { XpDisplay } from "@/lib/xp/getXpDisplayByUserIds";
 
+function formatStandingsPoints(n: number): string {
+  const rounded = Math.round(n * 100) / 100;
+  return rounded.toFixed(2).replace(/\.?0+$/, "");
+}
+
 type Props = {
   members: LeagueMember[];
   pointsByUserId: Record<string, number>;
@@ -43,16 +48,16 @@ export function LeagueMobileStandingsTable({
             <th
               scope="col"
               className="league-home-mobile-th"
-              style={{ width: "78%", textAlign: "left", padding: "6px 6px", borderBottom: "1px solid var(--color-border)" }}
+              style={{ width: showRecordOnly ? "62%" : "78%", textAlign: "left", padding: "6px 6px", borderBottom: "1px solid var(--color-border)" }}
             >
               Team
             </th>
             <th
               scope="col"
               className="league-home-mobile-th"
-              style={{ width: "22%", textAlign: "right", padding: "6px 6px", borderBottom: "1px solid var(--color-border)" }}
+              style={{ width: showRecordOnly ? "38%" : "22%", textAlign: "right", padding: "6px 6px", borderBottom: "1px solid var(--color-border)" }}
             >
-              {showRecordOnly ? "Record" : "Total Pts"}
+              {showRecordOnly ? "Record · Pts" : "Total Pts"}
             </th>
           </tr>
         </thead>
@@ -171,7 +176,16 @@ export function LeagueMobileStandingsTable({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {showRecordOnly ? `${rec.w}-${rec.l}-${rec.t}` : pts}
+                  {showRecordOnly ? (
+                    <>
+                      {rec.w}-{rec.l}-{rec.t}
+                      <span style={{ fontWeight: 600, marginLeft: 6, color: "var(--color-text-muted)" }}>
+                        {formatStandingsPoints(pts)}
+                      </span>
+                    </>
+                  ) : (
+                    pts
+                  )}
                 </td>
               </tr>
             );

@@ -48,7 +48,8 @@ export function HowItWorksTitlePoints() {
       <h3 className={styles.beltPointsSubheading}>Title holder points</h3>
       <p className={styles.sectionSubtitle}>{BELT_HOLDER_MONTHLY_WEEKLY_EXPLAINER}</p>
       <p className={styles.sectionSubtitle}>
-        For <strong>Road to SummerSlam</strong> and <strong>Road to War Games</strong> leagues, weekly title-holder
+        For <strong>Road to SummerSlam</strong>, <strong>Road to War Games</strong>, and{" "}
+        <strong>Road to WrestleMania</strong> leagues, weekly title-holder
         points lock at <strong>11:59 PM PT</strong> (Los Angeles time) at the end of each TV week: after{" "}
         <strong>SmackDown</strong> and before the next <strong>Raw</strong> when there is no PLE that week, or after the
         last <strong>PLE</strong> in that Monday–Sunday window and before the next Raw when a PLE airs that week. The
