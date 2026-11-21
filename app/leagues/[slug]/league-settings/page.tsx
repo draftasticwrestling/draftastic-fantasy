@@ -142,6 +142,8 @@ export default async function LeagueSettingsPage({
                 ? "Total Season Points"
                 : leagueType === "salary_cap"
                   ? "Salary Cap — Total Season Points"
+                  : leagueType === "salary_cap_h2h"
+                    ? "Salary Cap — Head-to-Head"
                   : leagueType === "head_to_head"
                     ? "Head to Head Points"
                     : leagueType ?? "—"}

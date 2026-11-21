@@ -1,12 +1,13 @@
 import { getLeagueBySlug, getLeagueMembers } from "@/lib/leagues";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { assertOnboardingRequired } from "./actions";
-import { leagueIncludesNxt } from "@/lib/leagueStructure";
+import { leagueIncludesNxt, leagueUsesSalaryCap } from "@/lib/leagueStructure";
+import { InviteOnboardingGate } from "./InviteOnboardingGate";
 import { LeagueOnboardingWizard } from "./LeagueOnboardingWizard";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ error?: string; step?: string }>;
+  searchParams?: Promise<{ error?: string; step?: string; invite?: string }>;
 };
 
 export async function generateMetadata({ params }: Props) {
@@ -22,6 +23,10 @@ export async function generateMetadata({ params }: Props) {
 export default async function LeagueOnboardingPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const search = searchParams ? await searchParams : {};
+  const inviteToken = search.invite?.trim() ?? "";
+  if (inviteToken) {
+    return <InviteOnboardingGate slug={slug} token={inviteToken} />;
+  }
   const errorParam = search.error;
   const initialStep =
     search.step === "draft" || search.step === "confirm" ? search.step : undefined;
@@ -37,7 +42,7 @@ export default async function LeagueOnboardingPage({ params, searchParams }: Pro
     .eq("id", user!.id)
     .maybeSingle();
 
-  const isSalaryCap = league.league_type === "salary_cap";
+  const isSalaryCap = leagueUsesSalaryCap(league.league_type);
   const draftType = league.draft_type ?? "autopick";
 
   return (

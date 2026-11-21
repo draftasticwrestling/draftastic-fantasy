@@ -14,7 +14,16 @@ import {
   getXpSeededMemberUserIds,
 } from "@/lib/leagueMatchups";
 import type { LeagueMember } from "@/lib/leagues";
-import { getRosterRulesForLeague, leagueIncludesNxt } from "@/lib/leagueStructure";
+import {
+  isBeatTheFoundersLeagueSlug,
+  salaryCapHeadToHeadBreaksTiesWithSeasonPoints,
+} from "@/lib/beatTheFoundersLeague";
+import { BeatTheFoundersInvites } from "@/app/internal-admin/leagues/[slug]/BeatTheFoundersInvites";
+import {
+  getRosterRulesForLeague,
+  leagueIncludesNxt,
+  leagueUsesHeadToHeadRecords,
+} from "@/lib/leagueStructure";
 import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
 import {
   adminAddRosterEntryAction,
@@ -182,7 +191,7 @@ export default async function InternalAdminLeagueDetailPage({
       getXpDisplayByUserIds(memberUserIds),
     ]);
     const pointsByUserId = pointsByOwner ?? {};
-    const isHeadToHeadRecordStandings = (league.league_type ?? null) === "head_to_head";
+    const isHeadToHeadRecordStandings = leagueUsesHeadToHeadRecords(league.league_type);
     const weekStarts = getWeeksInRange((league.draft_date || league.start_date) ?? "", league.end_date ?? "");
     const seededMemberUserIds = await getXpSeededMemberUserIds(memberUserIds, admin);
     const membersMapped: LeagueMember[] = members.map((m) => ({
@@ -215,7 +224,16 @@ export default async function InternalAdminLeagueDetailPage({
                 maxTeams: league.max_teams ?? null,
                 draftStatus: league.draft_status ?? null,
                 weeklyResults: weeklyMatchups,
+                breakTiedWeeksWithSeasonPoints: salaryCapHeadToHeadBreaksTiesWithSeasonPoints(
+                  league.league_type,
+                  league.slug
+                ),
+                leagueSlug: league.slug,
               }),
+            breakTiedWeeksWithSeasonPoints: salaryCapHeadToHeadBreaksTiesWithSeasonPoints(
+              league.league_type,
+              league.slug
+            ),
           }
         )
       : {};
@@ -657,6 +675,10 @@ export default async function InternalAdminLeagueDetailPage({
           </table>
         </div>
       </section>
+
+      {isBeatTheFoundersLeagueSlug(league.slug) ? (
+        <BeatTheFoundersInvites leagueId={league.id} leagueSlug={league.slug} />
+      ) : null}
 
       <section style={{ marginTop: 28 }}>
         <h2 style={{ fontSize: "1.05rem", marginBottom: 12 }}>Membership admin tools</h2>

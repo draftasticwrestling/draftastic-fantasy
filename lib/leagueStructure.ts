@@ -12,7 +12,7 @@ export const MAX_LEAGUE_TEAMS = 12;
 /** Minimum factions required to start a draft for this league type. */
 export function getMinimumTeamsForLeagueType(leagueType: string | null | undefined): number {
   const t = String(leagueType ?? "").trim().toLowerCase();
-  if (t === "head_to_head" || t === "combo") return 4;
+  if (t === "head_to_head" || t === "combo" || t === "salary_cap_h2h") return 4;
   return MIN_LEAGUE_TEAMS;
 }
 
@@ -80,6 +80,16 @@ export function leagueScoresWweMainEvent(seasonSlug: string | null | undefined):
 /** Admin testing: Total Season Points scoring with budget roster build (non-exclusive wrestlers). */
 export const SALARY_CAP_LEAGUE_TYPE = "salary_cap";
 
+/**
+ * Public leagues formed after this type shipped: salary-cap rosters, ranked by head-to-head record.
+ * Existing `salary_cap` public leagues stay Total Season Points.
+ */
+export const SALARY_CAP_H2H_LEAGUE_TYPE = "salary_cap_h2h";
+
+/** New public salary-cap head-to-head leagues lock between these faction counts. */
+export const PUBLIC_SALARY_CAP_H2H_MIN_TEAMS = 4;
+export const PUBLIC_SALARY_CAP_H2H_MAX_TEAMS = 8;
+
 export const SALARY_CAP_BUDGET_DEFAULT = 100;
 
 export const SALARY_CAP_COST_TIERS = [5, 10, 15, 20, 25] as const;
@@ -88,7 +98,19 @@ export const SALARY_CAP_COST_TIERS = [5, 10, 15, 20, 25] as const;
 export const SALARY_CAP_MAX_ROSTER_SIZE = 20;
 
 export function leagueUsesSalaryCap(leagueType: string | null | undefined): boolean {
-  return leagueType === SALARY_CAP_LEAGUE_TYPE;
+  const t = String(leagueType ?? "").trim();
+  return t === SALARY_CAP_LEAGUE_TYPE || t === SALARY_CAP_H2H_LEAGUE_TYPE;
+}
+
+/** Salary-cap roster build whose standings and playoffs follow head-to-head. */
+export function leagueIsSalaryCapHeadToHead(leagueType: string | null | undefined): boolean {
+  return String(leagueType ?? "").trim() === SALARY_CAP_H2H_LEAGUE_TYPE;
+}
+
+/** Standings rank by win-loss record (private head-to-head, or new public salary-cap head-to-head). */
+export function leagueUsesHeadToHeadRecords(leagueType: string | null | undefined): boolean {
+  const t = String(leagueType ?? "").trim();
+  return t === "head_to_head" || t === SALARY_CAP_H2H_LEAGUE_TYPE;
 }
 
 /** Slug for rolling public salary-cap seasons (also used by some admin test leagues). */

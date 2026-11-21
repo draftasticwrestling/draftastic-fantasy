@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createLeague } from "@/lib/leagues";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
-import { SALARY_CAP_LEAGUE_TYPE } from "@/lib/leagueStructure";
+import { PUBLIC_SALARY_CAP_H2H_MAX_TEAMS, SALARY_CAP_H2H_LEAGUE_TYPE } from "@/lib/leagueStructure";
 import {
   PUBLIC_SALARY_CAP_SEASON_SLUG,
   STANDARD_USER_CREATE_SEASON_SLUG,
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
     // Site-admin path (private or public).
     const ADMIN_TYPES = new Set(["season_overall", "head_to_head", "combo", "legacy", "salary_cap"]);
     const league_type = isPublicCreate
-      ? SALARY_CAP_LEAGUE_TYPE
+      ? SALARY_CAP_H2H_LEAGUE_TYPE
       : league_type_raw
         ? ADMIN_TYPES.has(league_type_raw)
           ? league_type_raw
@@ -152,8 +152,8 @@ export async function POST(request: Request) {
         ? PUBLIC_SALARY_CAP_SEASON_SLUG
         : season_slug || STANDARD_USER_CREATE_SEASON_SLUG,
       season_year,
-      league_type: isPublicCreate ? SALARY_CAP_LEAGUE_TYPE : league_type ?? "season_overall",
-      max_teams: isPublicCreate ? null : max_teams,
+      league_type: isPublicCreate ? SALARY_CAP_H2H_LEAGUE_TYPE : league_type ?? "season_overall",
+      max_teams: isPublicCreate ? PUBLIC_SALARY_CAP_H2H_MAX_TEAMS : max_teams,
       include_nxt: true,
       visibility_type,
     });

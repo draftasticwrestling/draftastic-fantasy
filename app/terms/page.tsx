@@ -5,7 +5,7 @@ export const metadata = {
   description: "Draftastic Fantasy terms of service",
 };
 
-const LAST_UPDATED = "April 8, 2026";
+const LAST_UPDATED = "November 20, 2026";
 const CONTACT_EMAIL = "draftasticwrestling@gmail.com";
 
 export default function TermsPage() {
@@ -28,13 +28,18 @@ export default function TermsPage() {
       <h2>1) Eligibility and Account</h2>
       <p style={{ color: "#444" }}>
         You must be at least 13 years old to use the Service. You are responsible for safeguarding your account credentials and for all
-        activity under your account. You agree to provide accurate account/profile information and keep it updated.
+        activity under your account. You agree to provide accurate account/profile information and keep it updated. Promotional contests,
+        including Beat the Founders, have a separate prize rule: you must be at least 18 years old, and meet the{" "}
+        <Link href="/beat-the-founders/rules">contest rules</Link>, to be eligible for a prize. Being old enough to play
+        does not make you eligible to win a prize.
       </p>
 
       <h2>2) Free Service / No Wagering</h2>
       <p style={{ color: "#444" }}>
-        Draftastic Fantasy leagues are currently free to join and use. The Service does not process entry fees, prize pools, or wagering.
-        Users may not use the Service to facilitate unlawful gambling activity.
+        Draftastic Fantasy leagues are currently free to join and use. The Service does not process entry fees or wagering, and it does
+        not run paid prize pools. Users may not use the Service to facilitate unlawful gambling activity. We may offer optional
+        promotional contests under separate rules. Those contests can award prizes. Prize eligibility is limited to people who are at
+        least 18 years old.
       </p>
 
       <h2>3) Community Standards and Code of Conduct</h2>

@@ -7,6 +7,11 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import type { DraftOrderMethod } from "@/lib/leagues";
 import { addWrestlerToRoster, getLeagueBySlug, removeWrestlerFromRoster, syncPublicLeagueStatusBySlug } from "@/lib/leagues";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
+import {
+  leagueIsSalaryCapHeadToHead,
+  leagueUsesSalaryCap,
+  PUBLIC_SALARY_CAP_H2H_MAX_TEAMS,
+} from "@/lib/leagueStructure";
 import { assertWrestlerNotTradeLocked } from "@/lib/leagueOwner";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { isLeagueTypeChangeAllowed } from "@/lib/leagueSettingsRules";
@@ -269,7 +274,7 @@ export async function updateDraftSettingsFormAction(
 }
 
 const TEAM_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const;
-const VALID_LEAGUE_TYPES = ["season_overall", "head_to_head", "combo", "legacy", "salary_cap"] as const;
+const VALID_LEAGUE_TYPES = ["season_overall", "head_to_head", "combo", "legacy", "salary_cap", "salary_cap_h2h"] as const;
 
 export async function updateBasicSettingsAction(
   leagueSlug: string,
@@ -298,7 +303,11 @@ export async function updateBasicSettingsAction(
       : null;
 
   if (isPublicLeague) {
-    max_teams = isPublicSalaryCapLeague(league) ? null : 6;
+    max_teams = leagueIsSalaryCapHeadToHead(league.league_type)
+      ? (league.max_teams ?? PUBLIC_SALARY_CAP_H2H_MAX_TEAMS)
+      : isPublicSalaryCapLeague(league)
+        ? null
+        : 6;
   } else if (max_teams != null) {
     if (max_teams < allowedMinTeams || max_teams > allowedMaxTeams) {
       return { error: `Choose between ${allowedMinTeams} and ${allowedMaxTeams} teams.` };
@@ -395,7 +404,7 @@ export async function updateLeagueTypeAction(
   }
 
   const updatePayload: { league_type: string | null; include_nxt?: boolean } = { league_type };
-  if (league_type === "salary_cap") {
+  if (leagueUsesSalaryCap(league_type)) {
     updatePayload.include_nxt = true;
   } else if (league_type && league_type !== "head_to_head" && Boolean((league as { include_nxt?: boolean | null }).include_nxt)) {
     updatePayload.include_nxt = false;

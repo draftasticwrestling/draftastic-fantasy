@@ -33,6 +33,22 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      { source: "/leagues/the-founders-league", destination: "/leagues/beat-the-founders-league", permanent: true },
+      {
+        source: "/leagues/the-founders-league/:path*",
+        destination: "/leagues/beat-the-founders-league/:path*",
+        permanent: true,
+      },
+      {
+        source: "/internal-admin/leagues/the-founders-league",
+        destination: "/internal-admin/leagues/beat-the-founders-league",
+        permanent: true,
+      },
+      {
+        source: "/internal-admin/leagues/the-founders-league/:path*",
+        destination: "/internal-admin/leagues/beat-the-founders-league/:path*",
+        permanent: true,
+      },
       { source: "/score", destination: "/event-results", permanent: true },
       { source: "/results/:eventId", destination: "/event-results/:eventId", permanent: true },
       { source: "/admin/articles", destination: "/internal-admin/articles", permanent: false },

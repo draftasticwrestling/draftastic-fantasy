@@ -41,6 +41,9 @@ export const metadata = {
 
 export default async function PlayPage({ searchParams }: Props) {
   const { step: stepRaw, token, code, phase } = await searchParams;
+  if (token?.trim()) {
+    redirect(`/leagues/join?token=${encodeURIComponent(token.trim())}`);
+  }
   const { user } = await getServerAuth();
 
   const qs = new URLSearchParams();

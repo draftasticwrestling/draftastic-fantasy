@@ -7,11 +7,13 @@ import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import {
   getRosterRulesForLeagueId,
   leagueIncludesNxt,
+  leagueIsSalaryCapHeadToHead,
   leagueUsesSalaryCap,
   leagueUsesWeeklyPstBeltHold,
   MIN_LEAGUE_TEAMS,
+  PUBLIC_SALARY_CAP_H2H_MAX_TEAMS,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
-  SALARY_CAP_LEAGUE_TYPE,
+  SALARY_CAP_H2H_LEAGUE_TYPE,
   SALARY_CAP_MAX_ROSTER_SIZE,
   isRoadToWarGamesSeasonSlug,
   isRoadToWrestleManiaSeasonSlug,
@@ -23,6 +25,7 @@ import {
   computePublicLeagueRegistrationSchedule,
   extendPublicLeagueRegistrationOneWeek,
   isPublicLeagueRegistrationOpen,
+  publicLeagueMinimumTeams,
   publicLeagueStatusForMemberCount,
 } from "@/lib/publicLeagueRegistration";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
@@ -271,7 +274,7 @@ export async function createLeague(params: {
     params.max_teams != null && Number.isFinite(Number(params.max_teams))
       ? Math.min(maxTeamsCapForUser, Math.max(3, Math.floor(Number(params.max_teams))))
       : null;
-  const max_teams = isPublicSalaryCapCreate ? null : maxTeamsRequested;
+  const max_teams = isPublicSalaryCapCreate ? PUBLIC_SALARY_CAP_H2H_MAX_TEAMS : maxTeamsRequested;
   const admin = getAdminClient();
   if (!admin) {
     return {
@@ -299,8 +302,8 @@ export async function createLeague(params: {
   const draft_date = null;
   let league_type = params.league_type?.trim() || null;
   if (isPublicSalaryCapCreate) {
-    league_type = SALARY_CAP_LEAGUE_TYPE;
-  } else if (league_type === SALARY_CAP_LEAGUE_TYPE && !isSiteAdmin) {
+    league_type = SALARY_CAP_H2H_LEAGUE_TYPE;
+  } else if (leagueUsesSalaryCap(league_type) && !isSiteAdmin) {
     return { error: "Only site administrators can create salary cap leagues." };
   }
   // NXT is always on — roster sizes assume the NXT pool. Legacy leagues may still have
@@ -330,7 +333,7 @@ export async function createLeague(params: {
       slug = makeSlugUnique(baseSlugPrivate, existingSlugs);
     }
     const join_code = generateJoinCode();
-    const isSalaryCapLeague = league_type === "salary_cap";
+    const isSalaryCapLeague = leagueUsesSalaryCap(league_type);
     const result = await admin
       .from("leagues")
       .insert({
@@ -385,7 +388,7 @@ export async function createLeague(params: {
     ...(isPublicSalaryCapCreate ? { placement_status: "pending" } : {}),
   });
 
-  if (league.league_type === "salary_cap") {
+  if (leagueUsesSalaryCap(league.league_type)) {
     await snapshotLeagueSalaryCosts(league.id);
   }
 
@@ -1128,7 +1131,7 @@ export async function quickJoinOldestPublicLeague(): Promise<{
   const created = await createLeague({
     name: "Public League",
     season_slug: PUBLIC_SALARY_CAP_SEASON_SLUG,
-    league_type: SALARY_CAP_LEAGUE_TYPE,
+    league_type: SALARY_CAP_H2H_LEAGUE_TYPE,
     visibility_type: "public",
   });
   if (created.error) return { ok: false, error: created.error };
@@ -1147,15 +1150,58 @@ export async function quickJoinOldestPublicLeague(): Promise<{
   };
 }
 
+/**
+ * Registration state for a public salary-cap league.
+ * Existing `salary_cap` leagues still start at 3 factions and keep max_teams null.
+ * `salary_cap_h2h` locks max_teams to the placed count once Monday RAW arrives with at least 4.
+ */
+function publicSalaryCapRegistrationUpdate(args: {
+  leagueType: string | null | undefined;
+  memberCount: number;
+  registrationOpen: boolean;
+  registrationClosesAt: string | null | undefined;
+  maxTeams: number | null | undefined;
+}): Record<string, unknown> {
+  const minTeams = publicLeagueMinimumTeams(args.leagueType);
+  const h2h = leagueIsSalaryCapHeadToHead(args.leagueType);
+  if (args.registrationOpen) {
+    if (h2h && args.maxTeams != null && args.memberCount >= args.maxTeams) {
+      return { public_status: "full" };
+    }
+    return { public_status: publicLeagueStatusForMemberCount(args.memberCount, minTeams) };
+  }
+  if (args.memberCount >= minTeams) {
+    const update: Record<string, unknown> = {
+      public_status: "active",
+      draft_status: "completed",
+    };
+    if (h2h) {
+      const cap = args.maxTeams ?? PUBLIC_SALARY_CAP_H2H_MAX_TEAMS;
+      update.max_teams = Math.min(args.memberCount, cap);
+    }
+    return update;
+  }
+  if (args.registrationClosesAt) {
+    const extended = extendPublicLeagueRegistrationOneWeek(args.registrationClosesAt);
+    return {
+      registration_closes_at: extended.registration_closes_at,
+      start_date: extended.season_start_ymd,
+      end_date: extended.season_end_ymd,
+      public_status: publicLeagueStatusForMemberCount(args.memberCount, minTeams),
+    };
+  }
+  return {};
+}
+
 export async function closeExpiredPublicLeagues(): Promise<void> {
   const admin = getAdminClient();
   if (!admin) return;
   const nowIso = new Date().toISOString();
   const { data: rows } = await admin
     .from("leagues")
-    .select("id, slug, visibility_type, public_status, league_type, season_slug, registration_closes_at")
+    .select("id, slug, visibility_type, public_status, league_type, season_slug, registration_closes_at, max_teams")
     .eq("visibility_type", "public")
-    .in("public_status", ["open", "awaiting_minimum"])
+    .in("public_status", ["open", "awaiting_minimum", "full"])
     .not("registration_closes_at", "is", null)
     .lte("registration_closes_at", nowIso);
 
@@ -1181,11 +1227,23 @@ export async function closeExpiredPublicLeagues(): Promise<void> {
       row as { visibility_type?: string; league_type?: string | null; season_slug?: string | null }
     );
 
-    if (memberCount >= MIN_LEAGUE_TEAMS) {
-      const update: { public_status: string; draft_status?: string } = { public_status: "active" };
-      if (isPublicSalaryCapLeague(row as { visibility_type?: string | null; league_type?: string | null; season_slug?: string | null })) {
-        update.draft_status = "completed";
-      }
+    const leagueType = (row as { league_type?: string | null }).league_type ?? null;
+    const minTeams = publicLeagueMinimumTeams(leagueType);
+    if (memberCount >= minTeams) {
+      const salaryCapRow = row as {
+        visibility_type?: string | null;
+        league_type?: string | null;
+        season_slug?: string | null;
+      };
+      const update = isPublicSalaryCapLeague(salaryCapRow)
+        ? publicSalaryCapRegistrationUpdate({
+            leagueType,
+            memberCount,
+            registrationOpen: false,
+            registrationClosesAt: (row as { registration_closes_at?: string | null }).registration_closes_at,
+            maxTeams: (row as { max_teams?: number | null }).max_teams ?? null,
+          })
+        : { public_status: "active" };
       await admin.from("leagues").update(update).eq("id", id);
       await maybeAwardLeagueStartedXpBySlug(slug);
       continue;
@@ -1200,7 +1258,7 @@ export async function closeExpiredPublicLeagues(): Promise<void> {
         registration_closes_at: extended.registration_closes_at,
         start_date: extended.season_start_ymd,
         end_date: extended.season_end_ymd,
-        public_status: publicLeagueStatusForMemberCount(memberCount),
+        public_status: publicLeagueStatusForMemberCount(memberCount, minTeams),
       })
       .eq("id", id);
   }
@@ -1237,24 +1295,26 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
   const memberCount = await countPlacedLeagueMembers(admin, row.id, row);
   const draftStatus = String(row.draft_status ?? "not_started");
   const publicSalaryCap = isPublicSalaryCapLeague(row);
-  const cap = publicSalaryCap ? null : row.max_teams ?? 6;
+  const cap = publicSalaryCap ? row.max_teams ?? null : row.max_teams ?? 6;
 
   const updatePayload: Record<string, unknown> = {};
 
   if (publicSalaryCap) {
-    if (!isPublicLeagueRegistrationOpen(row)) {
-      if (memberCount >= MIN_LEAGUE_TEAMS) {
-        updatePayload.public_status = "active";
-        updatePayload.draft_status = "completed";
-      } else if (row.registration_closes_at) {
-        const extended = extendPublicLeagueRegistrationOneWeek(row.registration_closes_at);
-        updatePayload.registration_closes_at = extended.registration_closes_at;
-        updatePayload.start_date = extended.season_start_ymd;
-        updatePayload.end_date = extended.season_end_ymd;
-        updatePayload.public_status = publicLeagueStatusForMemberCount(memberCount);
-      }
-    } else {
-      updatePayload.public_status = publicLeagueStatusForMemberCount(memberCount);
+    const h2hLocked =
+      leagueIsSalaryCapHeadToHead(row.league_type) &&
+      String(row.public_status ?? "") === "active" &&
+      String(row.draft_status ?? "") === "completed";
+    if (!h2hLocked) {
+      Object.assign(
+        updatePayload,
+        publicSalaryCapRegistrationUpdate({
+          leagueType: row.league_type,
+          memberCount,
+          registrationOpen: isPublicLeagueRegistrationOpen(row),
+          registrationClosesAt: row.registration_closes_at,
+          maxTeams: row.max_teams ?? null,
+        })
+      );
     }
   } else {
     const status =

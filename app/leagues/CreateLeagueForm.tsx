@@ -191,9 +191,9 @@ export function CreateLeagueForm({ isSiteAdmin = false, createStatus = "open" }:
           <>
             <label style={{ display: "block", marginBottom: 8 }}>Season</label>
             <p className="form-note" style={{ marginTop: 0, marginBottom: 0, lineHeight: 1.5 }}>
-              <strong>Public League — {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> — Build your $100 roster
-              after joining. Open enrollment until the next Monday RAW start (5:00 PM PT), or longer if fewer than three
-              factions have joined.
+              <strong>Public League — {PUBLIC_SALARY_CAP_SEASON_WEEKS} weeks</strong> — Salary cap head-to-head. Build
+              your $100 roster after joining. Enrollment closes at the next Monday RAW (5:00 PM PT) once at least four
+              factions have a roster, and the league locks between 4 and 8 factions.
             </p>
           </>
         ) : useStandardRules ? (

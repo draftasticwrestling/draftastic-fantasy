@@ -8,6 +8,7 @@ import styles from "./HowItWorks.module.css";
 
 const TAB_LABELS: Record<HowItWorksTabId, string> = {
   "public-league": "Public League",
+  "beat-the-founders": "Beat the Founders",
   "road-to-summerslam": "Road to SummerSlam",
   "road-to-war-games": "Road to War Games",
   "road-to-wrestlemania": "Road to WrestleMania",
@@ -16,6 +17,7 @@ const TAB_LABELS: Record<HowItWorksTabId, string> = {
 type Props = {
   initialTab: HowItWorksTabId;
   publicLeague: React.ReactNode;
+  beatTheFounders: React.ReactNode;
   roadToSummerSlam: React.ReactNode;
   roadToWarGames: React.ReactNode;
   roadToWrestleMania: React.ReactNode;
@@ -24,6 +26,7 @@ type Props = {
 export function HowItWorksTabs({
   initialTab,
   publicLeague,
+  beatTheFounders,
   roadToSummerSlam,
   roadToWarGames,
   roadToWrestleMania,
@@ -54,6 +57,7 @@ export function HowItWorksTabs({
 
   const panels: Record<HowItWorksTabId, React.ReactNode> = {
     "public-league": publicLeague,
+    "beat-the-founders": beatTheFounders,
     "road-to-summerslam": roadToSummerSlam,
     "road-to-war-games": roadToWarGames,
     "road-to-wrestlemania": roadToWrestleMania,

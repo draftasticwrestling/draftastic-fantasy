@@ -12,8 +12,9 @@ type Nudge = {
   body: string;
   primaryCta: { label: string; href: string } | null;
   secondaryCta: { label: string; href: string } | null;
-  /** From server: `once` = show at most one time ever in this browser after dismiss. */
-  persist?: "daily" | "once";
+  /** From server: `once` = one time ever. `login` = again on the next sign-in. Default once per day. */
+  persist?: "daily" | "once" | "login";
+  loginStamp?: string;
 };
 
 /** YYYY-MM-DD in the user's local timezone — used to show each nudge at most once per day. */
@@ -66,8 +67,29 @@ function markNudgeDismissedForever(nudgeKey: string): void {
   }
 }
 
+function loginNudgeSeenKey(nudgeKey: string): string {
+  return `draftastic-login-nudge-login:${nudgeKey}`;
+}
+
+function wasLoginNudgeSeen(nudgeKey: string, loginStamp: string): boolean {
+  try {
+    return localStorage.getItem(loginNudgeSeenKey(nudgeKey)) === loginStamp;
+  } catch {
+    return false;
+  }
+}
+
+function markLoginNudgeSeen(nudgeKey: string, loginStamp: string): void {
+  try {
+    localStorage.setItem(loginNudgeSeenKey(nudgeKey), loginStamp);
+  } catch {
+    // no-op
+  }
+}
+
 function shouldShowNudge(n: Nudge): boolean {
   if (n.persist === "once") return !wasNudgeDismissedForever(n.key);
+  if (n.persist === "login") return !wasLoginNudgeSeen(n.key, n.loginStamp ?? "");
   return !wasNudgeSeenToday(n.key);
 }
 
@@ -93,6 +115,13 @@ export default function LoginNudges() {
           if (!shouldShowNudge(n)) return false;
           if (n.key === "pending_league_setup" && isLeagueSetupPath(pathname)) return false;
           if (n.key === "salary_cap_budget_remaining" && isLeagueSetupPath(pathname)) return false;
+          if (
+            n.key === "beat_the_founders_invite" &&
+            (pathname?.startsWith("/leagues/join") ||
+              pathname?.startsWith("/leagues/beat-the-founders-league/onboarding"))
+          ) {
+            return false;
+          }
           return true;
         });
         setNudges(filtered);
@@ -112,6 +141,7 @@ export default function LoginNudges() {
   const dismiss = () => {
     if (!current) return;
     if (current.persist === "once") markNudgeDismissedForever(current.key);
+    else if (current.persist === "login") markLoginNudgeSeen(current.key, current.loginStamp ?? "");
     else markNudgeSeenToday(current.key);
     setIdx((v) => v + 1);
   };

@@ -9,7 +9,7 @@ import {
   PUBLIC_SALARY_CAP_SEASON_SLUG,
   roadToWrestleManiaCreateBlockMessage,
 } from "@/lib/leagueSeasons";
-import { SALARY_CAP_LEAGUE_TYPE } from "@/lib/leagueStructure";
+import { PUBLIC_SALARY_CAP_H2H_MAX_TEAMS, SALARY_CAP_H2H_LEAGUE_TYPE } from "@/lib/leagueStructure";
 import { leaguePostJoinPath } from "@/lib/leagueOnboarding";
 
 export type CreateLeagueState = { error?: string } | null;
@@ -104,8 +104,8 @@ export async function createLeagueAction(
   const effectiveSeasonSlug =
     effectiveVisibility === "public" ? PUBLIC_SALARY_CAP_SEASON_SLUG : season_slug;
   const effectiveLeagueType =
-    effectiveVisibility === "public" ? SALARY_CAP_LEAGUE_TYPE : league_type;
-  const effectiveMaxTeams = effectiveVisibility === "public" ? null : team_count;
+    effectiveVisibility === "public" ? SALARY_CAP_H2H_LEAGUE_TYPE : league_type;
+  const effectiveMaxTeams = effectiveVisibility === "public" ? PUBLIC_SALARY_CAP_H2H_MAX_TEAMS : team_count;
   // NXT is always included — roster sizes assume the full pool.
   const effectiveIncludeNxt = true;
 

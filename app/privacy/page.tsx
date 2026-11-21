@@ -5,7 +5,7 @@ export const metadata = {
   description: "Draftastic Fantasy privacy policy",
 };
 
-const LAST_UPDATED = "April 8, 2026";
+const LAST_UPDATED = "November 20, 2026";
 const PRIVACY_EMAIL = "draftasticwrestling@gmail.com";
 
 export default function PrivacyPage() {
@@ -32,6 +32,10 @@ export default function PrivacyPage() {
         <li>League data: league membership, team names, catchphrases, roster and transaction activity.</li>
         <li>Technical data: device/browser info, logs, and basic usage diagnostics for reliability and security.</li>
         <li>Policy consent data: timestamps for Terms/Privacy acceptance.</li>
+        <li>
+          Prize administration data, if you win or claim a prize: legal name, payment details, identity verification
+          information, and tax documentation.
+        </li>
       </ul>
 
       <h2>2) How We Use Data</h2>
@@ -42,6 +46,7 @@ export default function PrivacyPage() {
         <li>To send marketing/product updates only when you explicitly opt in.</li>
         <li>To maintain, debug, and improve product performance and reliability.</li>
         <li>To comply with legal obligations and enforce our Terms.</li>
+        <li>To confirm prize eligibility, pay prizes, and meet tax and legal requirements for a contest.</li>
       </ul>
 
       <h2>3) Legal Bases (where applicable)</h2>
@@ -56,59 +61,77 @@ export default function PrivacyPage() {
         <li>Authentication and database infrastructure (e.g., Supabase).</li>
         <li>Hosting, monitoring, and operational tooling providers.</li>
         <li>Email/notification providers if or when messaging features are enabled (for example, Constant Contact).</li>
+        <li>
+          Payment providers, identity verification providers, and tax professionals, when needed to verify a winner and
+          send a prize. We share only the details that work requires.
+        </li>
       </ul>
       <p style={{ color: "#444" }}>
         We may also disclose data when required by law or to protect rights, safety, and platform integrity.
       </p>
 
-      <h2>5) Marketing Communications</h2>
+      <h2>5) Prize Administration</h2>
+      <p style={{ color: "#444" }}>
+        If you win a prize in a Draftastic contest, including Beat the Founders, we collect what we need to confirm you
+        are eligible, pay the prize, and meet tax and legal duties. That can include your legal name, payment details,
+        identity verification information, tax documentation, and, when needed to confirm eligibility, age or date of
+        birth and country of residence. We share what is needed to administer the prize with the payment provider and,
+        when required, with identity verification providers and tax professionals. We keep this information for as long
+        as tax, accounting, and legal rules require. Playing in a league does not by itself make you eligible for a
+        prize. Prize eligibility is limited to people who are at least 18 years old and who meet the{" "}
+        <Link href="/beat-the-founders/rules">Beat the Founders contest rules</Link>, even though the Service itself is
+        open from age 13.
+      </p>
+
+      <h2>6) Marketing Communications</h2>
       <p style={{ color: "#444" }}>
         Marketing emails are optional and sent only if you explicitly opt in. You can unsubscribe any time from the email footer or by
         updating account preferences.
       </p>
 
-      <h2>6) Cookies and Similar Technologies</h2>
+      <h2>7) Cookies and Similar Technologies</h2>
       <p style={{ color: "#444" }}>
         We use essential cookies/session mechanisms required for authentication and secure operation. If we add analytics or marketing
         cookies later, this policy and consent flows will be updated accordingly.
       </p>
 
-      <h2>7) Data Retention</h2>
+      <h2>8) Data Retention</h2>
       <p style={{ color: "#444" }}>
         We retain personal data for as long as needed to provide the Service, comply with legal obligations, resolve disputes, and enforce
         Terms. Retention periods may vary by data type and legal requirements.
       </p>
 
-      <h2>8) Your Rights</h2>
+      <h2>9) Your Rights</h2>
       <p style={{ color: "#444" }}>
         Depending on your jurisdiction, you may have rights to access, correct, delete, or export your data, and to object to certain
         processing. To request these actions, contact <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>.
       </p>
 
-      <h2>9) Children&apos;s Privacy</h2>
+      <h2>10) Children&apos;s Privacy</h2>
       <p style={{ color: "#444" }}>
         The Service is not intended for children under 13. If we learn that we collected personal data from a child under 13 without
-        appropriate consent, we will take steps to delete it.
+        appropriate consent, we will take steps to delete it. You may use the Service from age 13. Promotional contest prizes are a
+        separate eligibility rule and are available only to people who are at least 18 years old.
       </p>
 
-      <h2>10) International Transfers</h2>
+      <h2>11) International Transfers</h2>
       <p style={{ color: "#444" }}>
         Your information may be processed in countries other than your own. We take reasonable steps to ensure appropriate safeguards are
         in place.
       </p>
 
-      <h2>11) Security</h2>
+      <h2>12) Security</h2>
       <p style={{ color: "#444" }}>
         We implement reasonable technical and organizational safeguards to protect personal data. No method of transmission or storage is
         100% secure.
       </p>
 
-      <h2>12) Changes to this Policy</h2>
+      <h2>13) Changes to this Policy</h2>
       <p style={{ color: "#444" }}>
         We may update this Privacy Policy from time to time. Material changes will be posted in the Service with an updated effective date.
       </p>
 
-      <h2>13) Contact</h2>
+      <h2>14) Contact</h2>
       <p style={{ color: "#444" }}>
         For privacy questions or data requests, contact: <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>
       </p>

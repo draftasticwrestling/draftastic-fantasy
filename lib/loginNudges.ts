@@ -8,6 +8,14 @@ import {
 import { PLAY_PATH } from "@/lib/playFunnel";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser } from "@/lib/salaryCap";
+import {
+  BEAT_THE_FOUNDERS_INVITE_NOTICE_THROUGH,
+  isBeatTheFoundersManager,
+} from "@/lib/beatTheFoundersLeague";
+import { canUserJoinBeatTheFounders } from "@/lib/beatTheFoundersQualifiers";
+import { ensureReusableLeagueInvite } from "@/lib/leagueInvitePreview";
+import { getCivilYmdInPst } from "@/lib/pstCivilTime";
+import { FOUNDERS_LEAGUE_SLUG } from "@/lib/salaryCapWeeklyLimits";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
@@ -17,7 +25,10 @@ import { isRoadToWarGamesSeasonSlug } from "@/lib/leagueStructure";
 export type LoginNudgeKey = "missing_draft_prefs" | "no_league_joined" | "pending_league_setup";
 
 /** Shown once per browser (localStorage) when rules match; not configurable in admin. */
-export type DynamicLoginNudgeKey = "salary_cap_budget_remaining" | "drafts_ready_for_review";
+export type DynamicLoginNudgeKey =
+  | "salary_cap_budget_remaining"
+  | "drafts_ready_for_review"
+  | "beat_the_founders_invite";
 
 export type LoginNudgeConfig = {
   nudge_key: LoginNudgeKey;
@@ -36,8 +47,10 @@ export type UserLoginNudge = {
   body: string;
   primaryCta: { label: string; href: string } | null;
   secondaryCta: { label: string; href: string } | null;
-  /** `once` = dismiss forever in this browser (see LoginNudges). Default daily cap. */
-  persist?: "daily" | "once";
+  /** `once` = dismiss forever. `login` = again on the next sign-in. Default daily cap. */
+  persist?: "daily" | "once" | "login";
+  /** Sign-in timestamp. A new value shows a `login` nudge again. */
+  loginStamp?: string;
 };
 
 const DEFAULT_CONFIGS: Record<LoginNudgeKey, LoginNudgeConfig> = {
@@ -110,6 +123,46 @@ export async function getLoginNudgeConfigs(): Promise<Record<LoginNudgeKey, Logi
     };
   }
   return out;
+}
+
+/** Qualified invitees see this on each sign-in through November 30, until they join. */
+async function beatTheFoundersInviteNudge(
+  userId: string,
+  lastSignInAt: string | null
+): Promise<UserLoginNudge | null> {
+  if (getCivilYmdInPst(Date.now()) > BEAT_THE_FOUNDERS_INVITE_NOTICE_THROUGH) return null;
+  if (isBeatTheFoundersManager(userId)) return null;
+  if (!(await canUserJoinBeatTheFounders(userId))) return null;
+
+  const admin = getAdminClient();
+  if (!admin) return null;
+  const { data: league } = await admin
+    .from("leagues")
+    .select("id")
+    .eq("slug", FOUNDERS_LEAGUE_SLUG)
+    .maybeSingle();
+  if (!league?.id) return null;
+
+  const { data: member } = await admin
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", league.id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (member) return null;
+
+  const token = await ensureReusableLeagueInvite(league.id);
+  if (!token) return null;
+
+  return {
+    key: "beat_the_founders_invite",
+    title: "You're invited to Beat the Founders",
+    body: "You qualified for Beat the Founders. Join the league for a chance to win $100.",
+    primaryCta: { label: "Join the league", href: `/leagues/join?token=${encodeURIComponent(token)}` },
+    secondaryCta: { label: "Contest rules", href: "/beat-the-founders/rules" },
+    persist: "login",
+    loginStamp: lastSignInAt ?? "signed-in",
+  };
 }
 
 export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> {
@@ -193,11 +246,13 @@ export async function getLoginNudgesForCurrentUser(): Promise<UserLoginNudge[]> 
     }
   }
   const draftLeagueIds = eligibleLeagueRows
-    .filter((row) => row.leagues?.league_type !== "salary_cap")
+    .filter((row) => row.leagues?.league_type !== "salary_cap" && row.leagues?.league_type !== "salary_cap_h2h")
     .map((r) => r.league_id);
 
   const configs = await getLoginNudgeConfigs();
   const nudges: UserLoginNudge[] = [];
+  const foundersInvite = await beatTheFoundersInviteNudge(user.id, user.last_sign_in_at ?? null);
+  if (foundersInvite) nudges.push(foundersInvite);
 
   const { data: activeRosterRows } = await supabase
     .from("league_rosters")

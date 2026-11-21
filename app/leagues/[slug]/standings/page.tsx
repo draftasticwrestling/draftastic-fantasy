@@ -13,6 +13,8 @@ import {
 } from "@/lib/leagueMatchups";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getXpDisplayByUserIds } from "@/lib/xp/getXpDisplayByUserIds";
+import { salaryCapHeadToHeadBreaksTiesWithSeasonPoints } from "@/lib/beatTheFoundersLeague";
+import { leagueUsesHeadToHeadRecords } from "@/lib/leagueStructure";
 import { LeagueMobileStandingsTable } from "../LeagueMobileStandingsTable";
 import { LeagueStandingsTable } from "../LeagueStandingsTable";
 
@@ -48,7 +50,11 @@ export default async function StandingsPage({
   ]);
   const { user } = await getServerAuth();
   const pointsByUserId = pointsByOwner ?? {};
-  const isHeadToHeadRecordStandings = (league.league_type ?? null) === "head_to_head";
+  const isHeadToHeadRecordStandings = leagueUsesHeadToHeadRecords(league.league_type);
+  const breakTiedWeeksWithSeasonPoints = salaryCapHeadToHeadBreaksTiesWithSeasonPoints(
+    league.league_type,
+    league.slug
+  );
   const weekStarts = getWeeksInRange((league.draft_date || league.start_date) ?? "", league.end_date ?? "");
   const seededMemberUserIds = await getXpSeededMemberUserIds(members.map((m) => m.user_id));
   const memberUserIds = members.map((m) => m.user_id);
@@ -67,7 +73,10 @@ export default async function StandingsPage({
               maxTeams: league.max_teams ?? null,
               draftStatus: league.draft_status ?? null,
               weeklyResults: weeklyMatchups,
+              breakTiedWeeksWithSeasonPoints,
+              leagueSlug: league.slug,
             }),
+          breakTiedWeeksWithSeasonPoints,
         }
       )
     : {};
@@ -90,6 +99,8 @@ export default async function StandingsPage({
       maxTeams: league.max_teams ?? null,
       draftStatus: league.draft_status ?? null,
       weeklyResults: weeklyMatchups,
+      breakTiedWeeksWithSeasonPoints,
+      leagueSlug: league.slug,
     });
     const finalStandings = getPlayoffFinalStandings(playoffBracket);
     if (finalStandings) {

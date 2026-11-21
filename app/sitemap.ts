@@ -21,6 +21,7 @@ const STATIC_PATHS: Array<{
   { path: "/points", changeFrequency: "monthly", priority: 0.75 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/beat-the-founders/rules", changeFrequency: "monthly", priority: 0.4 },
   { path: "/contact-us", changeFrequency: "yearly", priority: 0.4 },
   { path: "/wrestlers", changeFrequency: "daily", priority: 0.85 },
   { path: "/wrestlers/watch", changeFrequency: "weekly", priority: 0.5 },

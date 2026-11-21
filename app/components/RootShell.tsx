@@ -71,6 +71,8 @@ export default function RootShell({ children, recentEvents }: RootShellProps) {
           <Link href="/privacy" className="app-link">Privacy</Link>
           {" · "}
           <Link href="/terms" className="app-link">Terms</Link>
+          {" · "}
+          <Link href="/beat-the-founders/rules" className="app-link">Beat the Founders Rules</Link>
         </p>
         <p className="site-footer-disclaimer">
           WWE, Raw, SmackDown, and all related logos and trademarks are the property of World Wrestling Entertainment, Inc. This site is not affiliated with or endorsed by WWE.

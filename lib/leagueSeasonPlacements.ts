@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { salaryCapHeadToHeadBreaksTiesWithSeasonPoints } from "@/lib/beatTheFoundersLeague";
 import { RTS_2026_LEAGUE_END_DATE } from "@/lib/beltRts2026JulyDeferral";
 import { getWeeksInRange } from "@/lib/fantasyWeekBounds";
 import {
@@ -124,7 +125,7 @@ export async function resolveLeagueChampion(
   const pointsByUserId = await getPointsByOwnerForLeagueWithBonuses(league.id, admin);
   const leagueType = league.league_type ?? null;
 
-  if (leagueType === "head_to_head" || leagueType === "combo") {
+  if (leagueType === "head_to_head" || leagueType === "combo" || leagueType === "salary_cap_h2h") {
     const leagueStart = (league.draft_date || league.start_date) ?? "";
     const leagueEnd = league.end_date ?? "";
     if (!leagueStart || !leagueEnd) return null;
@@ -142,6 +143,8 @@ export async function resolveLeagueChampion(
       maxTeams: league.max_teams ?? null,
       draftStatus: league.draft_status ?? null,
       weeklyResults: matchups,
+      breakTiedWeeksWithSeasonPoints: salaryCapHeadToHeadBreaksTiesWithSeasonPoints(leagueType, league.slug),
+      leagueSlug: league.slug,
     });
     const champUserId = bracket?.champion?.userId ?? null;
     if (!champUserId) return null;

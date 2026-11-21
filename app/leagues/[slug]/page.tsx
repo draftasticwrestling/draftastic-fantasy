@@ -12,12 +12,14 @@ import {
   getWeeksInRange,
   getXpSeededMemberUserIds,
 } from "@/lib/leagueMatchups";
+import { salaryCapHeadToHeadBreaksTiesWithSeasonPoints } from "@/lib/beatTheFoundersLeague";
 import {
   getRosterRulesForLeague,
   getLeagueSeasonBelt,
   isRoadToWarGamesSeasonSlug,
   leagueIncludesNxt,
   leagueIsSalaryCapFormat,
+  leagueUsesHeadToHeadRecords,
   leagueUsesSalaryCap,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
 } from "@/lib/leagueStructure";
@@ -68,6 +70,7 @@ function formatLeagueType(type: string | null | undefined): string {
     case "combo": return "Combo League (H2H+Total Season Points)";
     case "legacy": return "Legacy";
     case "salary_cap": return "Salary Cap — Total Season Points";
+    case "salary_cap_h2h": return "Salary Cap — Head-to-Head";
     default: return type;
   }
 }
@@ -211,7 +214,11 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       league.league_type ?? null
     );
 
-    const isHeadToHeadHomeStandings = (league.league_type ?? null) === "head_to_head";
+    const isHeadToHeadHomeStandings = leagueUsesHeadToHeadRecords(league.league_type);
+    const breakTiedWeeksWithSeasonPoints = salaryCapHeadToHeadBreaksTiesWithSeasonPoints(
+      league.league_type,
+      league.slug
+    );
     const showMatchupsInTopNav = leagueShowsMatchupsInNav(league.league_type);
     let standingsRecordByUserId: Record<string, { w: number; l: number; t: number }> | undefined;
     let membersByPoints = [...standingsMembers].sort(
@@ -238,7 +245,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               maxTeams: maxTeamsCap,
               draftStatus: draftStatusVal,
               weeklyResults: weeklyMatchups,
+              breakTiedWeeksWithSeasonPoints,
+              leagueSlug: league.slug,
             }),
+          breakTiedWeeksWithSeasonPoints,
         }
       );
       membersByPoints = [...standingsMembers].sort((a, b) => {
@@ -258,6 +268,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         maxTeams: maxTeamsCap,
         draftStatus: draftStatusVal,
         weeklyResults: weeklyMatchups,
+        breakTiedWeeksWithSeasonPoints,
+        leagueSlug: league.slug,
       });
       const finalStandings = getPlayoffFinalStandings(playoffBracket);
       if (finalStandings) {

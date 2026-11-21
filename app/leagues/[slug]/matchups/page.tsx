@@ -8,6 +8,7 @@ import {
   getRostersForLeagueForWeek,
   type LeagueMember,
 } from "@/lib/leagues";
+import { salaryCapHeadToHeadBreaksTiesWithSeasonPoints } from "@/lib/beatTheFoundersLeague";
 import { getRosterRulesForLeague, leagueIncludesNxt } from "@/lib/leagueStructure";
 import {
   getLeagueWeeklyMatchups,
@@ -23,7 +24,7 @@ import {
   leagueHasH2HPlayoffSchedule,
   playoffsUnlocked,
   playoffWeekLabel,
-  playoffRoundsForSize,
+  playoffRoundsForLeague,
   getPlayoffBracket,
 } from "@/lib/leagueMatchups";
 import { getMatchupWrestlerChampionTitleLineBySlug } from "@/lib/matchupWrestlerCurrentTitles";
@@ -341,10 +342,16 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     weekCount: weeks.length,
     maxTeams: league.max_teams ?? null,
     draftStatus: league.draft_status ?? null,
+    leagueSlug: league.slug,
   });
   const arePlayoffsUnlocked =
     hasPlayoffSchedule &&
-    playoffsUnlocked({ weekStarts: weeks, size: members.length, weeklyResults: matchups });
+    playoffsUnlocked({
+      weekStarts: weeks,
+      size: members.length,
+      weeklyResults: matchups,
+      leagueSlug: league.slug,
+    });
   const view = viewParam === "bracket" && hasPlayoffSchedule ? "bracket" : "matchups";
   const matchupsHref =
     selectedWeekStart != null
@@ -357,7 +364,9 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
     weekEnd: getSundayOfWeek(ws),
     label: formatWeekRangeShort(ws, getSundayOfWeek(ws)),
     weekNumber: idx + 1,
-    roundLabel: hasPlayoffSchedule ? playoffWeekLabel(idx + 1, weeks.length, members.length) : null,
+    roundLabel: hasPlayoffSchedule
+      ? playoffWeekLabel(idx + 1, weeks.length, members.length, league.slug)
+      : null,
   }));
 
   if (view === "bracket") {
@@ -369,9 +378,14 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
           maxTeams: league.max_teams ?? null,
           draftStatus: league.draft_status ?? null,
           weeklyResults: matchups,
+          breakTiedWeeksWithSeasonPoints: salaryCapHeadToHeadBreaksTiesWithSeasonPoints(
+            league.league_type,
+            league.slug
+          ),
+          leagueSlug: league.slug,
         })
       : null;
-    const playoffRounds = playoffRoundsForSize(members.length);
+    const playoffRounds = playoffRoundsForLeague(members.length, league.slug);
     const firstPlayoffWeekIdx = Math.max(1, weeks.length - playoffRounds);
     const playoffMonday = weeks[firstPlayoffWeekIdx];
 
@@ -523,6 +537,11 @@ export default async function LeagueMatchupsPage({ params, searchParams }: Props
           maxTeams: league.max_teams ?? null,
           draftStatus: league.draft_status ?? null,
           weeklyResults: matchups,
+          breakTiedWeeksWithSeasonPoints: salaryCapHeadToHeadBreaksTiesWithSeasonPoints(
+            league.league_type,
+            league.slug
+          ),
+          leagueSlug: league.slug,
         })
       : [];
 

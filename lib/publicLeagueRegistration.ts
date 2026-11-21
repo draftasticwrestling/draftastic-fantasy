@@ -1,11 +1,22 @@
 import { addWeeks, setHours, setMinutes, setSeconds, startOfWeek } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
-import { MIN_LEAGUE_TEAMS } from "@/lib/leagueStructure";
+import {
+  leagueIsSalaryCapHeadToHead,
+  MIN_LEAGUE_TEAMS,
+  PUBLIC_SALARY_CAP_H2H_MIN_TEAMS,
+} from "@/lib/leagueStructure";
 import { BELT_HOLD_TIMEZONE, getCivilYmdInPst } from "@/lib/pstCivilTime";
 import { PUBLIC_SALARY_CAP_SEASON_WEEKS, addDaysToYmd } from "@/lib/publicLeagueSchedule";
 
-/** Public leagues need at least three factions before scoring begins. */
+/** Existing public salary-cap leagues need at least three factions before scoring begins. */
 export const PUBLIC_LEAGUE_MIN_TEAMS = MIN_LEAGUE_TEAMS;
+
+/** Placed factions required before a public league's Monday RAW start locks the season. */
+export function publicLeagueMinimumTeams(leagueType: string | null | undefined): number {
+  return leagueIsSalaryCapHeadToHead(leagueType)
+    ? PUBLIC_SALARY_CAP_H2H_MIN_TEAMS
+    : PUBLIC_LEAGUE_MIN_TEAMS;
+}
 
 /** RAW typically starts at 5:00 PM Pacific on Mondays. */
 export const PUBLIC_LEAGUE_RAW_START_HOUR_PT = 17;
@@ -61,8 +72,11 @@ export function extendPublicLeagueRegistrationOneWeek(
   };
 }
 
-export function publicLeagueStatusForMemberCount(memberCount: number): "open" | "awaiting_minimum" {
-  return memberCount >= PUBLIC_LEAGUE_MIN_TEAMS ? "open" : memberCount > 0 ? "awaiting_minimum" : "open";
+export function publicLeagueStatusForMemberCount(
+  memberCount: number,
+  minTeams: number = PUBLIC_LEAGUE_MIN_TEAMS
+): "open" | "awaiting_minimum" {
+  return memberCount >= minTeams ? "open" : memberCount > 0 ? "awaiting_minimum" : "open";
 }
 
 export function isPublicLeagueRegistrationOpen(

@@ -8,6 +8,7 @@
  */
 export const HOW_IT_WORKS_TAB_IDS = [
   "public-league",
+  "beat-the-founders",
   "road-to-war-games",
   "road-to-wrestlemania",
   "road-to-summerslam",

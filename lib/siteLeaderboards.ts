@@ -54,7 +54,7 @@ const SEGMENT_META: Record<
   salary_cap: {
     title: "Salary Cap",
     description: "Best single Salary Cap league.",
-    match: (l) => l.league_type === "salary_cap",
+    match: (l) => l.league_type === "salary_cap" || l.league_type === "salary_cap_h2h",
   },
   main_nxt: {
     title: "Main Roster + NXT",

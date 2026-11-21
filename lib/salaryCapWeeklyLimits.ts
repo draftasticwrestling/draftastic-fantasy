@@ -11,14 +11,21 @@ import {
 /** Max salary value (adds or drops) per faction per Pacific week in a standard salary-cap league. */
 export const FA_SALARY_CAP_WEEKLY_BUDGET = 25;
 
-/** Private Road to WrestleMania salary-cap league. $40 adds and $40 drops each week. */
-export const FOUNDERS_LEAGUE_SLUG = "the-founders-league";
+/** Beat the Founders. $40 adds and $40 drops each week. */
+export const FOUNDERS_LEAGUE_SLUG = "beat-the-founders-league";
+/** Previous public address. Still recognized so the $40 limit applies before and after the rename. */
+const LEGACY_FOUNDERS_LEAGUE_SLUG = "the-founders-league";
 export const FOUNDERS_LEAGUE_WEEKLY_MOVE_BUDGET = 40;
+
+function isFoundersLeagueSlug(slug: string | null | undefined): boolean {
+  const s = String(slug ?? "").trim();
+  return s === FOUNDERS_LEAGUE_SLUG || s === LEGACY_FOUNDERS_LEAGUE_SLUG;
+}
 
 function weeklyBudgetFromRow(row: { slug?: string | null; salary_cap_weekly_budget?: number | null } | null): number {
   const stored = row?.salary_cap_weekly_budget;
   if (typeof stored === "number" && stored > 0) return stored;
-  if (row?.slug === FOUNDERS_LEAGUE_SLUG) return FOUNDERS_LEAGUE_WEEKLY_MOVE_BUDGET;
+  if (isFoundersLeagueSlug(row?.slug)) return FOUNDERS_LEAGUE_WEEKLY_MOVE_BUDGET;
   return FA_SALARY_CAP_WEEKLY_BUDGET;
 }
 

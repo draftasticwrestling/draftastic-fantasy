@@ -20,18 +20,19 @@ export function HowItWorksPublicLeague() {
       <section style={{ marginBottom: 40 }}>
         <h2 style={{ fontSize: "1.35rem", marginBottom: 12 }}>Public league format</h2>
         <p style={{ marginBottom: 12, lineHeight: 1.65, color: "#333" }}>
-          Public leagues use <strong>Salary Cap — Total Season Points</strong>. Anyone can join with no team maximum.
-          After you create or join, you complete onboarding and build your roster from the shared pool so you can play
-          right away.
+          New public leagues use <strong>Salary Cap — Head-to-Head</strong>. You still build a $100 roster from the
+          shared pool. Each week your faction plays one matchup, and the standings follow win-loss record. Season point
+          totals are shown beside that record and break a tied week, and a tied playoff seed.
         </p>
         <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.65, color: "#333" }}>
           <li>
-            <strong>No team cap</strong> — anyone can join until enrollment closes at the start of Monday RAW (5:00 PM
-            Pacific).
+            <strong>4 to 8 factions</strong> — enrollment closes at the start of Monday RAW (5:00 PM Pacific), or when
+            the league reaches 8 factions.
           </li>
           <li>
-            <strong>Minimum three factions</strong> — if fewer than three teams are in the league when Monday RAW starts,
-            enrollment stays open another week.
+            <strong>Minimum four factions</strong> — if fewer than four teams have a roster when Monday RAW starts,
+            enrollment stays open another week. At RAW, the league locks at however many factions are in (4 through 8)
+            and the matchups and playoffs use that size.
           </li>
           <li>
             After joining, build your <strong>$100 salary cap roster</strong> from the shared pool (no draft).

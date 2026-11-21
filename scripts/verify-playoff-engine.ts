@@ -2,7 +2,10 @@
  * Standalone verification for the H2H schedule + playoff engine (sizes 4–8).
  * Run: npx tsx scripts/verify-playoff-engine.ts
  */
+import { BEAT_THE_FOUNDERS_MANAGER_IDS } from "@/lib/beatTheFoundersLeague";
+import { FOUNDERS_LEAGUE_SLUG } from "@/lib/salaryCapWeeklyLimits";
 import {
+  getBeatTheFoundersRegularSeasonMatchups,
   getRegularSeasonMatchupsForRound,
   getScheduledMatchupsForWeek,
   getPlayoffBracket,
@@ -144,6 +147,72 @@ for (const size of [4, 5, 6, 7, 8]) {
     console.log(`  final places: ${[...lastChamp, ...lastPlace].map((m) => m.label).join(", ")}${bracket.autoPlacements.length ? ", " + bracket.autoPlacements.map((a) => a.label).join(", ") : ""}`);
   }
 }
+
+console.log("\n=== Beat the Founders: founders stay apart until the playoffs ===");
+const founders = [...BEAT_THE_FOUNDERS_MANAGER_IDS];
+for (const fieldSize of [20, 19, 7]) {
+  const outsiders = Array.from({ length: fieldSize - founders.length }, (_, i) => `fan${String(i).padStart(2, "0")}`);
+  const field = [...founders, ...outsiders];
+  for (let r = 0; r < 19; r++) {
+    const mus = getBeatTheFoundersRegularSeasonMatchups(field, r);
+    const seen: Record<string, number> = {};
+    for (const mu of mus) {
+      const foundersInGame = mu.userIds.filter((id) => founders.includes(id));
+      check(foundersInGame.length <= 1, `${fieldSize} r${r}: founders share a regular-season game (${foundersInGame.join(",")})`);
+      for (const id of mu.userIds) seen[id] = (seen[id] ?? 0) + 1;
+    }
+    check(field.every((id) => seen[id] === 1), `${fieldSize} r${r}: every team plays exactly once`);
+  }
+}
+
+const btfWeeks = getWeeksInRange("2026-11-30", "2027-04-11");
+const btfField = [...founders, ...Array.from({ length: 17 }, (_, i) => `fan${String(i).padStart(2, "0")}`)];
+const btfStrength: Record<string, number> = Object.fromEntries(btfField.map((id, i) => [id, 200 - i]));
+const btfResults: WeeklyMatchupResult[] = btfWeeks.map((ws) => ({
+  weekStart: ws,
+  weekEnd: getSundayOfWeek(ws),
+  pointsByUserId: { ...btfStrength },
+  winnerUserId: null,
+  beltHolderUserId: null,
+  beltPoints: 0,
+  weeklyWinPoints: 0,
+  beltRetained: false,
+  weekScoringFinalized: true,
+}));
+const btfPo = 3;
+const btfRs = btfWeeks.length - btfPo;
+let foundersMetInRegularSeason = false;
+let foundersMetInPlayoffs = false;
+for (let idx = 0; idx < btfWeeks.length; idx++) {
+  const mus = getScheduledMatchupsForWeek({
+    weekStart: btfWeeks[idx]!,
+    weekStarts: btfWeeks,
+    memberUserIds: btfField,
+    maxTeams: 20,
+    draftStatus: "completed",
+    weeklyResults: btfResults,
+    leagueSlug: FOUNDERS_LEAGUE_SLUG,
+  });
+  check(mus.length > 0, `BTF week ${idx + 1} has matchups`);
+  for (const mu of mus) {
+    const together = mu.userIds.filter((id) => founders.includes(id)).length >= 2;
+    if (together && idx < btfRs) foundersMetInRegularSeason = true;
+    if (together && idx >= btfRs) foundersMetInPlayoffs = true;
+  }
+}
+check(!foundersMetInRegularSeason, "founders do not meet in the regular season");
+check(foundersMetInPlayoffs, "founders can meet in the playoffs");
+const btfBracket = getPlayoffBracket({
+  weekStarts: btfWeeks,
+  memberUserIds: btfField,
+  maxTeams: 20,
+  draftStatus: "completed",
+  weeklyResults: btfResults,
+  todayYmd: "2027-05-01",
+  leagueSlug: FOUNDERS_LEAGUE_SLUG,
+});
+check(btfBracket?.seeds.length === 8, `BTF playoff field is 8 (got ${btfBracket?.seeds.length})`);
+check(btfBracket?.champion?.userId === founders[0], "BTF champion is the highest-scoring founder");
 
 console.log(`\n${failures === 0 ? "ALL CHECKS PASSED ✅" : `${failures} CHECK(S) FAILED ❌`}`);
 process.exit(failures === 0 ? 0 : 1);

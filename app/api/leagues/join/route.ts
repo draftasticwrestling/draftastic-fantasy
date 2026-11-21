@@ -1,11 +1,29 @@
 import { NextResponse } from "next/server";
 import {
+  BEAT_THE_FOUNDERS_INELIGIBLE_MESSAGE,
+  isBeatTheFoundersLeagueSlug,
+} from "@/lib/beatTheFoundersLeague";
+import { canUserJoinBeatTheFounders } from "@/lib/beatTheFoundersQualifiers";
+import { getLeagueInvitePreview, getLeagueSlugForJoinCode } from "@/lib/leagueInvitePreview";
+import {
   getLeagueBySlug,
   joinLeagueWithCode,
   joinLeagueWithToken,
   quickJoinOldestPublicLeague,
 } from "@/lib/leagues";
 import { leaguePostJoinPath } from "@/lib/leagueOnboarding";
+import { getServerAuth } from "@/lib/supabase/serverAuth";
+
+async function foundersEligibilityResponse(token: string, code: string): Promise<NextResponse | null> {
+  const slug = token
+    ? (await getLeagueInvitePreview(token))?.leagueSlug ?? null
+    : await getLeagueSlugForJoinCode(code);
+  if (!isBeatTheFoundersLeagueSlug(slug)) return null;
+  const { user } = await getServerAuth();
+  if (!user) return null;
+  if (await canUserJoinBeatTheFounders(user.id)) return null;
+  return NextResponse.json({ error: BEAT_THE_FOUNDERS_INELIGIBLE_MESSAGE }, { status: 403 });
+}
 
 /**
  * POST /api/leagues/join — join with invite token, permanent league code, or public quick join.
@@ -44,6 +62,9 @@ export async function POST(request: Request) {
     if (token && code) {
       return NextResponse.json({ error: "Send only one join method per request" }, { status: 400 });
     }
+
+    const blocked = await foundersEligibilityResponse(token, code);
+    if (blocked) return blocked;
 
     const result = code ? await joinLeagueWithCode(code) : await joinLeagueWithToken(token);
     if (!result.ok) {

@@ -32,7 +32,13 @@ import {
 } from "@/lib/beltWeeklyHold";
 import { isPastEndOfDayPst } from "@/lib/pstCivilTime";
 import {
+  BEAT_THE_FOUNDERS_PLAYOFF_TEAMS,
+  isBeatTheFoundersLeagueSlug,
+  isBeatTheFoundersManager,
+} from "@/lib/beatTheFoundersLeague";
+import {
   leagueIncludesNxt,
+  leagueIsSalaryCapHeadToHead,
   leagueUsesSalaryCap,
   leagueUsesWeeklyPstBeltHold,
   ROAD_TO_SUMMERSLAM_SEASON_SLUG,
@@ -489,6 +495,7 @@ export async function getLeagueWeeklyMatchups(
     leagueType === "head_to_head" ||
     leagueType === "season_overall" ||
     leagueType === "salary_cap" ||
+    leagueType === "salary_cap_h2h" ||
     leagueType === "combo" ||
     leagueType === null;
 
@@ -1134,6 +1141,61 @@ export function getRegularSeasonMatchupsForRound(order: string[], roundIndex: nu
   return out;
 }
 
+/**
+ * Beat the Founders regular season. KM Punk, Kayfabe King, and Dillster each play a
+ * non-founder. They are never paired with each other. Everyone else uses the normal
+ * round-robin on the remaining field.
+ */
+export function getBeatTheFoundersRegularSeasonMatchups(order: string[], roundIndex: number): WeekMatchup[] {
+  const members = [...new Set(order.filter(Boolean))];
+  const founders = members.filter((id) => isBeatTheFoundersManager(id)).sort((a, b) => a.localeCompare(b));
+  const others = members.filter((id) => !isBeatTheFoundersManager(id)).sort((a, b) => a.localeCompare(b));
+  if (founders.length === 0 || others.length < founders.length) {
+    return getRegularSeasonMatchupsForRound(members, roundIndex);
+  }
+
+  const used = new Set<string>();
+  const founderGames: WeekMatchup[] = [];
+  for (let i = 0; i < founders.length; i++) {
+    let pick = (roundIndex * founders.length + i) % others.length;
+    let guard = 0;
+    while (used.has(others[pick]!) && guard < others.length) {
+      pick = (pick + 1) % others.length;
+      guard++;
+    }
+    const opponent = others[pick]!;
+    used.add(opponent);
+    founderGames.push({ type: "h2h", userIds: [founders[i]!, opponent] });
+  }
+
+  let rest = others.filter((id) => !used.has(id));
+  if (rest.length === 1 && founderGames.length > 0) {
+    const host = founderGames[0]!;
+    founderGames[0] = { type: "triple", userIds: [...host.userIds, rest[0]!] };
+    rest = [];
+  }
+
+  const restGames =
+    rest.length === 2
+      ? [{ type: "h2h" as const, userIds: [rest[0]!, rest[1]!] }]
+      : rest.length >= 3
+        ? getRegularSeasonMatchupsForRound(rest, roundIndex)
+        : [];
+
+  return [...founderGames, ...restGames];
+}
+
+function regularSeasonMatchupsForLeague(
+  leagueSlug: string | null | undefined,
+  order: string[],
+  roundIndex: number
+): WeekMatchup[] {
+  if (isBeatTheFoundersLeagueSlug(leagueSlug)) {
+    return getBeatTheFoundersRegularSeasonMatchups(order, roundIndex);
+  }
+  return getRegularSeasonMatchupsForRound(order, roundIndex);
+}
+
 function winnerByPointsThenSeed(
   pointsByUserId: Record<string, number>,
   a: string,
@@ -1147,21 +1209,34 @@ function winnerByPointsThenSeed(
   return seededOrder.indexOf(a) <= seededOrder.indexOf(b) ? a : b;
 }
 
+/** Positive when `a` has more season-to-date points than `b`. */
+function seasonPointsEdge(
+  a: string,
+  b: string,
+  seasonPoints?: Record<string, number> | null
+): number {
+  if (!seasonPoints) return 0;
+  return (seasonPoints[a] ?? 0) - (seasonPoints[b] ?? 0);
+}
+
 /** Apply one week's matchup (H2H or triple threat) to a running W-L-T tally. */
 function applyMatchupToWlt(
   mu: WeekMatchup,
   pointsByUserId: Record<string, number>,
-  wlt: Record<string, { w: number; l: number; t: number }>
+  wlt: Record<string, { w: number; l: number; t: number }>,
+  /** When set, a tied week goes to the manager with more season-to-date points. Equal season points stay a tie. */
+  seasonPoints?: Record<string, number> | null
 ): void {
   if (mu.type === "h2h") {
     const [a, b] = mu.userIds;
     if (!a || !b || !wlt[a] || !wlt[b]) return;
     const pa = pointsByUserId[a] ?? 0;
     const pb = pointsByUserId[b] ?? 0;
-    if (pa > pb) {
+    const edge = pa === pb ? seasonPointsEdge(a, b, seasonPoints) : pa - pb;
+    if (edge > 0) {
       wlt[a]!.w++;
       wlt[b]!.l++;
-    } else if (pb > pa) {
+    } else if (edge < 0) {
       wlt[b]!.w++;
       wlt[a]!.l++;
     } else {
@@ -1184,13 +1259,44 @@ function applyMatchupToWlt(
       // second/third tie: both charged a loss (already applied above).
     }
   } else if (x!.p === y!.p && y!.p > z!.p) {
-    wlt[x!.id]!.t++;
-    wlt[y!.id]!.t++;
-    wlt[z!.id]!.l++;
-  } else {
+    const edge = seasonPointsEdge(x!.id, y!.id, seasonPoints);
+    if (edge > 0) {
+      wlt[x!.id]!.w++;
+      wlt[y!.id]!.l++;
+      wlt[z!.id]!.l++;
+    } else if (edge < 0) {
+      wlt[y!.id]!.w++;
+      wlt[x!.id]!.l++;
+      wlt[z!.id]!.l++;
+    } else {
+      wlt[x!.id]!.t++;
+      wlt[y!.id]!.t++;
+      wlt[z!.id]!.l++;
+    }
+  } else if (!seasonPoints) {
     wlt[x!.id]!.t++;
     wlt[y!.id]!.t++;
     wlt[z!.id]!.t++;
+  } else {
+    const ranked = [x!, y!, z!].sort(
+      (a, b) => (seasonPoints[b.id] ?? 0) - (seasonPoints[a.id] ?? 0)
+    );
+    const s0 = seasonPoints[ranked[0]!.id] ?? 0;
+    const s1 = seasonPoints[ranked[1]!.id] ?? 0;
+    const s2 = seasonPoints[ranked[2]!.id] ?? 0;
+    if (s0 > s1) {
+      wlt[ranked[0]!.id]!.w++;
+      wlt[ranked[1]!.id]!.l++;
+      wlt[ranked[2]!.id]!.l++;
+    } else if (s1 > s2) {
+      wlt[ranked[0]!.id]!.t++;
+      wlt[ranked[1]!.id]!.t++;
+      wlt[ranked[2]!.id]!.l++;
+    } else {
+      wlt[ranked[0]!.id]!.t++;
+      wlt[ranked[1]!.id]!.t++;
+      wlt[ranked[2]!.id]!.t++;
+    }
   }
 }
 
@@ -1202,7 +1308,9 @@ function applyMatchupToWlt(
 function buildRegularSeasonSeeds(
   order: string[],
   regularSeasonWeekStarts: string[],
-  weeklyResults: WeeklyMatchupResult[]
+  weeklyResults: WeeklyMatchupResult[],
+  breakTiedWeeksWithSeasonPoints = false,
+  matchupForRound: (order: string[], roundIndex: number) => WeekMatchup[] = getRegularSeasonMatchupsForRound
 ): string[] {
   const wlt: Record<string, { w: number; l: number; t: number }> = Object.fromEntries(
     order.map((id) => [id, { w: 0, l: 0, t: 0 }])
@@ -1213,8 +1321,13 @@ function buildRegularSeasonSeeds(
     const weekResult = weeklyResults.find((r) => r.weekStart === weekStart);
     if (!weekResult) continue;
     for (const id of order) pointsTotal[id] = (pointsTotal[id] ?? 0) + (weekResult.pointsByUserId[id] ?? 0);
-    for (const mu of getRegularSeasonMatchupsForRound(order, i)) {
-      applyMatchupToWlt(mu, weekResult.pointsByUserId, wlt);
+    for (const mu of matchupForRound(order, i)) {
+      applyMatchupToWlt(
+        mu,
+        weekResult.pointsByUserId,
+        wlt,
+        breakTiedWeeksWithSeasonPoints ? pointsTotal : null
+      );
     }
   }
   return [...order].sort((a, b) => {
@@ -1243,6 +1356,12 @@ export function leagueSupportsH2HPlayoffs(size: number): boolean {
 export function playoffRoundsForSize(size: number): number {
   if (!leagueSupportsH2HPlayoffs(size)) return 0;
   return size === 4 ? 2 : 3;
+}
+
+/** Playoff weeks for a league. Beat the Founders uses a 3-week top-8 bracket when the field is at least 8. */
+export function playoffRoundsForLeague(size: number, leagueSlug?: string | null): number {
+  if (isBeatTheFoundersLeagueSlug(leagueSlug) && size >= BEAT_THE_FOUNDERS_PLAYOFF_TEAMS) return 3;
+  return playoffRoundsForSize(size);
 }
 
 /** Human labels for each playoff round (index 0 = first playoff week). */
@@ -1363,6 +1482,35 @@ function getPlayoffSpec(size: number): PlayoffSpec | null {
   return PLAYOFF_SPECS[size] ?? null;
 }
 
+/** Championship path only. Founders may meet here. Quarterfinal losers do not play again. */
+const BEAT_THE_FOUNDERS_PLAYOFF_SPEC: PlayoffSpec = {
+  size: BEAT_THE_FOUNDERS_PLAYOFF_TEAMS,
+  rounds: 3,
+  games: [
+    { id: "q1", round: 0, a: seedRef(1), b: seedRef(8), group: "championship", label: "Quarterfinal" },
+    { id: "q2", round: 0, a: seedRef(4), b: seedRef(5), group: "championship", label: "Quarterfinal" },
+    { id: "q3", round: 0, a: seedRef(2), b: seedRef(7), group: "championship", label: "Quarterfinal" },
+    { id: "q4", round: 0, a: seedRef(3), b: seedRef(6), group: "championship", label: "Quarterfinal" },
+    { id: "sf1", round: 1, a: winRef("q1"), b: winRef("q2"), group: "championship", label: "Semifinal" },
+    { id: "sf2", round: 1, a: winRef("q3"), b: winRef("q4"), group: "championship", label: "Semifinal" },
+    { id: "final", round: 2, a: winRef("sf1"), b: winRef("sf2"), group: "championship", label: "Championship" },
+  ],
+};
+
+function usesBeatTheFoundersPlayoff(leagueSlug: string | null | undefined, size: number): boolean {
+  return isBeatTheFoundersLeagueSlug(leagueSlug) && size >= BEAT_THE_FOUNDERS_PLAYOFF_TEAMS;
+}
+
+function fieldIsScheduleReady(
+  memberCount: number,
+  maxTeams: number | null | undefined,
+  leagueSlug: string | null | undefined
+): boolean {
+  if (maxTeams == null) return true;
+  if (isBeatTheFoundersLeagueSlug(leagueSlug)) return memberCount <= maxTeams;
+  return memberCount === maxTeams;
+}
+
 type ResolvedPlayoffGame = {
   spec: PlayoffGameSpec;
   a: string | null;
@@ -1417,6 +1565,10 @@ export function getScheduledMatchupsForWeek(params: {
   maxTeams: number | null | undefined;
   draftStatus: string | null | undefined;
   weeklyResults: WeeklyMatchupResult[];
+  /** Salary-cap head-to-head only. A tied week goes to the higher season point total. */
+  breakTiedWeeksWithSeasonPoints?: boolean;
+  /** Beat the Founders uses a separated regular season and a top-8 playoff. */
+  leagueSlug?: string | null;
 }): WeekMatchup[] {
   const {
     weekStart,
@@ -1426,9 +1578,11 @@ export function getScheduledMatchupsForWeek(params: {
     maxTeams,
     draftStatus,
     weeklyResults,
+    leagueSlug,
   } = params;
+  const breakTiedWeeksWithSeasonPoints = Boolean(params.breakTiedWeeksWithSeasonPoints);
   if (!weekStarts.includes(weekStart) || memberUserIds.length < 3) return [];
-  if (maxTeams != null && memberUserIds.length !== maxTeams) return [];
+  if (!fieldIsScheduleReady(memberUserIds.length, maxTeams, leagueSlug)) return [];
   if ((draftStatus ?? "not_started") !== "completed") return [];
   const baseOrder =
     seededMemberUserIds && seededMemberUserIds.length === memberUserIds.length
@@ -1440,16 +1594,19 @@ export function getScheduledMatchupsForWeek(params: {
 
   const size = memberUserIds.length;
   const totalWeeks = weekStarts.length;
-  const po = leagueSupportsH2HPlayoffs(size) ? playoffRoundsForSize(size) : 0;
+  const po = playoffRoundsForLeague(size, leagueSlug);
   const rsCount = po > 0 ? Math.max(1, totalWeeks - po) : totalWeeks;
+  const matchupForRound = (order: string[], roundIndex: number) =>
+    regularSeasonMatchupsForLeague(leagueSlug, order, roundIndex);
 
   // Regular-season week: rotating round-robin (1v1 first; one rotating triple threat when odd).
   if (po === 0 || idx < rsCount) {
-    return getRegularSeasonMatchupsForRound(baseOrder, idx);
+    return matchupForRound(baseOrder, idx);
   }
 
-  const spec = getPlayoffSpec(size);
-  if (!spec) return getRegularSeasonMatchupsForRound(baseOrder, idx);
+  const foundersPlayoff = usesBeatTheFoundersPlayoff(leagueSlug, size);
+  const spec = foundersPlayoff ? BEAT_THE_FOUNDERS_PLAYOFF_SPEC : getPlayoffSpec(size);
+  if (!spec) return matchupForRound(baseOrder, idx);
 
   const rsWeekStarts = weekStarts.slice(0, rsCount);
   const playoffWeekStarts = weekStarts.slice(rsCount);
@@ -1462,10 +1619,17 @@ export function getScheduledMatchupsForWeek(params: {
   );
   if (!lastRsFinalized) return [];
 
-  const seeds = buildRegularSeasonSeeds(baseOrder, rsWeekStarts, weeklyResults);
-  if (seeds.length !== size) return [];
+  const seeds = buildRegularSeasonSeeds(
+    baseOrder,
+    rsWeekStarts,
+    weeklyResults,
+    breakTiedWeeksWithSeasonPoints,
+    matchupForRound
+  );
+  const playoffSeeds = foundersPlayoff ? seeds.slice(0, BEAT_THE_FOUNDERS_PLAYOFF_TEAMS) : seeds;
+  if (playoffSeeds.length !== spec.size) return [];
 
-  const resolved = resolvePlayoffGames({ spec, seeds, playoffWeekStarts, weeklyResults });
+  const resolved = resolvePlayoffGames({ spec, seeds: playoffSeeds, playoffWeekStarts, weeklyResults });
   const out: WeekMatchup[] = [];
   for (const g of spec.games) {
     if (g.round !== round) continue;
@@ -1481,12 +1645,13 @@ export function leagueHasH2HPlayoffSchedule(params: {
   weekCount: number;
   maxTeams: number | null | undefined;
   draftStatus: string | null | undefined;
+  leagueSlug?: string | null;
 }): boolean {
   const size = params.memberCount;
-  if (!leagueSupportsH2HPlayoffs(size)) return false;
-  const po = playoffRoundsForSize(size);
+  const po = playoffRoundsForLeague(size, params.leagueSlug);
+  if (po === 0) return false;
   if (params.weekCount < po + 1) return false;
-  if (params.maxTeams != null && params.maxTeams !== size) return false;
+  if (!fieldIsScheduleReady(size, params.maxTeams, params.leagueSlug)) return false;
   return (params.draftStatus ?? "not_started") === "completed";
 }
 
@@ -1500,10 +1665,11 @@ export function playoffsUnlocked(params: {
   size: number;
   weeklyResults: WeeklyMatchupResult[];
   todayYmd?: string;
+  leagueSlug?: string | null;
 }): boolean {
   const { weekStarts, size, weeklyResults } = params;
-  if (!leagueSupportsH2HPlayoffs(size)) return false;
-  const po = playoffRoundsForSize(size);
+  const po = playoffRoundsForLeague(size, params.leagueSlug);
+  if (po === 0) return false;
   const totalWeeks = weekStarts.length;
   if (totalWeeks < po + 1) return false;
   const rsCount = Math.max(1, totalWeeks - po);
@@ -1609,8 +1775,11 @@ export function getPlayoffBracket(params: {
   draftStatus: string | null | undefined;
   weeklyResults: WeeklyMatchupResult[];
   todayYmd?: string;
+  /** Salary-cap head-to-head only. A tied week goes to the higher season point total. */
+  breakTiedWeeksWithSeasonPoints?: boolean;
+  leagueSlug?: string | null;
 }): PlayoffBracket | null {
-  const { weekStarts, memberUserIds, seededMemberUserIds, maxTeams, draftStatus, weeklyResults } = params;
+  const { weekStarts, memberUserIds, seededMemberUserIds, maxTeams, draftStatus, weeklyResults, leagueSlug } = params;
   const todayYmd = params.todayYmd ?? new Date().toISOString().slice(0, 10);
   const size = memberUserIds.length;
   if (
@@ -1619,23 +1788,34 @@ export function getPlayoffBracket(params: {
       weekCount: weekStarts.length,
       maxTeams,
       draftStatus,
+      leagueSlug,
     })
   ) {
     return null;
   }
-  if (!playoffsUnlocked({ weekStarts, size, weeklyResults, todayYmd })) return null;
+  if (!playoffsUnlocked({ weekStarts, size, weeklyResults, todayYmd, leagueSlug })) return null;
 
-  const spec = getPlayoffSpec(size);
+  const foundersPlayoff = usesBeatTheFoundersPlayoff(leagueSlug, size);
+  const spec = foundersPlayoff ? BEAT_THE_FOUNDERS_PLAYOFF_SPEC : getPlayoffSpec(size);
   if (!spec) return null;
 
   const baseOrder =
     seededMemberUserIds && seededMemberUserIds.length === memberUserIds.length
       ? seededMemberUserIds
       : memberUserIds;
-  const po = playoffRoundsForSize(size);
+  const po = playoffRoundsForLeague(size, leagueSlug);
   const rsCount = Math.max(1, weekStarts.length - po);
-  const seeds = buildRegularSeasonSeeds(baseOrder, weekStarts.slice(0, rsCount), weeklyResults);
-  if (seeds.length !== size) return null;
+  const matchupForRound = (order: string[], roundIndex: number) =>
+    regularSeasonMatchupsForLeague(leagueSlug, order, roundIndex);
+  const ranked = buildRegularSeasonSeeds(
+    baseOrder,
+    weekStarts.slice(0, rsCount),
+    weeklyResults,
+    Boolean(params.breakTiedWeeksWithSeasonPoints),
+    matchupForRound
+  );
+  const seeds = foundersPlayoff ? ranked.slice(0, BEAT_THE_FOUNDERS_PLAYOFF_TEAMS) : ranked;
+  if (seeds.length !== spec.size) return null;
 
   const seedByUserId = new Map(seeds.map((id, i) => [id, i + 1]));
   const playoffWeekStarts = weekStarts.slice(rsCount);
@@ -1673,14 +1853,14 @@ export function getPlayoffBracket(params: {
   });
 
   return {
-    size,
+    size: spec.size,
     rounds: po,
     seeds: seeds.map((userId, i) => ({ userId, seed: i + 1 })),
     championshipRounds,
     placementRounds,
     autoPlacements,
     champion,
-    roundLabels: playoffRoundLabels(size),
+    roundLabels: playoffRoundLabels(spec.size),
   };
 }
 
@@ -1739,14 +1919,19 @@ export function getPlayoffFinalStandings(
 }
 
 /** Label for fantasy week N (1-based) once the schedule enters its playoff rounds. */
-export function playoffWeekLabel(weekNumber: number, totalWeeks: number, size: number): string | null {
-  if (!leagueSupportsH2HPlayoffs(size)) return null;
-  const po = playoffRoundsForSize(size);
-  if (totalWeeks < po + 1) return null;
+export function playoffWeekLabel(
+  weekNumber: number,
+  totalWeeks: number,
+  size: number,
+  leagueSlug?: string | null
+): string | null {
+  const po = playoffRoundsForLeague(size, leagueSlug);
+  if (po === 0 || totalWeeks < po + 1) return null;
   const rsCount = Math.max(1, totalWeeks - po);
   if (weekNumber <= rsCount) return null;
   const r = weekNumber - rsCount - 1;
-  return playoffRoundLabels(size)[r] ?? null;
+  const labelSize = usesBeatTheFoundersPlayoff(leagueSlug, size) ? BEAT_THE_FOUNDERS_PLAYOFF_TEAMS : size;
+  return playoffRoundLabels(labelSize)[r] ?? null;
 }
 
 export type MatchupWlt = { w: number; l: number; t: number };
@@ -1763,6 +1948,8 @@ export function computeMatchupWltByUserId(
   weeklyResults: WeeklyMatchupResult[],
   opts?: {
     matchupResolver?: (week: WeeklyMatchupResult) => WeekMatchup[];
+    /** Overrides the salary-cap head-to-head default. Beat the Founders keeps a tied week as a tie. */
+    breakTiedWeeksWithSeasonPoints?: boolean;
   }
 ): Record<string, MatchupWlt> {
   const out: Record<string, MatchupWlt> = {};
@@ -1775,58 +1962,29 @@ export function computeMatchupWltByUserId(
 
   const n = memberUserIds.length;
   const today = new Date().toISOString().slice(0, 10);
+  const breakTiedWeeksWithSeasonPoints =
+    opts?.breakTiedWeeksWithSeasonPoints ?? leagueIsSalaryCapHeadToHead(leagueType);
+  const seasonPoints: Record<string, number> = Object.fromEntries(memberUserIds.map((id) => [id, 0]));
 
   for (const week of weeklyResults) {
     const finalized =
       week.weekScoringFinalized ?? week.weekEnd < today;
     if (!finalized) continue;
 
+    if (breakTiedWeeksWithSeasonPoints) {
+      for (const id of memberUserIds) {
+        seasonPoints[id] = (seasonPoints[id] ?? 0) + (week.pointsByUserId[id] ?? 0);
+      }
+    }
+
     const matchups = opts?.matchupResolver ? opts.matchupResolver(week) : getMatchupsForWeek(memberUserIds, n);
     for (const mu of matchups) {
-      if (mu.type === "h2h") {
-        const [a, b] = mu.userIds;
-        const pa = week.pointsByUserId[a] ?? 0;
-        const pb = week.pointsByUserId[b] ?? 0;
-        if (pa > pb) {
-          out[a].w++;
-          out[b].l++;
-        } else if (pb > pa) {
-          out[b].w++;
-          out[a].l++;
-        } else {
-          out[a].t++;
-          out[b].t++;
-        }
-        continue;
-      }
-      const pts = [mu.userIds[0]!, mu.userIds[1]!, mu.userIds[2]!].map((id) => ({
-        id,
-        p: week.pointsByUserId[id] ?? 0,
-      }));
-      pts.sort((a, b) => b.p - a.p);
-      const p0 = pts[0]!.p;
-      const p1 = pts[1]!.p;
-      const p2 = pts[2]!.p;
-      const x = pts[0]!.id;
-      const y = pts[1]!.id;
-      const z = pts[2]!.id;
-      if (p0 > p1 && p1 > p2) {
-        out[x].w++;
-        out[y].l++;
-        out[z].l++;
-      } else if (p0 > p1 && p1 === p2) {
-        out[x].w++;
-        out[y].l++;
-        out[z].l++;
-      } else if (p0 === p1 && p1 > p2) {
-        out[x].t++;
-        out[y].t++;
-        out[z].l++;
-      } else {
-        out[x].t++;
-        out[y].t++;
-        out[z].t++;
-      }
+      applyMatchupToWlt(
+        mu,
+        week.pointsByUserId,
+        out,
+        breakTiedWeeksWithSeasonPoints ? seasonPoints : null
+      );
     }
   }
   return out;
