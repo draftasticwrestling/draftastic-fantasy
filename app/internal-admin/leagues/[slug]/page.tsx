@@ -161,7 +161,8 @@ export default async function InternalAdminLeagueDetailPage({
     members.length,
     league.season_slug ?? null,
     leagueIncludesNxt(league),
-    league.league_type ?? null
+    league.league_type ?? null,
+    league.slug
   );
   const rosterWarnings: string[] = [];
   if (rules) {

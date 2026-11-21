@@ -900,7 +900,7 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
   const { data: league } = await supabase
     .from("leagues")
     .select(
-      "id, commissioner_id, draft_style, draft_type, draft_status, current_draft_run_id, season_slug, include_nxt, league_type, start_date, draft_date, created_at, visibility_type"
+      "id, slug, commissioner_id, draft_style, draft_type, draft_status, current_draft_run_id, season_slug, include_nxt, league_type, start_date, draft_date, created_at, visibility_type"
     )
     .eq("id", leagueId)
     .single();
@@ -934,7 +934,8 @@ export async function generateDraftOrder(leagueId: string): Promise<{ error?: st
     members.length,
     (league as { season_slug?: string | null }).season_slug ?? null,
     Boolean((league as { include_nxt?: boolean | null }).include_nxt),
-    (league as { league_type?: string | null } | null)?.league_type ?? null
+    (league as { league_type?: string | null } | null)?.league_type ?? null,
+    (league as { slug?: string | null }).slug ?? null
   );
   if (!rules) return { error: "League size must be 3–12 teams to generate draft order." };
 
@@ -997,7 +998,7 @@ export async function generateDraftOrderForScheduledDraft(leagueId: string): Pro
 
   const { data: league, error: leagueErr } = await admin
     .from("leagues")
-    .select("id, draft_style, draft_type, current_draft_run_id, season_slug, include_nxt, start_date, draft_date, created_at, visibility_type")
+    .select("id, slug, draft_style, draft_type, current_draft_run_id, season_slug, include_nxt, start_date, draft_date, created_at, visibility_type")
     .eq("id", leagueId)
     .maybeSingle();
   if (leagueErr || !league) return { error: "League not found." };
@@ -1012,7 +1013,8 @@ export async function generateDraftOrderForScheduledDraft(leagueId: string): Pro
     memberIds.length,
     (league as { season_slug?: string | null }).season_slug ?? null,
     Boolean((league as { include_nxt?: boolean | null }).include_nxt),
-    (league as { league_type?: string | null } | null)?.league_type ?? null
+    (league as { league_type?: string | null } | null)?.league_type ?? null,
+    (league as { slug?: string | null }).slug ?? null
   );
   if (!rules) return { error: "League size must be 3–12 teams to generate draft order." };
 
@@ -1072,7 +1074,7 @@ export async function setDraftOrderFromRound1(
   const { data: league } = await supabase
     .from("leagues")
     .select(
-      "id, commissioner_id, draft_style, draft_type, current_draft_run_id, season_slug, include_nxt, start_date, draft_date, created_at, visibility_type"
+      "id, slug, commissioner_id, draft_style, draft_type, current_draft_run_id, season_slug, include_nxt, start_date, draft_date, created_at, visibility_type"
     )
     .eq("id", leagueId)
     .single();
@@ -1089,7 +1091,8 @@ export async function setDraftOrderFromRound1(
     members.length,
     (league as { season_slug?: string | null }).season_slug ?? null,
     Boolean((league as { include_nxt?: boolean | null }).include_nxt),
-    (league as { league_type?: string | null } | null)?.league_type ?? null
+    (league as { league_type?: string | null } | null)?.league_type ?? null,
+    (league as { slug?: string | null }).slug ?? null
   );
   if (!rules) return { error: "League size must be 3–12 teams to set draft order." };
 

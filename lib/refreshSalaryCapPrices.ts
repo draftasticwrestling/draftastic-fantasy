@@ -7,6 +7,7 @@ import {
   priceSalaryCapRoster,
   SALARY_CAP_RECENT_DAYS,
   salaryCapYearStart,
+  type SalaryCapAllTimeStat,
   type SalaryCapEventInput,
   type SalaryCapReignInput,
   type SalaryCapWindowStat,
@@ -182,6 +183,28 @@ export async function refreshSalaryCapPrices(
     lost: row.date_lost ? String(row.date_lost).slice(0, 10) : null,
   }));
 
+  const allTimeByWrestlerId: Record<string, SalaryCapAllTimeStat> = {};
+  for (let from = 0; ; from += EVENT_PAGE) {
+    const { data, error } = await admin
+      .from("wrestler_stats_cache")
+      .select("wrestler_id, rs_points, ple_points, mw")
+      .eq("season_key", "all_time")
+      .order("wrestler_id", { ascending: true })
+      .range(from, from + EVENT_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as Array<Record<string, unknown>>;
+    for (const row of page) {
+      const id = String(row.wrestler_id ?? "").trim();
+      if (!id) continue;
+      allTimeByWrestlerId[id] = {
+        matches: Number(row.mw ?? 0),
+        rsPoints: Number(row.rs_points ?? 0),
+        plePoints: Number(row.ple_points ?? 0),
+      };
+    }
+    if (page.length < EVENT_PAGE) break;
+  }
+
   const events: SalaryCapEventInput[] = [];
   for (let from = 0; ; from += EVENT_PAGE) {
     const { data, error } = await admin
@@ -209,6 +232,7 @@ export async function refreshSalaryCapPrices(
     reigns,
     yearByWrestlerId,
     recentByWrestlerId,
+    allTimeByWrestlerId,
   });
   const currentById = new Map(wrestlers.map((wrestler) => [wrestler.id, wrestler.salary_cap_cost]));
   const nameById = new Map(wrestlers.map((wrestler) => [wrestler.id, wrestler.name]));

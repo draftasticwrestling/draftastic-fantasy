@@ -94,8 +94,21 @@ export const SALARY_CAP_BUDGET_DEFAULT = 100;
 
 export const SALARY_CAP_COST_TIERS = [5, 10, 15, 20, 25] as const;
 
-/** Max wrestlers at $5 each with $100 budget. */
+/** Max wrestlers at $5 each with the standard $100 salary-cap budget. */
 export const SALARY_CAP_MAX_ROSTER_SIZE = 20;
+
+/** Beat the Founders budget is $150, so a faction can roster thirty $5 wrestlers. */
+export const BEAT_THE_FOUNDERS_MAX_ROSTER_SIZE = 30;
+
+const BEAT_THE_FOUNDERS_ROSTER_SLUGS = new Set(["beat-the-founders-league", "the-founders-league"]);
+
+/** Roster cap for a salary-cap league. Beat the Founders is 30; every other salary-cap league stays at 20. */
+export function salaryCapMaxRosterSize(leagueSlug?: string | null): number {
+  if (BEAT_THE_FOUNDERS_ROSTER_SLUGS.has(String(leagueSlug ?? "").trim())) {
+    return BEAT_THE_FOUNDERS_MAX_ROSTER_SIZE;
+  }
+  return SALARY_CAP_MAX_ROSTER_SIZE;
+}
 
 export function leagueUsesSalaryCap(leagueType: string | null | undefined): boolean {
   const t = String(leagueType ?? "").trim();
@@ -312,11 +325,12 @@ export function getRosterRulesForLeague(
   teamCount: number,
   seasonSlug?: string | null,
   includeNxt?: boolean | null,
-  leagueType?: string | null
+  leagueType?: string | null,
+  leagueSlug?: string | null
 ): RosterRules | null {
   // Salary cap leagues may run with 1–2 managers during setup/testing; cap rules do not depend on team count.
   if (leagueUsesSalaryCap(leagueType)) {
-    return { rosterSize: SALARY_CAP_MAX_ROSTER_SIZE, minFemale: 0, minMale: 0 };
+    return { rosterSize: salaryCapMaxRosterSize(leagueSlug), minFemale: 0, minMale: 0 };
   }
   if (teamCount < MIN_LEAGUE_TEAMS || teamCount > MAX_LEAGUE_TEAMS) {
     return null;
@@ -356,15 +370,16 @@ export async function getRosterRulesForLeagueId(
 ): Promise<RosterRules | null> {
   const [{ count }, { data: league }] = await Promise.all([
     supabase.from("league_members").select("*", { count: "exact", head: true }).eq("league_id", leagueId),
-    supabase.from("leagues").select("season_slug, include_nxt, league_type").eq("id", leagueId).maybeSingle(),
+    supabase.from("leagues").select("season_slug, include_nxt, league_type, slug").eq("id", leagueId).maybeSingle(),
   ]);
   const teamCount = count ?? 0;
-  const seasonSlug = (league as { season_slug?: string | null } | null)?.season_slug ?? null;
-  const leagueType = (league as { league_type?: string | null } | null)?.league_type ?? null;
+  const leagueRow = league as { season_slug?: string | null; league_type?: string | null; slug?: string | null } | null;
+  const seasonSlug = leagueRow?.season_slug ?? null;
+  const leagueType = leagueRow?.league_type ?? null;
   const includeNxt = leagueIncludesNxt(
     league as { include_nxt?: boolean | null; league_type?: string | null } | null
   );
-  return getRosterRulesForLeague(teamCount, seasonSlug, includeNxt, leagueType);
+  return getRosterRulesForLeague(teamCount, seasonSlug, includeNxt, leagueType, leagueRow?.slug ?? null);
 }
 
 /**

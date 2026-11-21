@@ -51,7 +51,8 @@ export default async function FactionActionsPage({ params, searchParams }: Props
     members.length,
     league.season_slug ?? null,
     leagueIncludesNxt(league),
-    league.league_type ?? null
+    league.league_type ?? null,
+    league.slug
   );
   const rosterEntries = rosters[user.id] ?? [];
   const myRosterIds = new Set(rosterEntries.map((e) => e.wrestler_id));

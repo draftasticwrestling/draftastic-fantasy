@@ -211,7 +211,8 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
       standingsMembers.length,
       league.season_slug ?? null,
       leagueIncludesNxt(league),
-      league.league_type ?? null
+      league.league_type ?? null,
+      league.slug
     );
 
     const isHeadToHeadHomeStandings = leagueUsesHeadToHeadRecords(league.league_type);

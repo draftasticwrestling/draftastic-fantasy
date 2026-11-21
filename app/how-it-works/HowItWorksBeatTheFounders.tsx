@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SALARY_CAP_COST_TIERS, SALARY_CAP_MAX_ROSTER_SIZE } from "@/lib/leagueStructure";
+import { BEAT_THE_FOUNDERS_MAX_ROSTER_SIZE, SALARY_CAP_COST_TIERS } from "@/lib/leagueStructure";
 import { HowItWorksNxtScoring } from "./HowItWorksNxtScoring";
 import { HowItWorksRoadToWrestleManiaEvents } from "./HowItWorksRoadToWrestleManiaEvents";
 import { HowItWorksTitlePoints } from "./HowItWorksTitlePoints";
@@ -54,7 +54,7 @@ export function HowItWorksBeatTheFounders() {
           </li>
           <li>
             <strong>Budget:</strong> ${BEAT_THE_FOUNDERS_BUDGET} per faction. Wrestlers cost $
-            {SALARY_CAP_COST_TIERS.join(", $")}. You may roster up to {SALARY_CAP_MAX_ROSTER_SIZE} wrestlers. NXT is
+            {SALARY_CAP_COST_TIERS.join(", $")}. You may roster up to {BEAT_THE_FOUNDERS_MAX_ROSTER_SIZE} wrestlers. NXT is
             included.
           </li>
           <li>

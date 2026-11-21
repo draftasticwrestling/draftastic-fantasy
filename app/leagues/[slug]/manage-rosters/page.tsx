@@ -48,7 +48,8 @@ export default async function ManageRostersPage({
     members.length,
     league.season_slug ?? null,
     leagueIncludesNxt(league),
-    league.league_type ?? null
+    league.league_type ?? null,
+    league.slug
   );
   const isSiteAdmin = await getIsSiteAdmin();
   const canSubmitOffline = league.role === "commissioner" || isSiteAdmin;

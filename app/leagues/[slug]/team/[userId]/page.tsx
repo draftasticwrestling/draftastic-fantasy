@@ -279,7 +279,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
     members.length,
     league.season_slug ?? null,
     leagueIncludesNxt(league),
-    league.league_type ?? null
+    league.league_type ?? null,
+    league.slug
   );
 
   const frozenCostsByWrestlerId = isSalaryCapLeague
@@ -1226,7 +1227,8 @@ export default async function TeamUserIdPage({ params, searchParams }: Props) {
                     members.length,
                     league.season_slug ?? null,
                     leagueIncludesNxt(league),
-                    league.league_type ?? null
+                    league.league_type ?? null,
+                    league.slug
                   );
                   const myRosterIds = (rosters[currentUser.id] ?? []).map((e) => e.wrestler_id);
                   const giveCount = p.items.filter((i) => i.direction === "give").length; // recipient receives

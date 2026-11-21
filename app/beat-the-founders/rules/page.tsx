@@ -5,7 +5,7 @@ export const metadata = {
   description: "Official rules for the Beat the Founders contest on Draftastic Fantasy.",
 };
 
-const LAST_UPDATED = "November 20, 2026";
+const LAST_UPDATED = "November 21, 2026";
 const CONTACT_EMAIL = "draftasticwrestling@gmail.com";
 
 export default function BeatTheFoundersRulesPage() {
@@ -156,6 +156,10 @@ export default function BeatTheFoundersRulesPage() {
         The league will have a maximum of twenty (20) teams, including all founder-managed teams.
       </p>
       <p style={{ color: "#444" }}>
+        Each team has a $150 fantasy salary cap and may roster up to thirty (30) wrestlers. Wrestlers are not exclusive,
+        so more than one team may roster the same wrestler. The same salary cap and roster limit apply to every team.
+      </p>
+      <p style={{ color: "#444" }}>
         Each team competes under the same fantasy scoring system and league rules. Founder-managed teams are not given
         special scoring advantages, roster privileges, or other competitive benefits.
       </p>
@@ -177,8 +181,8 @@ export default function BeatTheFoundersRulesPage() {
         <Link href="/how-it-works?tab=beat-the-founders">https://draftasticprowrestling.com/how-it-works</Link>
       </p>
       <p style={{ color: "#444" }}>
-        The applicable scoring rules, event types, roster requirements, and other fantasy league settings for the
-        Founders League will be established at the start of the competition.
+        The applicable scoring rules, event types, and other fantasy league settings for the Founders League are
+        published on the Draftastic website. Each team may roster up to thirty (30) wrestlers within a $150 salary cap.
       </p>
       <p style={{ color: "#444" }}>
         The scoring system in effect at the start of the Founders League will govern the competition. The Sponsor may

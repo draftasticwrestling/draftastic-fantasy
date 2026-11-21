@@ -73,7 +73,7 @@ async function main() {
     const teams = count ?? 0;
 
     const oldRules = oldRosterRules(teams, lg.season_slug, Boolean(lg.include_nxt), lg.league_type);
-    const newRules = getRosterRulesForLeague(teams, lg.season_slug, Boolean(lg.include_nxt), lg.league_type);
+    const newRules = getRosterRulesForLeague(teams, lg.season_slug, Boolean(lg.include_nxt), lg.league_type, lg.slug);
     const same = JSON.stringify(oldRules) === JSON.stringify(newRules);
 
     const tag = active ? "ACTIVE" : "ended ";

@@ -11,8 +11,10 @@ import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
  * A title match is already inside the point total. One title match in someone else's story
  * does not raise the price when the rest of the year is short and low-scoring.
  *
+ * A wrestler gets the highest price any rule reaches. A lower rule never pulls a higher one down.
+ *
  * Order:
- * 1. Inactive wrestlers are not priced.
+ * 1. Inactive wrestlers are not priced. This is checked first, so a career average cannot price them.
  * 2. NXT roster starts at $5. The current NXT Champion and NXT Women's Champion are at least $10.
  * 3. Main roster starts at $10.
  * 4. This year, 10 or more matches and 90 or more points is $15. 10 or more matches and 150 or more points is $20.
@@ -20,15 +22,27 @@ import { wrestlerRosterFromBrand } from "@/lib/wrestlerRosterFromBrand";
  *    and 6 or more matches and 80 or more points is $20.
  * 6. A short year after an injury can still reach $15 when the last 90 days are a main-event run:
  *    5 or more matches, at least 5 of them main events, and at least 6 points per match.
- * 7. Current world champions are $25. Current US and Intercontinental champions are at least $15.
- *    A tag reign or a single title match does not set a price by itself.
+ * 7. All-time points per match of 12 or higher, across at least 10 matches, is $20.
+ *    That average is weekly-show and premium-event points divided by matches.
+ * 8. Current Raw, SmackDown, and Women's Tag Team champions are $15.
+ * 9. A men's or women's US or Intercontinental reign on any day in the last 90 days is at least $15.
+ *    The current champion is $20.
+ * 10. A world-title reign on any day in the last 90 days is $20. The current world champion is $25.
+ *    A title match that did not start a reign does not set a price.
  */
 
 /** Leagues created on or after this date copy `wrestlers.salary_cap_cost` at creation. Earlier leagues keep their seed or snapshot. */
 export const SALARY_CAP_MONTHLY_PRICING_START = "2026-11-11";
 
 export const SALARY_CAP_MAJOR_CHAMPION_COST = 25;
-export const SALARY_CAP_MIDCARD_CHAMPION_COST = 15;
+/** Held a main-roster world title on any day in the last 90 days. */
+export const SALARY_CAP_RECENT_MAJOR_CHAMPION_COST = 20;
+/** Current men's or women's United States or Intercontinental champion. */
+export const SALARY_CAP_MIDCARD_CHAMPION_COST = 20;
+/** Held a US or Intercontinental title on any day in the last 90 days. */
+export const SALARY_CAP_RECENT_MIDCARD_CHAMPION_COST = 15;
+/** Current Raw, SmackDown, or Women's Tag Team champion. */
+export const SALARY_CAP_TAG_CHAMPION_COST = 15;
 export const SALARY_CAP_NXT_CHAMPION_COST = 10;
 /** NXT roster wrestlers who are not the men's or women's NXT champion and have not cleared a points tier. */
 export const SALARY_CAP_DEFAULT_COST = 5;
@@ -51,6 +65,11 @@ export const SALARY_CAP_MAIN_EVENT_RUN_MATCHES = 5;
 export const SALARY_CAP_MAIN_EVENT_RUN_MAINS = 5;
 export const SALARY_CAP_MAIN_EVENT_RUN_PPM = 6;
 export const SALARY_CAP_MAIN_EVENT_RUN_COST = 15;
+
+/** Career average on the wrestler page: weekly-show and premium-event points divided by matches. */
+export const SALARY_CAP_ALL_TIME_MATCHES = 10;
+export const SALARY_CAP_ALL_TIME_PPM = 12;
+export const SALARY_CAP_ALL_TIME_COST = 20;
 
 /** @deprecated Use SALARY_CAP_RECENT_DAYS. Kept so older imports still compile. */
 export const SALARY_CAP_ACTIVITY_LOOKBACK_DAYS = SALARY_CAP_RECENT_DAYS;
@@ -84,11 +103,22 @@ export type SalaryCapPriceReason =
   | "nxt"
   | "nxt-champion"
   | "major-champion"
+  | "recent-major-champion"
   | "midcard-champion"
+  | "recent-midcard-champion"
+  | "tag-champion"
   | "year-production"
   | "recent-production"
   | "main-event-run"
+  | "all-time-production"
   | "default";
+
+/** All-time match count and the weekly-show and premium-event points used for the career average. */
+export type SalaryCapAllTimeStat = {
+  matches: number;
+  rsPoints: number;
+  plePoints: number;
+};
 
 /** Matches and fantasy points (weekly shows, premium events, and match title points) in one window. */
 export type SalaryCapWindowStat = {
@@ -187,6 +217,29 @@ export function salaryCapMainEventRunCost(stat: SalaryCapWindowStat | null | und
   return SALARY_CAP_MAIN_EVENT_RUN_COST;
 }
 
+/** $20 when the career average on the wrestler page is 12 or higher across at least 10 matches. */
+export function salaryCapAllTimeCost(stat: SalaryCapAllTimeStat | null | undefined): number | null {
+  if (!stat) return null;
+  const matches = Number(stat.matches);
+  if (!Number.isFinite(matches) || matches < SALARY_CAP_ALL_TIME_MATCHES) return null;
+  const points = Number(stat.rsPoints) + Number(stat.plePoints);
+  if (!Number.isFinite(points) || points / matches < SALARY_CAP_ALL_TIME_PPM) return null;
+  return SALARY_CAP_ALL_TIME_COST;
+}
+
+function reignIsCurrent(won: string, lost: string, asOf: string): boolean {
+  if (!won || won > asOf) return false;
+  if (lost && lost < asOf) return false;
+  return true;
+}
+
+/** Held the title on any day in the 90 days before asOf. The pricing date itself is the current reign. */
+function reignOverlapsRecent(won: string, lost: string, recentStart: string, asOf: string): boolean {
+  if (!won || won >= asOf) return false;
+  if (lost && lost < recentStart) return false;
+  return true;
+}
+
 function lookupId(raw: string, idBySlug: Map<string, string>, eventDate: string): string | null {
   const slug = normalizeWrestlerName(raw);
   if (!slug) return null;
@@ -210,7 +263,7 @@ function championIdsForReign(champion: string, idBySlug: Map<string, string>, as
 
 /**
  * Price every wrestler as of `asOfYmd`. Year and recent stats are the body of work.
- * Current world and midcard reigns raise the floor. A title match does not.
+ * Current and recent title reigns raise the floor. A title match that did not start a reign does not.
  */
 export function priceSalaryCapRoster(params: {
   asOfYmd: string;
@@ -218,6 +271,7 @@ export function priceSalaryCapRoster(params: {
   reigns: SalaryCapReignInput[];
   yearByWrestlerId?: Record<string, SalaryCapWindowStat>;
   recentByWrestlerId?: Record<string, SalaryCapWindowStat>;
+  allTimeByWrestlerId?: Record<string, SalaryCapAllTimeStat>;
 }): SalaryCapPrice[] {
   const asOf = params.asOfYmd.slice(0, 10);
   const yearByWrestlerId = params.yearByWrestlerId ?? {};
@@ -233,22 +287,30 @@ export function priceSalaryCapRoster(params: {
     if (nameSlug) idBySlug.set(nameSlug, id);
   }
 
-  const championTier = new Map<string, SalaryCapTitleTier>();
+  const currentTier = new Map<string, SalaryCapTitleTier>();
+  const recentTier = new Map<string, SalaryCapTitleTier>();
   const nxtWorldChampion = new Set<string>();
+  const recentStart = addDaysYmd(asOf, -SALARY_CAP_RECENT_DAYS);
   const rank: Record<SalaryCapTitleTier, number> = { tag: 1, midcard: 2, major: 3 };
+  const keepHigherTier = (map: Map<string, SalaryCapTitleTier>, id: string, tier: SalaryCapTitleTier) => {
+    const prev = map.get(id);
+    if (!prev || rank[tier] > rank[prev]) map.set(id, tier);
+  };
   for (const reign of params.reigns) {
     const won = String(reign.won ?? "").slice(0, 10);
     const lost = reign.lost ? String(reign.lost).slice(0, 10) : "";
-    if (!won || won > asOf) continue;
-    if (lost && lost < asOf) continue;
-    if (isNxtMensOrWomensChampionTitle(reign.title)) {
-      for (const id of championIdsForReign(reign.champion, idBySlug, asOf)) nxtWorldChampion.add(id);
+    const current = reignIsCurrent(won, lost, asOf);
+    const recent = reignOverlapsRecent(won, lost, recentStart, asOf);
+    if (!current && !recent) continue;
+    const ids = championIdsForReign(reign.champion, idBySlug, asOf);
+    if (current && isNxtMensOrWomensChampionTitle(reign.title)) {
+      for (const id of ids) nxtWorldChampion.add(id);
     }
     const tier = salaryCapTitleTier(reign.title);
     if (!tier) continue;
-    for (const id of championIdsForReign(reign.champion, idBySlug, asOf)) {
-      const prev = championTier.get(id);
-      if (!prev || rank[tier] > rank[prev]) championTier.set(id, tier);
+    for (const id of ids) {
+      if (current) keepHigherTier(currentTier, id, tier);
+      if (recent) keepHigherTier(recentTier, id, tier);
     }
   }
 
@@ -278,18 +340,36 @@ export function priceSalaryCapRoster(params: {
         reason = "main-event-run";
       }
 
+      const allTime = salaryCapAllTimeCost(params.allTimeByWrestlerId?.[wrestlerId]);
+      if (allTime != null && allTime > cost) {
+        cost = allTime;
+        reason = "all-time-production";
+      }
+
       if (nxt && nxtWorldChampion.has(wrestlerId) && cost < SALARY_CAP_NXT_CHAMPION_COST) {
         cost = SALARY_CAP_NXT_CHAMPION_COST;
         reason = "nxt-champion";
       }
 
-      const held = championTier.get(wrestlerId);
-      if (held === "major" && cost < SALARY_CAP_MAJOR_CHAMPION_COST) {
+      const currentHeld = currentTier.get(wrestlerId);
+      const recentHeld = recentTier.get(wrestlerId);
+      if (currentHeld === "major" && cost < SALARY_CAP_MAJOR_CHAMPION_COST) {
         cost = SALARY_CAP_MAJOR_CHAMPION_COST;
         reason = "major-champion";
-      } else if (held === "midcard" && cost < SALARY_CAP_MIDCARD_CHAMPION_COST) {
+      } else if (recentHeld === "major" && cost < SALARY_CAP_RECENT_MAJOR_CHAMPION_COST) {
+        cost = SALARY_CAP_RECENT_MAJOR_CHAMPION_COST;
+        reason = "recent-major-champion";
+      }
+      if (currentHeld === "midcard" && cost < SALARY_CAP_MIDCARD_CHAMPION_COST) {
         cost = SALARY_CAP_MIDCARD_CHAMPION_COST;
         reason = "midcard-champion";
+      } else if (recentHeld === "midcard" && cost < SALARY_CAP_RECENT_MIDCARD_CHAMPION_COST) {
+        cost = SALARY_CAP_RECENT_MIDCARD_CHAMPION_COST;
+        reason = "recent-midcard-champion";
+      }
+      if (currentHeld === "tag" && cost < SALARY_CAP_TAG_CHAMPION_COST) {
+        cost = SALARY_CAP_TAG_CHAMPION_COST;
+        reason = "tag-champion";
       }
 
       return { wrestlerId, cost, reason };
