@@ -18,3 +18,8 @@ set
   salary_cap_weekly_budget = 40
 where slug = 'beat-the-founders-league'
   and league_type = 'salary_cap';
+
+update public.leagues
+set name = 'Beat the Founders League'
+where slug = 'beat-the-founders-league'
+  and name is distinct from 'Beat the Founders League';

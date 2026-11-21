@@ -55,7 +55,18 @@ begin
   join public.league_members m on m.league_id = l.id
   where m.user_id = v_uid
     and l.visibility_type = 'public'
-    and coalesce(l.public_status, 'open') in ('open', 'full', 'awaiting_minimum', 'active')
+    and l.league_type in ('salary_cap', 'salary_cap_h2h')
+    and (
+      (
+        coalesce(l.public_status, 'open') in ('open', 'awaiting_minimum')
+        and (l.registration_closes_at is null or l.registration_closes_at > now())
+      )
+      or (
+        coalesce(l.public_status, 'open') in ('active', 'full')
+        and l.end_date is not null
+        and l.end_date >= (timezone('America/Los_Angeles', now()))::date
+      )
+    )
   order by l.created_at asc
   limit 1;
 

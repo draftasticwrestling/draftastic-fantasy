@@ -165,7 +165,9 @@ export function buildSalaryCapCostsForLeagueCreation(
     const id = String(wrestler.id ?? "").trim();
     if (!id) continue;
     if (isNxtSalaryCapWrestler(wrestler.brand)) {
-      out[id] = SALARY_CAP_NXT_COST;
+      const nxtColumn = wrestler.salary_cap_cost;
+      out[id] =
+        typeof nxtColumn === "number" && isValidSalaryCapCost(nxtColumn) ? nxtColumn : SALARY_CAP_NXT_COST;
       continue;
     }
     const column = wrestler.salary_cap_cost;

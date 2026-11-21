@@ -1100,34 +1100,91 @@ export async function joinLeagueWithCode(code: string): Promise<{
   return result;
 }
 
-export async function quickJoinOldestPublicLeague(): Promise<{
-  ok: boolean;
-  league_slug?: string;
-  error?: string;
-  message?: string;
-}> {
-  await closeExpiredPublicLeagues();
-  const { supabase } = await getServerAuth();
-  const { data, error } = await supabase.rpc("join_oldest_public_league");
-  if (error) return { ok: false, error: error.message };
-  const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
-  if (result.ok && result.league_slug) {
-    const {
-      data: { user: u },
-    } = await supabase.auth.getUser();
-    if (u?.id) await markPublicLeagueJoinPending(result.league_slug, u.id);
-    await syncPublicLeagueStatusBySlug(result.league_slug);
-    return result;
-  }
+type PublicQuickJoinLeagueRow = {
+  id: string;
+  slug: string;
+  visibility_type?: string | null;
+  league_type?: string | null;
+  season_slug?: string | null;
+  public_status?: string | null;
+  registration_closes_at?: string | null;
+  end_date?: string | null;
+  max_teams?: number | null;
+};
 
-  const errMsg = (result.error ?? "").trim();
-  const noOpenPublic =
-    /no open public leagues/i.test(errMsg) ||
-    errMsg === "No open public leagues available right now.";
-  if (!noOpenPublic) {
-    return { ok: false, error: errMsg || "Join failed" };
-  }
+/**
+ * A finished public season, or an older public format, must not block a new public-league join.
+ * Current means a public salary-cap league that is still enrolling, or whose season has not ended.
+ */
+function publicQuickJoinLeagueIsCurrent(league: PublicQuickJoinLeagueRow | null | undefined): boolean {
+  if (!league || !isPublicSalaryCapLeague(league)) return false;
+  if (isPublicLeagueRegistrationOpen(league)) return true;
+  const status = String(league.public_status ?? "").toLowerCase();
+  if (status !== "active" && status !== "full") return false;
+  const endYmd = String(league.end_date ?? "").slice(0, 10);
+  if (!endYmd) return false;
+  return !isPastEndOfDayPst(endYmd);
+}
 
+async function completePublicQuickJoin(
+  slug: string,
+  userId: string | null | undefined,
+  message?: string
+): Promise<{ ok: boolean; league_slug?: string; error?: string; message?: string }> {
+  if (userId) await markPublicLeagueJoinPending(slug, userId);
+  await syncPublicLeagueStatusBySlug(slug);
+  return { ok: true, league_slug: slug, message };
+}
+
+/** Add the user to the oldest public salary-cap league that is still taking factions. */
+async function joinOldestOpenPublicSalaryCapLeague(userId: string): Promise<string | null> {
+  const admin = getAdminClient();
+  if (!admin) return null;
+  const { data, error } = await admin
+    .from("leagues")
+    .select(
+      "id, slug, league_type, season_slug, visibility_type, public_status, registration_closes_at, end_date, max_teams"
+    )
+    .eq("visibility_type", "public")
+    .in("public_status", ["open", "awaiting_minimum"])
+    .order("created_at", { ascending: true });
+  if (error) return null;
+
+  for (const row of (data ?? []) as PublicQuickJoinLeagueRow[]) {
+    if (!isPublicSalaryCapLeague(row) || !isPublicLeagueRegistrationOpen(row)) continue;
+    const { count } = await admin
+      .from("league_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("league_id", row.id);
+    const memberCount = count ?? 0;
+    if (row.max_teams != null && memberCount >= row.max_teams) continue;
+
+    const { data: existing } = await admin
+      .from("league_members")
+      .select("user_id")
+      .eq("league_id", row.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (existing) return row.slug;
+
+    const { error: insertError } = await admin.from("league_members").insert({
+      league_id: row.id,
+      user_id: userId,
+      role: memberCount === 0 ? "commissioner" : "owner",
+      placement_status: "pending",
+    });
+    if (insertError) continue;
+    if (memberCount === 0) {
+      await admin.from("leagues").update({ commissioner_id: userId }).eq("id", row.id);
+    }
+    return row.slug;
+  }
+  return null;
+}
+
+async function startNewPublicLeagueForUser(
+  userId: string | null | undefined
+): Promise<{ ok: boolean; league_slug?: string; error?: string; message?: string }> {
   const created = await createLeague({
     name: "Public League",
     season_slug: PUBLIC_SALARY_CAP_SEASON_SLUG,
@@ -1137,17 +1194,54 @@ export async function quickJoinOldestPublicLeague(): Promise<{
   if (created.error) return { ok: false, error: created.error };
   if (!created.league?.slug) return { ok: false, error: "Failed to provision a public league." };
 
-  await syncPublicLeagueStatusBySlug(created.league.slug);
-  const {
-    data: { user: u },
-  } = await supabase.auth.getUser();
-  if (u?.id) await markPublicLeagueJoinPending(created.league.slug, u.id);
-  return {
-    ok: true,
-    league_slug: created.league.slug,
-    message:
-      "No open public league was available, so we started a new one for you — you are the GM. Build your $100 roster before Monday RAW (5 PM PT).",
-  };
+  return completePublicQuickJoin(
+    created.league.slug,
+    userId,
+    "No open public league was available, so we started a new one for you — you are the GM. Build your roster before Monday RAW (5 PM PT)."
+  );
+}
+
+export async function quickJoinOldestPublicLeague(): Promise<{
+  ok: boolean;
+  league_slug?: string;
+  error?: string;
+  message?: string;
+}> {
+  await closeExpiredPublicLeagues();
+  const { supabase, user } = await getServerAuth();
+  if (!user) return { ok: false, error: "Not authenticated" };
+
+  const { data, error } = await supabase.rpc("join_oldest_public_league");
+  if (error) return { ok: false, error: error.message };
+  const result = data as { ok: boolean; league_slug?: string; error?: string; message?: string };
+
+  if (result.ok && result.league_slug) {
+    const admin = getAdminClient();
+    const { data: league } = admin
+      ? await admin
+          .from("leagues")
+          .select(
+            "id, slug, league_type, season_slug, visibility_type, public_status, registration_closes_at, end_date, max_teams"
+          )
+          .eq("slug", result.league_slug)
+          .maybeSingle()
+      : { data: null };
+    if (publicQuickJoinLeagueIsCurrent(league as PublicQuickJoinLeagueRow | null)) {
+      return completePublicQuickJoin(result.league_slug, user.id, result.message);
+    }
+  } else {
+    const errMsg = (result.error ?? "").trim();
+    const noOpenPublic =
+      /no open public leagues/i.test(errMsg) ||
+      errMsg === "No open public leagues available right now.";
+    if (!noOpenPublic) {
+      return { ok: false, error: errMsg || "Join failed" };
+    }
+  }
+
+  const openSlug = await joinOldestOpenPublicSalaryCapLeague(user.id);
+  if (openSlug) return completePublicQuickJoin(openSlug, user.id);
+  return startNewPublicLeagueForUser(user.id);
 }
 
 /**

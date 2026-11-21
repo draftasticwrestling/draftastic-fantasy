@@ -61,13 +61,16 @@ export function HowItWorksPublicLeague() {
           roster the same wrestler.
         </p>
         <p style={{ marginBottom: 16, lineHeight: 1.65, color: "#333" }}>
-          On the 1st, main-roster prices are set from the card. Major champions (Undisputed WWE, World Heavyweight, WWE
-          Women&apos;s, and Women&apos;s World) are $25. Men&apos;s and women&apos;s US and Intercontinental champions are
-          $15. Tag team champions are $10. Over the previous 90 days, a non-champion who held a major title, or wrestled
-          in two or more major title matches, is $20. One major title match is $10, and a US or Intercontinental title
-          match is $10. Everyone else starts at $5. A non-champion then gets $5 for at least 4 Raw or SmackDown main
-          events, or 2 premium live events, in those 90 days, and another $5 for at least 8 of those main events or 4
-          premium live events. That boost stops at $20. Every NXT-roster wrestler is $5, including NXT champions.
+          On the 1st, prices follow the body of work, not one match. Every main-roster wrestler is at least $10.
+          This year, 10 or more matches and 90 or more points is $15. 10 or more matches and 150 or more points is $20.
+          The last 90 days can raise a thin year when the run is real: 6 or more matches and 50 or more points is $15,
+          and 6 or more matches and 80 or more points is $20. A short year after an injury can still reach $15 when
+          those 90 days are a main-event run: 5 or more matches, at least 5 of them main events, and at least 6 points
+          per match. Current world champions are $25. Current men&apos;s and
+          women&apos;s US and Intercontinental champions are at least $15. A tag reign, or a single title match in
+          someone else&apos;s story, does not set the price. Those matches are already part of the point total. NXT-roster
+          wrestlers are $5, except the NXT Champion and the NXT Women&apos;s Champion, who are at least $10. The same
+          point totals can raise an NXT wrestler. Inactive wrestlers are not priced.
         </p>
 
         <h3 style={{ fontSize: "1.15rem", marginBottom: 8, marginTop: 0 }}>In-season adds and drops</h3>
