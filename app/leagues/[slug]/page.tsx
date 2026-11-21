@@ -215,9 +215,10 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
     );
 
     const isHeadToHeadHomeStandings = leagueUsesHeadToHeadRecords(league.league_type);
+    const leagueSlug = league.slug;
     const breakTiedWeeksWithSeasonPoints = salaryCapHeadToHeadBreaksTiesWithSeasonPoints(
       league.league_type,
-      league.slug
+      leagueSlug
     );
     const showMatchupsInTopNav = leagueShowsMatchupsInNav(league.league_type);
     let standingsRecordByUserId: Record<string, { w: number; l: number; t: number }> | undefined;
@@ -246,7 +247,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
               draftStatus: draftStatusVal,
               weeklyResults: weeklyMatchups,
               breakTiedWeeksWithSeasonPoints,
-              leagueSlug: league.slug,
+              leagueSlug,
             }),
           breakTiedWeeksWithSeasonPoints,
         }
@@ -269,7 +270,7 @@ export default async function LeagueDetailPage({ params, searchParams }: Props) 
         draftStatus: draftStatusVal,
         weeklyResults: weeklyMatchups,
         breakTiedWeeksWithSeasonPoints,
-        leagueSlug: league.slug,
+        leagueSlug,
       });
       const finalStandings = getPlayoffFinalStandings(playoffBracket);
       if (finalStandings) {

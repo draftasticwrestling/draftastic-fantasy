@@ -149,7 +149,7 @@ for (const size of [4, 5, 6, 7, 8]) {
 }
 
 console.log("\n=== Beat the Founders: founders stay apart until the playoffs ===");
-const founders = [...BEAT_THE_FOUNDERS_MANAGER_IDS];
+const founders: string[] = [...BEAT_THE_FOUNDERS_MANAGER_IDS];
 for (const fieldSize of [20, 19, 7]) {
   const outsiders = Array.from({ length: fieldSize - founders.length }, (_, i) => `fan${String(i).padStart(2, "0")}`);
   const field = [...founders, ...outsiders];
