@@ -194,7 +194,7 @@ const DEFAULT_TIME_PER_PICK_SECONDS = 2 * 60;
 const FIRST_PICK_BUFFER_SECONDS = 60; // extra buffer after draft begins before first auto-pick
 /** For autopick leagues, use a short clock so the draft moves quickly (no human picking). */
 const AUTOPICK_TIME_PER_PICK_SECONDS = 5;
-const CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER = 3;
+const CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER = 2;
 /** Cap serverless work per request when batching autopick picks (cron / default). */
 const MAX_AUTOPICK_PICKS_PER_REQUEST = 120;
 /** Draft page: smaller batches avoid serverless timeouts while still making progress across redirects. */
@@ -775,7 +775,7 @@ async function getDraftUserState(
   };
 }
 
-/** After an auto-pick: increment consecutive_auto_picks and set auto_pick_rest_of_draft if >= 3. Uses admin. */
+/** After an auto-pick: increment consecutive_auto_picks and set auto_pick_rest_of_draft after two misses in a row. Uses admin. */
 async function afterAutoPickIncrementState(
   admin: AdminClient,
   leagueId: string,
@@ -784,19 +784,21 @@ async function afterAutoPickIncrementState(
 ): Promise<void> {
   const { data: existing } = await admin
     .from("league_draft_user_state")
-    .select("consecutive_auto_picks")
+    .select("consecutive_auto_picks, auto_pick_rest_of_draft")
     .eq("draft_run_id", draftRunId)
     .eq("user_id", userId)
     .maybeSingle();
-  const prev = (existing as { consecutive_auto_picks?: number } | null)?.consecutive_auto_picks ?? 0;
+  const row = existing as { consecutive_auto_picks?: number; auto_pick_rest_of_draft?: boolean } | null;
+  const prev = row?.consecutive_auto_picks ?? 0;
   const next = prev + 1;
+  const alreadyOn = row?.auto_pick_rest_of_draft === true;
   await admin.from("league_draft_user_state").upsert(
     {
       league_id: leagueId,
       user_id: userId,
       draft_run_id: draftRunId,
       consecutive_auto_picks: next,
-      auto_pick_rest_of_draft: next >= CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER,
+      auto_pick_rest_of_draft: alreadyOn || next >= CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER,
     },
     { onConflict: "draft_run_id,user_id" }
   );
@@ -1383,6 +1385,7 @@ export async function makeDraftPick(
     })
     .eq("id", leagueId);
   if (updateError) return { error: updateError.message };
+  await continueLiveDraftAutoPicks(admin, leagueId);
   return {};
 }
 
@@ -2776,15 +2779,89 @@ export type LiveClockExpiryResult = {
   /** Another request is already making this pick. */
   retry?: boolean;
   pick?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string };
+  /** Every pick written by this call, including chained auto-picks for managers already on auto. */
+  picks?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string }[];
   nextStartedAt?: string | null;
   nextSlot?: number | null;
   draftStatus?: string;
 };
 
+type LiveClockPickRow = { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string };
+
 /**
- * One live-draft pick when the server clock for the current turn has run out.
+ * After the current turn is already resolved, keep picking while the manager on the clock
+ * is set to auto-pick for the rest of the draft. Stops at the first manager still picking manually.
+ */
+async function continueLiveDraftAutoPicks(admin: AdminClient, leagueId: string): Promise<void> {
+  for (let i = 0; i < 64; i++) {
+    const state = await getLeagueDraftStateUsingAdmin(admin, leagueId);
+    if (!state || state.draft_status !== "in_progress" || state.draft_current_pick == null) return;
+    if (state.draft_type !== "live") return;
+    const current = await getCurrentPickUsingAdmin(admin, leagueId);
+    if (!current) return;
+    const draftRunId = await getLeagueCurrentDraftRunId(admin, leagueId);
+    if (!draftRunId) return;
+    const userState = await getDraftUserState(admin, leagueId, current.user_id, draftRunId);
+    if (!userState.auto_pick_rest_of_draft) return;
+    const result = await performOneAutoPick(
+      admin,
+      leagueId,
+      current,
+      { draft_current_pick: state.draft_current_pick, total_picks: state.total_picks },
+      "live",
+      false
+    );
+    if (result.skippedDueToRace || result.error) return;
+  }
+}
+
+/** Whether this manager is on auto-pick for the rest of the current live draft. */
+export async function getViewerLiveAutoPick(leagueId: string, userId: string): Promise<boolean> {
+  const admin = getAdminClient();
+  if (!admin) return false;
+  const draftRunId = await getLeagueCurrentDraftRunId(admin, leagueId);
+  if (!draftRunId) return false;
+  const state = await getDraftUserState(admin, leagueId, userId, draftRunId);
+  return state.auto_pick_rest_of_draft;
+}
+
+/** Turn rest-of-draft auto-pick on or off for one manager. A manual pick also turns it off. */
+export async function setLiveDraftAutoPick(
+  leagueId: string,
+  userId: string,
+  enabled: boolean
+): Promise<{ error?: string }> {
+  const admin = getAdminClient();
+  if (!admin) return { error: "SUPABASE_SERVICE_ROLE_KEY not set." };
+  const { data: member } = await admin
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!member) return { error: "Not a league member." };
+  const draftRunId = await getLeagueCurrentDraftRunId(admin, leagueId);
+  if (!draftRunId) return { error: "Draft run not found." };
+  const { error } = await admin.from("league_draft_user_state").upsert(
+    {
+      league_id: leagueId,
+      user_id: userId,
+      draft_run_id: draftRunId,
+      consecutive_auto_picks: enabled ? CONSECUTIVE_AUTO_PICKS_BEFORE_TAKEOVER : 0,
+      auto_pick_rest_of_draft: enabled,
+    },
+    { onConflict: "draft_run_id,user_id" }
+  );
+  if (error) return { error: error.message };
+  return {};
+}
+
+/**
+ * One live-draft pick when the server clock for the current turn has run out,
+ * or immediately when that manager is already on auto-pick for the rest of the draft.
  * The on-the-clock manager's priority list is used first, then the All-time Big Board.
  * A compare-and-swap on the turn timestamp keeps a full room from each writing a pick.
+ * Managers who have missed the clock twice in a row are picked without waiting out later turns.
  */
 export async function runLiveDraftClockIfExpired(leagueId: string): Promise<LiveClockExpiryResult> {
   const admin = getAdminClient();
@@ -2796,6 +2873,12 @@ export async function runLiveDraftClockIfExpired(leagueId: string): Promise<Live
   }
   if (state.draft_type !== "live") return { didAutoPick: false };
 
+  const current = await getCurrentPickUsingAdmin(admin, leagueId);
+  if (!current) {
+    await finalizeDraftIfCursorPastOrderEnd(admin, leagueId);
+    return { didAutoPick: false };
+  }
+
   const { data: leagueRow } = await admin
     .from("leagues")
     .select("time_per_pick_seconds")
@@ -2806,16 +2889,14 @@ export async function runLiveDraftClockIfExpired(leagueId: string): Promise<Live
     rawSec != null && [30, 60, 90, 120, 150, 180].includes(rawSec) ? rawSec : DEFAULT_TIME_PER_PICK_SECONDS;
   const startedAt = state.draft_current_pick_started_at;
   if (!startedAt) return { didAutoPick: false };
+  const draftRunId = await getLeagueCurrentDraftRunId(admin, leagueId);
+  const onAuto =
+    draftRunId != null &&
+    (await getDraftUserState(admin, leagueId, current.user_id, draftRunId)).auto_pick_rest_of_draft;
   const deadline = new Date(startedAt).getTime() + timePerPickSeconds * 1000;
   const secondsRemaining = Math.ceil((deadline - Date.now()) / 1000);
-  if (secondsRemaining > 0) {
+  if (!onAuto && secondsRemaining > 0) {
     return { didAutoPick: false, startedAt, secondsRemaining };
-  }
-
-  const current = await getCurrentPickUsingAdmin(admin, leagueId);
-  if (!current) {
-    await finalizeDraftIfCursorPastOrderEnd(admin, leagueId);
-    return { didAutoPick: false };
   }
 
   const claimedAt = new Date().toISOString();
@@ -2847,20 +2928,23 @@ export async function runLiveDraftClockIfExpired(leagueId: string): Promise<Live
       .eq("draft_current_pick_started_at", claimedAt);
     return { didAutoPick: false, error: result.error, retry: result.skippedDueToRace === true };
   }
-  const [{ data: pickRow }, { data: leagueAfter }] = await Promise.all([
-    admin
-      .from("league_draft_picks")
-      .select("overall_pick, user_id, wrestler_id, picked_at")
-      .eq("league_id", leagueId)
-      .eq("overall_pick", current.overall_pick)
-      .maybeSingle(),
+  await continueLiveDraftAutoPicks(admin, leagueId);
+  let pickQuery = admin
+    .from("league_draft_picks")
+    .select("overall_pick, user_id, wrestler_id, picked_at")
+    .eq("league_id", leagueId)
+    .gte("overall_pick", current.overall_pick)
+    .order("overall_pick", { ascending: true });
+  if (draftRunId) pickQuery = pickQuery.eq("draft_run_id", draftRunId);
+  const [{ data: pickRows }, { data: leagueAfter }] = await Promise.all([
+    pickQuery,
     admin
       .from("leagues")
       .select("draft_current_pick, draft_current_pick_started_at, draft_status")
       .eq("id", leagueId)
       .maybeSingle(),
   ]);
-  const pick = pickRow as { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string } | null;
+  const picks = (pickRows ?? []) as LiveClockPickRow[];
   const after = leagueAfter as {
     draft_current_pick?: number | null;
     draft_current_pick_started_at?: string | null;
@@ -2868,16 +2952,17 @@ export async function runLiveDraftClockIfExpired(leagueId: string): Promise<Live
   } | null;
   return {
     didAutoPick: true,
-    pick: pick ?? undefined,
+    pick: picks[0],
+    picks,
     nextStartedAt: after?.draft_current_pick_started_at ?? null,
-    nextSlot: after?.draft_current_pick ?? null,
+    nextSlot: after?.draft_status === "in_progress" ? (after?.draft_current_pick ?? null) : null,
     draftStatus: after?.draft_status,
   };
 }
 
 /**
- * If the current pick has exceeded the allotted time (or user is in "takeover" after 3 missed picks), perform auto-pick(s).
- * Uses priority list first, then draft preferences. If a user has missed 3 times in a row, system takes over and auto-picks
+ * If the current pick has exceeded the allotted time (or user is in "takeover" after 2 missed picks), perform auto-pick(s).
+ * Uses priority list first, then draft preferences. If a user has missed 2 times in a row, system takes over and auto-picks
  * for them immediately for the rest of the draft (no timer wait). Uses service role.
  * When options.skipTimer is true, runs one or more auto-picks immediately without checking the timer (for scheduled autopick drafts).
  */

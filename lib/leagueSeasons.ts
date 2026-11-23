@@ -51,7 +51,7 @@ export function roadToWarGamesCreateOpen(
 /**
  * Road to WrestleMania 2026–27.
  * Creation opens November 21, 2026. Scoring can begin with the Raw on November 30
- * (the Raw after Survivor Series: War Games). WrestleMania is expected April 17–18, 2027
+ * (the Raw after Survivor Series: War Games). WrestleMania is expected April 10–11, 2027
  * and is not announced; change those dates and the last start Monday follows.
  * The last start is the Monday of WrestleMania week, minus five weeks, so the league
  * still has six Monday weeks through WrestleMania week.
@@ -59,8 +59,8 @@ export function roadToWarGamesCreateOpen(
 export const ROAD_TO_WRESTLEMANIA_2026 = {
   create_open_ymd: "2026-11-21",
   season_start_ymd: "2026-11-30",
-  wrestlemania_night_1_ymd: "2027-04-17",
-  wrestlemania_night_2_ymd: "2027-04-18",
+  wrestlemania_night_1_ymd: "2027-04-10",
+  wrestlemania_night_2_ymd: "2027-04-11",
 } as const;
 
 function addDaysYmd(ymd: string, days: number): string {
@@ -137,7 +137,7 @@ export const SEASON_OPTIONS: SeasonOption[] = [
     id: "road-to-wrestlemania",
     name: "Road to WrestleMania",
     slug: ROAD_TO_WRESTLEMANIA_SEASON_SLUG,
-    windowDescription: "Raw on November 30, 2026 through WrestleMania (expected April 17–18, 2027)",
+    windowDescription: "Raw on November 30, 2026 through WrestleMania (expected April 10–11, 2027)",
     startMonth: 12,
     endMonth: 4,
     crossesCalendarYear: true,

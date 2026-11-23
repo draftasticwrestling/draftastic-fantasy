@@ -8,7 +8,12 @@ import { formatPickClock, formatPoints, genderNeeded } from "@/lib/mockDraftEngi
 import { createClient } from "@/lib/supabase/client";
 import { getPointsForWrestler } from "@/lib/scoring/aggregateWrestlerPoints.js";
 import styles from "@/app/mock-draft/mock-draft.module.css";
-import { expireLiveDraftClockAction, makeDraftPickWithStateAction, syncLiveDraftRoomAction } from "./actions";
+import {
+  expireLiveDraftClockAction,
+  makeDraftPickWithStateAction,
+  setLiveDraftAutoPickAction,
+  syncLiveDraftRoomAction,
+} from "./actions";
 
 type Tab = "players" | "queue" | "team" | "room";
 type Brand = "Raw" | "SmackDown" | "NXT" | "Other";
@@ -62,6 +67,7 @@ type Props = {
   rosterSize: number;
   minFemale: number;
   minMale: number;
+  viewerAutoPick?: boolean;
 };
 
 const BRAND_SHORT: Record<Brand, string> = {
@@ -154,6 +160,7 @@ export function LiveMockDraftRoom({
   rosterSize,
   minFemale,
   minMale,
+  viewerAutoPick = false,
 }: Props) {
   const [tab, setTab] = useState<Tab>(draftStatus === "completed" ? "team" : "players");
   const [roomRows, setRoomRows] = useState<{ user_id: string; is_ready: boolean; last_seen_at: string }[]>([]);
@@ -165,8 +172,7 @@ export function LiveMockDraftRoom({
   );
   const [pointsPeriod, setPointsPeriod] = useState<PointsPeriod>("allTime");
   const queue = priorityList;
-  const [autopick, setAutopick] = useState(false);
-  const [showAutopickNote, setShowAutopickNote] = useState(false);
+  const [autopick, setAutopick] = useState(viewerAutoPick);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(timePerPickSeconds);
@@ -177,7 +183,7 @@ export function LiveMockDraftRoom({
   const [startedAt, setStartedAt] = useState(draftCurrentPickStartedAt);
   const [status, setStatus] = useState(draftStatus);
   const expireLock = useRef(false);
-  const autoAttemptedSlot = useRef<number | null>(null);
+  const autoSaving = useRef(false);
 
   const serverPickKey = picksHistory.map((pick) => `${pick.overall_pick}:${pick.wrestler_id}`).join("|");
   useEffect(() => {
@@ -188,21 +194,6 @@ export function LiveMockDraftRoom({
     setStartedAt(draftCurrentPickStartedAt);
     setStatus(draftStatus);
   }, [serverPickKey, currentPickSlot, currentPickerUserId, draftCurrentPickStartedAt, draftStatus, picksHistory, draftedIds]);
-
-  useEffect(() => {
-    const stored = window.sessionStorage.getItem(`live-draft-autopick:${leagueId}`);
-    if (stored === "1") setAutopick(true);
-  }, [leagueId]);
-
-  useEffect(() => {
-    if (!autopick) {
-      setShowAutopickNote(false);
-      return;
-    }
-    setShowAutopickNote(true);
-    const hide = window.setTimeout(() => setShowAutopickNote(false), 2800);
-    return () => window.clearTimeout(hide);
-  }, [autopick]);
 
   useEffect(() => {
     if (!viewerUserId) return;
@@ -371,6 +362,56 @@ export function LiveMockDraftRoom({
     expireLock.current = false;
   }
 
+  function applyClockResult(result: {
+    picks?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string }[];
+    pick?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string };
+    nextStartedAt?: string | null;
+    nextSlot?: number | null;
+    draftStatus?: string;
+    viewerAutoPick?: boolean;
+  }) {
+    const rows = result.picks?.length ? result.picks : result.pick ? [result.pick] : [];
+    if (rows.length) {
+      setPicks((current) => {
+        const bySlot = new Map(current.map((pick) => [pick.overall_pick, pick]));
+        for (const row of rows) {
+          bySlot.set(row.overall_pick, {
+            overall_pick: row.overall_pick,
+            user_id: row.user_id,
+            wrestler_id: row.wrestler_id,
+            wrestler_name: byId.get(row.wrestler_id)?.name ?? null,
+          });
+        }
+        return [...bySlot.values()].sort((a, b) => a.overall_pick - b.overall_pick);
+      });
+      setTakenIds((current) => {
+        const next = new Set(current);
+        for (const row of rows) next.add(row.wrestler_id);
+        return [...next];
+      });
+    }
+    const done =
+      result.draftStatus === "completed" ||
+      result.draftStatus === "ready_for_review" ||
+      result.nextSlot == null;
+    if (done) {
+      setStatus(result.draftStatus === "ready_for_review" ? "ready_for_review" : "completed");
+      setSlot(null);
+      setPickerId(null);
+    } else {
+      const next = order.find((seat) => seat.overall_pick === result.nextSlot);
+      setSlot(result.nextSlot ?? null);
+      setPickerId(next?.user_id ?? null);
+      setStartedAt(result.nextStartedAt ?? null);
+      setStatus("in_progress");
+    }
+    if (!autoSaving.current && typeof result.viewerAutoPick === "boolean") setAutopick(result.viewerAutoPick);
+    expireLock.current = false;
+  }
+
+  const applyClockRef = useRef(applyClockResult);
+  applyClockRef.current = applyClockResult;
+
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -430,6 +471,9 @@ export function LiveMockDraftRoom({
       setPickerId(snapshot.pickerId);
       setStartedAt(snapshot.startedAt);
       setStatus(snapshot.status);
+      if (!autoSaving.current && typeof snapshot.viewerAutoPick === "boolean") {
+        setAutopick(snapshot.viewerAutoPick);
+      }
     }
     void pull();
     const timer = window.setInterval(() => {
@@ -466,15 +510,12 @@ export function LiveMockDraftRoom({
         const remaining = result.secondsRemaining ?? 0;
         if (!result.didAutoPick && remaining > 0) {
           setStartedAt(new Date(Date.now() - Math.max(0, timePerPickSeconds - remaining) * 1000).toISOString());
+          if (!autoSaving.current && typeof result.viewerAutoPick === "boolean") setAutopick(result.viewerAutoPick);
           expireLock.current = false;
           return;
         }
-        if (result.didAutoPick && result.pick) {
-          const name = byId.get(result.pick.wrestler_id)?.name ?? null;
-          applyPick(
-            { ...result.pick, wrestler_name: name },
-            result.nextStartedAt ?? result.pick.picked_at
-          );
+        if (result.didAutoPick && (result.pick || result.picks?.length)) {
+          applyClockRef.current(result);
           return;
         }
         if (result.retry && attempt < 3) {
@@ -505,6 +546,23 @@ export function LiveMockDraftRoom({
   }, [byId, leagueSlug, pickerId, slot, startedAt, status, timePerPickSeconds, viewerUserId]);
 
   useEffect(() => {
+    if (status !== "in_progress" || slot == null) return;
+    let stopped = false;
+    const mine = viewerUserId != null && viewerUserId === pickerId;
+    const handle = window.setTimeout(() => {
+      void expireLiveDraftClockAction(leagueSlug).then((result) => {
+        if (stopped) return;
+        if (result.didAutoPick) applyClockRef.current(result);
+        else if (!autoSaving.current && typeof result.viewerAutoPick === "boolean") setAutopick(result.viewerAutoPick);
+      });
+    }, mine ? 0 : 500);
+    return () => {
+      stopped = true;
+      window.clearTimeout(handle);
+    };
+  }, [leagueSlug, pickerId, slot, status, viewerUserId]);
+
+  useEffect(() => {
     document.getElementById("live-pick-current")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [slot]);
 
@@ -522,6 +580,22 @@ export function LiveMockDraftRoom({
       setPickError(result.error);
       return;
     }
+    const snapshot = await syncLiveDraftRoomAction(leagueSlug);
+    if (!snapshot.error) {
+      setPicks(snapshot.picks);
+      setTakenIds((current) => {
+        const next = new Set(current);
+        for (const pick of snapshot.picks) next.add(pick.wrestler_id);
+        return [...next];
+      });
+      setSlot(snapshot.slot);
+      setPickerId(snapshot.pickerId);
+      setStartedAt(snapshot.startedAt);
+      setStatus(snapshot.status);
+      if (typeof snapshot.viewerAutoPick === "boolean") setAutopick(snapshot.viewerAutoPick);
+      expireLock.current = false;
+      return;
+    }
     if (slot != null && pickerId) {
       applyPick(
         {
@@ -534,26 +608,6 @@ export function LiveMockDraftRoom({
       );
     }
   }
-
-  useEffect(() => {
-    if (!autopick || !myTurn || slot == null || pendingId) return;
-    if (autoAttemptedSlot.current === slot) return;
-    const nextId = queue.find((id) => {
-      if (taken.has(id)) return false;
-      const wrestler = byId.get(id);
-      if (!wrestler || injuredOf(wrestler.status)) return false;
-      if (need && genderOf(wrestler.gender) !== need) return false;
-      return true;
-    });
-    if (!nextId) return;
-    autoAttemptedSlot.current = slot;
-    const handle = window.setTimeout(() => {
-      void draftWrestler(nextId);
-    }, 500);
-    return () => window.clearTimeout(handle);
-    // draftWrestler is recreated each render; the slot guard stops a repeat.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autopick, myTurn, slot, queue, taken, need, pendingId]);
 
   const q = query.trim().toLowerCase();
   const visible = ranked.filter((row) => {
@@ -600,14 +654,24 @@ export function LiveMockDraftRoom({
             className={styles.autoToggle}
             data-on={autopick ? "true" : "false"}
             aria-pressed={autopick}
-            onClick={() =>
-              setAutopick((on) => {
-                const next = !on;
-                window.sessionStorage.setItem(`live-draft-autopick:${leagueId}`, next ? "1" : "0");
-                if (next) autoAttemptedSlot.current = null;
-                return next;
-              })
-            }
+            onClick={() => {
+              if (autoSaving.current || status !== "in_progress") return;
+              const next = !autopick;
+              autoSaving.current = true;
+              setAutopick(next);
+              setPickError(null);
+              void setLiveDraftAutoPickAction(leagueSlug, next).then((result) => {
+                if (result.error) {
+                  setAutopick(!next);
+                  setPickError(result.error);
+                  autoSaving.current = false;
+                  return;
+                }
+                setAutopick(result.enabled);
+                if (result.didAutoPick) applyClockRef.current(result);
+                autoSaving.current = false;
+              });
+            }}
           >
             Auto-pick
             <span className={styles.switch} aria-hidden />
@@ -615,9 +679,9 @@ export function LiveMockDraftRoom({
         </div>
       </div>
 
-      {showAutopickNote && drafting ? (
+      {autopick && drafting ? (
         <div className={styles.autoBanner}>
-          <span>Auto-pick is on. It uses your Big Board and skips injured wrestlers.</span>
+          <span>Auto-pick is on for the rest of this draft. It uses your queue, then the All-time Big Board. Turn it off to pick yourself.</span>
         </div>
       ) : null}
 

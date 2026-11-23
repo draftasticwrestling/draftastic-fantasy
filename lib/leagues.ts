@@ -219,7 +219,7 @@ export async function createLeague(params: {
   include_nxt?: boolean | null;
   max_teams?: number | null;
   visibility_type?: "private" | "public" | null;
-  /** Site admins may choose live, autopick, or offline. Ignored for everyone else. */
+  /** Private leagues: live, autopick, or offline. Public salary-cap leagues ignore this. */
   draft_type?: string | null;
 }): Promise<{ league?: League; error?: string }> {
   const { supabase, user } = await getServerAuth();
@@ -293,8 +293,7 @@ export async function createLeague(params: {
   const existingSlugs = new Set((existing ?? []).map((r) => r.slug));
 
   const requestedDraftType = params.draft_type?.trim() || "";
-  const adminDraftType =
-    isSiteAdmin &&
+  const chosenDraftType =
     !isPublicSalaryCapCreate &&
     (requestedDraftType === "live" || requestedDraftType === "offline" || requestedDraftType === "autopick")
       ? requestedDraftType
@@ -345,7 +344,7 @@ export async function createLeague(params: {
         season_slug: seasonSlug,
         draft_date,
         draft_time: null,
-        draft_type: isSalaryCapLeague ? "salary_cap" : (adminDraftType ?? "autopick"),
+        draft_type: isSalaryCapLeague ? "salary_cap" : (chosenDraftType ?? "autopick"),
         draft_style: "snake",
         draft_order_method: isSalaryCapLeague || visibilityType !== "public" ? "manual_by_gm" : "random_one_hour_before",
         draft_status: isSalaryCapLeague ? "in_progress" : "not_started",
@@ -1748,9 +1747,10 @@ export async function addWrestlerToRoster(
     .eq("id", leagueId)
     .maybeSingle();
   const leagueType = (leagueTypeRow as { league_type?: string | null } | null)?.league_type ?? null;
-  const isSalaryCap = leagueType === "salary_cap";
+  const isSalaryCap = leagueUsesSalaryCap(leagueType);
 
-  // Keep dual-identity wrestlers mutually exclusive across faction rosters (not in salary cap leagues).
+  // Draft leagues keep a wrestler and their alter egos on one faction. Salary-cap leagues, including
+  // salary-cap head-to-head, share the pool so any faction can roster the same wrestler.
   if (!isSalaryCap && equivalentIds.length > 0) {
     const { data: leagueRows } = await supabase
       .from("league_rosters")

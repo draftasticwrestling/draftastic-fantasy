@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 import { getLeagueBySlug, getRostersForLeague } from "@/lib/leagues";
-import { leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEFAULT } from "@/lib/leagueStructure";
+import { leagueIsSalaryCapHeadToHead, leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEFAULT } from "@/lib/leagueStructure";
 import { getSalaryCapLeagueMeta } from "@/lib/salaryCap";
 import { getSalaryCapWeeklyMoveBudget } from "@/lib/salaryCapWeeklyLimits";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
@@ -136,7 +136,8 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
         </p>
       ) : (
         <p style={{ color: "var(--color-text-muted)", marginBottom: 24, maxWidth: 640 }}>
-          Total Season Points scoring with a ${budget} salary cap. Spend your budget on any combination of wrestlers
+          {leagueIsSalaryCapHeadToHead(league.league_type) ? "Head-to-head" : "Total Season Points"} scoring
+          with a ${budget} salary cap. Spend your budget on any combination of wrestlers
           ($5–$25 tiers). The same wrestler can be on multiple factions in this league. After the season starts, each
           faction may add and drop up to ${weeklyMoveBudget} in wrestler value per week (resets Monday, Pacific Time).
         </p>
@@ -153,6 +154,7 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
         showFinishInitialRoster={showFinishInitialRoster}
         finishRosterLabel={finishRosterLabel}
         rosterSetupComplete={rosterSetupComplete}
+        headToHeadScoring={leagueIsSalaryCapHeadToHead(league.league_type)}
       />
     </main>
   );

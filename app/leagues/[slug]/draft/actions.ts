@@ -8,6 +8,8 @@ import {
   generateDraftOrder,
   setDraftOrderFromRound1,
   makeDraftPick,
+  getViewerLiveAutoPick,
+  setLiveDraftAutoPick,
   restartDraft,
   clearLastPick,
   startDraft,
@@ -409,18 +411,21 @@ export async function syncLiveDraftRoomAction(leagueSlug: string): Promise<{
   pickerId: string | null;
   startedAt: string | null;
   status: string;
+  viewerAutoPick: boolean;
 }> {
-  const empty = { picks: [], slot: null, pickerId: null, startedAt: null, status: "not_started" };
+  const empty = { picks: [], slot: null, pickerId: null, startedAt: null, status: "not_started", viewerAutoPick: false };
   const slug = leagueSlug.trim();
   if (!slug) return { ...empty, error: "Missing league." };
   const { getLeagueBySlug } = await import("@/lib/leagues");
   const { getDraftPicksHistory, getLeagueDraftState, getCurrentPick } = await import("@/lib/leagueDraft");
   const league = await getLeagueBySlug(slug);
   if (!league || league.draft_type !== "live") return { ...empty, error: "Not a live draft." };
-  const [picks, state, current] = await Promise.all([
+  const { user } = await getServerAuth();
+  const [picks, state, current, viewerAutoPick] = await Promise.all([
     getDraftPicksHistory(league.id),
     getLeagueDraftState(league.id),
     getCurrentPick(league.id),
+    user ? getViewerLiveAutoPick(league.id, user.id) : Promise.resolve(false),
   ]);
   return {
     picks: picks.map((pick) => ({
@@ -434,6 +439,7 @@ export async function syncLiveDraftRoomAction(leagueSlug: string): Promise<{
     pickerId: state?.draft_status === "in_progress" ? (current?.user_id ?? null) : null,
     startedAt: state?.draft_current_pick_started_at ?? null,
     status: state?.draft_status ?? "not_started",
+    viewerAutoPick,
   };
 }
 
@@ -445,9 +451,11 @@ export async function expireLiveDraftClockAction(leagueSlug: string): Promise<{
   secondsRemaining?: number;
   retry?: boolean;
   pick?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string };
+  picks?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string }[];
   nextStartedAt?: string | null;
   nextSlot?: number | null;
   draftStatus?: string;
+  viewerAutoPick?: boolean;
 }> {
   const slug = leagueSlug.trim();
   if (!slug) return { didAutoPick: false };
@@ -468,7 +476,45 @@ export async function expireLiveDraftClockAction(leagueSlug: string): Promise<{
     return { didAutoPick: false, error: "Not a league member." };
   }
 
-  return runLiveDraftClockIfExpired(league.id);
+  const result = await runLiveDraftClockIfExpired(league.id);
+  const viewerAutoPick = await getViewerLiveAutoPick(league.id, user.id);
+  return { ...result, viewerAutoPick };
+}
+
+/** Turn rest-of-draft auto-pick on or off. Turning it on takes the current turn immediately when it is yours. */
+export async function setLiveDraftAutoPickAction(
+  leagueSlug: string,
+  enabled: boolean
+): Promise<{
+  enabled: boolean;
+  didAutoPick: boolean;
+  error?: string;
+  pick?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string };
+  picks?: { overall_pick: number; user_id: string; wrestler_id: string; picked_at: string }[];
+  nextStartedAt?: string | null;
+  nextSlot?: number | null;
+  draftStatus?: string;
+}> {
+  const slug = leagueSlug.trim();
+  if (!slug) return { enabled, didAutoPick: false, error: "Missing league." };
+  const { user } = await getServerAuth();
+  if (!user) return { enabled, didAutoPick: false, error: "Not authenticated" };
+
+  const { getLeagueBySlug } = await import("@/lib/leagues");
+  const league = await getLeagueBySlug(slug);
+  if (!league || league.draft_type !== "live") {
+    return { enabled, didAutoPick: false, error: "Not a live draft." };
+  }
+  if (league.draft_status !== "in_progress") {
+    return { enabled, didAutoPick: false, error: "The draft is not in progress." };
+  }
+
+  const saved = await setLiveDraftAutoPick(league.id, user.id, enabled);
+  if (saved.error) return { enabled: !enabled, didAutoPick: false, error: saved.error };
+  if (!enabled) return { enabled: false, didAutoPick: false };
+
+  const result = await runLiveDraftClockIfExpired(league.id);
+  return { ...result, enabled: true };
 }
 
 /** Keep a live-draft queue in sync with the clock. Any length is allowed, including empty. */

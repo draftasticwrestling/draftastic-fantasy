@@ -230,6 +230,8 @@ type Props = {
   finishRosterLabel?: string;
   /** When true, roster setup is finalized — add/remove disabled on this page. */
   rosterSetupComplete?: boolean;
+  /** Salary-cap head-to-head leagues, including Beat the Founders. */
+  headToHeadScoring?: boolean;
 };
 
 function formatPts(n: number | null | undefined): string {
@@ -316,6 +318,7 @@ export function SalaryCapRosterBuilder({
   showFinishInitialRoster,
   finishRosterLabel = "Complete setup",
   rosterSetupComplete = false,
+  headToHeadScoring = false,
 }: Props) {
   const router = useRouter();
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -407,7 +410,8 @@ export function SalaryCapRosterBuilder({
         </div>
         <div style={{ flex: "1 1 200px", fontSize: 13, color: "var(--color-text-muted)", alignSelf: "center" }}>
           Build any roster size within your cap. Wrestlers are <strong>not exclusive</strong> — multiple factions can
-          roster the same star. Scoring matches Total Season Points. 2026 stats are year-to-date (R/S, PLE, belt).
+          roster the same star. Scoring is {headToHeadScoring ? "head-to-head" : "Total Season Points"}. 2026
+          stats are year-to-date (R/S, PLE, belt).
         </div>
       </div>
 

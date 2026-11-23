@@ -66,8 +66,10 @@ export function HowItWorksRoadToWrestleMania() {
 
         <h3 style={{ fontSize: "1.15rem", marginBottom: 8, marginTop: 0 }}>Drafting</h3>
         <p style={{ marginBottom: 16, lineHeight: 1.65, color: "#333" }}>
-          Leagues begin with a draft. The commissioner sets the round-1 pick order; the full order follows your
-          league&apos;s draft style (snake or linear). You fill your roster up to your league&apos;s roster size while
+          Leagues begin with a draft. The commissioner chooses <strong>Live</strong> (managers pick in turn from the
+          lobby), <strong>Autopick</strong>, or <strong>Offline</strong>. The commissioner sets the round-1 pick order;
+          the full order follows your league&apos;s draft style (snake or linear). You fill your roster up to your
+          league&apos;s roster size while
           meeting the minimum number of men&apos;s and women&apos;s spots. Once the draft is completed and approved,
           the league size locks to the number of factions that drafted — no new teams can join.
         </p>

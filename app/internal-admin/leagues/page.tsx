@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isBeatTheFoundersLeagueSlug } from "@/lib/beatTheFoundersLeague";
 import { siteAdminSearchLeagues, type SiteAdminLeagueSummary } from "@/lib/internalAdmin/siteAdminLeagues";
 import { getServiceRoleClient } from "@/lib/internalAdmin/serviceClient";
 import {
@@ -159,9 +160,15 @@ export default async function InternalAdminLeaguesPage({
 
   const { rows, error } = await siteAdminSearchLeagues(admin, q);
   const filteredRows = rows.filter((r) => classifyLeagueAdminView(r) === view);
-  const publicRows = filteredRows.filter((r) => isPublicVisibility(r.visibility_type));
+  const promotionalRows = filteredRows
+    .filter((r) => isBeatTheFoundersLeagueSlug(r.slug))
+    .slice()
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  const publicRows = filteredRows.filter(
+    (r) => isPublicVisibility(r.visibility_type) && !isBeatTheFoundersLeagueSlug(r.slug)
+  );
   const privateRows = filteredRows
-    .filter((r) => !isPublicVisibility(r.visibility_type))
+    .filter((r) => !isPublicVisibility(r.visibility_type) && !isBeatTheFoundersLeagueSlug(r.slug))
     .slice()
     .sort(view === "active" ? comparePrivateActiveLeagues : (a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 
@@ -169,7 +176,7 @@ export default async function InternalAdminLeaguesPage({
     <div style={{ maxWidth: 960 }}>
       <h1 className={styles.pageTitle}>Leagues</h1>
       <p style={{ color: "var(--color-text-muted)", marginBottom: 20, maxWidth: 640, lineHeight: 1.55 }}>
-        Search by slug or name. Results are grouped into public and private leagues.{" "}
+        Search by slug or name. Results are grouped into promotional, public, and private leagues.{" "}
         <strong>Active</strong> private leagues that already have the format minimum of owners and a completed draft sort
         to the top. Underfilled private leagues become <strong>Inactive</strong> after{" "}
         {PRIVATE_LEAGUE_INACTIVE_AFTER_DAYS} days and auto-archive after {PRIVATE_LEAGUE_ABANDON_ARCHIVE_AFTER_DAYS} days.
@@ -234,6 +241,19 @@ export default async function InternalAdminLeaguesPage({
         <p style={{ color: "var(--color-text-muted)" }}>{q ? "No leagues match that search." : "No leagues in this view."}</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+          <section>
+            <h2 className={styles.pageTitle} style={{ fontSize: "1.05rem", margin: "0 0 10px" }}>
+              Promotional leagues
+              <span style={{ fontWeight: 400, color: "var(--color-text-muted)", fontSize: 14, marginLeft: 8 }}>
+                ({promotionalRows.length})
+              </span>
+            </h2>
+            {promotionalRows.length === 0 ? (
+              <p style={{ color: "var(--color-text-muted)", margin: 0 }}>None in this result set.</p>
+            ) : (
+              <LeagueTable rows={promotionalRows} view={view} />
+            )}
+          </section>
           <section>
             <h2 className={styles.pageTitle} style={{ fontSize: "1.05rem", margin: "0 0 10px" }}>
               Public leagues

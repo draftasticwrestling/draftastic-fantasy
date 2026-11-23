@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
-import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
 import { getLeaguesForUser } from "@/lib/leagues";
 import { PLAY_PATH } from "@/lib/playFunnel";
 
@@ -17,7 +16,6 @@ export default async function LeaguesPage() {
   }
 
   const leagues = await getLeaguesForUser();
-  const isSiteAdmin = await getIsSiteAdmin();
 
   return (
     <main
@@ -55,8 +53,7 @@ export default async function LeaguesPage() {
         Public leagues use Salary Cap — Total Season Points. Join from Play Now, build your roster, then compete for 12
         weeks. Private Road to WrestleMania leagues (Total Season Points or Head-to-Head) open for creation on
         November 21, 2026. The first scored show is the Raw on November 30, and new leagues can start through
-        Monday, March 8, 2027.
-        {isSiteAdmin ? " Site admins can create a Road to WrestleMania league and test a live draft now." : ""}
+        Monday, March 1, 2027. Choose a Live, Autopick, or Offline draft when you create the league.
       </div>
 
       <p style={{ marginBottom: 16 }}>

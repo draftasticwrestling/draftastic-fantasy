@@ -144,13 +144,13 @@ export function CreateLeagueForm({ isSiteAdmin = false, createStatus = "open" }:
           {createStatus === "before_open" ? (
             <>
               <strong>Road to WrestleMania league creation opens November 21, 2026.</strong> The first
-              scored show is the Raw on November 30. New leagues can start through Monday, March 8, 2027,
-              six weeks before the expected WrestleMania weekend of April 17–18.
+              scored show is the Raw on November 30. New leagues can start through Monday, March 1, 2027,
+              six weeks before the expected WrestleMania weekend of April 10–11.
             </>
           ) : (
             <>
               <strong>Road to WrestleMania league creation is closed.</strong> New leagues had to start by
-              Monday, March 8, 2027, six weeks before WrestleMania.
+              Monday, March 1, 2027, six weeks before WrestleMania.
             </>
           )}
         </p>
@@ -162,8 +162,8 @@ export function CreateLeagueForm({ isSiteAdmin = false, createStatus = "open" }:
     <form action={formAction} className="create-league-form">
       {isSiteAdmin && createStatus !== "open" ? (
         <p className="form-note" style={{ lineHeight: 1.6 }}>
-          <strong>Site admin:</strong> you can create a Road to WrestleMania league now and test a live draft.
-          Everyone else can create one starting November 21, 2026.
+          <strong>Site admin:</strong> you can create a Road to WrestleMania league while creation is closed for
+          everyone else.
         </p>
       ) : null}
       {isSiteAdmin ? (
@@ -357,20 +357,17 @@ export function CreateLeagueForm({ isSiteAdmin = false, createStatus = "open" }:
             <input type="hidden" name="team_count" value={teamCount} />
           </div>
 
-          {isSiteAdmin ? (
-            <div className="form-group">
-              <label htmlFor="league-draft-type">Draft</label>
-              <select id="league-draft-type" name="draft_type" defaultValue="live">
-                <option value="live">Live — lobby, ready check, and a shared pick board</option>
-                <option value="autopick">Autopick</option>
-                <option value="offline">Offline</option>
-              </select>
-              <p className="form-note" style={{ marginTop: 8 }}>
-                Live is ready for admin testing. You can begin the draft before November 21. Set a draft order, then
-                use Begin Draft in the lobby.
-              </p>
-            </div>
-          ) : null}
+          <div className="form-group">
+            <label htmlFor="league-draft-type">Draft *</label>
+            <select id="league-draft-type" name="draft_type" defaultValue="live">
+              <option value="live">Live — lobby, ready check, and a shared pick board</option>
+              <option value="autopick">Autopick — each manager&apos;s list fills the roster when the GM starts</option>
+              <option value="offline">Offline — run the draft outside the site, then enter the rosters</option>
+            </select>
+            <p className="form-note" style={{ marginTop: 8 }}>
+              You can change this in League Settings before the draft starts.
+            </p>
+          </div>
         </>
       )}
 

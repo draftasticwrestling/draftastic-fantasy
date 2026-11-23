@@ -110,10 +110,16 @@ export async function createLeagueAction(
   const effectiveIncludeNxt = true;
 
   const draft_type_raw = (formData.get("draft_type") as string)?.trim() ?? "";
-  const adminDraftType =
-    isSiteAdmin && (draft_type_raw === "live" || draft_type_raw === "offline" || draft_type_raw === "autopick")
-      ? draft_type_raw
-      : null;
+  const privateDraftTypes = new Set(["live", "autopick", "offline"]);
+  if (effectiveVisibility !== "public" && draft_type_raw && !privateDraftTypes.has(draft_type_raw)) {
+    return { error: "Choose Live, Autopick, or Offline." };
+  }
+  const draftType =
+    effectiveVisibility === "public"
+      ? null
+      : privateDraftTypes.has(draft_type_raw)
+        ? draft_type_raw
+        : "live";
 
   const { league, error } = await createLeague({
     name: effectiveVisibility === "public" ? "Public League" : name,
@@ -122,7 +128,7 @@ export async function createLeagueAction(
     league_type: effectiveLeagueType,
     include_nxt: effectiveIncludeNxt,
     visibility_type: effectiveVisibility,
-    draft_type: effectiveVisibility === "public" ? null : adminDraftType,
+    draft_type: draftType,
   });
   if (error) return { error };
   if (!league) return { error: "Failed to create league." };

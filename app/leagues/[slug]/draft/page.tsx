@@ -13,6 +13,7 @@ import {
   getDraftPicksHistory,
   getDraftPreferences,
   getDraftPreferencesForAllMembers,
+  getViewerLiveAutoPick,
   DEFAULT_AUTOPICK_DESCRIPTION,
   runAutoPickIfExpired,
   MAX_AUTOPICK_PICKS_DRAFT_PAGE,
@@ -419,6 +420,7 @@ export default async function LeagueDraftPage({ params, searchParams }: Props) {
     const isAutopickRunning = league.draft_type === "autopick" && draftStatus === "in_progress";
     const wideDraftLayout = showDraftRoom && !isAutopickRunning;
     if (league.draft_type === "live" && enteredLiveRoom && showDraftRoom) {
+      const viewerAutoPick = user?.id ? await getViewerLiveAutoPick(league.id, user.id) : false;
       return (
         <LiveMockDraftRoom
           leagueId={league.id}
@@ -461,6 +463,7 @@ export default async function LeagueDraftPage({ params, searchParams }: Props) {
           rosterSize={rosterRules?.rosterSize ?? Math.max(1, Math.round(totalPicks / Math.max(1, members.length)))}
           minFemale={rosterRules?.minFemale ?? 0}
           minMale={rosterRules?.minMale ?? 0}
+          viewerAutoPick={viewerAutoPick}
         />
       );
     }
@@ -600,7 +603,8 @@ export default async function LeagueDraftPage({ params, searchParams }: Props) {
             </>
           ) : leagueDraftType === "live" ? (
             <>
-              If the pick clock runs out, your pick comes from your priority list, then the All-time Big Board.
+              If the pick clock runs out, that pick comes from your priority list, then the All-time Big Board. Two
+              clock misses in a row turn on auto-pick for the rest of the draft. You can turn it off in the draft room.
             </>
           ) : (
             <>
