@@ -14,8 +14,9 @@ type RefreshOpts = {
 };
 
 /**
- * Sums this user's fantasy points across non-archived leagues and awards
- * +10 XP for each new block of 50 points since the last check.
+ * Sums this user's fantasy points across every league they have joined, including
+ * archived leagues, and awards +10 XP for each new block of 50 points since the last check.
+ * Archiving only hides a league from the site-admin list.
  * @returns true if a full scan ran (DB may or may not have changed tier XP).
  */
 export async function refreshFantasyPointsTiersForUser(userId: string, opts?: RefreshOpts): Promise<boolean> {
@@ -45,11 +46,14 @@ export async function refreshFantasyPointsTiersForUser(userId: string, opts?: Re
 
   const { data: memberships } = await admin
     .from("league_members")
-    .select("league_id, leagues!inner(id, is_archived)")
+    .select("league_id")
     .eq("user_id", userId);
-  const rows = (memberships ?? []) as { league_id: string; leagues?: { is_archived?: boolean | null } | null }[];
   const leagueIds = [
-    ...new Set(rows.filter((r) => !(r.leagues?.is_archived ?? false)).map((r) => r.league_id)),
+    ...new Set(
+      (memberships ?? [])
+        .map((row) => (row as { league_id?: string | null }).league_id)
+        .filter((id): id is string => Boolean(id))
+    ),
   ];
 
   let sumPoints = 0;

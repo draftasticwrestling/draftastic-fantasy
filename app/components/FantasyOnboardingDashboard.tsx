@@ -12,6 +12,7 @@ type LeagueSummary = {
   role: string;
   start_date?: string | null;
   end_date?: string | null;
+  past?: boolean;
 };
 
 type Props = {
@@ -120,6 +121,15 @@ export function FantasyOnboardingDashboard({
             {onboarding.primaryCtaLabel}
           </Link>
         </section>
+      ) : onboarding.chooseLeagueHref && onboarding.chooseLeagueLabel ? (
+        <section className="home-panel fantasy-onboarding-cta-block">
+          <p className="fantasy-onboarding-lead" style={{ marginTop: 0 }}>
+            Your earlier leagues are saved below. Join a public league, join a private league with a code, or create one.
+          </p>
+          <Link href={onboarding.chooseLeagueHref} className="fantasy-onboarding-primary-cta">
+            {onboarding.chooseLeagueLabel}
+          </Link>
+        </section>
       ) : null}
 
       <SiteActivityPulseBlock pulse={pulse} />
@@ -138,7 +148,7 @@ export function FantasyOnboardingDashboard({
           Missed the start of a season? That&apos;s okay — a fresh public league opens each week.
         </p>
         <Link href={PLAY_PATH} className="fantasy-onboarding-secondary-cta">
-          Join a public league
+          Join or create a league
         </Link>
       </section>
 
@@ -153,6 +163,9 @@ export function FantasyOnboardingDashboard({
                 </Link>
                 {league.role === "commissioner" ? (
                   <span className="fantasy-onboarding-league-role">GM</span>
+                ) : null}
+                {league.past ? (
+                  <span className="fantasy-onboarding-league-role">Past season</span>
                 ) : null}
                 {(league.start_date || league.end_date) && (
                   <div className="fantasy-onboarding-league-dates">

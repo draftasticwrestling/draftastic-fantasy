@@ -21,6 +21,9 @@ export type OnboardingProgress = {
   primaryCtaHref: string;
   primaryCtaLabel: string;
   showEmptyCareerHero: boolean;
+  /** Set when the user has no current league and should pick public, private, or create. */
+  chooseLeagueHref: string | null;
+  chooseLeagueLabel: string | null;
 };
 
 type LeagueMemberRow = {
@@ -57,15 +60,16 @@ export async function getOnboardingProgress(
   leagueRows: LeagueMemberRow[],
   rosterCountByLeagueId: Map<string, number>
 ): Promise<OnboardingProgress> {
-  const activeLeagues = leagueRows.filter((row) => !row.leagues?.is_archived);
-  const hasLeague = activeLeagues.length > 0;
+  const currentLeagues = leagueRows.filter((row) => row.leagues && !row.leagues.is_archived);
+  const everJoined = leagueRows.length > 0;
+  const hasCurrentLeague = currentLeagues.length > 0;
   const readHowItWorks = await hasViewedHowItWorks(supabase, userId);
 
   let hasFaction = false;
   let isPlaying = false;
   let rosterHref: string | null = null;
 
-  for (const row of activeLeagues) {
+  for (const row of currentLeagues) {
     const slug = row.leagues?.slug?.trim() ?? "";
     const leagueMeta = {
       slug,
@@ -129,7 +133,7 @@ export async function getOnboardingProgress(
       key: "join_league",
       label: "Join a league",
       detail: "It's free — public leagues open every Monday.",
-      completed: hasLeague,
+      completed: hasCurrentLeague,
       href: PLAY_PATH,
     },
     {
@@ -152,15 +156,15 @@ export async function getOnboardingProgress(
   const allComplete = completedCount === steps.length;
 
   let primaryCtaHref = PLAY_PATH;
-  let primaryCtaLabel = "Join your first league";
-  if (hasLeague && !hasFaction && rosterHref) {
+  let primaryCtaLabel = everJoined ? "Join or create a league" : "Join your first league";
+  if (hasCurrentLeague && !hasFaction && rosterHref) {
     primaryCtaHref = rosterHref;
     primaryCtaLabel = "Pick your team";
-  } else if (hasLeague && hasFaction && !isPlaying && rosterHref) {
+  } else if (hasCurrentLeague && hasFaction && !isPlaying && rosterHref) {
     primaryCtaHref = rosterHref;
     primaryCtaLabel = "Finish roster setup";
-  } else if (allComplete && activeLeagues[0]?.leagues?.slug) {
-    primaryCtaHref = `/leagues/${encodeURIComponent(activeLeagues[0].leagues!.slug!)}`;
+  } else if (allComplete && currentLeagues[0]?.leagues?.slug) {
+    primaryCtaHref = `/leagues/${encodeURIComponent(currentLeagues[0].leagues!.slug!)}`;
     primaryCtaLabel = "Go to your league";
   }
 
@@ -170,6 +174,8 @@ export async function getOnboardingProgress(
     allComplete,
     primaryCtaHref,
     primaryCtaLabel,
-    showEmptyCareerHero: !hasLeague,
+    showEmptyCareerHero: !everJoined,
+    chooseLeagueHref: hasCurrentLeague ? null : PLAY_PATH,
+    chooseLeagueLabel: hasCurrentLeague ? null : primaryCtaLabel,
   };
 }

@@ -12,14 +12,6 @@ export type UserCareerStats = {
   freeAgentsSigned: number;
 };
 
-const EMPTY_STATS: UserCareerStats = {
-  championships: 0,
-  leaguesJoined: 0,
-  pointsScored: 0,
-  tradesCompleted: 0,
-  freeAgentsSigned: 0,
-};
-
 async function sumFantasyPointsAcrossLeagues(
   userId: string,
   leagueIds: string[]
@@ -35,33 +27,45 @@ async function sumFantasyPointsAcrossLeagues(
   return Math.round(total * 10) / 10;
 }
 
-/** Aggregate fantasy career counters for the logged-in user's dashboard. */
+/**
+ * Aggregate fantasy career counters for the logged-in user's dashboard.
+ * Every league the user has joined counts, including archived leagues.
+ * Archiving only removes a league from the site-admin list.
+ */
 export async function getUserCareerStats(
   supabase: SupabaseClient,
-  userId: string,
-  leagueIds: string[]
+  userId: string
 ): Promise<UserCareerStats> {
-  if (leagueIds.length === 0) {
-    return { ...EMPTY_STATS };
-  }
+  const client = getAdminClient() ?? supabase;
+  const { data: memberships } = await client
+    .from("league_members")
+    .select("league_id")
+    .eq("user_id", userId);
+  const leagueIds = [
+    ...new Set(
+      (memberships ?? [])
+        .map((row) => (row as { league_id?: string | null }).league_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
 
   const [championshipsRes, tradesRes, faRes, pointsScored] = await Promise.all([
-    supabase
+    client
       .from("user_xp_ledger")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .like("reason", "league_win_%"),
-    supabase
+    client
       .from("league_trade_proposals")
       .select("id", { count: "exact", head: true })
       .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)
       .not("executed_at", "is", null),
-    supabase
+    client
       .from("league_activity")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("activity_type", "fa_add"),
-    sumFantasyPointsAcrossLeagues(userId, leagueIds),
+    leagueIds.length > 0 ? sumFantasyPointsAcrossLeagues(userId, leagueIds) : Promise.resolve(0),
   ]);
 
   return {

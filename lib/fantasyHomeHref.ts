@@ -1,7 +1,8 @@
 /**
- * Same destination as the main nav "Fantasy" pill: play funnel when logged out,
- * current/last league when logged in, or `/fantasy` when logged in with no leagues
- * (hub to join or create — not only create).
+ * Same destination as the main nav "Fantasy" pill: the play funnel when logged out
+ * or when the user has no current league, and the current or last league when they do.
+ * The play funnel is where they choose to join a public league, join a private league,
+ * or create a private league.
  */
 
 import { PLAY_PATH } from "@/lib/playFunnel";
@@ -36,5 +37,5 @@ export function computeFantasyHomeHref(args: {
 
   if (!user) return PLAY_PATH;
   if (currentLeagueSlug) return `/leagues/${currentLeagueSlug}`;
-  return "/fantasy";
+  return PLAY_PATH;
 }

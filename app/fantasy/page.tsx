@@ -3,7 +3,6 @@ import Image from "next/image";
 import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
 import { FantasyOnboardingDashboard } from "@/app/components/FantasyOnboardingDashboard";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
-import { getLeaguesForUser } from "@/lib/leagues";
 import { getHubHomeHref } from "@/lib/hubHomeHref";
 import { getOnboardingProgress } from "@/lib/onboardingProgress";
 import { getSiteActivityPulse } from "@/lib/siteActivityPulse";
@@ -13,6 +12,34 @@ import { getAdsenseSlotFantasy } from "@/lib/adsenseConfig";
 import { siteLogoHref } from "@/lib/siteLogo";
 
 const IMG = "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/draftastic-screenshots";
+
+type DashboardLeague = {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  past?: boolean;
+};
+
+type MemberLeagueRow = {
+  league_id: string;
+  role?: string | null;
+  onboarding_completed_at?: string | null;
+  placement_status?: string | null;
+  leagues?: {
+    slug?: string | null;
+    name?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    league_type?: string | null;
+    visibility_type?: string | null;
+    season_slug?: string | null;
+    draft_status?: string | null;
+    is_archived?: boolean | null;
+  } | null;
+};
 
 export const metadata = {
   title: "Fantasy — Draftastic",
@@ -246,7 +273,7 @@ export default async function FantasyHomePage() {
   }
 
   // Logged-in: onboarding dashboard with career stats, checklist, and live activity
-  let leagues: Awaited<ReturnType<typeof getLeaguesForUser>> = [];
+  let dashboardLeagues: DashboardLeague[] = [];
   let profileDisplayName: string | null = null;
   let career = {
     championships: 0,
@@ -269,17 +296,18 @@ export default async function FantasyHomePage() {
     primaryCtaHref: PLAY_PATH,
     primaryCtaLabel: "Join your first league",
     showEmptyCareerHero: true,
+    chooseLeagueHref: PLAY_PATH,
+    chooseLeagueLabel: "Join your first league",
   } as Awaited<ReturnType<typeof getOnboardingProgress>>;
 
   try {
-    const [leaguesData, profileData, pulseData, memberRowsRes, rosterRowsRes] = await Promise.all([
-      getLeaguesForUser(),
+    const [profileData, pulseData, memberRowsRes, rosterRowsRes] = await Promise.all([
       supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle(),
       getSiteActivityPulse(),
       supabase
         .from("league_members")
         .select(
-          "league_id, onboarding_completed_at, placement_status, leagues(slug, name, league_type, visibility_type, season_slug, draft_status, is_archived)"
+          "league_id, role, onboarding_completed_at, placement_status, leagues(slug, name, start_date, end_date, league_type, visibility_type, season_slug, draft_status, is_archived)"
         )
         .eq("user_id", user.id),
       supabase
@@ -288,9 +316,51 @@ export default async function FantasyHomePage() {
         .eq("user_id", user.id)
         .is("released_at", null),
     ]);
-    leagues = leaguesData;
     profileDisplayName = (profileData.data as { display_name?: string } | null)?.display_name ?? null;
     pulse = pulseData;
+    const memberRows = (memberRowsRes.data ?? []) as MemberLeagueRow[];
+    dashboardLeagues = memberRows.flatMap((row) => {
+      const league = row.leagues;
+      const slug = league?.slug?.trim();
+      if (!slug) return [];
+      return [{
+        id: row.league_id,
+        name: league?.name?.trim() || slug,
+        slug,
+        role: row.role ?? "owner",
+        start_date: league?.start_date ?? null,
+        end_date: league?.end_date ?? null,
+        past: Boolean(league?.is_archived),
+      }];
+    });
+    if (dashboardLeagues.length < memberRows.length && memberRows.length > 0) {
+      const { data: leagueRows } = await supabase
+        .from("leagues")
+        .select("id, name, slug, start_date, end_date, is_archived")
+        .in("id", memberRows.map((row) => row.league_id));
+      const roleByLeagueId = new Map(memberRows.map((row) => [row.league_id, row.role ?? "owner"]));
+      dashboardLeagues = ((leagueRows ?? []) as Array<{
+        id: string;
+        name: string | null;
+        slug: string | null;
+        start_date?: string | null;
+        end_date?: string | null;
+        is_archived?: boolean | null;
+      }>).flatMap((league) => {
+        const slug = league.slug?.trim();
+        if (!slug) return [];
+        return [{
+          id: league.id,
+          name: league.name?.trim() || slug,
+          slug,
+          role: roleByLeagueId.get(league.id) ?? "owner",
+          start_date: league.start_date ?? null,
+          end_date: league.end_date ?? null,
+          past: Boolean(league.is_archived),
+        }];
+      });
+    }
+    dashboardLeagues.sort((a, b) => Number(Boolean(a.past)) - Number(Boolean(b.past)) || a.name.localeCompare(b.name));
 
     const rosterCountByLeagueId = new Map<string, number>();
     for (const row of rosterRowsRes.data ?? []) {
@@ -298,12 +368,11 @@ export default async function FantasyHomePage() {
       rosterCountByLeagueId.set(leagueId, (rosterCountByLeagueId.get(leagueId) ?? 0) + 1);
     }
 
-    const leagueIds = leagues.map((l) => l.id);
-    career = await getUserCareerStats(supabase, user.id, leagueIds);
+    career = await getUserCareerStats(supabase, user.id);
     onboarding = await getOnboardingProgress(
       supabase,
       user.id,
-      (memberRowsRes.data ?? []) as Parameters<typeof getOnboardingProgress>[2],
+      memberRows,
       rosterCountByLeagueId
     );
   } catch {
@@ -319,14 +388,7 @@ export default async function FantasyHomePage() {
         career={career}
         pulse={pulse}
         onboarding={onboarding}
-        leagues={leagues.map((league) => ({
-          id: league.id,
-          name: league.name,
-          slug: league.slug,
-          role: league.role,
-          start_date: league.start_date,
-          end_date: league.end_date,
-        }))}
+        leagues={dashboardLeagues}
         hubHomeHref={hubHomeHref}
       />
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 16px 32px" }}>
