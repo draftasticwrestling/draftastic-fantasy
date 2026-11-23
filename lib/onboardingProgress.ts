@@ -5,6 +5,7 @@ import { isPlacedLeagueMember } from "@/lib/leaguePlacement";
 import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
 import { PLAY_PATH } from "@/lib/playFunnel";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 export type OnboardingChecklistStep = {
   key: string;
@@ -45,7 +46,10 @@ async function hasViewedHowItWorks(
   supabase: SupabaseClient,
   userId: string
 ): Promise<boolean> {
-  const { count } = await supabase
+  // engagement_events allows a user to insert their own row, but not to select it.
+  // The view is recorded on /how-it-works; the checklist has to read it with the admin client.
+  const client = getAdminClient() ?? supabase;
+  const { count } = await client
     .from("engagement_events")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
@@ -69,8 +73,10 @@ export async function getOnboardingProgress(
   let isPlaying = false;
   let rosterHref: string | null = null;
 
-  for (const row of currentLeagues) {
+  // Archived leagues still count. Archiving only hides a league from the site-admin list.
+  for (const row of leagueRows) {
     const slug = row.leagues?.slug?.trim() ?? "";
+    const isCurrent = Boolean(row.leagues) && row.leagues?.is_archived !== true;
     const leagueMeta = {
       slug,
       league_type: row.leagues?.league_type ?? null,
@@ -83,22 +89,13 @@ export async function getOnboardingProgress(
       season_slug: row.leagues?.season_slug ?? null,
     };
 
+    let needsOnboarding = !row.onboarding_completed_at?.trim();
     if (slug) {
-      const { needsOnboarding } = await resolveMemberOnboardingState(
-        supabase,
-        row.league_id,
-        leagueMeta,
-        userId
-      );
-      if (!needsOnboarding || rosterCount > 0) {
-        hasFaction = true;
-        rosterHref = isPublicSalaryCapLeague(leagueCtx)
-          ? `/leagues/${encodeURIComponent(slug)}/salary-cap`
-          : `/leagues/${encodeURIComponent(slug)}`;
-      } else if (needsOnboarding) {
-        rosterHref = leagueOnboardingPath(slug);
-      }
+      const state = await resolveMemberOnboardingState(supabase, row.league_id, leagueMeta, userId);
+      needsOnboarding = state.needsOnboarding;
     }
+    const factionReady = !needsOnboarding || rosterCount > 0;
+    if (factionReady) hasFaction = true;
 
     if (
       isPlacedLeagueMember(
@@ -111,6 +108,15 @@ export async function getOnboardingProgress(
       )
     ) {
       isPlaying = true;
+    }
+
+    if (!isCurrent || !slug) continue;
+    if (factionReady) {
+      rosterHref = isPublicSalaryCapLeague(leagueCtx)
+        ? `/leagues/${encodeURIComponent(slug)}/salary-cap`
+        : `/leagues/${encodeURIComponent(slug)}`;
+    } else if (!rosterHref) {
+      rosterHref = leagueOnboardingPath(slug);
     }
   }
 
@@ -133,7 +139,7 @@ export async function getOnboardingProgress(
       key: "join_league",
       label: "Join a league",
       detail: "It's free — public leagues open every Monday.",
-      completed: hasCurrentLeague,
+      completed: everJoined,
       href: PLAY_PATH,
     },
     {

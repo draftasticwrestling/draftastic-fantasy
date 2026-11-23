@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { AdsenseDisplayAd } from "@/app/components/AdsenseDisplayAd";
 import { FantasyOnboardingDashboard } from "@/app/components/FantasyOnboardingDashboard";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
@@ -299,6 +300,7 @@ export default async function FantasyHomePage() {
     chooseLeagueHref: PLAY_PATH,
     chooseLeagueLabel: "Join your first league",
   } as Awaited<ReturnType<typeof getOnboardingProgress>>;
+  let neverJoined = false;
 
   try {
     const [profileData, pulseData, memberRowsRes, rosterRowsRes] = await Promise.all([
@@ -319,65 +321,70 @@ export default async function FantasyHomePage() {
     profileDisplayName = (profileData.data as { display_name?: string } | null)?.display_name ?? null;
     pulse = pulseData;
     const memberRows = (memberRowsRes.data ?? []) as MemberLeagueRow[];
-    dashboardLeagues = memberRows.flatMap((row) => {
-      const league = row.leagues;
-      const slug = league?.slug?.trim();
-      if (!slug) return [];
-      return [{
-        id: row.league_id,
-        name: league?.name?.trim() || slug,
-        slug,
-        role: row.role ?? "owner",
-        start_date: league?.start_date ?? null,
-        end_date: league?.end_date ?? null,
-        past: Boolean(league?.is_archived),
-      }];
-    });
-    if (dashboardLeagues.length < memberRows.length && memberRows.length > 0) {
-      const { data: leagueRows } = await supabase
-        .from("leagues")
-        .select("id, name, slug, start_date, end_date, is_archived")
-        .in("id", memberRows.map((row) => row.league_id));
-      const roleByLeagueId = new Map(memberRows.map((row) => [row.league_id, row.role ?? "owner"]));
-      dashboardLeagues = ((leagueRows ?? []) as Array<{
-        id: string;
-        name: string | null;
-        slug: string | null;
-        start_date?: string | null;
-        end_date?: string | null;
-        is_archived?: boolean | null;
-      }>).flatMap((league) => {
-        const slug = league.slug?.trim();
+    neverJoined = !memberRowsRes.error && memberRows.length === 0;
+    if (!neverJoined) {
+      dashboardLeagues = memberRows.flatMap((row) => {
+        const league = row.leagues;
+        const slug = league?.slug?.trim();
         if (!slug) return [];
         return [{
-          id: league.id,
-          name: league.name?.trim() || slug,
+          id: row.league_id,
+          name: league?.name?.trim() || slug,
           slug,
-          role: roleByLeagueId.get(league.id) ?? "owner",
-          start_date: league.start_date ?? null,
-          end_date: league.end_date ?? null,
-          past: Boolean(league.is_archived),
+          role: row.role ?? "owner",
+          start_date: league?.start_date ?? null,
+          end_date: league?.end_date ?? null,
+          past: Boolean(league?.is_archived),
         }];
       });
-    }
-    dashboardLeagues.sort((a, b) => Number(Boolean(a.past)) - Number(Boolean(b.past)) || a.name.localeCompare(b.name));
+      if (dashboardLeagues.length < memberRows.length && memberRows.length > 0) {
+        const { data: leagueRows } = await supabase
+          .from("leagues")
+          .select("id, name, slug, start_date, end_date, is_archived")
+          .in("id", memberRows.map((row) => row.league_id));
+        const roleByLeagueId = new Map(memberRows.map((row) => [row.league_id, row.role ?? "owner"]));
+        dashboardLeagues = ((leagueRows ?? []) as Array<{
+          id: string;
+          name: string | null;
+          slug: string | null;
+          start_date?: string | null;
+          end_date?: string | null;
+          is_archived?: boolean | null;
+        }>).flatMap((league) => {
+          const slug = league.slug?.trim();
+          if (!slug) return [];
+          return [{
+            id: league.id,
+            name: league.name?.trim() || slug,
+            slug,
+            role: roleByLeagueId.get(league.id) ?? "owner",
+            start_date: league.start_date ?? null,
+            end_date: league.end_date ?? null,
+            past: Boolean(league.is_archived),
+          }];
+        });
+      }
+      dashboardLeagues.sort((a, b) => Number(Boolean(a.past)) - Number(Boolean(b.past)) || a.name.localeCompare(b.name));
 
-    const rosterCountByLeagueId = new Map<string, number>();
-    for (const row of rosterRowsRes.data ?? []) {
-      const leagueId = (row as { league_id: string }).league_id;
-      rosterCountByLeagueId.set(leagueId, (rosterCountByLeagueId.get(leagueId) ?? 0) + 1);
-    }
+      const rosterCountByLeagueId = new Map<string, number>();
+      for (const row of rosterRowsRes.data ?? []) {
+        const leagueId = (row as { league_id: string }).league_id;
+        rosterCountByLeagueId.set(leagueId, (rosterCountByLeagueId.get(leagueId) ?? 0) + 1);
+      }
 
-    career = await getUserCareerStats(supabase, user.id);
-    onboarding = await getOnboardingProgress(
-      supabase,
-      user.id,
-      memberRows,
-      rosterCountByLeagueId
-    );
+      career = await getUserCareerStats(supabase, user.id);
+      onboarding = await getOnboardingProgress(
+        supabase,
+        user.id,
+        memberRows,
+        rosterCountByLeagueId
+      );
+    }
   } catch {
     // leave defaults
   }
+
+  if (neverJoined) redirect(PLAY_PATH);
 
   const displayName = profileDisplayName?.trim() || user.email?.split("@")[0] || "there";
 
