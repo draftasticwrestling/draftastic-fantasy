@@ -35,9 +35,7 @@ export default async function AccountPage({
     !profile?.accepted_privacy_at;
   const needsTimezone = !(profile?.timezone ?? "").trim();
   const needsRequiredProfile = needsRequiredAccount || needsTimezone;
-  const needsAvatarSelection =
-    Boolean(profile?.needs_avatar_selection) && !Boolean(profile?.is_site_admin);
-  const avatarRequired = needsAvatarSelection || (avatar_required === "1" && !profile?.is_site_admin);
+  const avatarRequired = avatar_required === "1" && !profile?.is_site_admin;
   const continueHref = safeContinueHref(next);
 
   const avatarField = (

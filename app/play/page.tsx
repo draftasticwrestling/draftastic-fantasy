@@ -9,6 +9,8 @@ import {
   type PlayFunnelStep,
 } from "@/lib/playFunnel";
 import { getLeaguesForUser } from "@/lib/leagues";
+import { getIsSiteAdmin } from "@/lib/auth/siteAdmin";
+import { roadToWrestleManiaCreateStatus } from "@/lib/leagueSeasons";
 import { getProfile } from "@/lib/profiles";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 
@@ -60,9 +62,11 @@ export default async function PlayPage({ searchParams }: Props) {
   const step = token ? "join" : parseStep(stepRaw);
   const profile = await getProfile(user.id);
   const leagues = await getLeaguesForUser();
+  const isSiteAdmin = await getIsSiteAdmin();
+  const createStatus = roadToWrestleManiaCreateStatus();
   const profileReadiness = getProfileLeagueReadiness(
     profile,
-    buildPlayPath({ step: "join-public", phase: "2" })
+    buildPlayPath({ step: "join-public" })
   );
 
   return (
@@ -76,9 +80,8 @@ export default async function PlayPage({ searchParams }: Props) {
         initialCode={code ?? ""}
         profileReadiness={profileReadiness}
         hasLeagues={leagues.length > 0}
-        initialPublicPhase={
-          phase === "3" ? 3 : phase === "2" ? 2 : 1
-        }
+        isSiteAdmin={isSiteAdmin}
+        createStatus={createStatus}
       />
     </main>
   );

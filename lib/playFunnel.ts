@@ -20,7 +20,6 @@ type ProfileInput = {
   accepted_terms_at?: string | null;
   accepted_privacy_at?: string | null;
   timezone?: string | null;
-  needs_avatar_selection?: boolean | null;
   is_site_admin?: boolean | null;
 };
 
@@ -48,12 +47,6 @@ export function getProfileLeagueReadiness(
     missingLabels.push("Terms and privacy acceptance");
   }
   if (!profile?.timezone?.trim()) missingLabels.push("Timezone");
-  if (
-    Boolean(profile?.needs_avatar_selection) &&
-    !Boolean(profile?.is_site_admin)
-  ) {
-    missingLabels.push("Manager avatar");
-  }
   return {
     ready: missingLabels.length === 0,
     missingLabels,

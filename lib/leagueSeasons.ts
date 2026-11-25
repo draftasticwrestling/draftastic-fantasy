@@ -106,10 +106,23 @@ function formatUtcLongDate(ymd: string): string {
 export function roadToWrestleManiaCreateBlockMessage(todayYmd?: string): string | null {
   const status = roadToWrestleManiaCreateStatus(todayYmd);
   if (status === "open") return null;
+  return roadToWrestleManiaPrivateCreateClosedNotice(status).headline;
+}
+
+/** Copy for the closed create screen. Public-league join stays available. */
+export function roadToWrestleManiaPrivateCreateClosedNotice(
+  status: Exclude<RoadToWrestleManiaCreateStatus, "open">
+): { headline: string; body: string } {
   if (status === "before_open") {
-    return "Road to WrestleMania league creation opens November 21, 2026. The first scored show is the Raw on November 30.";
+    return {
+      headline: `Road to WrestleMania league creation opens ${formatUtcLongDate(ROAD_TO_WRESTLEMANIA_2026.create_open_ymd)}.`,
+      body: `The first scored show is the Raw on ${formatUtcLongDate(ROAD_TO_WRESTLEMANIA_2026.season_start_ymd)}. Join the open public league now. You can create a private league for friends once creation opens.`,
+    };
   }
-  return `Road to WrestleMania league creation is closed. New leagues had to start by ${formatUtcLongDate(lastRoadToWrestleManiaStartYmd())}, six weeks before WrestleMania.`;
+  return {
+    headline: "Road to WrestleMania league creation is closed.",
+    body: `New leagues had to start by ${formatUtcLongDate(lastRoadToWrestleManiaStartYmd())}, six weeks before WrestleMania. Join the open public league and set up your faction.`,
+  };
 }
 
 export { PUBLIC_SALARY_CAP_SEASON_SLUG, PUBLIC_SALARY_CAP_SEASON_WEEKS } from "@/lib/publicLeagueSchedule";

@@ -21,6 +21,7 @@ import {
 import { getSalaryCapLeagueMeta, getSalaryCapSpentForUser } from "@/lib/salaryCap";
 import { buildSalaryCapWrestlerPool } from "@/lib/salaryCapWrestlerPool";
 import { buildLeagueFreeAgentPool } from "@/lib/leagueFreeAgentPool";
+import { getAvatarDisplayUrl, userMayUseAvatar } from "@/lib/avatarCatalog";
 import { getServerAuth } from "@/lib/supabase/serverAuth";
 
 export type SalaryCapFreeAgentPoolPayload = {
@@ -263,15 +264,52 @@ export async function updateFactionInfoAction(
   return {};
 }
 
+/** When onboarding is the first avatar pick, also store it as the account default. */
+async function adoptAccountAvatarIfNeeded(avatarId: string): Promise<{ error?: string }> {
+  const { supabase, user } = await getServerAuth();
+  if (!user) return { error: "Not signed in." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("needs_avatar_selection, is_site_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+  const row = profile as { needs_avatar_selection?: boolean | null; is_site_admin?: boolean | null } | null;
+  if (!row?.needs_avatar_selection || row.is_site_admin) return {};
+
+  if (!(await userMayUseAvatar(user.id, avatarId))) {
+    return { error: "That avatar is not available on your account." };
+  }
+  const displayUrl = await getAvatarDisplayUrl(avatarId);
+  if (!displayUrl) return { error: "Avatar asset not found." };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      avatar_id: avatarId,
+      avatar_url: displayUrl,
+      needs_avatar_selection: false,
+    })
+    .eq("id", user.id);
+  if (error) return { error: error.message };
+  revalidatePath("/account");
+  return {};
+}
+
 export async function updateLeagueManagerAvatarAction(
   leagueSlug: string,
-  managerAvatarUrl: string | null
+  managerAvatarUrl: string | null,
+  avatarId?: string | null
 ): Promise<{ error?: string }> {
   const { getLeagueBySlug, updateLeagueMemberManagerAvatar } = await import("@/lib/leagues");
   const league = await getLeagueBySlug(leagueSlug);
   if (!league) return { error: "League not found." };
   const result = await updateLeagueMemberManagerAvatar(league.id, managerAvatarUrl);
   if (result.error) return result;
+  if (avatarId?.trim()) {
+    const adopted = await adoptAccountAvatarIfNeeded(avatarId.trim());
+    if (adopted.error) return adopted;
+  }
   revalidatePath(`/leagues/${leagueSlug}`);
   revalidatePath(`/leagues/${leagueSlug}/edit-team-info`);
   revalidatePath(`/leagues/${leagueSlug}/standings`);

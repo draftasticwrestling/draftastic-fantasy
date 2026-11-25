@@ -1,8 +1,19 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { generateJoinCode } from "@/lib/leagueJoinCode";
+import { snapshotLeagueSalaryCosts } from "@/lib/leagueSalarySnapshots";
+import {
+  PUBLIC_SALARY_CAP_H2H_MAX_TEAMS,
+  PUBLIC_SALARY_CAP_SEASON_SLUG,
+  SALARY_CAP_H2H_LEAGUE_TYPE,
+} from "@/lib/leagueStructure";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { isPublicLeagueRegistrationOpen } from "@/lib/publicLeagueRegistration";
+import {
+  computePublicLeagueRegistrationSchedule,
+  isPublicLeagueRegistrationOpen,
+  publicLeagueMinimumTeams,
+} from "@/lib/publicLeagueRegistration";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 
 export type LeaguePlacementStatus = "pending" | "active";
@@ -304,30 +315,264 @@ async function ensureCommissionerAfterMemberRemoval(
     .eq("user_id", next.user_id);
 }
 
+export type UnplacedCarryResult = {
+  moved: number;
+  destinationSlug: string | null;
+  movedUserIds: string[];
+};
+
+type CarryMember = {
+  user_id: string;
+  team_name?: string | null;
+  manager_avatar_url?: string | null;
+  manager_catchphrase?: string | null;
+};
+
+type OpenPublicLeague = {
+  id: string;
+  slug: string;
+  max_teams: number | null;
+};
+
 /**
- * Remove public salary-cap members with no wrestlers on roster once enrollment closes
- * (Monday RAW 5 PM PT). Returns number of memberships removed.
+ * When a public league is actually starting, move members who never added a wrestler
+ * into the next open public league. They stay pending, so they do not count toward
+ * the league that is locking in. If that league is still short of its minimum and
+ * registration will be extended, they stay put.
  */
+export async function carryUnplacedPublicLeagueMembersWhenLeagueStarts(
+  leagueId: string,
+  league: LeaguePlacementContext & { registration_closes_at?: string | null; public_status?: string | null },
+  nowMs: number = Date.now()
+): Promise<UnplacedCarryResult> {
+  const empty: UnplacedCarryResult = { moved: 0, destinationSlug: null, movedUserIds: [] };
+  if (!isPublicSalaryCapLeague(league)) return empty;
+  if (isPublicLeagueRegistrationOpen(league, nowMs)) return empty;
+
+  const admin = getAdminClient();
+  if (!admin) return empty;
+
+  const status = String(league.public_status ?? "").toLowerCase();
+  const alreadyStarted = status === "active";
+  if (!alreadyStarted) {
+    const placed = await countPlacedLeagueMembers(admin, leagueId, league);
+    const min = publicLeagueMinimumTeams(league.league_type);
+    if (placed < min) return empty;
+  }
+
+  const userIds = await listUnplacedMemberUserIds(admin, leagueId, league);
+  if (userIds.length === 0) return empty;
+
+  const { data: detailRows } = await admin
+    .from("league_members")
+    .select("user_id, team_name, manager_avatar_url, manager_catchphrase")
+    .eq("league_id", leagueId)
+    .in("user_id", userIds);
+  const detailById = new Map(
+    ((detailRows ?? []) as CarryMember[]).map((row) => [row.user_id, row])
+  );
+  const members: CarryMember[] = userIds.map((userId) => detailById.get(userId) ?? { user_id: userId });
+
+  const movedUserIds: string[] = [];
+  let destinationSlug: string | null = null;
+  let remaining = members;
+
+  while (remaining.length > 0) {
+    const destination = await findOrProvisionOpenPublicLeague(admin, leagueId, remaining[0].user_id);
+    if (!destination) break;
+    destinationSlug = destination.slug;
+
+    const room = await openSeatsInPublicLeague(admin, destination);
+    if (room <= 0) break;
+    const batch = remaining.slice(0, room);
+    remaining = remaining.slice(room);
+
+    const { count: existingCount } = await admin
+      .from("league_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("league_id", destination.id);
+    let destCount = existingCount ?? 0;
+
+    for (const member of batch) {
+      const placedThere = await moveUnplacedMemberToLeague(admin, leagueId, destination.id, member, destCount === 0);
+      if (!placedThere) continue;
+      destCount += 1;
+      movedUserIds.push(member.user_id);
+    }
+  }
+
+  if (movedUserIds.length > 0) {
+    await ensureCommissionerAfterMemberRemoval(admin, leagueId);
+  }
+
+  return { moved: movedUserIds.length, destinationSlug, movedUserIds };
+}
+
+/** @deprecated Use carryUnplacedPublicLeagueMembersWhenLeagueStarts. Kept so older call sites still compile. */
 export async function purgeUnplacedPublicLeagueMembersIfRegistrationClosed(
   leagueId: string,
   league: LeaguePlacementContext & { registration_closes_at?: string | null; public_status?: string | null },
   nowMs: number = Date.now()
 ): Promise<number> {
-  if (!isPublicSalaryCapLeague(league)) return 0;
-  if (isPublicLeagueRegistrationOpen(league, nowMs)) return 0;
+  const result = await carryUnplacedPublicLeagueMembersWhenLeagueStarts(leagueId, league, nowMs);
+  return result.moved;
+}
 
-  const admin = getAdminClient();
-  if (!admin) return 0;
+async function openSeatsInPublicLeague(
+  admin: Pick<SupabaseClient, "from">,
+  league: OpenPublicLeague
+): Promise<number> {
+  const { count } = await admin
+    .from("league_members")
+    .select("user_id", { count: "exact", head: true })
+    .eq("league_id", league.id);
+  const cap = league.max_teams ?? PUBLIC_SALARY_CAP_H2H_MAX_TEAMS;
+  return Math.max(0, cap - (count ?? 0));
+}
 
-  const userIds = await listUnplacedMemberUserIds(admin, leagueId, league);
-  if (userIds.length === 0) return 0;
+async function findOrProvisionOpenPublicLeague(
+  admin: SupabaseClient,
+  excludeLeagueId: string,
+  commissionerUserId: string
+): Promise<OpenPublicLeague | null> {
+  const { data } = await admin
+    .from("leagues")
+    .select("id, slug, max_teams, league_type, season_slug, visibility_type, public_status, registration_closes_at")
+    .eq("visibility_type", "public")
+    .in("public_status", ["open", "awaiting_minimum"])
+    .order("created_at", { ascending: true });
 
-  for (const userId of userIds) {
-    await admin.from("league_rosters").delete().eq("league_id", leagueId).eq("user_id", userId);
-    await admin.from("league_draft_preferences").delete().eq("league_id", leagueId).eq("user_id", userId);
-    await admin.from("league_members").delete().eq("league_id", leagueId).eq("user_id", userId);
+  for (const row of data ?? []) {
+    const candidate = row as OpenPublicLeague & LeaguePlacementContext & {
+      public_status?: string | null;
+      registration_closes_at?: string | null;
+    };
+    if (candidate.id === excludeLeagueId) continue;
+    if (!isPublicSalaryCapLeague(candidate)) continue;
+    if (!isPublicLeagueRegistrationOpen(candidate)) continue;
+    const seats = await openSeatsInPublicLeague(admin, candidate);
+    if (seats > 0) return candidate;
   }
 
-  await ensureCommissionerAfterMemberRemoval(admin, leagueId);
-  return userIds.length;
+  return provisionOpenPublicLeague(admin, commissionerUserId);
+}
+
+async function provisionOpenPublicLeague(
+  admin: SupabaseClient,
+  commissionerUserId: string
+): Promise<OpenPublicLeague | null> {
+  const schedule = computePublicLeagueRegistrationSchedule();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: seqRows } = await admin
+      .from("leagues")
+      .select("public_sequence")
+      .eq("visibility_type", "public")
+      .not("public_sequence", "is", null)
+      .order("public_sequence", { ascending: false })
+      .limit(1);
+    const maxSeq = Number((seqRows?.[0] as { public_sequence?: number } | undefined)?.public_sequence ?? 0);
+    const sequence = (Number.isFinite(maxSeq) ? maxSeq : 0) + 1 + attempt;
+    const name = `Public League ${sequence}`;
+    const slug = `public-league-${sequence}`;
+
+    const { data, error } = await admin
+      .from("leagues")
+      .insert({
+        name,
+        slug,
+        commissioner_id: commissionerUserId,
+        start_date: schedule.season_start_ymd,
+        end_date: schedule.season_end_ymd,
+        season_slug: PUBLIC_SALARY_CAP_SEASON_SLUG,
+        draft_date: null,
+        draft_time: null,
+        draft_type: "salary_cap",
+        draft_style: "snake",
+        draft_order_method: "manual_by_gm",
+        draft_status: "in_progress",
+        league_type: SALARY_CAP_H2H_LEAGUE_TYPE,
+        include_nxt: true,
+        max_teams: PUBLIC_SALARY_CAP_H2H_MAX_TEAMS,
+        visibility_type: "public",
+        public_status: "open",
+        public_sequence: sequence,
+        join_code: generateJoinCode(),
+        registration_closes_at: schedule.registration_closes_at,
+      })
+      .select("id, slug, max_teams")
+      .single();
+
+    if (!error && data) {
+      const created = data as OpenPublicLeague;
+      await snapshotLeagueSalaryCosts(created.id);
+      return created;
+    }
+    const code = (error as { code?: string } | null)?.code;
+    if (code === "23505") continue;
+    console.error("provisionOpenPublicLeague:", error?.message);
+    return null;
+  }
+  return null;
+}
+
+async function moveUnplacedMemberToLeague(
+  admin: SupabaseClient,
+  sourceLeagueId: string,
+  destinationLeagueId: string,
+  member: CarryMember,
+  asCommissioner: boolean
+): Promise<boolean> {
+  const { data: existing } = await admin
+    .from("league_members")
+    .select("user_id")
+    .eq("league_id", destinationLeagueId)
+    .eq("user_id", member.user_id)
+    .maybeSingle();
+
+  if (!existing) {
+    const inserted = await insertCarriedMember(admin, destinationLeagueId, member, asCommissioner);
+    if (!inserted) return false;
+    if (asCommissioner) {
+      await admin.from("leagues").update({ commissioner_id: member.user_id }).eq("id", destinationLeagueId);
+    }
+  }
+
+  await admin.from("league_rosters").delete().eq("league_id", sourceLeagueId).eq("user_id", member.user_id);
+  await admin.from("league_draft_preferences").delete().eq("league_id", sourceLeagueId).eq("user_id", member.user_id);
+  const { error: removeError } = await admin
+    .from("league_members")
+    .delete()
+    .eq("league_id", sourceLeagueId)
+    .eq("user_id", member.user_id);
+  if (removeError) {
+    console.error("moveUnplacedMemberToLeague remove:", removeError.message);
+    return false;
+  }
+  return true;
+}
+
+async function insertCarriedMember(
+  admin: SupabaseClient,
+  destinationLeagueId: string,
+  member: CarryMember,
+  asCommissioner: boolean
+): Promise<boolean> {
+  const base = {
+    league_id: destinationLeagueId,
+    user_id: member.user_id,
+    role: asCommissioner ? "commissioner" : "owner",
+    placement_status: "pending",
+    onboarding_completed_at: null,
+    team_name: member.team_name?.trim() || null,
+    manager_avatar_url: member.manager_avatar_url ?? null,
+    manager_catchphrase: member.manager_catchphrase?.trim() || null,
+  };
+  const first = await admin.from("league_members").insert(base);
+  if (!first.error) return true;
+
+  const withoutCatchphrase = { ...base, manager_catchphrase: null };
+  const retry = await admin.from("league_members").insert(withoutCatchphrase);
+  if (!retry.error) return true;
+  console.error("insertCarriedMember:", retry.error.message);
+  return false;
 }

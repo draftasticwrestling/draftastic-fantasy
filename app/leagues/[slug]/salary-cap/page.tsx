@@ -6,7 +6,7 @@ import { leagueIsSalaryCapHeadToHead, leagueUsesSalaryCap, SALARY_CAP_BUDGET_DEF
 import { getSalaryCapLeagueMeta } from "@/lib/salaryCap";
 import { getSalaryCapWeeklyMoveBudget } from "@/lib/salaryCapWeeklyLimits";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
-import { purgeUnplacedPublicLeagueMembersIfRegistrationClosed, maybeActivatePlacementForStartedRoster } from "@/lib/leaguePlacement";
+import { carryUnplacedPublicLeagueMembersWhenLeagueStarts, maybeActivatePlacementForStartedRoster } from "@/lib/leaguePlacement";
 import { buildSalaryCapWrestlerPool } from "@/lib/salaryCapWrestlerPool";
 import { getLeagueFrozenSalaryCostsForRoster, resolveSalaryCapCostForRosterWrestler } from "@/lib/salaryCapRosterCosts";
 import { leagueOnboardingPath, resolveMemberOnboardingState } from "@/lib/leagueOnboarding";
@@ -33,7 +33,15 @@ export default async function LeagueSalaryCapPage({ params }: Props) {
   }
 
   if (isPublicSalaryCapLeague(league)) {
-    await purgeUnplacedPublicLeagueMembersIfRegistrationClosed(league.id, league);
+    const carry = await carryUnplacedPublicLeagueMembersWhenLeagueStarts(league.id, league);
+    const { user: carriedUser } = await getServerAuth();
+    if (
+      carriedUser &&
+      carry.destinationSlug &&
+      carry.movedUserIds.includes(carriedUser.id)
+    ) {
+      redirect(`/leagues/${encodeURIComponent(carry.destinationSlug)}/salary-cap`);
+    }
     league = (await getLeagueBySlug(slug)) ?? league;
   }
 

@@ -92,7 +92,7 @@ import {
   countPlacedLeagueMembers,
   filterPlacedLeagueMembers,
   markPublicLeagueJoinPending,
-  purgeUnplacedPublicLeagueMembersIfRegistrationClosed,
+  carryUnplacedPublicLeagueMembersWhenLeagueStarts,
   syncLeaguePlacementFromRosters,
 } from "@/lib/leaguePlacement";
 import {
@@ -1303,7 +1303,7 @@ export async function closeExpiredPublicLeagues(): Promise<void> {
     const slug = (row as { slug?: string }).slug;
     if (!slug) continue;
 
-    await purgeUnplacedPublicLeagueMembersIfRegistrationClosed(
+    await carryUnplacedPublicLeagueMembersWhenLeagueStarts(
       id,
       row as {
         visibility_type?: string | null;
@@ -1383,7 +1383,7 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
   if (!row?.id || row.visibility_type !== "public") return;
 
   await syncLeaguePlacementFromRosters(row.id, row);
-  await purgeUnplacedPublicLeagueMembersIfRegistrationClosed(row.id, row);
+  await carryUnplacedPublicLeagueMembersWhenLeagueStarts(row.id, row);
 
   const memberCount = await countPlacedLeagueMembers(admin, row.id, row);
   const draftStatus = String(row.draft_status ?? "not_started");

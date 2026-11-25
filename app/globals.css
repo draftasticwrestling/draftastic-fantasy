@@ -3069,6 +3069,11 @@ body > .site-footer {
   background: var(--color-blue-hover);
 }
 
+.create-league-form .create-league-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .create-league-form .form-note {
   margin-top: 8px;
   font-size: 13px;
@@ -8722,7 +8727,7 @@ button.hub-leaderboard-week-nav-btn:disabled {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  margin-top: 8px;
+  margin-top: 16px;
   font-size: 14px;
   color: #374151;
   cursor: pointer;

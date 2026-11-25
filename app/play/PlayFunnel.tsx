@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ClosedPrivateCreatePanel } from "@/app/leagues/ClosedPrivateCreatePanel";
 import {
   PUBLIC_JOIN_STEPS,
   type PlayFunnelStep,
   type ProfileLeagueReadiness,
   buildPlayPath,
 } from "@/lib/playFunnel";
+import type { RoadToWrestleManiaCreateStatus } from "@/lib/leagueSeasons";
 
 type Props = {
   step: PlayFunnelStep;
@@ -16,7 +18,8 @@ type Props = {
   initialCode?: string;
   profileReadiness: ProfileLeagueReadiness;
   hasLeagues: boolean;
-  initialPublicPhase?: 1 | 2 | 3;
+  isSiteAdmin?: boolean;
+  createStatus?: RoadToWrestleManiaCreateStatus;
 };
 
 export function PlayFunnel({
@@ -25,10 +28,10 @@ export function PlayFunnel({
   initialCode = "",
   profileReadiness,
   hasLeagues,
-  initialPublicPhase = 1,
+  isSiteAdmin = false,
+  createStatus = "open",
 }: Props) {
   const router = useRouter();
-  const [publicPhase, setPublicPhase] = useState<1 | 2 | 3>(initialPublicPhase);
   const [publicLoading, setPublicLoading] = useState(false);
   const [privateLoading, setPrivateLoading] = useState(false);
   const [tokenLoading, setTokenLoading] = useState(false);
@@ -114,6 +117,18 @@ export function PlayFunnel({
   }
 
   if (step === "create") {
+    if (!isSiteAdmin && createStatus !== "open") {
+      return (
+        <div className="play-funnel">
+          <h1>Create a League</h1>
+          <p className="play-funnel-lead">Private leagues for friends are not open for new creation right now.</p>
+          <ClosedPrivateCreatePanel createStatus={createStatus} buttonClassName="play-funnel-btn play-funnel-btn-primary" />
+          <p className="play-funnel-foot">
+            <Link href={buildPlayPath({ step: "choose" })}>← Back</Link>
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="play-funnel">
         <h1>Create a League</h1>
@@ -198,108 +213,38 @@ export function PlayFunnel({
     );
   }
 
-  // join-public — multi-step before placement
-  if (publicPhase === 1) {
-    return (
-      <div className="play-funnel">
-        <h1>Join a Public League</h1>
-        <p className="play-funnel-lead">
-          Public leagues are free to join and play. Here&apos;s what happens after you join. You&apos;ll only be placed
-          in a league once you confirm on the last step.
-        </p>
-        <ol className="play-funnel-step-list">
-          {PUBLIC_JOIN_STEPS.map((item, i) => (
-            <li key={item.title}>
-              <span className="play-funnel-step-num">{i + 1}</span>
-              <div>
-                <strong>{item.title}</strong>
-                <p>{item.detail}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-        <p className="play-funnel-note">
-          Finish before Monday RAW (5 PM PT). If you don&apos;t complete roster setup by then, your spot is released and
-          you&apos;ll need to join again.
-        </p>
-        <div className="play-funnel-actions">
-          <button
-            type="button"
-            className="play-funnel-btn play-funnel-btn-primary"
-            onClick={() => setPublicPhase(2)}
-          >
-            Continue
-          </button>
-          <Link href={buildPlayPath({ step: "join" })} className="play-funnel-btn play-funnel-btn-outline">
-            Back
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  if (publicPhase === 2) {
-    return (
-      <div className="play-funnel">
-        <h1>Before you join</h1>
-        {!profileReadiness.ready ? (
-          <>
-            <p className="play-funnel-lead">Complete your account profile so you can finish faction setup right away.</p>
-            <ul className="play-funnel-missing-list">
-              {profileReadiness.missingLabels.map((label) => (
-                <li key={label}>{label}</li>
-              ))}
-            </ul>
-            <div className="play-funnel-actions">
-              {profileReadiness.accountHref ? (
-                <Link href={profileReadiness.accountHref} className="play-funnel-btn play-funnel-btn-primary">
-                  Complete profile
-                </Link>
-              ) : null}
-              <button
-                type="button"
-                className="play-funnel-btn play-funnel-btn-outline"
-                onClick={() => setPublicPhase(1)}
-              >
-                Back
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="play-funnel-lead">
-              Your account is ready. On the next screen you&apos;ll confirm that you want to join and start faction
-              setup.
-            </p>
-            <div className="play-funnel-actions">
-              <button
-                type="button"
-                className="play-funnel-btn play-funnel-btn-primary"
-                onClick={() => setPublicPhase(3)}
-              >
-                Continue
-              </button>
-              <button
-                type="button"
-                className="play-funnel-btn play-funnel-btn-outline"
-                onClick={() => setPublicPhase(1)}
-              >
-                Back
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="play-funnel">
-      <h1>Ready to join?</h1>
+      <h1>Join a Public League</h1>
       <p className="play-funnel-lead">
-        You&apos;ll join the current open public league (or start a new one as GM if none is open), then set up your
-        faction and roster.
+        Public leagues are free to join and play. You&apos;ll join the current open public league, then set up your
+        faction and roster. You are placed only after you confirm below.
       </p>
+      <ol className="play-funnel-step-list">
+        {PUBLIC_JOIN_STEPS.map((item, i) => (
+          <li key={item.title}>
+            <span className="play-funnel-step-num">{i + 1}</span>
+            <div>
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="play-funnel-note">
+        Finish before Monday RAW (5 PM PT). If you don&apos;t complete roster setup by then, you stay unplaced and
+        move to the next open public league. You don&apos;t count toward the league that is starting.
+      </p>
+      {!profileReadiness.ready ? (
+        <>
+          <p className="play-funnel-lead">Complete your account profile before you can join.</p>
+          <ul className="play-funnel-missing-list">
+            {profileReadiness.missingLabels.map((label) => (
+              <li key={label}>{label}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
       <label className="play-funnel-commit">
         <input
           type="checkbox"
@@ -320,14 +265,9 @@ export function PlayFunnel({
         >
           {publicLoading ? "Joining…" : "Join Public League"}
         </button>
-        <button
-          type="button"
-          className="play-funnel-btn play-funnel-btn-outline"
-          disabled={publicLoading}
-          onClick={() => setPublicPhase(2)}
-        >
+        <Link href={buildPlayPath({ step: "join" })} className="play-funnel-btn play-funnel-btn-outline">
           Back
-        </button>
+        </Link>
       </div>
       {!profileReadiness.ready && profileReadiness.accountHref ? (
         <p className="play-funnel-foot">

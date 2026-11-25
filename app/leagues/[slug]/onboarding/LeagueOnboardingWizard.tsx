@@ -13,9 +13,9 @@ import {
 } from "@/lib/managerCatchphrase";
 import { updateFactionInfoAction, updateLeagueCatchphraseAction, updateLeagueManagerAvatarAction } from "../team/actions";
 
-type Step = "faction" | "avatar" | "catchphrase" | "confirm" | "draft";
+type Step = "faction" | "avatar" | "confirm" | "draft";
 
-const STEPS: Step[] = ["faction", "avatar", "catchphrase", "confirm", "draft"];
+const STEPS: Step[] = ["faction", "avatar", "confirm", "draft"];
 
 type Props = {
   leagueSlug: string;
@@ -28,6 +28,8 @@ type Props = {
   initialLeagueAvatarUrl: string | null;
   profileAvatarUrl: string | null;
   displayName: string;
+  /** True when this account has not picked a starter avatar yet. The wizard step is that pick. */
+  needsAccountAvatar?: boolean;
   initialError: string | null;
   initialStep?: Step;
 };
@@ -41,6 +43,7 @@ export function LeagueOnboardingWizard({
   initialLeagueAvatarUrl,
   profileAvatarUrl,
   displayName,
+  needsAccountAvatar = false,
   initialError,
   initialStep,
 }: Props) {
@@ -55,6 +58,7 @@ export function LeagueOnboardingWizard({
     initialError ? { type: "err", text: initialError } : null
   );
   const [pending, startTransition] = useTransition();
+  const [accountAvatarSaved, setAccountAvatarSaved] = useState(!needsAccountAvatar);
 
   const stepIndex = STEPS.indexOf(step);
   const progress = step === "draft" ? 100 : Math.round(((stepIndex + 1) / STEPS.length) * 100);
@@ -71,13 +75,14 @@ export function LeagueOnboardingWizard({
       : null;
 
   const saveAvatar = useCallback(
-    async (url: string | null) => {
-      const result = await updateLeagueManagerAvatarAction(leagueSlug, url);
+    async (url: string | null, avatarId?: string | null) => {
+      const result = await updateLeagueManagerAvatarAction(leagueSlug, url, avatarId);
       if (result.error) {
         setMessage({ type: "err", text: result.error });
         return false;
       }
       setLeagueAvatarUrl(url);
+      if (avatarId?.trim()) setAccountAvatarSaved(true);
       return true;
     },
     [leagueSlug]
@@ -86,8 +91,7 @@ export function LeagueOnboardingWizard({
   function goNext() {
     setMessage(null);
     if (step === "faction") setStep("avatar");
-    else if (step === "avatar") setStep("catchphrase");
-    else if (step === "catchphrase") setStep("confirm");
+    else if (step === "avatar") setStep("confirm");
     else if (step === "confirm" && !isSalaryCap) {
       router.push(`/leagues/${leagueSlug}/draft/preferences?from=onboarding`);
     }
@@ -101,8 +105,7 @@ export function LeagueOnboardingWizard({
   function goBack() {
     setMessage(null);
     if (step === "avatar") setStep("faction");
-    else if (step === "catchphrase") setStep("avatar");
-    else if (step === "confirm") setStep("catchphrase");
+    else if (step === "confirm") setStep("avatar");
     else if (step === "draft") setStep("confirm");
   }
 
@@ -112,32 +115,32 @@ export function LeagueOnboardingWizard({
       setMessage({ type: "err", text: checked.error });
       return;
     }
+    const phrase = validateManagerCatchphraseForSave(catchphrase.trim() || null);
+    if (!phrase.ok) {
+      setMessage({ type: "err", text: phrase.error });
+      return;
+    }
     startTransition(async () => {
-      const result = await updateFactionInfoAction(leagueSlug, checked.value);
-      if (result.error) setMessage({ type: "err", text: result.error });
-      else goNext();
+      const nameResult = await updateFactionInfoAction(leagueSlug, checked.value);
+      if (nameResult.error) {
+        setMessage({ type: "err", text: nameResult.error });
+        return;
+      }
+      const phraseResult = await updateLeagueCatchphraseAction(leagueSlug, phrase.value);
+      if (phraseResult.error) {
+        setMessage({ type: "err", text: phraseResult.error });
+        return;
+      }
+      goNext();
     });
   }
 
   async function handleAvatarNext() {
+    if (needsAccountAvatar && !accountAvatarSaved) {
+      setMessage({ type: "err", text: "Pick a manager avatar to continue." });
+      return;
+    }
     goNext();
-  }
-
-  function handleCatchphraseNext(skip = false) {
-    if (skip) {
-      goNext();
-      return;
-    }
-    const checked = validateManagerCatchphraseForSave(catchphrase.trim() || null);
-    if (!checked.ok) {
-      setMessage({ type: "err", text: checked.error });
-      return;
-    }
-    startTransition(async () => {
-      const result = await updateLeagueCatchphraseAction(leagueSlug, checked.value);
-      if (result.error) setMessage({ type: "err", text: result.error });
-      else goNext();
-    });
   }
 
   function finishSalaryCap() {
@@ -165,8 +168,8 @@ export function LeagueOnboardingWizard({
 
       {step === "faction" ? (
         <section className="league-onboarding-step">
-          <h2>Faction name</h2>
-          <p>How should your faction appear in standings and matchups?</p>
+          <h2>Faction</h2>
+          <p>How should your faction appear in standings and matchups? The catchphrase is optional.</p>
           <label className="league-onboarding-label" htmlFor="onboard-team-name">
             Faction name <span>(max {FACTION_NAME_MAX_LENGTH} characters)</span>
           </label>
@@ -179,62 +182,6 @@ export function LeagueOnboardingWizard({
             maxLength={FACTION_NAME_MAX_LENGTH + 5}
             autoFocus
           />
-          <div className="league-onboarding-actions">
-            <button type="button" className="app-button" disabled={pending} onClick={handleFactionNext}>
-              {pending ? "Saving…" : "Continue"}
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      {step === "avatar" ? (
-        <section className="league-onboarding-step">
-          <h2>Manager avatar</h2>
-          <p>Pick a look for this league. You can use your account photo or choose a preset.</p>
-          <div className="league-onboarding-avatar-preview">
-            {previewUrl ? (
-              <Image src={previewUrl} alt="" width={72} height={72} className="league-onboarding-avatar-img" />
-            ) : (
-              <span className="league-onboarding-avatar-fallback">{initial}</span>
-            )}
-          </div>
-          <ManagerAvatarPresetPicker
-            selectedUrl={pickerSelected}
-            disabled={pending}
-            onSelect={(selection) => {
-              startTransition(async () => {
-                await saveAvatar(selection.url);
-              });
-            }}
-          />
-          <button
-            type="button"
-            className="app-button app-button--secondary"
-            style={{ marginTop: 12 }}
-            disabled={pending}
-            onClick={() => {
-              startTransition(async () => {
-                await saveAvatar(null);
-              });
-            }}
-          >
-            Use my account photo
-          </button>
-          <div className="league-onboarding-actions">
-            <button type="button" className="app-button app-button--secondary" onClick={goBack}>
-              Back
-            </button>
-            <button type="button" className="app-button" disabled={pending} onClick={handleAvatarNext}>
-              Continue
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      {step === "catchphrase" ? (
-        <section className="league-onboarding-step">
-          <h2>Catchphrase</h2>
-          <p>Optional tagline shown on standings — like a nickname for your faction.</p>
           <label className="league-onboarding-label" htmlFor="onboard-catchphrase">
             Catchphrase <span>(optional, max {MANAGER_CATCHPHRASE_MAX_LENGTH})</span>
           </label>
@@ -247,19 +194,63 @@ export function LeagueOnboardingWizard({
             maxLength={MANAGER_CATCHPHRASE_MAX_LENGTH + 5}
           />
           <div className="league-onboarding-actions">
+            <button type="button" className="app-button" disabled={pending} onClick={handleFactionNext}>
+              {pending ? "Saving…" : "Continue"}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {step === "avatar" ? (
+        <section className="league-onboarding-step">
+          <h2>Manager avatar</h2>
+          <p>
+            {needsAccountAvatar
+              ? "Pick your manager character. This becomes your account avatar and your look in this league."
+              : "Pick a look for this league. You can use your account photo or choose a preset."}
+          </p>
+          <div className="league-onboarding-avatar-preview">
+            {previewUrl ? (
+              <Image src={previewUrl} alt="" width={72} height={72} className="league-onboarding-avatar-img" />
+            ) : (
+              <span className="league-onboarding-avatar-fallback">{initial}</span>
+            )}
+          </div>
+          <ManagerAvatarPresetPicker
+            selectedUrl={pickerSelected}
+            disabled={pending}
+            onSelect={(selection) => {
+              startTransition(async () => {
+                await saveAvatar(selection.url, selection.avatarId);
+              });
+            }}
+          />
+          {needsAccountAvatar ? null : (
+            <button
+              type="button"
+              className="app-button app-button--secondary"
+              style={{ marginTop: 12 }}
+              disabled={pending}
+              onClick={() => {
+                startTransition(async () => {
+                  await saveAvatar(null);
+                });
+              }}
+            >
+              Use my account photo
+            </button>
+          )}
+          <div className="league-onboarding-actions">
             <button type="button" className="app-button app-button--secondary" onClick={goBack}>
               Back
             </button>
             <button
               type="button"
-              className="app-button app-button--secondary"
-              disabled={pending}
-              onClick={() => handleCatchphraseNext(true)}
+              className="app-button"
+              disabled={pending || (needsAccountAvatar && !accountAvatarSaved)}
+              onClick={handleAvatarNext}
             >
-              Skip
-            </button>
-            <button type="button" className="app-button" disabled={pending} onClick={() => handleCatchphraseNext(false)}>
-              {pending ? "Saving…" : "Continue"}
+              Continue
             </button>
           </div>
         </section>

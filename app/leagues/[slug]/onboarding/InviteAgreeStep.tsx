@@ -27,7 +27,7 @@ export function InviteAgreeStep({
   const [error, setError] = useState<string | null>(null);
 
   const nextStep = isSalaryCap
-    ? "After you agree, you'll name your faction, pick an avatar and catchphrase, then build your roster."
+    ? "After you agree, you'll name your faction, add an optional catchphrase, pick an avatar, then build your roster."
     : continuesToOnboarding
       ? "After you agree, you'll name your faction and finish league setup."
       : "After you agree, you'll go into the league.";

@@ -38,9 +38,15 @@ export default async function LeagueOnboardingPage({ params, searchParams }: Pro
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name, avatar_url")
+    .select("display_name, avatar_url, needs_avatar_selection, is_site_admin")
     .eq("id", user!.id)
     .maybeSingle();
+  const profileRow = profile as {
+    display_name?: string | null;
+    avatar_url?: string | null;
+    needs_avatar_selection?: boolean | null;
+    is_site_admin?: boolean | null;
+  } | null;
 
   const isSalaryCap = leagueUsesSalaryCap(league.league_type);
   const draftType = league.draft_type ?? "autopick";
@@ -56,12 +62,13 @@ export default async function LeagueOnboardingPage({ params, searchParams }: Pro
         initialTeamName={member?.team_name?.trim() ?? ""}
         initialCatchphrase={member?.manager_catchphrase?.trim() ?? ""}
         initialLeagueAvatarUrl={member?.manager_avatar_url ?? null}
-        profileAvatarUrl={(profile as { avatar_url?: string | null } | null)?.avatar_url ?? null}
+        profileAvatarUrl={profileRow?.avatar_url ?? null}
         displayName={
           member?.display_name?.trim() ||
-          (profile as { display_name?: string | null } | null)?.display_name?.trim() ||
+          profileRow?.display_name?.trim() ||
           "Manager"
         }
+        needsAccountAvatar={Boolean(profileRow?.needs_avatar_selection) && !profileRow?.is_site_admin}
         initialError={errorParam ? decodeURIComponent(errorParam) : null}
         initialStep={initialStep}
       />

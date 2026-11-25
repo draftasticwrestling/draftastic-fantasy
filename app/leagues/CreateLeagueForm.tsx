@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useCallback, useMemo, useState } from "react";
+import { ClosedPrivateCreatePanel } from "./ClosedPrivateCreatePanel";
 import { createLeagueAction, type CreateLeagueState } from "./new/actions";
 import {
   CREATE_SEASON_OPTIONS,
@@ -137,23 +138,10 @@ export function CreateLeagueForm({ isSiteAdmin = false, createStatus = "open" }:
     [useStandardRules]
   );
 
-  if (!isSiteAdmin && useStandardRules && createStatus !== "open") {
+  if (!isSiteAdmin && createStatus !== "open") {
     return (
-      <div className="form-group">
-        <p className="form-note" style={{ lineHeight: 1.6 }}>
-          {createStatus === "before_open" ? (
-            <>
-              <strong>Road to WrestleMania league creation opens November 21, 2026.</strong> The first
-              scored show is the Raw on November 30. New leagues can start through Monday, March 1, 2027,
-              six weeks before the expected WrestleMania weekend of April 10–11.
-            </>
-          ) : (
-            <>
-              <strong>Road to WrestleMania league creation is closed.</strong> New leagues had to start by
-              Monday, March 1, 2027, six weeks before WrestleMania.
-            </>
-          )}
-        </p>
+      <div className="create-league-form">
+        <ClosedPrivateCreatePanel createStatus={createStatus} buttonClassName="create-league-submit" />
       </div>
     );
   }
