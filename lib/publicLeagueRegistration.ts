@@ -18,6 +18,27 @@ export function publicLeagueMinimumTeams(leagueType: string | null | undefined):
     : PUBLIC_LEAGUE_MIN_TEAMS;
 }
 
+/**
+ * Carry unplaced members only for Monday closes at or after this instant.
+ * Leagues that already closed before the rule shipped keep the membership they had.
+ * 2026-11-26 00:00 PT.
+ */
+export const PUBLIC_LEAGUE_UNPLACED_CARRY_FROM_ISO = "2026-11-26T08:00:00.000Z";
+
+/** True once this league's own Monday close has arrived, and that close is covered by the carry rule. */
+export function publicLeagueUnplacedCarryIsDue(
+  league: { registration_closes_at?: string | null },
+  nowMs: number = Date.now()
+): boolean {
+  const closesAt = league.registration_closes_at;
+  if (!closesAt) return false;
+  const closeMs = Date.parse(closesAt);
+  const fromMs = Date.parse(PUBLIC_LEAGUE_UNPLACED_CARRY_FROM_ISO);
+  if (!Number.isFinite(closeMs) || !Number.isFinite(fromMs)) return false;
+  if (closeMs < fromMs) return false;
+  return nowMs >= closeMs;
+}
+
 /** RAW typically starts at 5:00 PM Pacific on Mondays. */
 export const PUBLIC_LEAGUE_RAW_START_HOUR_PT = 17;
 
@@ -88,13 +109,15 @@ export function isPublicLeagueRegistrationOpen(
   nowMs: number = Date.now()
 ): boolean {
   if (String(league.visibility_type ?? "").toLowerCase() !== "public") return false;
-  const status = String(league.public_status ?? "").toLowerCase();
-  if (status === "active" || status === "full") return false;
+  // Monday 5 PM PT is the only close. A full roster cap still leaves registration
+  // open until that time, so the league does not start early.
   const closesAt = league.registration_closes_at;
   if (closesAt) {
     const closeMs = Date.parse(closesAt);
-    if (Number.isFinite(closeMs) && nowMs >= closeMs) return false;
+    if (Number.isFinite(closeMs)) return nowMs < closeMs;
   }
+  const status = String(league.public_status ?? "").toLowerCase();
+  if (status === "active" || status === "full") return false;
   return true;
 }
 

@@ -406,11 +406,11 @@ export const getLeagueBySlug = cacheFn(
     if (!user) return null;
 
     const fullSelectBase =
-      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
+      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, registration_closes_at, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
     const fullSelect =
-      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, draft_timezone, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
+      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, draft_timezone, league_type, include_nxt, max_teams, visibility_type, public_status, public_sequence, join_code, registration_closes_at, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
     const fullSelectNoIncludeNxt =
-      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, draft_timezone, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
+      "id, name, slug, commissioner_id, start_date, end_date, season_slug, draft_date, draft_time, draft_timezone, league_type, max_teams, visibility_type, public_status, public_sequence, join_code, registration_closes_at, auto_reactivate, draft_style, draft_type, time_per_pick_seconds, draft_order_method, draft_status, draft_current_pick, manager_note, created_at";
     let result = await supabase.from("leagues").select(fullSelect).eq("slug", slug).maybeSingle();
     if (result.error?.code === "42703" && /draft_timezone/i.test(result.error.message ?? "")) {
       const fallback = await supabase.from("leagues").select(fullSelectBase).eq("slug", slug).maybeSingle();
@@ -1251,6 +1251,8 @@ export async function quickJoinOldestPublicLeague(): Promise<{
 function publicSalaryCapRegistrationUpdate(args: {
   leagueType: string | null | undefined;
   memberCount: number;
+  /** Everyone on the membership list, including factions that have not added a wrestler. */
+  enrolledCount?: number;
   registrationOpen: boolean;
   registrationClosesAt: string | null | undefined;
   maxTeams: number | null | undefined;
@@ -1258,10 +1260,19 @@ function publicSalaryCapRegistrationUpdate(args: {
   const minTeams = publicLeagueMinimumTeams(args.leagueType);
   const h2h = leagueIsSalaryCapHeadToHead(args.leagueType);
   if (args.registrationOpen) {
-    if (h2h && args.maxTeams != null && args.memberCount >= args.maxTeams) {
-      return { public_status: "full" };
+    const update: Record<string, unknown> = {};
+    if (h2h) {
+      // The season has not started. Undo a premature lock if one was written.
+      update.draft_status = "in_progress";
+      update.max_teams = PUBLIC_SALARY_CAP_H2H_MAX_TEAMS;
     }
-    return { public_status: publicLeagueStatusForMemberCount(args.memberCount, minTeams) };
+    const cap = h2h ? PUBLIC_SALARY_CAP_H2H_MAX_TEAMS : args.maxTeams ?? null;
+    const enrolled = args.enrolledCount ?? args.memberCount;
+    update.public_status =
+      cap != null && enrolled >= cap
+        ? "full"
+        : publicLeagueStatusForMemberCount(args.memberCount, minTeams);
+    return update;
   }
   if (args.memberCount >= minTeams) {
     const update: Record<string, unknown> = {
@@ -1389,21 +1400,30 @@ export async function syncPublicLeagueStatusBySlug(slug: string): Promise<void> 
   const draftStatus = String(row.draft_status ?? "not_started");
   const publicSalaryCap = isPublicSalaryCapLeague(row);
   const cap = publicSalaryCap ? row.max_teams ?? null : row.max_teams ?? 6;
+  const registrationOpen = isPublicLeagueRegistrationOpen(row);
 
   const updatePayload: Record<string, unknown> = {};
 
   if (publicSalaryCap) {
     const h2hLocked =
+      !registrationOpen &&
       leagueIsSalaryCapHeadToHead(row.league_type) &&
       String(row.public_status ?? "") === "active" &&
       String(row.draft_status ?? "") === "completed";
+    let enrolledCount = memberCount;
     if (!h2hLocked) {
+      const { count } = await admin
+        .from("league_members")
+        .select("user_id", { count: "exact", head: true })
+        .eq("league_id", row.id);
+      enrolledCount = count ?? memberCount;
       Object.assign(
         updatePayload,
         publicSalaryCapRegistrationUpdate({
           leagueType: row.league_type,
           memberCount,
-          registrationOpen: isPublicLeagueRegistrationOpen(row),
+          enrolledCount,
+          registrationOpen,
           registrationClosesAt: row.registration_closes_at,
           maxTeams: row.max_teams ?? null,
         })

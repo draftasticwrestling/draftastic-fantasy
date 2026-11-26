@@ -13,6 +13,7 @@ import {
   computePublicLeagueRegistrationSchedule,
   isPublicLeagueRegistrationOpen,
   publicLeagueMinimumTeams,
+  publicLeagueUnplacedCarryIsDue,
 } from "@/lib/publicLeagueRegistration";
 import { isPublicSalaryCapLeague } from "@/lib/publicLeagueSchedule";
 
@@ -347,7 +348,7 @@ export async function carryUnplacedPublicLeagueMembersWhenLeagueStarts(
 ): Promise<UnplacedCarryResult> {
   const empty: UnplacedCarryResult = { moved: 0, destinationSlug: null, movedUserIds: [] };
   if (!isPublicSalaryCapLeague(league)) return empty;
-  if (isPublicLeagueRegistrationOpen(league, nowMs)) return empty;
+  if (!publicLeagueUnplacedCarryIsDue(league, nowMs)) return empty;
 
   const admin = getAdminClient();
   if (!admin) return empty;
