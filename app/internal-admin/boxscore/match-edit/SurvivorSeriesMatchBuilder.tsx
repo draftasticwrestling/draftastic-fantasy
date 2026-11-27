@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import WrestlerAutocomplete from './WrestlerAutocomplete';
 
 const gold = '#C6A04F';
@@ -55,24 +55,42 @@ const eliminatedStyle = {
   color: '#888',
 };
 
+function padTeam(team) {
+  const next = Array.isArray(team) ? team.slice(0, 5).map((slug) => slug || '') : [];
+  while (next.length < 5) next.push('');
+  return next;
+}
+
 export default function SurvivorSeriesMatchBuilder({ 
   wrestlers = [], 
   value, 
   onChange, 
-  onResultChange 
+  onResultChange,
+  /** Saved survivorSeriesData when reopening a match. */
+  initialData = null,
 }) {
   const safeWrestlers = Array.isArray(wrestlers) ? wrestlers : [];
   
-  // Two teams of 5 wrestlers each
-  const [team1, setTeam1] = useState(Array(5).fill(''));
-  const [team2, setTeam2] = useState(Array(5).fill(''));
+  // Two teams of 5. Order is who enters next — it is not scored.
+  const [team1, setTeam1] = useState(() => padTeam(initialData?.team1));
+  const [team2, setTeam2] = useState(() => padTeam(initialData?.team2));
   
   // Eliminations: array of { eliminated: slug, eliminatedBy: slug, method: string, order: number }
-  const [eliminations, setEliminations] = useState([]);
+  const [eliminations, setEliminations] = useState(() =>
+    Array.isArray(initialData?.eliminations) ? initialData.eliminations.map((elim) => ({ ...elim })) : []
+  );
   
-  // Match result
-  const [survivor, setSurvivor] = useState('');
-  const [time, setTime] = useState('');
+  // '1' or '2'. The whole team wins, including members who were eliminated.
+  const [winningTeam, setWinningTeam] = useState(() => {
+    const stored = Number(initialData?.winningTeam);
+    return stored === 1 || stored === 2 ? String(stored) : '';
+  });
+  const [time, setTime] = useState(initialData?.time || '');
+  const onChangeRef = useRef(onChange);
+  const onResultChangeRef = useRef(onResultChange);
+  const lastResultKey = useRef('');
+  onChangeRef.current = onChange;
+  onResultChangeRef.current = onResultChange;
 
   // Update parent when participants change
   useEffect(() => {
@@ -94,47 +112,53 @@ export default function SurvivorSeriesMatchBuilder({
       const participantString = `${team1Str} vs ${team2Str}`;
       
       if (participantString !== value && participantString.trim() !== '') {
-        onChange(participantString, 'Survivor Series-style 10-man Tag Team Elimination match');
+        onChangeRef.current(participantString, 'Survivor Series-style 10-man Tag Team Elimination match');
       }
     }
-  }, [team1, team2, value, safeWrestlers, onChange]);
+  }, [team1, team2, value, safeWrestlers]);
+
+  // The team that scores 5 eliminations wins.
+  useEffect(() => {
+    const team1Out = eliminations.filter((e) => e.eliminated && team1.includes(e.eliminated)).length;
+    const team2Out = eliminations.filter((e) => e.eliminated && team2.includes(e.eliminated)).length;
+    if (team2Out >= 5 && team1Out < 5) setWinningTeam('1');
+    else if (team1Out >= 5 && team2Out < 5) setWinningTeam('2');
+  }, [eliminations, team1, team2]);
 
   // Update parent when result changes
   useEffect(() => {
-    if (survivor) {
-      const validTeam1 = team1.filter(t => t.trim());
-      const validTeam2 = team2.filter(t => t.trim());
-      
-      const team1Names = validTeam1.map(slug => {
-        const wrestler = safeWrestlers.find(w => w.id === slug);
-        return wrestler ? wrestler.name : slug;
-      });
-      
-      const team2Names = validTeam2.map(slug => {
-        const wrestler = safeWrestlers.find(w => w.id === slug);
-        return wrestler ? wrestler.name : slug;
-      });
-      
-      const survivorName = safeWrestlers.find(w => w.id === survivor)?.name || survivor;
-      
-      // Determine winning team based on survivor
-      const winningTeam = team1.includes(survivor) ? 1 : (team2.includes(survivor) ? 2 : null);
-      
-      const resultData = {
-        team1: validTeam1,
-        team2: validTeam2,
-        eliminations: eliminations,
-        survivor: survivor,
-        survivorName: survivorName,
-        winningTeam: winningTeam,
-        team1Names: team1Names,
-        team2Names: team2Names,
-        time: time
-      };
-      
-      onResultChange(resultData);
-    }
-  }, [survivor, eliminations, team1, team2, time, safeWrestlers, onResultChange]);
+    if (winningTeam !== '1' && winningTeam !== '2') return;
+    const validTeam1 = team1.filter(t => t.trim());
+    const validTeam2 = team2.filter(t => t.trim());
+    if (validTeam1.length === 0 || validTeam2.length === 0) return;
+
+    const nameFor = (slug) => safeWrestlers.find(w => w.id === slug)?.name || slug;
+    const team1Names = validTeam1.map(nameFor);
+    const team2Names = validTeam2.map(nameFor);
+    const winningSide = winningTeam === '1' ? validTeam1 : validTeam2;
+    const eliminated = new Set(eliminations.map((e) => e.eliminated).filter(Boolean));
+    const survivors = winningSide.filter((slug) => !eliminated.has(slug));
+    const survivorNames = survivors.map(nameFor);
+
+    const resultData = {
+      team1: validTeam1,
+      team2: validTeam2,
+      eliminations: eliminations,
+      survivor: survivors[0] || '',
+      survivorName: survivorNames.join(', '),
+      survivors,
+      survivorNames,
+      winningTeam: Number(winningTeam),
+      team1Names: team1Names,
+      team2Names: team2Names,
+      time: time
+    };
+
+    const resultKey = JSON.stringify(resultData);
+    if (resultKey === lastResultKey.current) return;
+    lastResultKey.current = resultKey;
+    onResultChangeRef.current(resultData);
+  }, [winningTeam, eliminations, team1, team2, time, safeWrestlers]);
 
   const updateTeamMember = (teamNum, index, value) => {
     if (teamNum === 1) {
@@ -191,15 +215,18 @@ export default function SurvivorSeriesMatchBuilder({
     <div style={{ marginBottom: 16 }}>
       {/* Team 1 */}
       <div style={teamSectionStyle}>
-        <div style={{ color: gold, fontWeight: 'bold', marginBottom: '12px' }}>
-          Team 1 (5 wrestlers)
+        <div style={{ color: gold, fontWeight: 'bold', marginBottom: '4px' }}>
+          Team 1
+        </div>
+        <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '12px' }}>
+          List them in the order they enter. One wrestler is legal at a time. Entry order is not scored.
         </div>
         {team1.map((wrestler, index) => {
           const isEliminated = getEliminatedParticipants().includes(wrestler);
           return (
             <div key={index} style={{ marginBottom: '8px' }}>
               <label style={{ color: '#fff', fontSize: '12px', marginBottom: '4px', display: 'block', ...(isEliminated ? eliminatedStyle : {}) }}>
-                Wrestler {index + 1}: {isEliminated && '(Eliminated)'}
+                Enters {index + 1}: {isEliminated && '(Eliminated)'}
               </label>
               <WrestlerAutocomplete
                 wrestlers={safeWrestlers}
@@ -214,15 +241,18 @@ export default function SurvivorSeriesMatchBuilder({
 
       {/* Team 2 */}
       <div style={teamSectionStyle}>
-        <div style={{ color: gold, fontWeight: 'bold', marginBottom: '12px' }}>
-          Team 2 (5 wrestlers)
+        <div style={{ color: gold, fontWeight: 'bold', marginBottom: '4px' }}>
+          Team 2
+        </div>
+        <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '12px' }}>
+          List them in the order they enter. One wrestler is legal at a time. Entry order is not scored.
         </div>
         {team2.map((wrestler, index) => {
           const isEliminated = getEliminatedParticipants().includes(wrestler);
           return (
             <div key={index} style={{ marginBottom: '8px' }}>
               <label style={{ color: '#fff', fontSize: '12px', marginBottom: '4px', display: 'block', ...(isEliminated ? eliminatedStyle : {}) }}>
-                Wrestler {index + 1}: {isEliminated && '(Eliminated)'}
+                Enters {index + 1}: {isEliminated && '(Eliminated)'}
               </label>
               <WrestlerAutocomplete
                 wrestlers={safeWrestlers}
@@ -242,7 +272,7 @@ export default function SurvivorSeriesMatchBuilder({
             Eliminations
           </div>
           <div style={{ color: '#fff', fontSize: '12px', marginBottom: '12px' }}>
-            Track each elimination in order. The last remaining wrestler is the survivor.
+            One person per team is in the ring. When someone is eliminated, the next teammate comes in. The team that scores 5 eliminations wins. Everyone on the winning team gets the win, even teammates who were eliminated. Each elimination is +3 for the wrestler who scores it.
           </div>
           
           {eliminations.map((elimination, index) => (
@@ -282,7 +312,12 @@ export default function SurvivorSeriesMatchBuilder({
                   style={inputStyle}
                 >
                   <option value="">Select wrestler...</option>
-                  {getAllParticipants().filter(p => p !== elimination.eliminated).map(slug => (
+                  {(elimination.eliminated && team1.includes(elimination.eliminated)
+                    ? team2.filter((slug) => slug.trim())
+                    : elimination.eliminated && team2.includes(elimination.eliminated)
+                      ? team1.filter((slug) => slug.trim())
+                      : getAllParticipants().filter((slug) => slug !== elimination.eliminated)
+                  ).map(slug => (
                     <option key={slug} value={slug}>{getWrestlerName(slug)}</option>
                   ))}
                 </select>
@@ -378,19 +413,21 @@ export default function SurvivorSeriesMatchBuilder({
         
         <div style={{ marginBottom: '12px' }}>
           <label style={{ color: '#fff', fontSize: '12px', marginBottom: '4px', display: 'block' }}>
-            Survivor (Last remaining wrestler): *
+            Winning team: *
           </label>
           <select
-            value={survivor}
-            onChange={(e) => setSurvivor(e.target.value)}
+            value={winningTeam}
+            onChange={(e) => setWinningTeam(e.target.value)}
             style={inputStyle}
             required
           >
-            <option value="">Select survivor...</option>
-            {getRemainingParticipants().map(slug => (
-              <option key={slug} value={slug}>{getWrestlerName(slug)}</option>
-            ))}
+            <option value="">Select winning team...</option>
+            <option value="1">Team 1</option>
+            <option value="2">Team 2</option>
           </select>
+          <div style={{ color: '#aaa', fontSize: '11px' }}>
+            Fills in automatically once one team has eliminated all 5 opponents.
+          </div>
         </div>
 
         <div style={{ marginBottom: '12px' }}>
@@ -406,13 +443,18 @@ export default function SurvivorSeriesMatchBuilder({
           />
         </div>
 
-        {survivor && (
+        {winningTeam && (
           <div style={{ marginTop: '12px', padding: '12px', background: '#333', borderRadius: '4px' }}>
             <div style={{ color: gold, fontWeight: 'bold', marginBottom: '4px' }}>
-              Winning Team:
+              Winning team: Team {winningTeam}
             </div>
-            <div style={{ color: '#fff' }}>
-              {team1.includes(survivor) ? 'Team 1' : 'Team 2'}
+            <div style={{ color: '#fff', fontSize: '13px' }}>
+              Still in: {(() => {
+                const side = winningTeam === '1' ? team1 : team2;
+                const eliminated = getEliminatedParticipants();
+                const left = side.filter((slug) => slug.trim() && !eliminated.includes(slug));
+                return left.length ? left.map(getWrestlerName).join(', ') : 'None — every winner was eliminated';
+              })()}
             </div>
           </div>
         )}

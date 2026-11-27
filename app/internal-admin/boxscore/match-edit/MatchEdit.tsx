@@ -2280,6 +2280,7 @@ export default function MatchEdit({
           <SurvivorSeriesMatchBuilder
             wrestlers={safeWrestlers}
             value={match.participants}
+            initialData={initialMatch.survivorSeriesData || match.survivorSeriesData}
             onChange={(value, matchType) => {
               const newMatch = { ...match, participants: value };
               if (matchType) newMatch.matchType = matchType;
@@ -2294,13 +2295,14 @@ export default function MatchEdit({
                 ssResult.winningTeam === 1
                   ? ssResult.team2Names.join(' & ')
                   : ssResult.team1Names.join(' & ');
-              const survivorLabel = ssResult.survivorName || ssResult.survivor;
-              const resultText = `${winningTeamNames} def. ${losingTeamNames} (Survivor: ${survivorLabel}${ssResult.time ? `, ${ssResult.time}` : ''})`;
+              const resultText = ssResult.time
+                ? `${winningTeamNames} def. ${losingTeamNames} · ${ssResult.time}`
+                : `${winningTeamNames} def. ${losingTeamNames}`;
               setMatch((prev) => ({
                 ...prev,
                 survivorSeriesData: ssResult,
-                winner: survivorLabel,
-                method: 'Pinfall',
+                winner: winningTeamNames,
+                method: 'Elimination',
                 time: ssResult.time || prev.time,
                 result: resultText,
               }));

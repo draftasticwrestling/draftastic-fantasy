@@ -199,10 +199,11 @@ export default function PointsPage() {
               ["Main Eventing", 30],
               ["Winning War Games", 30],
               ["Winning Your Match", 20],
-              ["Wrestler Who Makes the Pin", 20],
+              ["War Games deciding pin or submission", 20],
               ["Being on a War Games Team", 15],
               ["Being on the Non-ME Card", 10],
               ["Point bonus for entry order (1st = 10 pts, 5th = 2 pts)", "10,8,6,4,2"],
+              ["Each elimination in a traditional Survivor Series match", 3],
             ]}
           />
           <EventTable

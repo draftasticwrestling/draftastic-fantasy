@@ -3091,26 +3091,44 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
               );
             })}
           </div>
-          {match.survivorSeriesData.survivorName || match.survivorSeriesData.survivor ? (
-            <div style={{ 
-              color: '#C6A04F', 
-              fontWeight: 700, 
-              fontSize: 14, 
-              marginTop: 12, 
-              paddingTop: 12, 
-              borderTop: '1px solid #444',
-              textAlign: 'center'
-            }}>
-              Survivor: {wrestlerMap[match.survivorSeriesData.survivor]?.name || match.survivorSeriesData.survivorName || match.survivorSeriesData.survivor}
-            </div>
-          ) : null}
-          {Array.isArray(match.participants) && match.participants.length > 0 && (
+          {(() => {
+            const names = Array.isArray(match.survivorSeriesData.survivorNames)
+              ? match.survivorSeriesData.survivorNames.filter(Boolean)
+              : [];
+            const label = names.length
+              ? names.join(', ')
+              : (wrestlerMap[match.survivorSeriesData.survivor]?.name || match.survivorSeriesData.survivorName || match.survivorSeriesData.survivor);
+            if (!label) return null;
+            const title = names.length > 1 ? 'Survivors' : 'Survivor';
+            return (
+              <div style={{
+                color: '#C6A04F',
+                fontWeight: 700,
+                fontSize: 14,
+                marginTop: 12,
+                paddingTop: 12,
+                borderTop: '1px solid #444',
+                textAlign: 'center'
+              }}>
+                {title}: {label}
+              </div>
+            );
+          })()}
+          {(() => {
+            const fromTeams = [
+              ...(Array.isArray(match.survivorSeriesData.team1) ? match.survivorSeriesData.team1 : []),
+              ...(Array.isArray(match.survivorSeriesData.team2) ? match.survivorSeriesData.team2 : []),
+            ];
+            const fromParticipants = Array.isArray(match.participants) ? match.participants : [];
+            const pointSlugs = [...new Set([...fromParticipants, ...fromTeams].map((s) => String(s).trim()).filter(Boolean))];
+            if (pointSlugs.length === 0) return null;
+            return (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #444' }}>
               <div style={{ color: '#C6A04F', fontWeight: 600, fontSize: 12, marginBottom: 8, textAlign: 'center' }}>
                 Fantasy points
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 12 }}>
-                {[...new Set(match.participants.map((s) => String(s).trim()).filter(Boolean))].map((slug) => (
+                {pointSlugs.map((slug) => (
                   <div key={slug} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: 130 }}>
                     <span style={{ fontSize: 10, color: '#aaa', marginBottom: 2, textAlign: 'center', lineHeight: 1.2 }}>
                       {wrestlerMap[slug]?.name || slug}
@@ -3120,7 +3138,8 @@ export default function MatchCard({ match, event, wrestlerMap, isClickable = tru
                 ))}
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       )}
 

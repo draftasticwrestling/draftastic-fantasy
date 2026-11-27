@@ -93,6 +93,9 @@ export function HowItWorksMainRosterEventScoring({ intro }: Props) {
               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 8 }}>
                 Men&apos;s War Games is expected to main-event; War Games scoring does not stack additional main-event
                 points (Winning War Games = Winning the Main Event). Entry order within each team: 10 / 8 / 6 / 4 / 2.
+                A traditional 5-on-5 Survivor Series match uses the normal card and win points: everyone in the match
+                gets appearance points, and every member of the winning team gets the win, including teammates who were
+                eliminated. Each opponent you eliminate is +3. There is no entrance-order bonus.
               </p>
             </div>
             <div className={styles.eventCard}>

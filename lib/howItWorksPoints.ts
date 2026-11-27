@@ -123,10 +123,11 @@ export const SURVIVOR_SERIES_POINTS: [string, number | string][] = [
   ["Main Eventing", 30],
   ["Winning War Games", 30],
   ["Winning Your Match", 20],
-  ["Wrestler Who Makes the Pin", 20],
+  ["War Games deciding pin or submission", 20],
   ["Being on a War Games Team", 15],
   ["Being on the Non-ME Card", 10],
   ["Point Bonus for Entry Order", "10,8,6,4,2"],
+  ["Each elimination in a traditional Survivor Series match", 3],
 ];
 
 export const ROYAL_RUMBLE_POINTS: [string, number][] = [
