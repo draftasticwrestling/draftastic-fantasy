@@ -11,9 +11,9 @@ import { parseHowItWorksTabParam } from "./howItWorksTabConfig";
 import styles from "./HowItWorks.module.css";
 
 export const metadata = {
-  title: "How it Works — Draftastic Fantasy",
+  title: { absolute: "How Fantasy Pro Wrestling Works — Draftastic" },
   description:
-    "Public salary cap leagues, Beat the Founders, and Road to season scoring (SummerSlam, War Games, WrestleMania).",
+    "How fantasy pro wrestling works on Draftastic: public salary cap leagues, private leagues, and season scoring for SummerSlam, War Games, and WrestleMania.",
 };
 
 function TabsFallback() {

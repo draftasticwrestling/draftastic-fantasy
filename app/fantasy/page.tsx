@@ -11,6 +11,7 @@ import { getUserCareerStats } from "@/lib/userCareerStats";
 import { PLAY_PATH } from "@/lib/playFunnel";
 import { getAdsenseSlotFantasy } from "@/lib/adsenseConfig";
 import { siteLogoHref } from "@/lib/siteLogo";
+import { absoluteUrl } from "@/lib/sitePublicOrigin";
 
 const IMG = "https://qvbqxietcmweltxoonvh.supabase.co/storage/v1/object/public/draftastic-screenshots";
 
@@ -43,8 +44,10 @@ type MemberLeagueRow = {
 };
 
 export const metadata = {
-  title: "Fantasy — Draftastic",
-  description: "Create a league, draft your roster, and play fantasy pro wrestling.",
+  title: { absolute: "Play Fantasy Pro Wrestling — Draftastic" },
+  description:
+    "Create a league or join a public one and play fantasy pro wrestling. Draft a roster, track every match, and compete with friends.",
+  alternates: { canonical: absoluteUrl("/fantasy") },
 };
 
 export default async function FantasyHomePage() {

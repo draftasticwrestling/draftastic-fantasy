@@ -13,6 +13,7 @@ export function SeoSiteJsonLd() {
         "@type": "WebSite",
         "@id": `${url}/#website`,
         name: SEO_SITE_NAME,
+        alternateName: ["Draftastic Fantasy Pro Wrestling", "Draftastic"],
         url,
         description: SEO_DEFAULT_DESCRIPTION,
         publisher: { "@id": `${url}/#organization` },
@@ -22,8 +23,25 @@ export function SeoSiteJsonLd() {
         "@type": "Organization",
         "@id": `${url}/#organization`,
         name: SEO_SITE_NAME,
+        alternateName: ["Draftastic Fantasy Pro Wrestling", "Draftastic"],
         url,
         description: SEO_DEFAULT_DESCRIPTION,
+      },
+      {
+        "@type": "WebApplication",
+        "@id": `${url}/#app`,
+        name: "Draftastic Fantasy Pro Wrestling",
+        url,
+        applicationCategory: "GameApplication",
+        operatingSystem: "Web",
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+        },
+        description:
+          "Fantasy pro wrestling game where you draft real WWE and NXT wrestlers and score points from Raw, SmackDown, NXT, and premium live events.",
+        publisher: { "@id": `${url}/#organization` },
       },
     ],
   };

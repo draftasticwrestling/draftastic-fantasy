@@ -46,6 +46,10 @@ export default function FantasyHubHero() {
 
       <div className="hub-hero-inner hub-hero-inner--below-banner">
         <div className="hub-hero-copy">
+          <h1>Fantasy Pro Wrestling</h1>
+          <p className="hub-hero-tagline">
+            Draft real WWE and NXT wrestlers, score every show, and compete in leagues.
+          </p>
           {postPromo ? (
             <div className="hub-hero-actions">
               <Link href={PLAY_PATH} className="hub-hero-btn hub-hero-btn-primary hub-hero-btn-play">
@@ -79,7 +83,7 @@ export default function FantasyHubHero() {
       <div id={panelId} className="hub-hero-expand-wrap" hidden={!open || postPromo}>
         <div className="hub-hero-expand">
           <section className="hub-hero-expand-section" aria-labelledby="hub-expand-s2">
-            <h2 id="hub-expand-s2">Fantasy Wrestling. But Actually Good.</h2>
+            <h2 id="hub-expand-s2">Fantasy Pro Wrestling. But Actually Good.</h2>
             <p>You already predict who&apos;s getting pushed.</p>
             <p>You already argue about booking.</p>
             <p>You already know who should be champion.</p>

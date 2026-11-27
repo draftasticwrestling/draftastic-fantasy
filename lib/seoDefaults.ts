@@ -7,9 +7,10 @@ export const SEO_SITE_NAME = "Draftastic Pro Wrestling";
 
 /** Default meta description (keep ~150–160 chars for SERP snippets). */
 export const SEO_DEFAULT_DESCRIPTION =
-  "WWE and NXT event results, fantasy wrestling leagues, scoring, championship history, and news — Draftastic Pro Wrestling.";
+  "Fantasy pro wrestling leagues, WWE and NXT results, scoring, championship history, and news — Draftastic.";
 
 export const SEO_DEFAULT_KEYWORDS = [
+  "fantasy pro wrestling",
   "pro wrestling",
   "WWE",
   "NXT",

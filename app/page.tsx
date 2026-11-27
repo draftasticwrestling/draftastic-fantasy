@@ -12,7 +12,6 @@ import BreakingNewsBanner from "@/app/components/BreakingNewsBanner";
 import { getAdsenseSlotHubHome } from "@/lib/adsenseConfig";
 import { getActiveBreakingNews } from "@/lib/breakingNews";
 import {
-  SEO_DEFAULT_DESCRIPTION,
   SEO_DEFAULT_KEYWORDS,
   SEO_DEFAULT_OG_IMAGE_PATH,
   SEO_SITE_NAME,
@@ -22,25 +21,27 @@ import { absoluteUrl } from "@/lib/sitePublicOrigin";
 /** Cache homepage shell and revalidate frequently to reduce SSR compute. */
 export const revalidate = 120;
 
-const homeTitle = "Results, fantasy leagues & news";
+const homeTitle = "Fantasy Pro Wrestling";
+const homeDescription =
+  "Play fantasy pro wrestling on Draftastic. Draft real WWE and NXT wrestlers, score Raw, SmackDown, and premium live events, and compete in leagues.";
 
 export const metadata: Metadata = {
-  title: { absolute: `${SEO_SITE_NAME} — ${homeTitle}` },
-  description: SEO_DEFAULT_DESCRIPTION,
+  title: { absolute: `${homeTitle} — Draftastic` },
+  description: homeDescription,
   keywords: [...SEO_DEFAULT_KEYWORDS, "wrestling news", "WWE results", "NXT results"],
   alternates: { canonical: absoluteUrl("/") },
   openGraph: {
-    title: `${SEO_SITE_NAME} — ${homeTitle}`,
-    description: SEO_DEFAULT_DESCRIPTION,
+    title: `${homeTitle} — Draftastic`,
+    description: homeDescription,
     url: absoluteUrl("/"),
     type: "website",
     siteName: SEO_SITE_NAME,
-    images: [{ url: SEO_DEFAULT_OG_IMAGE_PATH, alt: `${SEO_SITE_NAME} hub` }],
+    images: [{ url: SEO_DEFAULT_OG_IMAGE_PATH, alt: "Draftastic fantasy pro wrestling" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SEO_SITE_NAME} — ${homeTitle}`,
-    description: SEO_DEFAULT_DESCRIPTION,
+    title: `${homeTitle} — Draftastic`,
+    description: homeDescription,
     images: [SEO_DEFAULT_OG_IMAGE_PATH],
   },
 };
@@ -83,7 +84,7 @@ export default async function HubHomePage({
                 <Link href="/event-results">Events</Link>
                 <Link href="/wrestlers">Wrestlers</Link>
                 <Link href="/leaderboards">Leaderboards</Link>
-                <FantasyHomeLink>Fantasy home</FantasyHomeLink>
+                <FantasyHomeLink>Fantasy pro wrestling</FantasyHomeLink>
                 <Link href="/how-it-works">Fantasy rules</Link>
               </nav>
             </aside>

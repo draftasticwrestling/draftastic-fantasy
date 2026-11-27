@@ -1,6 +1,13 @@
 import Link from "next/link";
+import { absoluteUrl } from "@/lib/sitePublicOrigin";
 
 const SUPPORT_EMAIL = "draftasticwrestling@gmail.com";
+
+const WHAT_IS_FANTASY_PRO_WRESTLING = {
+  question: "What is fantasy pro wrestling?",
+  answer:
+    "Fantasy pro wrestling is a fantasy sports game played with real wrestlers. On Draftastic you draft WWE and NXT wrestlers, earn points from Raw, SmackDown, NXT, and premium live events, and compete in public or private leagues. It is separate from an e-fed, where people write fictional wrestlers and storylines.",
+};
 
 type FaqItem = {
   q: string;
@@ -18,6 +25,10 @@ const SECTIONS: FaqSection[] = [
     id: "fantasy-gameplay",
     title: "Fantasy Gameplay",
     items: [
+      {
+        q: WHAT_IS_FANTASY_PRO_WRESTLING.question,
+        a: <p style={{ margin: 0 }}>{WHAT_IS_FANTASY_PRO_WRESTLING.answer}</p>,
+      },
       {
         q: "How is fantasy scoring calculated?",
         a: (
@@ -261,13 +272,31 @@ const SECTIONS: FaqSection[] = [
 ];
 
 export const metadata = {
-  title: "FAQ — Draftastic Fantasy",
-  description: "Frequently asked questions about gameplay, scoring, events, accounts, GM tools, and support.",
+  title: { absolute: "Fantasy Pro Wrestling FAQ — Draftastic" },
+  description:
+    "What fantasy pro wrestling is, plus how Draftastic scoring, leagues, events, and accounts work.",
+  alternates: { canonical: absoluteUrl("/faq") },
+};
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: WHAT_IS_FANTASY_PRO_WRESTLING.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: WHAT_IS_FANTASY_PRO_WRESTLING.answer,
+      },
+    },
+  ],
 };
 
 export default function FaqPage() {
   return (
     <main className="app-page" style={{ maxWidth: 920, fontSize: 16, lineHeight: 1.55 }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <p style={{ marginBottom: 24 }}>
         <Link href="/">← Home</Link>
       </p>
